@@ -6,7 +6,7 @@ kartu kredit**:
 ```
 Browser
   → Vercel (frontend React/Vite, static hosting)
-      → Koyeb (backend Go, free web service)
+      → Back4app Containers (backend Go, free container hosting)
           → Neon (Postgres, free tier)
           → Cloudinary (foto produk, free tier)
 ```
@@ -18,11 +18,16 @@ backend start, termasuk seed data & akun demo — jadi begitu backend pertama ka
 database Neon yang masih kosong, semua tabel + data contoh langsung ada, tidak perlu setup
 manual di database.
 
-> **Kenapa Koyeb, bukan Render?** Render sekarang mewajibkan kartu kredit untuk membuat service
-> baru (termasuk lewat Blueprint `render.yaml`). Koyeb tidak mewajibkan kartu kredit di awal
-> (baru diminta kalau sistem mereka gagal memverifikasi otomatis bahwa pendaftarnya manusia,
-> jarang terjadi). File `render.yaml` di root repo tetap disimpan sebagai alternatif kalau
-> nanti Anda memutuskan pakai Render juga — tidak dipakai di panduan ini.
+> **Riwayat percobaan platform backend** (dunia hosting gratis ini berubah cepat, dicatat supaya
+> jelas kenapa bukan pilihan pertama):
+> - **Render** sekarang mewajibkan kartu kredit untuk membuat service baru (termasuk lewat
+>   Blueprint `render.yaml`). File `render.yaml` di root repo tetap disimpan sebagai alternatif
+>   kalau nanti Anda punya kartu dan mau pakai Render.
+> - **Koyeb** baru diakuisisi Mistral AI (Maret 2026) dan menghapus tier gratisnya sama sekali.
+> - **Back4app Containers** (dipakai di panduan ini) memang secara eksplisit menyatakan "no
+>   credit card required" di halaman pricing resminya, deploy dari Dockerfile di GitHub sama
+>   seperti dua platform di atas. Backend project ini sudah kompatibel apa adanya (baca `PORT`
+>   dari environment variable, sesuai yang disyaratkan Back4app).
 
 Total waktu: sekitar 20-30 menit, semua lewat dashboard web (klik-klik), tidak perlu command
 line di sisi Anda kecuali sudah ditangani di sesi ini (push ke GitHub, cek koneksi database).
@@ -54,40 +59,48 @@ Kalau belum: buka [neon.tech](https://neon.tech) → sign up → buat project ba
 
 ---
 
-## 3. Deploy backend ke Koyeb
+## 3. Deploy backend ke Back4app Containers
 
-1. Buka [koyeb.com](https://www.koyeb.com), **Sign up** — paling gampang pakai tombol "Sign up
-   with GitHub" (sekalian kasih akses ke repo `mwidyr/ks-shop`).
-2. Di dashboard Koyeb → **Create Web Service** (atau **Create App** → **Web Service**).
-3. **Deployment method** → pilih **GitHub** → pilih repo `mwidyr/ks-shop` → branch `main`.
-4. **Builder** → pilih **Dockerfile**.
-5. **Work directory** (kadang disebut "Root directory") → isi `backend` — ini penting, supaya
-   Koyeb membangun image dari `backend/Dockerfile`, bukan dari root repo yang isinya
-   frontend+backend sekaligus.
-6. **Environment variables** → tambahkan:
-   | Key | Value |
-   |---|---|
-   | `DATABASE_URL` | connection string Neon dari langkah 1 |
-   | `JWT_SECRET` | string acak bebas, contoh: `ganti-dengan-string-panjang-acak-anda` |
-   | `CLOUDINARY_CLOUD_NAME` | dari Cloudinary langkah 2 |
-   | `CLOUDINARY_API_KEY` | dari Cloudinary langkah 2 |
-   | `CLOUDINARY_API_SECRET` | dari Cloudinary langkah 2 |
-   | `PORT` | `8080` (opsional, ini sudah default kalau tidak diisi) |
-7. **Exposing your service / Ports** → set port ke `8080`, protocol HTTP.
-8. **Health check** → isi path `/health`.
-9. **Instance type** → pilih yang **Free**.
-10. Klik **Deploy**. Tunggu build selesai (~2-3 menit untuk build Docker image Go).
-11. Setelah status **Healthy**, copy URL service-nya, bentuknya kira-kira:
-    `https://ks-shop-backend-<nama-org-anda>.koyeb.app`
-12. Cek backend hidup & migrasi sudah jalan:
-    ```
-    https://ks-shop-backend-<nama-org-anda>.koyeb.app/health
-    ```
-    Harus balas `{"status":"ok"}`.
+1. Buka [back4app.com](https://www.back4app.com) → **Sign up** (tidak perlu kartu kredit) →
+   pilih produk **Containers** (bukan "Backend as a Service"/Parse yang jadi produk utama
+   mereka — pastikan masuk ke bagian **Container as a Service**).
+2. **Connect GitHub** → beri akses ke repo `mwidyr/ks-shop` → pilih repo tersebut.
+3. Isi konfigurasi deployment:
+   - **Nama aplikasi** → bebas, misal `ks-shop-backend`.
+   - **Branch** → `main`.
+   - **Root Directory** → isi `backend` — penting, supaya Back4app menemukan
+     `backend/Dockerfile` dan build context-nya dari folder `backend/`, bukan root repo yang
+     berisi frontend+backend sekaligus.
+   - **Environment Variables** → tambahkan (nama variabel harus huruf besar, sudah sesuai
+     semua nama env var project ini):
+     | Key | Value |
+     |---|---|
+     | `DATABASE_URL` | connection string Neon dari langkah 1 |
+     | `JWT_SECRET` | string acak bebas, contoh: `ganti-dengan-string-panjang-acak-anda` |
+     | `CLOUDINARY_CLOUD_NAME` | dari Cloudinary langkah 2 |
+     | `CLOUDINARY_API_KEY` | dari Cloudinary langkah 2 |
+     | `CLOUDINARY_API_SECRET` | dari Cloudinary langkah 2 |
 
-> Catatan: instance Free Koyeb scale-to-zero setelah ±1 jam tanpa traffic — request berikutnya
-> butuh beberapa detik untuk "bangun" lagi (cold start). Batasan wajar untuk tier gratis, cocok
-> untuk demo/portofolio.
+     Tidak perlu isi `PORT` manual — Back4app menyuntikkan env var `PORT` sendiri secara
+     dinamis, dan backend project ini sudah otomatis membaca & listen di port itu.
+4. Klik tombol untuk membuat/deploy aplikasi (biasanya **Create App** atau **Deploy**). Tunggu
+   build Docker image selesai.
+5. Setelah statusnya running, buka halaman **Overview** aplikasi untuk mendapat URL publiknya,
+   bentuknya kira-kira: `https://ks-shop-backend-xxxx.b4a.run` (formatnya bisa sedikit berbeda).
+6. Cek backend hidup & migrasi sudah jalan:
+   ```
+   https://<url-app-anda>/health
+   ```
+   Harus balas `{"status":"ok"}`.
+
+> Catatan: free tier Back4app Containers pakai resource terbatas (0.25 shared CPU, 256MB RAM,
+> region US saja) — cukup untuk demo/portofolio, tapi kalau ada perilaku sleep/limit jam aktif
+> yang tidak terduga saat dipakai, itu wajar untuk tier gratis; cek dashboard mereka untuk detail
+> real-time-nya.
+>
+> **UI dashboard bisa saja beda label** dari yang tertulis di atas (platform hosting sering
+> mengubah tampilan). Kalau ada langkah yang tidak cocok dengan yang Anda lihat, screenshot atau
+> jelaskan apa yang tampil — sesuaikan bareng-bareng.
 
 ---
 
@@ -100,8 +113,8 @@ Kalau belum: buka [neon.tech](https://neon.tech) → sign up → buat project ba
    - **Framework Preset** → otomatis terdeteksi "Vite", biarkan default (build command
      `npm run build`, output `dist`).
    - **Environment Variables** → tambah satu:
-     - `VITE_API_URL` = `https://ks-shop-backend-<nama-org-anda>.koyeb.app/api` (URL backend dari
-       langkah 3, **ditambah `/api` di akhir**)
+     - `VITE_API_URL` = URL backend dari langkah 3 **ditambah `/api` di akhir**, contoh:
+       `https://ks-shop-backend-xxxx.b4a.run/api`
 4. Klik **Deploy**. Tunggu ~1-2 menit.
 5. Setelah selesai, Vercel kasih URL publik, contoh: `https://ks-shop.vercel.app`.
 
@@ -132,20 +145,21 @@ File `frontend/vercel.json` sudah disiapkan supaya semua route React Router (mis
 Kalau ada halaman blank atau error CORS di console browser: backend sudah diset
 `AllowedOrigins: []string{"*"}` (izinkan semua origin) jadi seharusnya tidak ada masalah CORS —
 kalau tetap terjadi, cek dulu apakah `VITE_API_URL` di Vercel sudah benar (harus persis URL
-Koyeb + `/api`, tanpa trailing slash ganda).
+backend Back4app + `/api`, tanpa trailing slash ganda).
 
 ---
 
 ## 6. Update selanjutnya
 
-Repo ini sudah tersambung ke Koyeb & Vercel lewat GitHub. Alur update berikutnya:
+Repo ini sudah tersambung ke Back4app & Vercel lewat GitHub. Alur update berikutnya:
 
 ```
 edit kode → git commit → git push origin main
 ```
 
-Koyeb dan Vercel otomatis mendeteksi push baru ke branch `main` dan re-deploy sendiri — tidak
-perlu ulangi langkah manual di atas, kecuali kalau menambah environment variable baru.
+Back4app dan Vercel otomatis mendeteksi push baru ke branch `main` dan re-deploy sendiri (kalau
+Auto Deployment diaktifkan) — tidak perlu ulangi langkah manual di atas, kecuali kalau menambah
+environment variable baru.
 
 ---
 
@@ -154,7 +168,7 @@ perlu ulangi langkah manual di atas, kecuali kalau menambah environment variable
 | Layanan | Fungsi | Kartu kredit? | Batasan free tier yang relevan |
 |---|---|---|---|
 | Vercel | Hosting frontend | Tidak perlu | Sangat generous untuk proyek pribadi |
-| Koyeb | Hosting backend Go | Tidak perlu (biasanya) | Scale-to-zero setelah ±1 jam idle → cold start beberapa detik |
+| Back4app Containers | Hosting backend Go | Tidak perlu | 0.25 shared CPU, 256MB RAM, region US saja |
 | Neon | Postgres | Tidak perlu | Auto-suspend compute saat idle; storage 0.5GB |
 | Cloudinary | Storage foto produk | Tidak perlu | ~25GB storage + bandwidth/bulan |
 
