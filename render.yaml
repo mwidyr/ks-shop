@@ -1,0 +1,27 @@
+# Render Blueprint — deploy backend Go API as a free Web Service.
+# Postgres TIDAK didefinisikan di sini karena Render tidak lagi punya tier Postgres gratis;
+# pakai Neon (neon.tech) atau Supabase lalu isi DATABASE_URL manual di dashboard Render
+# (env var bertanda sync:false di bawah tidak bisa diisi lewat file ini, harus lewat UI).
+#
+# Cara pakai: Render dashboard -> New -> Blueprint -> pilih repo ini.
+services:
+  - type: web
+    name: ks-shop-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

@@ -1,0 +1,39 @@
+stateDiagram-v2
+    [*] --> Cart
+    Cart --> CheckoutPage : user proceeds to checkout\n(available_stock -qty, reserve_stock +qty)
+    CheckoutPage --> CheckoutPage : any activity\n(reset 30-min timer)
+    CheckoutPage --> Expired : 30 min no activity
+    Expired --> Cart : reserve_stock -qty, available_stock +qty\n(user cannot continue payment)
+    CheckoutPage --> Pending : checkout success, order created\n(reserve_stock -qty, order_stock +qty, total_stock -qty)
+
+    Pending --> Confirm
+    Confirm --> Packing
+    Packing --> Picking
+    Picking --> Shipped
+    Shipped --> Delivered
+
+    Pending --> Cancelled
+    Confirm --> Cancelled
+    Packing --> Cancelled
+    Picking --> Cancelled
+    Shipped --> Cancelled : Cancelled = valid selama status\nsebelum Delivered\n(order_stock -qty, available_stock +qty, total_stock +qty)
+
+    Shipped --> Return
+    Delivered --> Return : Return = valid dari Shipped/Delivered\n(order_stock -qty jika masih ada,\nbroken_stock +qty, total_stock +qty)
+
+    Cancelled --> [*]
+    Delivered --> [*]
+    Return --> [*]
+
+    note right of CheckoutPage
+        Stock lock: first-come-first-serve.
+        Harus atomic/row-level lock di DB
+        agar tidak double-reserve stok yang sama.
+    end note
+
+    note right of Pending
+        order_stock adalah counter TERPISAH,
+        TIDAK masuk formula total_stock.
+        total_stock berkurang saat order_stock
+        bertambah (asumsi - perlu konfirmasi klien).
+    end note
