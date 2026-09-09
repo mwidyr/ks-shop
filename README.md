@@ -9,6 +9,13 @@ Live, dll): dashboard performa host, order management (order dibuat manual oleh 
 - **Database:** PostgreSQL 16
 - **Frontend:** React 18 + Vite + Tailwind (CDN) + Recharts (grafik dashboard)
 
+## Deploy Gratis ke Internet
+
+Mau publish project ini (frontend di Vercel, backend + database + storage foto gratis)? Ikuti
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — sudah termasuk file konfigurasi siap pakai
+(`render.yaml`, `frontend/vercel.json`) dan backend sudah mendukung upload foto ke Cloudinary
+supaya tidak hilang saat server restart.
+
 ## Cara Menjalankan (Docker — paling mudah)
 
 Prasyarat: [Docker](https://www.docker.com/) & Docker Compose terinstall. Build pertama kali butuh koneksi internet (download Go modules & npm packages).
