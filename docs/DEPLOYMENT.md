@@ -1,11 +1,12 @@
 # Panduan Deploy Gratis
 
-Kode sudah ada di `github.com/mwidyr/ks-shop`. Arsitektur yang dipakai — semua gratis:
+Kode sudah ada di `github.com/mwidyr/ks-shop`. Arsitektur yang dipakai — semua gratis, **tanpa
+kartu kredit**:
 
 ```
 Browser
   → Vercel (frontend React/Vite, static hosting)
-      → Render (backend Go, free web service)
+      → Koyeb (backend Go, free web service)
           → Neon (Postgres, free tier)
           → Cloudinary (foto produk, free tier)
 ```
@@ -17,64 +18,76 @@ backend start, termasuk seed data & akun demo — jadi begitu backend pertama ka
 database Neon yang masih kosong, semua tabel + data contoh langsung ada, tidak perlu setup
 manual di database.
 
+> **Kenapa Koyeb, bukan Render?** Render sekarang mewajibkan kartu kredit untuk membuat service
+> baru (termasuk lewat Blueprint `render.yaml`). Koyeb tidak mewajibkan kartu kredit di awal
+> (baru diminta kalau sistem mereka gagal memverifikasi otomatis bahwa pendaftarnya manusia,
+> jarang terjadi). File `render.yaml` di root repo tetap disimpan sebagai alternatif kalau
+> nanti Anda memutuskan pakai Render juga — tidak dipakai di panduan ini.
+
 Total waktu: sekitar 20-30 menit, semua lewat dashboard web (klik-klik), tidak perlu command
-line di sisi Anda.
+line di sisi Anda kecuali sudah ditangani di sesi ini (push ke GitHub, cek koneksi database).
 
 ---
 
-## 1. Buat database gratis di Neon
+## 1. Buat database gratis di Neon — ✅ sudah selesai
 
-1. Buka [neon.tech](https://neon.tech), sign up (bisa pakai akun GitHub).
-2. Buat project baru, nama bebas (misal `ks-shop`), region terdekat (misal Singapore).
-3. Setelah project dibuat, buka tab **Connection Details** / **Dashboard** → copy
-   **Connection string**-nya. Bentuknya kira-kira:
-   ```
-   postgresql://neondb_owner:xxxxx@ep-xxxx-xxxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-   ```
-4. Simpan string ini — dipakai sebagai `DATABASE_URL` di langkah 3.
+Kalau Anda mengikuti sesi sebelumnya: project Neon `ksshopdb` sudah dibuat, dan backend sudah
+pernah dijalankan sekali secara lokal mengarah ke database ini untuk memverifikasi 17 file
+migrasi + seed data berhasil masuk. Simpan connection string-nya (format
+`postgresql://...sslmode=require&channel_binding=require`) — dipakai sebagai `DATABASE_URL` di
+langkah 3.
 
-> Catatan: Neon free tier akan "tidur" (auto-suspend compute) kalau tidak ada aktivitas — request
-> pertama setelah tidur akan sedikit lebih lambat (beberapa detik) saat database "bangun" lagi.
-> Ini normal untuk tier gratis.
+Kalau belum: buka [neon.tech](https://neon.tech) → sign up → buat project baru → copy
+**Connection string** dari dashboard.
+
+> Neon free tier auto-suspend compute saat idle — request pertama setelah tidur akan sedikit
+> lebih lambat (beberapa detik) saat database "bangun" lagi. Normal untuk tier gratis.
 
 ---
 
 ## 2. Buat akun Cloudinary (untuk foto produk)
 
-1. Buka [cloudinary.com](https://cloudinary.com), sign up gratis.
-2. Begitu masuk dashboard, halaman utama sudah menampilkan **Cloud name**, **API Key**, dan
-   **API Secret** — copy ketiganya. Tidak perlu setting tambahan apapun (upload preset dsb),
-   backend sudah pakai signed upload jadi cukup 3 nilai ini.
+1. Buka [cloudinary.com](https://cloudinary.com), sign up gratis (tidak perlu kartu kredit).
+2. Di halaman dashboard utama, copy **Cloud name**, **API Key**, dan **API Secret**. Tidak perlu
+   setting tambahan (upload preset dsb) — backend sudah pakai signed upload jadi cukup 3 nilai
+   ini.
 
 ---
 
-## 3. Deploy backend ke Render
+## 3. Deploy backend ke Koyeb
 
-1. Buka [render.com](https://render.com), sign up (bisa pakai akun GitHub — sekalian kasih akses
-   ke repo `mwidyr/ks-shop`).
-2. Dashboard Render → **New** → **Blueprint**.
-3. Pilih repo `mwidyr/ks-shop`. Render akan otomatis mendeteksi file `render.yaml` di root repo
-   dan menyiapkan satu service: `ks-shop-backend` (web service, free plan, build dari
-   `backend/Dockerfile`).
-4. Sebelum "Apply", Render akan minta isi env var yang ditandai butuh input manual:
-   - `DATABASE_URL` → paste connection string dari Neon (langkah 1).
-   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` → paste dari
-     Cloudinary (langkah 2).
-   - `JWT_SECRET` sudah otomatis di-generate random oleh Render, tidak perlu diisi manual.
-5. Klik **Apply** / **Create Web Service**. Tunggu build selesai (build pertama ~2-3 menit,
-   proses build Docker image Go).
-6. Setelah statusnya **Live**, copy URL service-nya, contoh:
-   `https://ks-shop-backend.onrender.com`
-7. Cek backend sudah hidup dan migrasi sudah jalan:
-   ```
-   https://ks-shop-backend.onrender.com/health
-   ```
-   Harus balas `{"status":"ok"}`. Kalau ini sukses, berarti koneksi ke Neon berhasil dan semua
-   17 file migrasi (termasuk seed data) sudah otomatis dijalankan.
+1. Buka [koyeb.com](https://www.koyeb.com), **Sign up** — paling gampang pakai tombol "Sign up
+   with GitHub" (sekalian kasih akses ke repo `mwidyr/ks-shop`).
+2. Di dashboard Koyeb → **Create Web Service** (atau **Create App** → **Web Service**).
+3. **Deployment method** → pilih **GitHub** → pilih repo `mwidyr/ks-shop` → branch `main`.
+4. **Builder** → pilih **Dockerfile**.
+5. **Work directory** (kadang disebut "Root directory") → isi `backend` — ini penting, supaya
+   Koyeb membangun image dari `backend/Dockerfile`, bukan dari root repo yang isinya
+   frontend+backend sekaligus.
+6. **Environment variables** → tambahkan:
+   | Key | Value |
+   |---|---|
+   | `DATABASE_URL` | connection string Neon dari langkah 1 |
+   | `JWT_SECRET` | string acak bebas, contoh: `ganti-dengan-string-panjang-acak-anda` |
+   | `CLOUDINARY_CLOUD_NAME` | dari Cloudinary langkah 2 |
+   | `CLOUDINARY_API_KEY` | dari Cloudinary langkah 2 |
+   | `CLOUDINARY_API_SECRET` | dari Cloudinary langkah 2 |
+   | `PORT` | `8080` (opsional, ini sudah default kalau tidak diisi) |
+7. **Exposing your service / Ports** → set port ke `8080`, protocol HTTP.
+8. **Health check** → isi path `/health`.
+9. **Instance type** → pilih yang **Free**.
+10. Klik **Deploy**. Tunggu build selesai (~2-3 menit untuk build Docker image Go).
+11. Setelah status **Healthy**, copy URL service-nya, bentuknya kira-kira:
+    `https://ks-shop-backend-<nama-org-anda>.koyeb.app`
+12. Cek backend hidup & migrasi sudah jalan:
+    ```
+    https://ks-shop-backend-<nama-org-anda>.koyeb.app/health
+    ```
+    Harus balas `{"status":"ok"}`.
 
-> Catatan: Render free web service akan "tidur" setelah ~15 menit tanpa request, request
-> berikutnya butuh ~30-50 detik untuk "bangun" lagi (cold start). Ini batasan tier gratis, wajar
-> untuk demo/portfolio, kurang cocok kalau butuh selalu responsif.
+> Catatan: instance Free Koyeb scale-to-zero setelah ±1 jam tanpa traffic — request berikutnya
+> butuh beberapa detik untuk "bangun" lagi (cold start). Batasan wajar untuk tier gratis, cocok
+> untuk demo/portofolio.
 
 ---
 
@@ -87,8 +100,8 @@ line di sisi Anda.
    - **Framework Preset** → otomatis terdeteksi "Vite", biarkan default (build command
      `npm run build`, output `dist`).
    - **Environment Variables** → tambah satu:
-     - `VITE_API_URL` = `https://ks-shop-backend.onrender.com/api` (URL backend dari langkah 3,
-       **ditambah `/api` di akhir**)
+     - `VITE_API_URL` = `https://ks-shop-backend-<nama-org-anda>.koyeb.app/api` (URL backend dari
+       langkah 3, **ditambah `/api` di akhir**)
 4. Klik **Deploy**. Tunggu ~1-2 menit.
 5. Setelah selesai, Vercel kasih URL publik, contoh: `https://ks-shop.vercel.app`.
 
@@ -119,33 +132,33 @@ File `frontend/vercel.json` sudah disiapkan supaya semua route React Router (mis
 Kalau ada halaman blank atau error CORS di console browser: backend sudah diset
 `AllowedOrigins: []string{"*"}` (izinkan semua origin) jadi seharusnya tidak ada masalah CORS —
 kalau tetap terjadi, cek dulu apakah `VITE_API_URL` di Vercel sudah benar (harus persis URL
-Render + `/api`, tanpa trailing slash ganda).
+Koyeb + `/api`, tanpa trailing slash ganda).
 
 ---
 
 ## 6. Update selanjutnya
 
-Repo ini sudah tersambung ke Render & Vercel lewat GitHub. Alur update berikutnya:
+Repo ini sudah tersambung ke Koyeb & Vercel lewat GitHub. Alur update berikutnya:
 
 ```
 edit kode → git commit → git push origin main
 ```
 
-Render dan Vercel otomatis mendeteksi push baru ke branch `main` dan re-deploy sendiri — tidak
+Koyeb dan Vercel otomatis mendeteksi push baru ke branch `main` dan re-deploy sendiri — tidak
 perlu ulangi langkah manual di atas, kecuali kalau menambah environment variable baru.
 
 ---
 
 ## Ringkasan biaya & batasan tier gratis
 
-| Layanan | Fungsi | Batasan free tier yang relevan |
-|---|---|---|
-| Vercel | Hosting frontend | Sangat generous untuk proyek pribadi, praktis tidak ada masalah |
-| Render | Hosting backend Go | Auto-sleep setelah ~15 menit idle → cold start ~30-50 detik |
-| Neon | Postgres | Auto-suspend compute saat idle → cold start beberapa detik; storage 0.5GB |
-| Cloudinary | Storage foto produk | ~25GB storage + bandwidth/bulan, jauh lebih dari cukup untuk demo |
+| Layanan | Fungsi | Kartu kredit? | Batasan free tier yang relevan |
+|---|---|---|---|
+| Vercel | Hosting frontend | Tidak perlu | Sangat generous untuk proyek pribadi |
+| Koyeb | Hosting backend Go | Tidak perlu (biasanya) | Scale-to-zero setelah ±1 jam idle → cold start beberapa detik |
+| Neon | Postgres | Tidak perlu | Auto-suspend compute saat idle; storage 0.5GB |
+| Cloudinary | Storage foto produk | Tidak perlu | ~25GB storage + bandwidth/bulan |
 
 Semua batasan di atas hanya soal **kecepatan saat pertama diakses setelah lama idle** — bukan
 downtime permanen. Cocok untuk demo, portofolio, atau internal tool skala kecil; kalau nanti
-butuh selalu responsif (tanpa cold start), tinggal upgrade Render/Neon ke paket berbayar
-termurahnya (mulai ~$6-7/bulan), tanpa perlu ubah kode sama sekali.
+butuh selalu responsif (tanpa cold start), tinggal upgrade paket berbayar termurah di masing-
+masing layanan, tanpa perlu ubah kode sama sekali.

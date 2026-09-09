@@ -1,4 +1,9 @@
 # Render Blueprint — deploy backend Go API as a free Web Service.
+#
+# CATATAN: panduan deploy utama project ini pakai Koyeb, bukan Render (lihat
+# docs/DEPLOYMENT.md) — Render sekarang mewajibkan kartu kredit untuk membuat service baru.
+# File ini disimpan sebagai alternatif kalau nanti Anda memutuskan pakai Render juga.
+#
 # Postgres TIDAK didefinisikan di sini karena Render tidak lagi punya tier Postgres gratis;
 # pakai Neon (neon.tech) atau Supabase lalu isi DATABASE_URL manual di dashboard Render
 # (env var bertanda sync:false di bawah tidak bisa diisi lewat file ini, harus lewat UI).
