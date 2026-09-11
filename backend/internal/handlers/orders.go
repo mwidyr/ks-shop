@@ -293,9 +293,10 @@ type createOrderCustomer struct {
 }
 
 type createOrderItem struct {
-	HostID    int `json:"host_id"`
-	VariantID int `json:"variant_id"`
-	Qty       int `json:"qty"`
+	HostID        int  `json:"host_id"`
+	VariantID     int  `json:"variant_id"`
+	Qty           int  `json:"qty"`
+	LiveSessionID *int `json:"live_session_id"`
 }
 
 type createOrderRequest struct {
@@ -414,8 +415,8 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id)
-			VALUES ($1,$2,$3,$4,$5)`, orderID, it.VariantID, it.Qty, price, it.HostID); err != nil {
+			INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id, live_session_id)
+			VALUES ($1,$2,$3,$4,$5,$6)`, orderID, it.VariantID, it.Qty, price, it.HostID, it.LiveSessionID); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to create order item")
 			return
 		}

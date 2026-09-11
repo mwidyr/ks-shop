@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { createOrder } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
+import { listLiveSessions } from '../api/liveSessions'
 import { listProducts } from '../api/products'
 import { formatRupiah } from '../utils/format'
 import CustomerPicker from '../components/CustomerPicker'
@@ -20,6 +21,8 @@ export default function OrderCreate() {
   const [pickupChainId, setPickupChainId] = useState('')
   const [pickupStoreName, setPickupStoreName] = useState('')
   const [pickupStoreCode, setPickupStoreCode] = useState('')
+  const [liveSessionId, setLiveSessionId] = useState('')
+  const [liveSessions, setLiveSessions] = useState([])
   const [discountAmount, setDiscountAmount] = useState('')
   const [additionalAmount, setAdditionalAmount] = useState('')
   const [error, setError] = useState('')
@@ -29,6 +32,7 @@ export default function OrderCreate() {
     listHosts().then(setHosts)
     listPickupChains().then(setPickupChains)
     listProducts().then(setProducts)
+    listLiveSessions({ active: 'true' }).then(setLiveSessions)
   }, [])
 
   const selectedChain = pickupChains.find((c) => String(c.id) === String(pickupChainId))
@@ -82,7 +86,10 @@ export default function OrderCreate() {
       setError('Alamat pengiriman wajib diisi')
       return
     }
-    const items = lines.map((l) => ({ host_id: Number(l.hostId), variant_id: Number(l.variantId), qty: Number(l.qty) }))
+    const items = lines.map((l) => ({
+      host_id: Number(l.hostId), variant_id: Number(l.variantId), qty: Number(l.qty),
+      live_session_id: liveSessionId ? Number(liveSessionId) : null,
+    }))
     if (items.some((it) => !it.host_id || !it.variant_id || !it.qty)) {
       setError('Setiap baris harus memiliki host, produk/varian, dan qty yang valid')
       return
@@ -122,6 +129,13 @@ export default function OrderCreate() {
             <button type="button" onClick={addLine} className="text-sm font-semibold text-brand-600 hover:underline">
               + Tambah Baris
             </button>
+          </div>
+          <div className="mb-3">
+            <label className="block text-[11px] text-gray-500 mb-1">Sesi Live</label>
+            <select value={liveSessionId} onChange={(e) => setLiveSessionId(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+              <option value="">Tanpa sesi</option>
+              {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.host_name})</option>)}
+            </select>
           </div>
           <div className="space-y-3">
             {lines.map((l, idx) => (

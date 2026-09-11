@@ -28,6 +28,7 @@
       "system": "SYSTEM"
     },
     "items": {
+      "panel_siaran": "Live Panel",
       "orders": "Orders",
       "customers": "Customers",
       "chat": "Chat",

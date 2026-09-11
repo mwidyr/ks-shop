@@ -12,6 +12,7 @@ import {
 const navGroups = [
   {
     title: 'sales', icon: IconTag, items: [
+      { to: '/panel-siaran', key: 'panel_siaran' },
       { to: '/orders', key: 'orders' },
       { to: '/customers', key: 'customers' },
       { to: '/chat', key: 'chat' },

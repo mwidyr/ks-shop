@@ -28,6 +28,7 @@
       "system": "SISTEM"
     },
     "items": {
+      "panel_siaran": "Panel Siaran",
       "orders": "Pesanan",
       "customers": "Pelanggan",
       "chat": "Chat",

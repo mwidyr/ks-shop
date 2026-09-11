@@ -18,6 +18,7 @@ import Reviews from './pages/Reviews'
 import Warehouses from './pages/Warehouses'
 import Shipping from './pages/Shipping'
 import DaftarPengambilan from './pages/DaftarPengambilan'
+import PanelSiaran from './pages/PanelSiaran'
 import PickupPublic from './pages/PickupPublic'
 import Returns from './pages/Returns'
 import Refunds from './pages/Refunds'
@@ -62,6 +63,7 @@ export default function App() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
       {/* Sales */}
+      <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
       <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />

@@ -67,6 +67,7 @@ func main() {
 	categoryH := &handlers.CategoryHandler{DB: pool}
 	reportsH := &handlers.ReportsHandler{DB: pool}
 	userH := &handlers.UserHandler{DB: pool}
+	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -126,6 +127,9 @@ func main() {
 			r.Get("/pickup-links", pickupLinkH.List)
 			r.Post("/pickup-links", pickupLinkH.Create)
 			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
+			r.Get("/live-sessions", liveSessionH.List)
+			r.Post("/live-sessions", liveSessionH.Create)
+			r.Patch("/live-sessions/{id}/end", liveSessionH.End)
 		})
 
 		// Catalog & reference-data management: super_user + management only
