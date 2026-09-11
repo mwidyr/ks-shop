@@ -64,6 +64,7 @@ func main() {
 	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
 	pickingH := &handlers.PickingHandler{DB: pool}
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
+	categoryH := &handlers.CategoryHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -116,6 +117,7 @@ func main() {
 			r.Get("/settings/fees", feesH.Get)
 			r.Get("/settings/shipping", shippingSettingsH.Get)
 			r.Get("/picking-queue", pickingH.Queue)
+			r.Get("/categories", categoryH.List)
 			r.Get("/pickup-links", pickupLinkH.List)
 			r.Post("/pickup-links", pickupLinkH.Create)
 			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
@@ -135,6 +137,9 @@ func main() {
 			r.Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
 
 			r.Post("/uploads/image", uploadH.UploadImage)
+
+			r.Post("/categories", categoryH.Create)
+			r.Delete("/categories/{id}", categoryH.Delete)
 
 			r.Post("/hosts", hostH.Create)
 			r.Patch("/hosts/{id}", hostH.Update)

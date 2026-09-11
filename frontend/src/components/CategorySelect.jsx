@@ -1,19 +1,29 @@
 import { useEffect, useState } from 'react'
-import { listProducts } from '../api/products'
+import { listCategories, createCategory } from '../api/categories'
 
 const NEW_CATEGORY = '__new__'
 
-// Dropdown of existing product categories plus a "+ Kategori baru" option that reveals
-// a text input for typing a brand new category (category is stored as free text on Product).
+// Dropdown backed by the real categories table, plus a "+ Kategori baru" option that reveals
+// a text input for typing a brand new category (which gets created for real on save).
 export default function CategorySelect({ value, onChange }) {
   const [categories, setCategories] = useState([])
   const [addingNew, setAddingNew] = useState(false)
 
   useEffect(() => {
-    listProducts().then((products) => {
-      setCategories([...new Set(products.map((p) => p.category).filter(Boolean))].sort())
+    listCategories().then((cats) => {
+      setCategories(cats.map((c) => c.name).sort())
     })
   }, [])
+
+  async function commitNewCategory() {
+    if (value && !categories.includes(value)) {
+      try {
+        await createCategory(value)
+      } catch {
+        // category might already exist from a concurrent add; ignore
+      }
+    }
+  }
 
   useEffect(() => {
     if (value && !categories.includes(value) && categories.length > 0) {
@@ -39,6 +49,7 @@ export default function CategorySelect({ value, onChange }) {
           autoFocus
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={commitNewCategory}
           placeholder="Nama kategori baru"
           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
