@@ -433,7 +433,15 @@
       "orders": "訂單",
       "products": "商品",
       "system": "系統"
-    }
+    },
+    "role_cs": "客服",
+    "role_warehouse": "倉管",
+    "col_tab": "分頁",
+    "group_general": "一般",
+    "access_none": "無權限",
+    "access_view": "僅檢視",
+    "access_edit": "可編輯",
+    "matrix_hint_v2": "為每個角色設定各分頁的存取權限。「無權限」= 隱藏/封鎖，「僅檢視」= 唯讀，「可編輯」= 完整存取。管理員（Super User）永遠擁有完整權限，不會顯示在此處。"
   },
   "page_dashboard": {
     "loading_dashboard": "儀表板載入中...",

@@ -1,8 +1,10 @@
 import client from './client'
 
+// Used broadly as reference data for filter dropdowns/pickup-method pickers outside the
+// Shipping Settings tab itself - see listHosts for why this resolves to [] instead of rejecting.
 export function listPickupChains(includeInactive) {
   const q = includeInactive ? '?include_inactive=true' : ''
-  return client.get(`/pickup-chains${q}`).then((res) => res.data)
+  return client.get(`/pickup-chains${q}`).then((res) => res.data).catch(() => [])
 }
 
 export function createPickupChain(payload) {

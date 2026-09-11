@@ -433,7 +433,15 @@
       "orders": "Pesanan",
       "products": "Produk",
       "system": "Sistem"
-    }
+    },
+    "role_cs": "CS",
+    "role_warehouse": "Warehouse",
+    "col_tab": "Tab",
+    "group_general": "Umum",
+    "access_none": "Tidak Ada",
+    "access_view": "Lihat Saja",
+    "access_edit": "Bisa Edit",
+    "matrix_hint_v2": "Atur akses per tab untuk tiap role. \"Tidak Ada\" = tab tersembunyi/diblokir, \"Lihat Saja\" = hanya bisa melihat, \"Bisa Edit\" = bisa melihat dan mengubah. Admin (Super User) selalu punya akses penuh dan tidak ditampilkan di sini."
   },
   "page_dashboard": {
     "loading_dashboard": "Memuat dashboard...",

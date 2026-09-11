@@ -433,7 +433,15 @@
       "orders": "Orders",
       "products": "Products",
       "system": "System"
-    }
+    },
+    "role_cs": "CS",
+    "role_warehouse": "Warehouse",
+    "col_tab": "Tab",
+    "group_general": "General",
+    "access_none": "None",
+    "access_view": "View Only",
+    "access_edit": "Can Edit",
+    "matrix_hint_v2": "Set per-tab access for each role. \"None\" = hidden/blocked, \"View Only\" = read-only, \"Can Edit\" = full access. Admin (Super User) always has full access and isn't shown here."
   },
   "page_dashboard": {
     "loading_dashboard": "Loading dashboard...",

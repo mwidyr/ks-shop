@@ -76,9 +76,13 @@ func main() {
 	userH := &handlers.UserHandler{DB: pool}
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
 
-	internalRoles := []string{"sales", "spv", "management", "super_user"}
-	catalogWriteRoles := []string{"super_user", "management"}
-	superUserOnly := []string{"super_user"}
+	// Any authenticated staff role may reach this outer gate; the real per-section
+	// restriction happens per-route below via view()/edit() (backed by role_tab_access -
+	// see internal/middleware/tabaccess.go). super_user always passes the tab check itself.
+	allStaffRoles := []string{"sales", "spv", "management", "cs", "warehouse", "super_user"}
+
+	view := func(tab string) func(http.Handler) http.Handler { return appmw.RequireTabView(pool, tab) }
+	edit := func(tab string) func(http.Handler) http.Handler { return appmw.RequireTabEdit(pool, tab) }
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
@@ -91,123 +95,113 @@ func main() {
 		r.Post("/auth/login", authH.Login)
 		r.Get("/public/pickup/{token}", pickupLinkH.PublicGet)
 
-		// Authenticated (any internal role)
 		r.Group(func(r chi.Router) {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
-			r.Use(appmw.RequireRole(internalRoles...))
+			r.Use(appmw.RequireRole(allStaffRoles...))
 
-			r.Get("/products", productH.List)
-			r.Get("/products/{id}", productH.Detail)
-			r.Get("/inventory/history", productH.StockHistory)
+			r.With(view("products")).Get("/products", productH.List)
+			r.With(view("products")).Get("/products/{id}", productH.Detail)
+			r.With(view("inventory")).Get("/inventory/history", productH.StockHistory)
+			r.With(edit("products")).Post("/products", productH.Create)
+			r.With(edit("products")).Patch("/products/{id}", productH.Update)
+			r.With(edit("products")).Post("/products/{id}/variants", productH.CreateVariant)
+			r.With(edit("products")).Patch("/products/{id}/variants/{variantId}", productH.UpdateVariant)
+			r.With(edit("products")).Delete("/products/{id}", productH.Delete)
+			r.With(edit("products")).Post("/products/{id}/images", imageH.AddImage)
+			r.With(edit("products")).Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
+			r.With(edit("products")).Post("/uploads/image", uploadH.UploadImage)
 
-			r.Get("/orders", orderH.List)
-			r.Get("/orders/{id}", orderH.Detail)
-			r.Post("/orders", orderH.Create)
-			r.Patch("/orders/{id}/status", orderH.UpdateStatus)
-			r.Patch("/orders/{id}/notes", orderH.UpdateNotes)
-			r.Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
-			r.Post("/orders/{id}/attachments", orderH.AddAttachment)
-			r.Patch("/order-items/{itemId}/pick", orderH.PickItem)
-			r.Post("/orders/{id}/split", orderH.Split)
-			r.Get("/orders/merge-suggestions", orderMergeH.Suggestions)
-			r.Post("/orders/merge-groups", orderMergeH.CreateGroup)
-			r.Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
-			r.Get("/shipping-export", shippingExportH.List)
-			r.Post("/shipping-export/mark-exported", shippingExportH.MarkExported)
-			r.Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)
+			r.With(view("categories")).Get("/categories", categoryH.List)
+			r.With(edit("categories")).Post("/categories", categoryH.Create)
+			r.With(edit("categories")).Delete("/categories/{id}", categoryH.Delete)
 
-			r.Get("/activity-log", activityLogH.List)
-			r.Get("/dashboard/summary", dashboardH.Summary)
-			r.Get("/dashboard/graph", dashboardH.Graph)
-			r.Get("/dashboard/host-ranking", dashboardH.HostRanking)
-			r.Get("/dashboard/top-products", dashboardH.TopProducts)
-			r.Get("/dashboard/profit", dashboardH.Profit)
-			r.Get("/dashboard/alerts", dashboardH.Alerts)
+			r.With(view("orders")).Get("/orders", orderH.List)
+			r.With(view("orders")).Get("/orders/{id}", orderH.Detail)
+			r.With(edit("orders")).Post("/orders", orderH.Create)
+			r.With(edit("orders")).Patch("/orders/{id}/status", orderH.UpdateStatus)
+			r.With(edit("orders")).Patch("/orders/{id}/notes", orderH.UpdateNotes)
+			r.With(edit("orders")).Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
+			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
+			r.With(edit("picking")).Patch("/order-items/{itemId}/pick", orderH.PickItem)
+			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)
+			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
+			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)
+			r.With(edit("orders")).Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
+			r.With(view("picking")).Get("/picking-queue", pickingH.Queue)
 
-			r.Get("/hosts", hostH.List)
-			r.Get("/pickup-chains", pickupChainH.List)
+			r.With(view("shipping")).Get("/shipping-export", shippingExportH.List)
+			r.With(edit("shipping")).Post("/shipping-export/mark-exported", shippingExportH.MarkExported)
+			r.With(edit("shipping")).Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)
+			r.With(view("shipping")).Get("/pickup-links", pickupLinkH.List)
+			r.With(edit("shipping")).Post("/pickup-links", pickupLinkH.Create)
+			r.With(edit("shipping")).Patch("/pickup-links/{id}", pickupLinkH.Update)
 
-			r.Get("/suppliers", supplierH.List)
-			r.Get("/purchases", purchaseH.List)
-			r.Get("/purchases/{id}", purchaseH.Detail)
-			r.Get("/purchase-alert", purchaseAlertH.List)
+			r.With(view("audit_logs")).Get("/activity-log", activityLogH.List)
 
-			r.Get("/customers", customerH.Search)
-			r.Post("/customers", customerH.Create)
-			r.Get("/customers/stats", customerH.Stats)
-			r.Patch("/customers/{id}/labels", customerH.SetLabel)
-			r.Delete("/customers/{id}", customerH.Delete)
+			r.With(view("dashboard")).Get("/dashboard/summary", dashboardH.Summary)
+			r.With(view("dashboard")).Get("/dashboard/graph", dashboardH.Graph)
+			r.With(view("dashboard")).Get("/dashboard/host-ranking", dashboardH.HostRanking)
+			r.With(view("dashboard")).Get("/dashboard/top-products", dashboardH.TopProducts)
+			r.With(view("profit")).Get("/dashboard/profit", dashboardH.Profit)
+			r.With(view("dashboard")).Get("/dashboard/alerts", dashboardH.Alerts)
 
-			r.Get("/settings/fees", feesH.Get)
-			r.Get("/settings/shipping", shippingSettingsH.Get)
-			r.Get("/picking-queue", pickingH.Queue)
-			r.Get("/categories", categoryH.List)
-			r.Get("/reports/products", reportsH.Products)
-			r.Get("/reports/orders", reportsH.Orders)
-			r.Get("/reports/product-analysis", reportsH.ProductAnalysis)
-			r.Get("/pickup-links", pickupLinkH.List)
-			r.Post("/pickup-links", pickupLinkH.Create)
-			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
-			r.Get("/live-sessions", liveSessionH.List)
-			r.Post("/live-sessions", liveSessionH.Create)
-			r.Get("/live-sessions/{id}", liveSessionH.Detail)
-			r.Patch("/live-sessions/{id}", liveSessionH.Update)
-			r.Patch("/live-sessions/{id}/go-live", liveSessionH.GoLive)
-			r.Patch("/live-sessions/{id}/end", liveSessionH.End)
-			r.Post("/live-sessions/{id}/products", liveSessionH.AddProduct)
-			r.Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
-		})
+			r.With(view("hosts")).Get("/hosts", hostH.List)
+			r.With(edit("hosts")).Post("/hosts", hostH.Create)
+			r.With(edit("hosts")).Patch("/hosts/{id}", hostH.Update)
+			r.With(edit("hosts")).Delete("/hosts/{id}", hostH.Delete)
 
-		// Catalog & reference-data management: super_user + management only
-		r.Group(func(r chi.Router) {
-			r.Use(appmw.JWTAuth(cfg.JWTSecret))
-			r.Use(appmw.RequireRole(catalogWriteRoles...))
+			r.With(view("shipping_settings")).Get("/pickup-chains", pickupChainH.List)
+			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
+			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
+			r.With(edit("shipping_settings")).Delete("/pickup-chains/{id}", pickupChainH.Delete)
+			r.With(view("shipping_settings")).Get("/settings/shipping", shippingSettingsH.Get)
+			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
 
-			r.Post("/products", productH.Create)
-			r.Patch("/products/{id}", productH.Update)
-			r.Post("/products/{id}/variants", productH.CreateVariant)
-			r.Patch("/products/{id}/variants/{variantId}", productH.UpdateVariant)
-			r.Delete("/products/{id}", productH.Delete)
-			r.Post("/products/{id}/images", imageH.AddImage)
-			r.Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
+			r.With(view("suppliers")).Get("/suppliers", supplierH.List)
+			r.With(edit("suppliers")).Post("/suppliers", supplierH.Create)
+			r.With(edit("suppliers")).Patch("/suppliers/{id}", supplierH.Update)
+			r.With(edit("suppliers")).Delete("/suppliers/{id}", supplierH.Delete)
 
-			r.Post("/uploads/image", uploadH.UploadImage)
+			r.With(view("purchases")).Get("/purchases", purchaseH.List)
+			r.With(view("purchases")).Get("/purchases/{id}", purchaseH.Detail)
+			r.With(edit("purchases")).Post("/purchases", purchaseH.Create)
+			r.With(edit("purchases")).Patch("/purchases/{id}/receive", purchaseH.Receive)
+			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
-			r.Post("/categories", categoryH.Create)
-			r.Delete("/categories/{id}", categoryH.Delete)
+			r.With(view("purchase_alert")).Get("/purchase-alert", purchaseAlertH.List)
 
-			r.Post("/hosts", hostH.Create)
-			r.Patch("/hosts/{id}", hostH.Update)
-			r.Delete("/hosts/{id}", hostH.Delete)
+			r.With(view("customers")).Get("/customers", customerH.Search)
+			r.With(edit("customers")).Post("/customers", customerH.Create)
+			r.With(view("customers")).Get("/customers/stats", customerH.Stats)
+			r.With(edit("customers")).Patch("/customers/{id}/labels", customerH.SetLabel)
+			r.With(edit("customers")).Delete("/customers/{id}", customerH.Delete)
 
-			r.Post("/pickup-chains", pickupChainH.Create)
-			r.Patch("/pickup-chains/{id}", pickupChainH.Update)
-			r.Delete("/pickup-chains/{id}", pickupChainH.Delete)
+			r.With(view("fees")).Get("/settings/fees", feesH.Get)
+			r.With(edit("fees")).Patch("/settings/fees", feesH.Update)
 
-			r.Post("/suppliers", supplierH.Create)
-			r.Patch("/suppliers/{id}", supplierH.Update)
-			r.Delete("/suppliers/{id}", supplierH.Delete)
+			r.With(view("reports")).Get("/reports/products", reportsH.Products)
+			r.With(view("reports")).Get("/reports/orders", reportsH.Orders)
+			r.With(view("product_analytics")).Get("/reports/product-analysis", reportsH.ProductAnalysis)
 
-			r.Post("/purchases", purchaseH.Create)
-			r.Patch("/purchases/{id}/receive", purchaseH.Receive)
-			r.Delete("/purchases/{id}", purchaseH.Delete)
+			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)
+			r.With(edit("panel_siaran")).Post("/live-sessions", liveSessionH.Create)
+			r.With(view("panel_siaran")).Get("/live-sessions/{id}", liveSessionH.Detail)
+			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}", liveSessionH.Update)
+			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/go-live", liveSessionH.GoLive)
+			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/end", liveSessionH.End)
+			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/products", liveSessionH.AddProduct)
+			r.With(edit("panel_siaran")).Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
 
-			r.Patch("/settings/fees", feesH.Update)
-			r.Patch("/settings/shipping", shippingSettingsH.Update)
-		})
-
-		// Staff management: super_user only
-		r.Group(func(r chi.Router) {
-			r.Use(appmw.JWTAuth(cfg.JWTSecret))
-			r.Use(appmw.RequireRole(superUserOnly...))
-
-			r.Get("/users", userH.List)
-			r.Post("/users", userH.Create)
-			r.Patch("/users/{id}", userH.Update)
-
-			r.Get("/permissions", rolePermH.Permissions)
-			r.Get("/role-permissions", rolePermH.Matrix)
-			r.Put("/role-permissions", rolePermH.UpdateMatrix)
+			// Staff & permission management: no configurable role is seeded with edit access to
+			// the "roles" tab (see 036_role_tab_access.sql), so only super_user's bypass reaches
+			// the write endpoints - matches the previous superUserOnly-only behavior exactly.
+			r.With(view("roles")).Get("/users", userH.List)
+			r.With(edit("roles")).Post("/users", userH.Create)
+			r.With(edit("roles")).Patch("/users/{id}", userH.Update)
+			r.Get("/my-access", rolePermH.MyAccess)
+			r.With(view("roles")).Get("/tabs", rolePermH.Tabs)
+			r.With(view("roles")).Get("/role-tab-access", rolePermH.Matrix)
+			r.With(edit("roles")).Put("/role-tab-access", rolePermH.UpdateMatrix)
 		})
 	})
 

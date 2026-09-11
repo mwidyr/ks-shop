@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { getMyAccess } from '../api/rolePermissions'
 import PreferencesModal from './PreferencesModal'
 import {
   IconDashboard, IconOrders, IconProducts, IconSettings, IconLogout, IconBell,
@@ -128,6 +129,23 @@ export default function AppShell({ children }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [access, setAccess] = useState(null) // null = still loading (show everything to avoid flicker)
+  const [isSuperUser, setIsSuperUser] = useState(true)
+
+  useEffect(() => {
+    getMyAccess().then((res) => {
+      setIsSuperUser(res.role === 'super_user')
+      setAccess(res.access)
+    })
+  }, [])
+
+  // A tab is visible if it's super_user (always full access) or has any row (view/edit) - a
+  // missing entry means "none". Still loading (access === null) shows everything to avoid a
+  // flash of a mostly-empty sidebar before the real access map arrives.
+  function canSeeTab(tabKey) {
+    if (isSuperUser || access === null) return true
+    return !!access[tabKey]
+  }
 
   function handleLogout() {
     logout()
@@ -169,13 +187,15 @@ export default function AppShell({ children }) {
 
           {navGroups.map((group) => {
             const GroupIcon = group.icon
+            const visibleItems = group.items.filter((item) => canSeeTab(item.key))
+            if (visibleItems.length === 0) return null
             return (
               <div key={group.title}>
                 <div className="flex items-center gap-1.5 px-3 mb-1 text-[10px] font-bold text-gray-400 tracking-wider">
                   <GroupIcon width={13} height={13} /> {t(`nav.groups.${group.title}`)}
                 </div>
                 <div className="space-y-0.5">
-                  {group.items.map((item) => {
+                  {visibleItems.map((item) => {
                     const ItemIcon = item.icon
                     return (
                       <Link
@@ -203,16 +223,18 @@ export default function AppShell({ children }) {
             )
           })}
 
-          <div>
-            <Link
-              to="/settings"
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
-                isActive('/settings') ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <IconSettings width={16} height={16} /> {t('nav.settings')}
-            </Link>
-          </div>
+          {canSeeTab('settings') && (
+            <div>
+              <Link
+                to="/settings"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
+                  isActive('/settings') ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <IconSettings width={16} height={16} /> {t('nav.settings')}
+              </Link>
+            </div>
+          )}
         </nav>
 
         <div className="p-3 border-t border-gray-200 shrink-0">

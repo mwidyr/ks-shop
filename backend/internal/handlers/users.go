@@ -20,7 +20,7 @@ type UserHandler struct {
 	DB *pgxpool.Pool
 }
 
-var staffRoles = map[string]bool{"super_user": true, "management": true, "spv": true, "sales": true}
+var staffRoles = map[string]bool{"super_user": true, "management": true, "spv": true, "sales": true, "cs": true, "warehouse": true}
 
 type userView struct {
 	ID       int    `json:"id"`

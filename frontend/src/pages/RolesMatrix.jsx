@@ -1,14 +1,35 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listUsers, createUser, updateUser } from '../api/users'
-import { listPermissions, getRolePermissionMatrix, updateRolePermissionMatrix } from '../api/rolePermissions'
+import { listTabs, getRoleTabAccess, updateRoleTabAccess } from '../api/rolePermissions'
 
 const roleOptions = [
   { key: 'super_user' },
   { key: 'management' },
   { key: 'spv' },
   { key: 'sales' },
+  { key: 'cs' },
+  { key: 'warehouse' },
 ]
+
+// Mirrors AppShell.jsx's navGroups grouping/order, so the matrix reads like the sidebar.
+const TAB_GROUPS = [
+  { titleKey: 'page_roles.group_general', tabs: ['dashboard', 'settings'] },
+  { titleKey: 'nav.groups.sales', tabs: ['panel_siaran', 'orders', 'picking', 'shipping', 'chat', 'customers', 'reviews'] },
+  { titleKey: 'nav.groups.catalog', tabs: ['products', 'categories', 'inventory', 'warehouses', 'suppliers', 'purchases', 'purchase_alert'] },
+  { titleKey: 'nav.groups.fulfillment', tabs: ['returns', 'refunds'] },
+  { titleKey: 'nav.groups.marketing', tabs: ['promotions', 'campaigns', 'advertising'] },
+  { titleKey: 'nav.groups.analytics', tabs: ['sales_analytics', 'product_analytics', 'profit'] },
+  { titleKey: 'nav.groups.finance', tabs: ['transactions', 'payouts', 'fees', 'reports'] },
+  { titleKey: 'nav.groups.store', tabs: ['store_profile', 'shipping_settings', 'hosts', 'store_design', 'team'] },
+  { titleKey: 'nav.groups.system', tabs: ['notifications', 'integrations', 'roles', 'audit_logs'] },
+]
+
+function tabLabel(t, tab) {
+  if (tab === 'dashboard') return t('nav.dashboard')
+  if (tab === 'settings') return t('nav.settings')
+  return t(`nav.items.${tab}`)
+}
 
 function AddStaffForm({ onCreated }) {
   const { t } = useTranslation()
@@ -70,7 +91,6 @@ export default function RolesMatrix() {
   const { t } = useTranslation()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [permissions, setPermissions] = useState([])
   const [roles, setRoles] = useState([])
   const [matrix, setMatrix] = useState({})
   const [matrixSaving, setMatrixSaving] = useState(false)
@@ -81,9 +101,8 @@ export default function RolesMatrix() {
   }
 
   function reloadMatrix() {
-    listPermissions().then(setPermissions)
-    getRolePermissionMatrix().then((res) => {
-      setRoles(res.roles.filter((r) => r !== 'customer'))
+    getRoleTabAccess().then((res) => {
+      setRoles(res.roles)
       setMatrix(res.matrix)
     })
   }
@@ -91,11 +110,12 @@ export default function RolesMatrix() {
   useEffect(reload, [])
   useEffect(reloadMatrix, [])
 
-  function toggleMatrix(role, key) {
+  function setCell(role, tab, level) {
     setMatrix((m) => {
-      const current = m[role] || []
-      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-      return { ...m, [role]: next }
+      const roleMap = { ...(m[role] || {}) }
+      if (level === 'none') delete roleMap[tab]
+      else roleMap[tab] = level
+      return { ...m, [role]: roleMap }
     })
   }
 
@@ -103,28 +123,12 @@ export default function RolesMatrix() {
     setMatrixSaving(true)
     setMatrixSaved(false)
     try {
-      await updateRolePermissionMatrix(matrix)
+      await updateRoleTabAccess(matrix)
       setMatrixSaved(true)
       setTimeout(() => setMatrixSaved(false), 2000)
     } finally {
       setMatrixSaving(false)
     }
-  }
-
-  const permsByGroup = permissions.reduce((acc, p) => {
-    (acc[p.group_name] = acc[p.group_name] || []).push(p)
-    return acc
-  }, {})
-
-  // permission `key`/`group_name` are real backend data (seeded in the permissions table), so
-  // they can't carry translations themselves - map the known, stable set to translated labels
-  // client-side, falling back to the raw backend value for any future permission not yet mapped.
-  function permissionLabel(p) {
-    return t(`page_roles.permission.${p.key.replace(/\./g, '_')}`, p.description)
-  }
-  function groupLabel(group) {
-    const key = { Pelanggan: 'customers', Pengaturan: 'settings', Pengiriman: 'shipping', Pesanan: 'orders', Produk: 'products', Sistem: 'system' }[group]
-    return key ? t(`page_roles.group.${key}`) : group
   }
 
   async function toggleActive(u) {
@@ -180,31 +184,35 @@ export default function RolesMatrix() {
           </div>
         </div>
         <p className="text-xs text-gray-500 mb-4">
-          {t('page_roles.matrix_hint')}
+          {t('page_roles.matrix_hint_v2')}
         </p>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-2">{t('page_roles.col_permission')}</th>
-              {roles.map((role) => <th key={role} className="p-2 text-center">{t(`page_roles.role_${role}`, role)}</th>)}
+              <th className="p-2">{t('page_roles.col_tab')}</th>
+              {roles.map((role) => <th key={role} className="p-2 text-center whitespace-nowrap">{t(`page_roles.role_${role}`, role)}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y">
-            {Object.entries(permsByGroup).map(([group, perms]) => (
-              <Fragment key={group}>
+            {TAB_GROUPS.map((group) => (
+              <Fragment key={group.titleKey}>
                 <tr className="bg-gray-50">
-                  <td colSpan={roles.length + 1} className="p-2 text-[11px] font-bold text-gray-400 uppercase">{groupLabel(group)}</td>
+                  <td colSpan={roles.length + 1} className="p-2 text-[11px] font-bold text-gray-400 uppercase">{t(group.titleKey)}</td>
                 </tr>
-                {perms.map((p) => (
-                  <tr key={p.key}>
-                    <td className="p-2 text-gray-700">{permissionLabel(p)}</td>
+                {group.tabs.map((tab) => (
+                  <tr key={tab}>
+                    <td className="p-2 text-gray-700">{tabLabel(t, tab)}</td>
                     {roles.map((role) => (
                       <td key={role} className="p-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={(matrix[role] || []).includes(p.key)}
-                          onChange={() => toggleMatrix(role, p.key)}
-                        />
+                        <select
+                          value={matrix[role]?.[tab] || 'none'}
+                          onChange={(e) => setCell(role, tab, e.target.value)}
+                          className="text-xs border border-gray-300 rounded-lg px-1.5 py-1"
+                        >
+                          <option value="none">{t('page_roles.access_none')}</option>
+                          <option value="view">{t('page_roles.access_view')}</option>
+                          <option value="edit">{t('page_roles.access_edit')}</option>
+                        </select>
                       </td>
                     ))}
                   </tr>
