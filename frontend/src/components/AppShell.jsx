@@ -22,9 +22,9 @@ const navGroups = [
       { to: '/orders', key: 'orders', icon: IconCart },
       { to: '/picking', key: 'picking', icon: IconClipboard },
       { to: '/shipping', key: 'shipping', icon: IconTruck },
-      { to: '/chat', key: 'chat', icon: IconChat },
-      { to: '/customers', key: 'customers', icon: IconUsers },
-      { to: '/reviews', key: 'reviews', icon: IconStar },
+      { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
+      { to: '/customers', key: 'customers', icon: IconUsers, upcoming: true },
+      { to: '/reviews', key: 'reviews', icon: IconStar, upcoming: true },
     ],
   },
   {
@@ -32,20 +32,20 @@ const navGroups = [
       { to: '/products', key: 'products', icon: IconProducts },
       { to: '/categories', key: 'categories', icon: IconTag },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
-      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse },
+      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
     ],
   },
   {
     title: 'fulfillment', icon: IconTruck, items: [
       { to: '/returns', key: 'returns', icon: IconUndo },
-      { to: '/refunds', key: 'refunds', icon: IconWallet },
+      { to: '/refunds', key: 'refunds', icon: IconWallet, upcoming: true },
     ],
   },
   {
     title: 'marketing', icon: IconMegaphone, items: [
-      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
-      { to: '/campaigns', key: 'campaigns', icon: IconSparkles },
-      { to: '/advertising', key: 'advertising', icon: IconSend },
+      { to: '/promotions', key: 'promotions', icon: IconMegaphone, upcoming: true },
+      { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
+      { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
     ],
   },
   {
@@ -57,9 +57,9 @@ const navGroups = [
   },
   {
     title: 'finance', icon: IconWallet, items: [
-      { to: '/finance/transactions', key: 'transactions', icon: IconWallet },
-      { to: '/finance/payouts', key: 'payouts', icon: IconWallet },
-      { to: '/finance/fees', key: 'fees', icon: IconWallet },
+      { to: '/finance/transactions', key: 'transactions', icon: IconWallet, upcoming: true },
+      { to: '/finance/payouts', key: 'payouts', icon: IconWallet, upcoming: true },
+      { to: '/finance/fees', key: 'fees', icon: IconWallet, upcoming: true },
       { to: '/finance/reports', key: 'reports', icon: IconBarChart },
     ],
   },
@@ -68,16 +68,16 @@ const navGroups = [
       { to: '/store/profile', key: 'store_profile', icon: IconStore },
       { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
       { to: '/hosts', key: 'hosts', icon: IconUser },
-      { to: '/store/design', key: 'store_design', icon: IconPalette },
-      { to: '/store/team', key: 'team', icon: IconUsers },
+      { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
+      { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
     ],
   },
   {
     title: 'system', icon: IconGear, items: [
-      { to: '/system/notifications', key: 'notifications', icon: IconBell },
-      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle },
+      { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
+      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
       { to: '/system/roles', key: 'roles', icon: IconUserCog },
-      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
+      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText, upcoming: true },
     ],
   },
 ]
@@ -134,7 +134,7 @@ export default function AppShell({ children }) {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      <aside className="w-60 shrink-0 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col">
         <div className="flex items-center gap-2 px-4 py-4 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-extrabold text-lg">K</div>
           <span className="font-extrabold text-gray-800 tracking-tight">{t('brand.name')}</span>
@@ -164,12 +164,20 @@ export default function AppShell({ children }) {
                       <Link
                         key={item.to + item.key}
                         to={item.to}
+                        title={t(`nav.items.${item.key}`)}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
-                          isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
+                          item.upcoming
+                            ? 'font-bold text-gray-400 hover:bg-gray-100'
+                            : isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
                         }`}
                       >
                         {ItemIcon && <ItemIcon width={15} height={15} className="shrink-0" />}
                         <span className="truncate">{t(`nav.items.${item.key}`)}</span>
+                        {item.upcoming && (
+                          <span className="ml-auto shrink-0 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">
+                            {t('common.upcoming')}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}
