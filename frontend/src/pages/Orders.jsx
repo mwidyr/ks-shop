@@ -23,6 +23,16 @@ const nextStatus = {
   pending: 'confirm', confirm: 'packing', packing: 'picking', picking: 'shipped', shipped: 'delivered',
 }
 
+const statusTabs = [
+  { label: 'Semua', value: '' },
+  { label: 'Pesanan Baru', value: 'pending' },
+  { label: 'Diproses', value: 'confirm,packing' },
+  { label: 'Siap Kirim', value: 'picking' },
+  { label: 'Dikirim', value: 'shipped' },
+  { label: 'Selesai', value: 'delivered' },
+  { label: 'Dibatalkan', value: 'cancelled,return' },
+]
+
 export default function Orders() {
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
@@ -174,15 +184,15 @@ export default function Orders() {
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto">
-          {['', ...Object.keys(statusLabels)].map((s) => (
+          {statusTabs.map((t) => (
             <button
-              key={s || 'all'}
-              onClick={() => { setStatus(s); setPage(1) }}
+              key={t.label}
+              onClick={() => { setStatus(t.value); setPage(1) }}
               className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${
-                status === s ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                status === t.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
               }`}
             >
-              {s ? statusLabels[s] : 'Semua Status'}
+              {t.label}
             </button>
           ))}
         </div>

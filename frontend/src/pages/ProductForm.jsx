@@ -21,7 +21,7 @@ export default function ProductForm() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
 
-  const [product, setProduct] = useState({ name: '', description: '', category: '', brand: '' })
+  const [product, setProduct] = useState({ name: '', description: '', category: '', brand: '', allow_oversell: false })
   const [images, setImages] = useState([])
   const [variants, setVariants] = useState([emptyVariant()])
   const [loading, setLoading] = useState(isEdit)
@@ -31,7 +31,7 @@ export default function ProductForm() {
   useEffect(() => {
     if (!isEdit) return
     getProduct(id).then((p) => {
-      setProduct({ name: p.name, description: p.description, category: p.category, brand: p.brand })
+      setProduct({ name: p.name, description: p.description, category: p.category, brand: p.brand, allow_oversell: p.allow_oversell })
       setImages(p.images)
       setVariants(p.variants.map((v) => ({ ...v })))
       setLoading(false)
@@ -165,6 +165,13 @@ export default function ProductForm() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+          <label className="flex items-start gap-2 border border-gray-200 rounded-lg p-3">
+            <input type="checkbox" checked={product.allow_oversell} onChange={(e) => updateField('allow_oversell', e.target.checked)} className="mt-0.5" />
+            <span>
+              <span className="block text-sm font-semibold text-gray-700">Izinkan oversell</span>
+              <span className="block text-xs text-gray-500">Jika aktif, order tetap diterima walau stok tersedia habis (akan ditandai "Oversell, perlu restock").</span>
+            </span>
+          </label>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">

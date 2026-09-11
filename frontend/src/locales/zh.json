@@ -36,6 +36,7 @@
       "categories": "分類",
       "inventory": "庫存",
       "warehouses": "倉庫",
+      "picking": "揀貨清單",
       "shipping": "物流",
       "returns": "退貨",
       "refunds": "退款",

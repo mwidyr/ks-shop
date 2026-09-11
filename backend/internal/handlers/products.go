@@ -41,23 +41,24 @@ type ProductImage struct {
 }
 
 type Product struct {
-	ID          int            `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Category    string         `json:"category"`
-	Brand       string         `json:"brand"`
-	IsActive    bool           `json:"is_active"`
-	Images      []ProductImage `json:"images"`
-	Variants    []Variant      `json:"variants"`
-	UnitsSold   int            `json:"units_sold"`
-	StatusLabel string         `json:"status_label"`
+	ID            int            `json:"id"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Category      string         `json:"category"`
+	Brand         string         `json:"brand"`
+	IsActive      bool           `json:"is_active"`
+	AllowOversell bool           `json:"allow_oversell"`
+	Images        []ProductImage `json:"images"`
+	Variants      []Variant      `json:"variants"`
+	UnitsSold     int            `json:"units_sold"`
+	StatusLabel   string         `json:"status_label"`
 }
 
 // List returns all products with their images, variants, stock, units sold and a
 // computed status label (active / low_stock / out_of_stock / nonaktif).
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT id, name, description, category, COALESCE(brand,''), is_active FROM products ORDER BY id`)
+		SELECT id, name, description, category, COALESCE(brand,''), is_active, allow_oversell FROM products ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
 		return
@@ -68,7 +69,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	idIndex := map[int]int{}
 	for rows.Next() {
 		var p Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive, &p.AllowOversell); err != nil {
 			continue
 		}
 		p.Variants = []Variant{}
@@ -171,8 +172,8 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p Product
-	err = h.DB.QueryRow(r.Context(), `SELECT id, name, description, category, COALESCE(brand,''), is_active FROM products WHERE id=$1`, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive)
+	err = h.DB.QueryRow(r.Context(), `SELECT id, name, description, category, COALESCE(brand,''), is_active, allow_oversell FROM products WHERE id=$1`, id).
+		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive, &p.AllowOversell)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
@@ -229,12 +230,13 @@ type variantInput struct {
 const maxProductImages = 5
 
 type createProductRequest struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Category    string         `json:"category"`
-	Brand       string         `json:"brand"`
-	Images      []string       `json:"images"`
-	Variants    []variantInput `json:"variants"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Category      string         `json:"category"`
+	Brand         string         `json:"brand"`
+	AllowOversell bool           `json:"allow_oversell"`
+	Images        []string       `json:"images"`
+	Variants      []variantInput `json:"variants"`
 }
 
 // Create allows super_user/management to add a new product with its photos and initial variants.
@@ -259,8 +261,8 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (name, description, category, brand) VALUES ($1,$2,$3,$4) RETURNING id`,
-		req.Name, req.Description, req.Category, req.Brand).Scan(&id)
+		INSERT INTO products (name, description, category, brand, allow_oversell) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+		req.Name, req.Description, req.Category, req.Brand, req.AllowOversell).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create product")
 		return
@@ -289,11 +291,12 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProductRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Brand       string `json:"brand"`
-	IsActive    *bool  `json:"is_active"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Category      string `json:"category"`
+	Brand         string `json:"brand"`
+	IsActive      *bool  `json:"is_active"`
+	AllowOversell *bool  `json:"allow_oversell"`
 }
 
 // Update edits a product's own fields (not variants/stock/photos).
@@ -312,9 +315,13 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
+	allowOversell := false
+	if req.AllowOversell != nil {
+		allowOversell = *req.AllowOversell
+	}
 	ct, err := h.DB.Exec(r.Context(), `
-		UPDATE products SET name=$1, description=$2, category=$3, brand=$4, is_active=$5 WHERE id=$6`,
-		req.Name, req.Description, req.Category, req.Brand, isActive, id)
+		UPDATE products SET name=$1, description=$2, category=$3, brand=$4, is_active=$5, allow_oversell=$6 WHERE id=$7`,
+		req.Name, req.Description, req.Category, req.Brand, isActive, allowOversell, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update product")
 		return

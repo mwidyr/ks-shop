@@ -36,6 +36,7 @@
       "categories": "Categories",
       "inventory": "Inventory",
       "warehouses": "Warehouses",
+      "picking": "Picking List",
       "shipping": "Shipping",
       "returns": "Returns",
       "refunds": "Refunds",

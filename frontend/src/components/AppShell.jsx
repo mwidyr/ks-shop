@@ -28,6 +28,7 @@ const navGroups = [
   },
   {
     title: 'fulfillment', icon: IconTruck, items: [
+      { to: '/picking', key: 'picking' },
       { to: '/shipping', key: 'shipping' },
       { to: '/returns', key: 'returns' },
       { to: '/refunds', key: 'refunds' },

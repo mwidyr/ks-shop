@@ -17,6 +17,7 @@ import Chat from './pages/Chat'
 import Reviews from './pages/Reviews'
 import Warehouses from './pages/Warehouses'
 import Shipping from './pages/Shipping'
+import DaftarPengambilan from './pages/DaftarPengambilan'
 import Returns from './pages/Returns'
 import Refunds from './pages/Refunds'
 import Promotions from './pages/Promotions'
@@ -80,6 +81,7 @@ export default function App() {
 
       {/* Fulfillment */}
       <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
+      <Route path="/picking" element={<ProtectedRoute><DaftarPengambilan /></ProtectedRoute>} />
       <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
       <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />
 

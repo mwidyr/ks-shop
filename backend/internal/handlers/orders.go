@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -63,7 +64,12 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		baseWhere += " AND o.sales_id = " + addArg(claims.UserID)
 	}
 	if status := q.Get("status"); status != "" {
-		baseWhere += " AND o.status = " + addArg(status)
+		statuses := strings.Split(status, ",")
+		if len(statuses) == 1 {
+			baseWhere += " AND o.status = " + addArg(statuses[0])
+		} else {
+			baseWhere += " AND o.status = ANY(" + addArg(statuses) + ")"
+		}
 	}
 	if dateFrom := q.Get("date_from"); dateFrom != "" {
 		baseWhere += " AND o.created_at >= " + addArg(dateFrom)
@@ -147,16 +153,21 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type orderItemView struct {
-	ID          int     `json:"id"`
-	ProductName string  `json:"product_name"`
-	ImageURL    string  `json:"image_url"`
-	Color       string  `json:"color"`
-	Size        string  `json:"size"`
-	SKU         string  `json:"sku"`
-	Qty         int     `json:"qty"`
-	Price       float64 `json:"price"`
-	HostID      *int    `json:"host_id"`
-	HostName    string  `json:"host_name"`
+	ID              int     `json:"id"`
+	VariantID       int     `json:"variant_id"`
+	ProductName     string  `json:"product_name"`
+	ImageURL        string  `json:"image_url"`
+	Color           string  `json:"color"`
+	Size            string  `json:"size"`
+	SKU             string  `json:"sku"`
+	Qty             int     `json:"qty"`
+	PickedQty       int     `json:"picked_qty"`
+	Price           float64 `json:"price"`
+	HostID          *int    `json:"host_id"`
+	HostName        string  `json:"host_name"`
+	AvailableToPick int     `json:"available_to_pick"`
+	PhysicalStock   int     `json:"physical_stock"`
+	IsOversell      bool    `json:"is_oversell"`
 }
 
 type orderDetailView struct {
@@ -174,6 +185,10 @@ type orderDetailView struct {
 	DiscountAmount   float64         `json:"discount_amount"`
 	AdditionalAmount float64         `json:"additional_amount"`
 	Total            float64         `json:"total"`
+	InternalNotes    string          `json:"internal_notes"`
+	Attachments      []string        `json:"attachments"`
+	CreatedBy        string          `json:"created_by"`
+	CreatedAt        string          `json:"created_at"`
 	StatusHistory    []statusLogView `json:"status_history"`
 }
 
@@ -194,27 +209,34 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var o orderDetailView
+	var createdAt time.Time
 	err = h.DB.QueryRow(ctx, `
 		SELECT o.id, o.order_no, o.status, c.name, c.phone, o.shipping_address, pc.name,
-		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount
+		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
+		       COALESCE(o.internal_notes,''), COALESCE(u.name,'system'), o.created_at
 		FROM orders o
 		JOIN customers c ON c.id=o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		LEFT JOIN users u ON u.id = o.sales_id
 		WHERE o.id=$1`, id).
 		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount)
+			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
+			&o.InternalNotes, &o.CreatedBy, &createdAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
+	o.CreatedAt = createdAt.Format(time.RFC3339)
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT p.name,
+		SELECT oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
-		       pv.color, pv.size, pv.sku, oi.qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-')
+		       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
+		       sb.available_stock, sb.available_stock + sb.reserve_stock + sb.broken_stock
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
+		JOIN stock_buckets sb ON sb.variant_id = pv.id
 		LEFT JOIN hosts h ON h.id = oi.host_id
 		WHERE oi.order_id = $1`, id)
 	if err == nil {
@@ -222,12 +244,25 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		o.Items = []orderItemView{}
 		for rows.Next() {
 			var it orderItemView
-			rows.Scan(&it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.Price, &it.HostID, &it.HostName)
+			rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.PickedQty,
+				&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock)
+			it.IsOversell = it.AvailableToPick < 0
 			o.Subtotal += it.Price * float64(it.Qty)
 			o.Items = append(o.Items, it)
 		}
 	}
 	o.Total = o.Subtotal - o.DiscountAmount + o.AdditionalAmount
+
+	attRows, err := h.DB.Query(ctx, `SELECT url FROM order_attachments WHERE order_id=$1 ORDER BY created_at`, id)
+	if err == nil {
+		defer attRows.Close()
+		o.Attachments = []string{}
+		for attRows.Next() {
+			var url string
+			attRows.Scan(&url)
+			o.Attachments = append(o.Attachments, url)
+		}
+	}
 
 	logRows, err := h.DB.Query(ctx, `
 		SELECT COALESCE(status_from,'-'), status_to, COALESCE(u.name,'system'), COALESCE(reason,''), l.created_at::text
@@ -348,14 +383,16 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	for _, it := range req.Items {
 		var available int
 		var price float64
+		var allowOversell bool
 		if err := tx.QueryRow(ctx, `
-			SELECT sb.available_stock, pv.price FROM stock_buckets sb
+			SELECT sb.available_stock, pv.price, p.allow_oversell FROM stock_buckets sb
 			JOIN product_variants pv ON pv.id = sb.variant_id
-			WHERE sb.variant_id=$1 FOR UPDATE`, it.VariantID).Scan(&available, &price); err != nil {
+			JOIN products p ON p.id = pv.product_id
+			WHERE sb.variant_id=$1 FOR UPDATE`, it.VariantID).Scan(&available, &price, &allowOversell); err != nil {
 			respondError(w, http.StatusBadRequest, "variant not found")
 			return
 		}
-		if available < it.Qty {
+		if available < it.Qty && !allowOversell {
 			respondError(w, http.StatusConflict, fmt.Sprintf("stock tidak cukup untuk variant %d (tersedia %d, diminta %d)", it.VariantID, available, it.Qty))
 			return
 		}
@@ -503,6 +540,169 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": req.Status})
+}
+
+type updateNotesRequest struct {
+	InternalNotes string `json:"internal_notes"`
+}
+
+// UpdateNotes edits the order's free-text internal staff note.
+func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	var req updateNotesRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1 WHERE id=$2`, req.InternalNotes, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save note")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type addAttachmentRequest struct {
+	URL string `json:"url"`
+}
+
+// AddAttachment records a file (already uploaded via /uploads/image) against the order.
+func (h *OrderHandler) AddAttachment(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	var req addAttachmentRequest
+	if err := decodeJSON(r, &req); err != nil || req.URL == "" {
+		respondError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+	var attID int
+	if err := h.DB.QueryRow(r.Context(), `
+		INSERT INTO order_attachments (order_id, url) VALUES ($1,$2) RETURNING id`, id, req.URL).Scan(&attID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save attachment")
+		return
+	}
+	respondJSON(w, http.StatusCreated, map[string]int{"id": attID})
+}
+
+type pickItemRequest struct {
+	PickedQty int `json:"picked_qty"`
+}
+
+// PickItem records how much of a line item has been physically gathered during picking
+// (used both from the order-detail page and the cross-order Daftar Pengambilan queue).
+func (h *OrderHandler) PickItem(w http.ResponseWriter, r *http.Request) {
+	itemID, err := strconv.Atoi(chi.URLParam(r, "itemId"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid item id")
+		return
+	}
+	var req pickItemRequest
+	if err := decodeJSON(r, &req); err != nil || req.PickedQty < 0 {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `
+		UPDATE order_items SET picked_qty = LEAST($1, qty) WHERE id=$2`, req.PickedQty, itemID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update picked quantity")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "order item not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type splitOrderRequest struct {
+	ItemIDs []int `json:"item_ids"`
+}
+
+// Split moves a subset of an order's line items into a brand-new order (same customer, host
+// attribution and pickup info), for when a customer's items can't all ship together.
+func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	var req splitOrderRequest
+	if err := decodeJSON(r, &req); err != nil || len(req.ItemIDs) == 0 {
+		respondError(w, http.StatusBadRequest, "item_ids is required")
+		return
+	}
+
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var customerID, salesID, pickupChainID int
+	var shippingAddress, pickupStoreName, pickupStoreCode string
+	if err := tx.QueryRow(ctx, `
+		SELECT customer_id, COALESCE(sales_id,0), pickup_chain_id, shipping_address,
+		       COALESCE(pickup_store_name,''), COALESCE(pickup_store_code,'')
+		FROM orders WHERE id=$1 FOR UPDATE`, id).
+		Scan(&customerID, &salesID, &pickupChainID, &shippingAddress, &pickupStoreName, &pickupStoreCode); err != nil {
+		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+
+	var totalItems int
+	tx.QueryRow(ctx, `SELECT COUNT(*) FROM order_items WHERE order_id=$1`, id).Scan(&totalItems)
+	if len(req.ItemIDs) >= totalItems {
+		respondError(w, http.StatusBadRequest, "tidak bisa memisahkan semua item; sisakan minimal 1 item di order asal")
+		return
+	}
+
+	newOrderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
+	var newOrderID int
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, parent_order_id)
+		VALUES ($1,$2,$3,(SELECT status FROM orders WHERE id=$4),$5,$6,$7,$8,$4) RETURNING id`,
+		newOrderNo, customerID, salesID, id, shippingAddress, pickupChainID, pickupStoreName, pickupStoreCode).Scan(&newOrderID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to create split order")
+		return
+	}
+
+	itemIDs32 := make([]int32, len(req.ItemIDs))
+	for i, v := range req.ItemIDs {
+		itemIDs32[i] = int32(v)
+	}
+	ct, err := tx.Exec(ctx, `
+		UPDATE order_items SET order_id=$1 WHERE id = ANY($2) AND order_id=$3`,
+		newOrderID, itemIDs32, id)
+	if err != nil || ct.RowsAffected() == 0 {
+		respondError(w, http.StatusInternalServerError, "failed to move items to split order")
+		return
+	}
+
+	claims := appmw.GetClaims(r)
+	tx.Exec(ctx, `INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
+		VALUES ($1,NULL,(SELECT status FROM orders WHERE id=$1),$2,$3)`, newOrderID, claims.UserID, "Dipisah dari "+strconv.Itoa(id))
+	tx.Exec(ctx, `INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
+		VALUES ($1,(SELECT status FROM orders WHERE id=$1),(SELECT status FROM orders WHERE id=$1),$2,$3)`,
+		id, claims.UserID, fmt.Sprintf("Sebagian item dipisah ke order #%d", newOrderID))
+
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusCreated, map[string]int{"new_order_id": newOrderID})
 }
 
 func itoa(n int) string {

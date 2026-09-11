@@ -62,6 +62,7 @@ func main() {
 	imageH := &handlers.ProductImageHandler{DB: pool}
 	feesH := &handlers.FeeSettingsHandler{DB: pool}
 	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
+	pickingH := &handlers.PickingHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -88,6 +89,10 @@ func main() {
 			r.Get("/orders/{id}", orderH.Detail)
 			r.Post("/orders", orderH.Create)
 			r.Patch("/orders/{id}/status", orderH.UpdateStatus)
+			r.Patch("/orders/{id}/notes", orderH.UpdateNotes)
+			r.Post("/orders/{id}/attachments", orderH.AddAttachment)
+			r.Patch("/order-items/{itemId}/pick", orderH.PickItem)
+			r.Post("/orders/{id}/split", orderH.Split)
 
 			r.Get("/dashboard/summary", dashboardH.Summary)
 			r.Get("/dashboard/graph", dashboardH.Graph)
@@ -105,6 +110,7 @@ func main() {
 
 			r.Get("/settings/fees", feesH.Get)
 			r.Get("/settings/shipping", shippingSettingsH.Get)
+			r.Get("/picking-queue", pickingH.Queue)
 		})
 
 		// Catalog & reference-data management: super_user + management only
