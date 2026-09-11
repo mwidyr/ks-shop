@@ -1,19 +1,12 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { listUsers, createUser, updateUser } from '../api/users'
+import { listPermissions, getRolePermissionMatrix, updateRolePermissionMatrix } from '../api/rolePermissions'
 
 const roleOptions = [
   { key: 'super_user', label: 'Super User' },
   { key: 'management', label: 'Management' },
   { key: 'spv', label: 'SPV' },
   { key: 'sales', label: 'Sales' },
-]
-
-const permissions = [
-  { name: 'Produk & Stok', access: { super_user: true, management: true, spv: false, sales: false } },
-  { name: 'Pesanan', access: { super_user: true, management: true, spv: true, sales: true } },
-  { name: 'Pengaturan Toko', access: { super_user: true, management: true, spv: false, sales: false } },
-  { name: 'Laporan & Profit', access: { super_user: true, management: true, spv: true, sales: false } },
-  { name: 'Manajemen Pengguna', access: { super_user: true, management: false, spv: false, sales: false } },
 ]
 
 function AddStaffForm({ onCreated }) {
@@ -74,12 +67,51 @@ function AddStaffForm({ onCreated }) {
 export default function RolesMatrix() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [permissions, setPermissions] = useState([])
+  const [roles, setRoles] = useState([])
+  const [matrix, setMatrix] = useState({})
+  const [matrixSaving, setMatrixSaving] = useState(false)
+  const [matrixSaved, setMatrixSaved] = useState(false)
 
   function reload() {
     listUsers().then((data) => { setUsers(data); setLoading(false) })
   }
 
+  function reloadMatrix() {
+    listPermissions().then(setPermissions)
+    getRolePermissionMatrix().then((res) => {
+      setRoles(res.roles.filter((r) => r !== 'customer'))
+      setMatrix(res.matrix)
+    })
+  }
+
   useEffect(reload, [])
+  useEffect(reloadMatrix, [])
+
+  function toggleMatrix(role, key) {
+    setMatrix((m) => {
+      const current = m[role] || []
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+      return { ...m, [role]: next }
+    })
+  }
+
+  async function saveMatrix() {
+    setMatrixSaving(true)
+    setMatrixSaved(false)
+    try {
+      await updateRolePermissionMatrix(matrix)
+      setMatrixSaved(true)
+      setTimeout(() => setMatrixSaved(false), 2000)
+    } finally {
+      setMatrixSaving(false)
+    }
+  }
+
+  const permsByGroup = permissions.reduce((acc, p) => {
+    (acc[p.group_name] = acc[p.group_name] || []).push(p)
+    return acc
+  }, {})
 
   async function toggleActive(u) {
     await updateUser(u.id, { is_active: !u.is_active })
@@ -124,25 +156,46 @@ export default function RolesMatrix() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-        <h2 className="font-bold text-gray-800 mb-1">Matriks Izin</h2>
-        <p className="text-xs text-gray-500 mb-4">Referensi tetap (belum ada kontrol izin granular per-modul) - mengikuti 4 peran yang benar-benar dipakai sistem.</p>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-bold text-gray-800">Matriks Izin (Setup)</h2>
+          <div className="flex items-center gap-2">
+            {matrixSaved && <span className="text-xs text-green-600">Tersimpan</span>}
+            <button onClick={saveMatrix} disabled={matrixSaving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded-lg">
+              {matrixSaving ? 'Menyimpan...' : 'Simpan'}
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Kerangka dasar - checkbox di bawah ini belum otomatis membatasi akses di sistem, menunggu finalisasi matrix Admin/CS/Warehouse dari meeting.
+        </p>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-2">Modul</th>
-              {roleOptions.map((r) => <th key={r.key} className="p-2 text-center">{r.label}</th>)}
+              <th className="p-2">Izin</th>
+              {roles.map((role) => <th key={role} className="p-2 text-center">{role}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y">
-            {permissions.map((p) => (
-              <tr key={p.name}>
-                <td className="p-2 font-medium text-gray-700">{p.name}</td>
-                {roleOptions.map((r) => (
-                  <td key={r.key} className="p-2 text-center">
-                    {p.access[r.key] ? <span className="text-green-600 font-bold">✓</span> : <span className="text-gray-300">✕</span>}
-                  </td>
+            {Object.entries(permsByGroup).map(([group, perms]) => (
+              <Fragment key={group}>
+                <tr className="bg-gray-50">
+                  <td colSpan={roles.length + 1} className="p-2 text-[11px] font-bold text-gray-400 uppercase">{group}</td>
+                </tr>
+                {perms.map((p) => (
+                  <tr key={p.key}>
+                    <td className="p-2 text-gray-700">{p.description}</td>
+                    {roles.map((role) => (
+                      <td key={role} className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={(matrix[role] || []).includes(p.key)}
+                          onChange={() => toggleMatrix(role, p.key)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>

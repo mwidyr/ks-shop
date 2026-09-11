@@ -1,3 +1,5 @@
+import { formatCurrency } from '../utils/format'
+
 const productPerf = [
   { name: 'Sneakers Classic White', revenue: 2848320, orders: 6, units: 12, conversion: '4.1%', profit: 512300 },
   { name: 'Running Shoes Pro', revenue: 2866234, orders: 5, units: 10, conversion: '3.8%', profit: 498100 },
@@ -7,8 +9,8 @@ const customerBreakdown = [
   { label: 'New Customer', value: '32%' },
   { label: 'Returning Customer', value: '48%' },
   { label: 'Retention Rate', value: '61%' },
-  { label: 'LTV', value: 'Rp 4.250.000' },
-  { label: 'AOV', value: 'Rp 385.000' },
+  { label: 'LTV', value: formatCurrency(4250000) },
+  { label: 'AOV', value: formatCurrency(385000) },
 ]
 const timeBreakdown = [
   { label: 'Jam Tersibuk', value: '19:00 - 21:00' },
@@ -36,11 +38,11 @@ export default function SalesAnalyticsDetail() {
             {productPerf.map((p) => (
               <tr key={p.name}>
                 <td className="p-2 font-medium text-gray-700">{p.name}</td>
-                <td className="p-2 text-brand-600 font-semibold">Rp {p.revenue.toLocaleString('id-ID')}</td>
+                <td className="p-2 text-brand-600 font-semibold">{formatCurrency(p.revenue)}</td>
                 <td className="p-2 text-gray-500">{p.orders}</td>
                 <td className="p-2 text-gray-500">{p.units}</td>
                 <td className="p-2 text-gray-500">{p.conversion}</td>
-                <td className="p-2 text-green-600 font-semibold">Rp {p.profit.toLocaleString('id-ID')}</td>
+                <td className="p-2 text-green-600 font-semibold">{formatCurrency(p.profit)}</td>
               </tr>
             ))}
           </tbody>

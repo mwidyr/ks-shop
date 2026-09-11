@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { listPickupLinks, createPickupLink, updatePickupLink } from '../api/pickupLinks'
 
 const tabs = [
@@ -63,6 +64,11 @@ export default function Shipping() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
+      <div className="flex justify-end">
+        <Link to="/shipping/export" className="text-sm font-semibold text-brand-600 hover:underline">
+          Ekspor Data Pengiriman →
+        </Link>
+      </div>
       <div className="bg-white rounded-2xl shadow-sm p-5">
         <h2 className="font-bold text-gray-800 mb-1">Buat Tautan Pickup</h2>
         <p className="text-xs text-gray-500 mb-3">Buat tautan yang bisa dibagikan, misalnya per host/sesi live.</p>

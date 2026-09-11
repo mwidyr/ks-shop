@@ -41,7 +41,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: false,
 	}))
@@ -49,6 +49,9 @@ func main() {
 	authH := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret}
 	productH := &handlers.ProductHandler{DB: pool}
 	orderH := &handlers.OrderHandler{DB: pool}
+	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
+	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
+	rolePermH := &handlers.RolePermissionHandler{DB: pool}
 	customerH := &handlers.CustomerHandler{DB: pool}
 	dashboardH := &handlers.DashboardHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
@@ -98,9 +101,16 @@ func main() {
 			r.Post("/orders", orderH.Create)
 			r.Patch("/orders/{id}/status", orderH.UpdateStatus)
 			r.Patch("/orders/{id}/notes", orderH.UpdateNotes)
+			r.Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
 			r.Post("/orders/{id}/attachments", orderH.AddAttachment)
 			r.Patch("/order-items/{itemId}/pick", orderH.PickItem)
 			r.Post("/orders/{id}/split", orderH.Split)
+			r.Get("/orders/merge-suggestions", orderMergeH.Suggestions)
+			r.Post("/orders/merge-groups", orderMergeH.CreateGroup)
+			r.Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
+			r.Get("/shipping-export", shippingExportH.List)
+			r.Post("/shipping-export/mark-exported", shippingExportH.MarkExported)
+			r.Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)
 
 			r.Get("/dashboard/summary", dashboardH.Summary)
 			r.Get("/dashboard/graph", dashboardH.Graph)
@@ -175,6 +185,10 @@ func main() {
 			r.Get("/users", userH.List)
 			r.Post("/users", userH.Create)
 			r.Patch("/users/{id}", userH.Update)
+
+			r.Get("/permissions", rolePermH.Permissions)
+			r.Get("/role-permissions", rolePermH.Matrix)
+			r.Put("/role-permissions", rolePermH.UpdateMatrix)
 		})
 	})
 

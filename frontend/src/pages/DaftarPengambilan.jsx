@@ -2,23 +2,21 @@ import { useEffect, useState } from 'react'
 import { getPickingQueue, pickOrderItem } from '../api/orders'
 import { Link } from 'react-router-dom'
 import PickingLineItem from '../components/PickingLineItem'
-import FilterChip from '../components/FilterChip'
 
 export default function DaftarPengambilan() {
   const [data, setData] = useState({ items: [], total: 0 })
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
 
   function fetchQueue() {
     setLoading(true)
-    getPickingQueue({ q: search, status: statusFilter, page_size: 100 }).then((res) => {
+    getPickingQueue({ q: search, page_size: 100 }).then((res) => {
       setData(res)
       setLoading(false)
     })
   }
 
-  useEffect(fetchQueue, [search, statusFilter])
+  useEffect(fetchQueue, [search])
 
   async function handlePick(itemId, pickedQty) {
     await pickOrderItem(itemId, pickedQty)
@@ -37,18 +35,6 @@ export default function DaftarPengambilan() {
           placeholder="Cari produk / kode / pelanggan / no. pesanan..."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         />
-        <div className="flex gap-2 flex-wrap">
-          <FilterChip label={statusFilter ? `Status: ${statusFilter}` : 'Semua Status'} active={!!statusFilter} onClick={() => {}} onClear={() => setStatusFilter('')} />
-          {['confirm', 'packing', 'picking'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
-              className={`text-sm font-medium px-3 py-1.5 rounded-full border ${statusFilter === s ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
       </div>
 
       <p className="text-sm text-gray-500 mb-3">ITEM · {data.total}</p>

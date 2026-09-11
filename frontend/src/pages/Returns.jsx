@@ -1,4 +1,4 @@
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 const stages = ['Diajukan', 'Ditinjau', 'Disetujui', 'Barang Diterima', 'Inspeksi', 'Refund']
 
@@ -27,7 +27,7 @@ export default function Returns() {
                 <p className="font-semibold text-gray-800">{ret.id} · {ret.order}</p>
                 <p className="text-xs text-gray-500">{ret.customer} · Alasan: {reasonLabels[ret.reason]}</p>
               </div>
-              <p className="font-semibold text-brand-600">{formatRupiah(ret.amount)}</p>
+              <p className="font-semibold text-brand-600">{formatCurrency(ret.amount)}</p>
             </div>
             <div className="flex items-center gap-1 mb-3">
               {stages.map((s, i) => (

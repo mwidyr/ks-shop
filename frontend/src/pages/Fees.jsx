@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getFeeSettings } from '../api/settings'
+import { formatCurrency } from '../utils/format'
 
 export default function Fees() {
   const [fees, setFees] = useState(null)
@@ -9,8 +10,8 @@ export default function Fees() {
   const rows = fees ? [
     { label: 'Platform Fee', value: `${fees.platform_fee_pct}%` },
     { label: 'Payment Fee', value: `${fees.payment_fee_pct}%` },
-    { label: 'Shipping Subsidy', value: `Rp ${fees.shipping_subsidy_flat.toLocaleString('id-ID')} / order` },
-    { label: 'Ad Cost', value: `Rp ${fees.ad_cost_flat.toLocaleString('id-ID')} / order` },
+    { label: 'Shipping Subsidy', value: `${formatCurrency(fees.shipping_subsidy_flat)} / order` },
+    { label: 'Ad Cost', value: `${formatCurrency(fees.ad_cost_flat)} / order` },
   ] : []
 
   return (

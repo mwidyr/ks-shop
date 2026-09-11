@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listCustomerStats, setCustomerLabel, deleteCustomer } from '../api/customers'
 import { listOrders } from '../api/orders'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import BigStatCard from '../components/BigStatCard'
 import StatusPill from '../components/StatusPill'
 
@@ -92,7 +92,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-[11px] text-gray-400 uppercase">Lifetime Value</p>
-            <p className="text-lg font-bold text-brand-600">{formatRupiah(customer.total_spend)}</p>
+            <p className="text-lg font-bold text-brand-600">{formatCurrency(customer.total_spend)}</p>
           </div>
         </div>
         <h3 className="text-sm font-bold text-gray-700 mb-2">Riwayat Order</h3>
@@ -109,7 +109,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
                   <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString('id-ID')}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-brand-600">{formatRupiah(o.total)}</p>
+                  <p className="font-semibold text-brand-600">{formatCurrency(o.total)}</p>
                   <StatusPill status={o.status} />
                 </div>
               </div>
@@ -212,7 +212,7 @@ export default function Customers() {
                   <td className="p-3 font-medium text-gray-800">{c.name}</td>
                   <td className="p-3 text-gray-500">{c.phone}</td>
                   <td className="p-3 text-gray-500">{c.order_count}</td>
-                  <td className="p-3 font-semibold text-brand-600">{formatRupiah(c.total_spend)}</td>
+                  <td className="p-3 font-semibold text-brand-600">{formatCurrency(c.total_spend)}</td>
                   <td className="p-3 text-gray-500">{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="p-3">
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${segmentColors[c.segment]}`}>

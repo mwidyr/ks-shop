@@ -6,7 +6,7 @@ import {
 } from '../api/liveSessions'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { IconClose, IconPlus, IconTrash } from '../components/icons'
 
@@ -237,8 +237,8 @@ export default function LiveSessionDetail() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-xs text-gray-400 line-through">{formatRupiah(c.price)}</p>
-                  <p className="text-sm font-bold text-brand-600">{formatRupiah(c.live_price)}</p>
+                  <p className="text-xs text-gray-400 line-through">{formatCurrency(c.price)}</p>
+                  <p className="text-sm font-bold text-brand-600">{formatCurrency(c.live_price)}</p>
                 </div>
                 <button onClick={() => handleRemoveProduct(c.id)} className="text-gray-400 hover:text-red-600">
                   <IconTrash />

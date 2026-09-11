@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getOrder } from '../api/orders'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 const typeLabels = { invoice: 'Invoice', label: 'Label Pengiriman', 'packing-slip': 'Packing Slip' }
 
@@ -26,17 +26,17 @@ function InvoiceView({ order }) {
             <tr key={i} className="border-b">
               <td className="py-1">{it.product_name} ({it.color}/{it.size})</td>
               <td className="py-1">{it.qty}</td>
-              <td className="py-1 text-right">{formatRupiah(it.price)}</td>
-              <td className="py-1 text-right">{formatRupiah(it.price * it.qty)}</td>
+              <td className="py-1 text-right">{formatCurrency(it.price)}</td>
+              <td className="py-1 text-right">{formatCurrency(it.price * it.qty)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <div className="text-sm ml-auto w-56">
-        <div className="flex justify-between"><span>Subtotal</span><span>{formatRupiah(order.subtotal)}</span></div>
-        {order.discount_amount > 0 && <div className="flex justify-between"><span>Diskon</span><span>-{formatRupiah(order.discount_amount)}</span></div>}
-        {order.additional_amount > 0 && <div className="flex justify-between"><span>Biaya Tambahan</span><span>+{formatRupiah(order.additional_amount)}</span></div>}
-        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total</span><span>{formatRupiah(order.total)}</span></div>
+        <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(order.subtotal)}</span></div>
+        {order.discount_amount > 0 && <div className="flex justify-between"><span>Diskon</span><span>-{formatCurrency(order.discount_amount)}</span></div>}
+        {order.additional_amount > 0 && <div className="flex justify-between"><span>Biaya Tambahan</span><span>+{formatCurrency(order.additional_amount)}</span></div>}
+        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total</span><span>{formatCurrency(order.total)}</span></div>
       </div>
     </div>
   )

@@ -34,12 +34,14 @@ type pickingRow struct {
 	IsOversell      bool   `json:"is_oversell"`
 }
 
-// Queue lists items belonging to in-progress orders (confirm/packing/picking), optionally
-// filtered by q (matches SKU, product name, customer name or order number), color, size.
+// Queue lists items belonging to in-progress orders (status 'picking' - an order enters this
+// status when staff start picking, and leaves it automatically once every item is fully picked,
+// see OrderHandler.PickItem), optionally filtered by q (matches SKU, product name, customer name
+// or order number), color, size.
 func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	baseWhere := " WHERE o.status IN ('confirm','packing','picking') "
+	baseWhere := " WHERE o.status = 'picking' AND (o.keep_date IS NULL OR o.keep_date <= CURRENT_DATE + 1) "
 	args := []interface{}{}
 	argN := 1
 	addArg := func(a interface{}) string {
@@ -59,9 +61,6 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	}
 	if size := q.Get("size"); size != "" {
 		baseWhere += ` AND pv.size = ` + addArg(size)
-	}
-	if status := q.Get("status"); status != "" {
-		baseWhere += ` AND o.status = ` + addArg(status)
 	}
 	if q.Get("ready") == "true" {
 		baseWhere += ` AND sb.available_stock >= oi.qty`

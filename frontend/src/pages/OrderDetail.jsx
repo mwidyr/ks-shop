@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  addOrderAttachment, getOrder, pickOrderItem, splitOrder, updateOrderNotes, updateOrderStatus,
+  addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderStatus,
 } from '../api/orders'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
@@ -11,19 +11,17 @@ import ScanVerifyModal from '../components/ScanVerifyModal'
 import { IconClose } from '../components/icons'
 
 const transitions = {
-  pending: ['confirm', 'cancelled'],
-  confirm: ['packing', 'cancelled'],
-  packing: ['picking', 'cancelled'],
-  picking: ['shipped', 'cancelled'],
+  pending: ['picking', 'cancelled'],
+  picking: ['ready_to_ship', 'cancelled'],
+  ready_to_ship: ['shipped', 'cancelled'],
   shipped: ['delivered', 'cancelled', 'return'],
   delivered: ['return'],
 }
 
 const todoByStatus = {
-  pending: ['Menunggu konfirmasi order'],
-  confirm: ['Menunggu pengambilan selesai', 'Menunggu pengiriman'],
-  packing: ['Menunggu pengambilan selesai', 'Menunggu pengiriman'],
-  picking: ['Pengambilan selesai', 'Menunggu pengiriman'],
+  pending: ['Menunggu mulai picking'],
+  picking: ['Sedang dipicking'],
+  ready_to_ship: ['Pengambilan selesai', 'Menunggu pengiriman'],
   shipped: ['Dalam pengiriman ke titik pengambilan'],
   delivered: ['Pesanan selesai'],
   cancelled: ['Pesanan dibatalkan'],
@@ -96,12 +94,15 @@ export default function OrderDetail() {
   const [notesDraft, setNotesDraft] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
+  const [keepDateDraft, setKeepDateDraft] = useState('')
+  const [keepDateSaving, setKeepDateSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useState(false)
 
   function load() {
-    getOrder(id).then((o) => { setOrder(o); setNotesDraft(o.internal_notes || '') })
+    getOrder(id).then((o) => { setOrder(o); setNotesDraft(o.internal_notes || ''); setKeepDateDraft(o.keep_date || '') })
   }
 
   useEffect(() => { load() }, [id])
@@ -130,6 +131,22 @@ export default function OrderDetail() {
   async function handleScanMatch(code) {
     const item = order.items.find((it) => it.sku === code && it.picked_qty < it.qty)
     if (item) await handlePick(item.id, item.picked_qty + 1)
+  }
+
+  async function handleUnmerge() {
+    if (!order.shipment_group_id) return
+    await deleteMergeGroup(order.shipment_group_id)
+    load()
+  }
+
+  async function saveKeepDate(value) {
+    setKeepDateSaving(true)
+    try {
+      await updateOrderKeepDate(id, value || null)
+      load()
+    } finally {
+      setKeepDateSaving(false)
+    }
   }
 
   async function saveNotes() {
@@ -163,7 +180,7 @@ export default function OrderDetail() {
   const nextOptions = transitions[order.status] || []
   function actionLabel(s) {
     if (order.status === 'pending') {
-      if (s === 'confirm') return 'Terima Order'
+      if (s === 'picking') return 'Mulai Picking'
       if (s === 'cancelled') return 'Tolak Order'
     }
     return statusLabels[s]
@@ -174,17 +191,54 @@ export default function OrderDetail() {
   const totalPicked = order.items.reduce((s, it) => s + it.picked_qty, 0)
   const progres = totalPicked === 0 ? 'Menunggu diambil' : totalPicked < totalQty ? `Diambil ${totalPicked}/${totalQty}` : 'Pengambilan selesai'
 
+  async function copyOrderInfo() {
+    const orderNos = order.shipment_group_id ? [order.order_no, ...order.shipment_group_order_nos] : [order.order_no]
+    const lines = [
+      `Order: ${orderNos.join(' + ')}`,
+      `Pelanggan: ${order.customer_name} (${order.customer_phone})`,
+      `Alamat: ${order.shipping_address}`,
+      `Pengambilan: ${order.pickup_chain_name}${order.pickup_store_name ? ' - ' + order.pickup_store_name : ''}${order.pickup_store_code ? ' #' + order.pickup_store_code : ''}`,
+      '',
+      'Produk:',
+      ...order.items.map((it) => `- ${it.product_name} (${it.color}/${it.size}) x${it.qty} = ${formatCurrency(it.price * it.qty)}`),
+      '',
+      `Ongkir: ${order.shipping_fee > 0 ? formatCurrency(order.shipping_fee) : 'Gratis' + (order.shipment_group_id ? ' (termasuk dalam pengiriman gabungan)' : '')}`,
+      `Total: ${formatCurrency(order.total)}`,
+    ]
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard access denied - nothing more we can do here
+    }
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-extrabold text-gray-800">{order.order_no}</h1>
-        <StatusPill status={order.status} />
+        <div className="flex items-center gap-2">
+          <button onClick={copyOrderInfo} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+            {copied ? '✓ Tersalin' : '📋 Salin Info Pesanan'}
+          </button>
+          <StatusPill status={order.status} />
+        </div>
       </div>
       <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}</p>
 
       {order.customer_blacklisted && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 mb-4">
           ⚠️ Pelanggan ini ditandai sebagai daftar hitam. Periksa dulu sebelum memproses pesanan ini.
+        </div>
+      )}
+
+      {order.shipment_group_id && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <span>📦 Bagian dari pengiriman gabungan #{order.shipment_group_id} bersama {order.shipment_group_order_nos.join(', ')}</span>
+          <button onClick={handleUnmerge} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-100">
+            Batalkan Gabungan
+          </button>
         </div>
       )}
 
@@ -207,6 +261,34 @@ export default function OrderDetail() {
               <p className="text-sm text-gray-600">{order.customer_name}</p>
               <a href={`tel:${order.customer_phone}`} className="text-sm text-brand-600 font-medium hover:underline">☎ {order.customer_phone}</a>
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-gray-700">Keep Order</p>
+              {keepDateDraft && (
+                <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                  Ditahan sampai {keepDateDraft}
+                </span>
+              )}
+            </div>
+            <input
+              type="date"
+              value={keepDateDraft}
+              onChange={(e) => setKeepDateDraft(e.target.value)}
+              onBlur={(e) => saveKeepDate(e.target.value)}
+              disabled={keepDateSaving}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+            />
+            {keepDateDraft && (
+              <button
+                onClick={() => { setKeepDateDraft(''); saveKeepDate('') }}
+                className="ml-2 text-xs text-gray-500 hover:text-red-600"
+              >
+                Hapus
+              </button>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Order masuk antrian picking mulai H-1 dari tanggal ini.</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm divide-y">
@@ -239,7 +321,7 @@ export default function OrderDetail() {
                   isOversell={item.is_oversell}
                   hostName={item.host_name}
                   onPick={handlePick}
-                  meta={<p className="text-sm font-semibold text-gray-700 float-right">{formatRupiah(item.price * item.qty)}</p>}
+                  meta={<p className="text-sm font-semibold text-gray-700 float-right">{formatCurrency(item.price * item.qty)}</p>}
                 />
               </div>
             ))}
@@ -248,23 +330,27 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4 space-y-1 text-sm">
             <div className="flex items-center justify-between text-gray-500">
               <span>Subtotal</span>
-              <span>{formatRupiah(order.subtotal)}</span>
+              <span>{formatCurrency(order.subtotal)}</span>
             </div>
             {order.discount_amount > 0 && (
               <div className="flex items-center justify-between text-red-600">
                 <span>Diskon</span>
-                <span>-{formatRupiah(order.discount_amount)}</span>
+                <span>-{formatCurrency(order.discount_amount)}</span>
               </div>
             )}
             {order.additional_amount > 0 && (
               <div className="flex items-center justify-between text-gray-500">
                 <span>Biaya Tambahan</span>
-                <span>+{formatRupiah(order.additional_amount)}</span>
+                <span>+{formatCurrency(order.additional_amount)}</span>
               </div>
             )}
+            <div className="flex items-center justify-between text-gray-500">
+              <span>Ongkir {order.free_shipping_override && <span className="text-[10px] text-green-600">(gratis manual)</span>}</span>
+              <span>{order.shipping_fee > 0 ? `+${formatCurrency(order.shipping_fee)}` : 'Gratis'}</span>
+            </div>
             <div className="flex items-center justify-between pt-2 border-t mt-2">
               <span className="font-bold text-gray-800">Total</span>
-              <span className="text-lg font-extrabold text-brand-600">{formatRupiah(order.total)}</span>
+              <span className="text-lg font-extrabold text-brand-600">{formatCurrency(order.total)}</span>
             </div>
           </div>
 

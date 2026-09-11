@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { listPickupChains, createPickupChain, updatePickupChain, deletePickupChain } from '../api/pickupChains'
 import { getShippingSettings, updateShippingSettings } from '../api/settings'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 // Matches the reference's "Pengaturan Ongkir" layout: per-chain platform-fixed base fee
 // (read-only) vs. the seller's own target fee charged to the buyer, with the margin
@@ -74,7 +74,7 @@ function PickupChainsCard({ chains, reload }) {
               <div className="grid grid-cols-3 gap-3 items-end">
                 <div>
                   <label className="block text-[11px] text-gray-500 mb-1">Ongkir Dasar</label>
-                  <p className="text-sm font-semibold text-gray-700 px-2 py-1.5">{formatRupiah(c.base_fee)}</p>
+                  <p className="text-sm font-semibold text-gray-700 px-2 py-1.5">{formatCurrency(c.base_fee)}</p>
                 </div>
                 <div>
                   <label className="block text-[11px] text-gray-500 mb-1">Ongkir Target</label>
@@ -88,7 +88,7 @@ function PickupChainsCard({ chains, reload }) {
                 </div>
                 <div>
                   <label className="block text-[11px] text-gray-500 mb-1">Selisih Kamu</label>
-                  <p className={`text-sm font-bold px-2 py-1.5 ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatRupiah(margin)}</p>
+                  <p className={`text-sm font-bold px-2 py-1.5 ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(margin)}</p>
                 </div>
               </div>
             </div>
@@ -151,7 +151,7 @@ function FreeShippingCard() {
           <input type="number" value={form.free_shipping_threshold_minimarket} onChange={(e) => update('free_shipping_threshold_minimarket', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Ambang Gratis Ongkir — Kantor Pos</label>
+          <label className="block text-[11px] text-gray-500 mb-1">Ambang Gratis Ongkir — Alamat Customer</label>
           <input type="number" value={form.free_shipping_threshold_pos} onChange={(e) => update('free_shipping_threshold_pos', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { getSummary, getGraph, getHostRanking, getTopProducts, getProfit, getAlerts } from '../api/dashboard'
 import { listHosts } from '../api/hosts'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { statusLabels } from '../components/StatusPill'
 import StatTile from '../components/StatTile'
@@ -79,15 +79,15 @@ export default function Dashboard() {
       ) : (
         <>
           <div className="flex flex-wrap gap-4 mb-6">
-            <BigStatCard title="Potensial (Pending)" value={formatRupiah(revenue.pending || 0)} subLabel={`${counts.pending || 0} Order`} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="🔥" />
-            <BigStatCard title="Deal (Delivered)" value={formatRupiah(revenue.delivered || 0)} subLabel={`${counts.delivered || 0} Order`} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
-            <BigStatCard title="Loss (Cancelled/Return)" value={formatRupiah(lossRevenue)} subLabel={`${lossCount} Order`} iconBg="bg-red-50" iconColor="text-red-600" icon="✕" />
+            <BigStatCard title="Potensial (Pending)" value={formatCurrency(revenue.pending || 0)} subLabel={`${counts.pending || 0} Order`} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="🔥" />
+            <BigStatCard title="Deal (Delivered)" value={formatCurrency(revenue.delivered || 0)} subLabel={`${counts.delivered || 0} Order`} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
+            <BigStatCard title="Loss (Cancelled/Return)" value={formatCurrency(lossRevenue)} subLabel={`${lossCount} Order`} iconBg="bg-red-50" iconColor="text-red-600" icon="✕" />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <StatTile label="Total Order" value={totalOrders} colorClass="bg-indigo-50 text-indigo-700" />
             <StatTile label="Qty Terjual" value={summary.total_qty} colorClass="bg-cyan-50 text-cyan-700" />
-            <StatTile label="Rata-rata Order" value={formatRupiah(avgOrder)} colorClass="bg-purple-50 text-purple-700" />
+            <StatTile label="Rata-rata Order" value={formatCurrency(avgOrder)} colorClass="bg-purple-50 text-purple-700" />
             <StatTile label="Host Aktif" value={activeHostCount} colorClass="bg-pink-50 text-pink-700" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -152,7 +152,7 @@ export default function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v) => (metric === 'revenue' ? formatRupiah(v) : v)} />
+                      <Tooltip formatter={(v) => (metric === 'revenue' ? formatCurrency(v) : v)} />
                       <Legend />
                       {hosts.map((host, i) => (
                         <Area
@@ -197,13 +197,13 @@ export default function Dashboard() {
                       <div key={label} className="flex items-center justify-between py-1.5">
                         <span className="text-gray-500">{label}</span>
                         <span className={neg ? 'text-red-600' : 'text-gray-700 font-medium'}>
-                          {neg && value > 0 ? '-' : ''}{formatRupiah(value)}
+                          {neg && value > 0 ? '-' : ''}{formatCurrency(value)}
                         </span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between py-2 pt-3">
                       <span className="font-bold text-gray-800">Profit</span>
-                      <span className="text-lg font-extrabold text-brand-600">{formatRupiah(profit.net_profit)}</span>
+                      <span className="text-lg font-extrabold text-brand-600">{formatCurrency(profit.net_profit)}</span>
                     </div>
                   </div>
                 </div>
@@ -227,7 +227,7 @@ export default function Dashboard() {
                           <p className="text-sm font-medium text-gray-700 truncate">{row.host}</p>
                           <p className="text-xs text-gray-400">{row.qty} Pax</p>
                         </div>
-                        <span className="text-sm font-semibold text-brand-600 shrink-0">{formatRupiah(row.revenue)}</span>
+                        <span className="text-sm font-semibold text-brand-600 shrink-0">{formatCurrency(row.revenue)}</span>
                       </div>
                     ))}
                   </div>
@@ -247,7 +247,7 @@ export default function Dashboard() {
                           <p className="text-sm font-medium text-gray-700 truncate">{p.name}</p>
                           <p className="text-xs text-gray-400">{p.qty} terjual</p>
                         </div>
-                        <span className="text-sm font-semibold text-brand-600 shrink-0">{formatRupiah(p.revenue)}</span>
+                        <span className="text-sm font-semibold text-brand-600 shrink-0">{formatCurrency(p.revenue)}</span>
                       </div>
                     ))}
                   </div>

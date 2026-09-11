@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Papa from 'papaparse'
 import { getProductReport, getOrderReport } from '../api/reports'
 import { listHosts } from '../api/hosts'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 
 const tabs = [
@@ -17,8 +17,8 @@ function SummaryCard({ summary }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
       <p className="text-xs text-gray-400 uppercase">Penjualan Bersih</p>
-      <p className="text-2xl font-extrabold text-gray-800">{formatRupiah(summary.net_sales)}</p>
-      <p className="text-xs text-gray-500">{summary.order_count} pesanan · rata-rata {formatRupiah(summary.avg_order)}</p>
+      <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(summary.net_sales)}</p>
+      <p className="text-xs text-gray-500">{summary.order_count} pesanan · rata-rata {formatCurrency(summary.avg_order)}</p>
     </div>
   )
 }
@@ -123,7 +123,7 @@ export default function Reports() {
                   <td className="p-3 text-right">{row.order_count}</td>
                   <td className="p-3 text-right">{row.qty}</td>
                   <td className="p-3 text-right text-red-500">{row.qty_return}</td>
-                  <td className="p-3 text-right font-semibold text-brand-600">{formatRupiah(row.revenue)}</td>
+                  <td className="p-3 text-right font-semibold text-brand-600">{formatCurrency(row.revenue)}</td>
                 </tr>
               ))}
             </tbody>
@@ -154,7 +154,7 @@ export default function Reports() {
                   <td className="p-3 text-gray-700">{row.product_name}</td>
                   <td className="p-3 text-gray-500">{row.variant}</td>
                   <td className="p-3 text-right">{row.qty}</td>
-                  <td className="p-3 text-right font-semibold text-brand-600">{formatRupiah(row.subtotal)}</td>
+                  <td className="p-3 text-right font-semibold text-brand-600">{formatCurrency(row.subtotal)}</td>
                   {tab !== 'hosts' && <td className="p-3 text-gray-500">{row.customer_name} · {row.customer_phone}</td>}
                   {tab === 'hosts' ? <td className="p-3 text-gray-500">{row.host_name}</td> : tab === 'staff' ? <td className="p-3 text-gray-500">{row.staff_name}</td> : null}
                 </tr>

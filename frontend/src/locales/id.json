@@ -74,10 +74,9 @@
     "font_xxlarge": "Ekstra Besar"
   },
   "status": {
-    "pending": "Menunggu",
-    "confirm": "Dikonfirmasi",
-    "packing": "Dikemas",
-    "picking": "Diambil",
+    "pending": "Baru",
+    "picking": "Picking",
+    "ready_to_ship": "Siap Kirim",
     "shipped": "Dikirim",
     "delivered": "Selesai",
     "cancelled": "Dibatalkan",

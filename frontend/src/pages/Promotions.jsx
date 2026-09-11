@@ -2,8 +2,8 @@ import MockPage from '../components/MockPage'
 
 const promos = [
   { name: 'Diskon 9.9', type: 'Percentage', value: '10%', status: 'Aktif' },
-  { name: 'Gratis Ongkir Minimal 100rb', type: 'Shipping', value: 'Rp 15.000', status: 'Aktif' },
-  { name: 'Bundling Kaos 2pcs', type: 'Bundle', value: 'Rp 50.000', status: 'Berakhir' },
+  { name: 'Gratis Ongkir Minimal NT$150', type: 'Shipping', value: 'NT$15', status: 'Aktif' },
+  { name: 'Bundling Kaos 2pcs', type: 'Bundle', value: 'NT$50', status: 'Berakhir' },
 ]
 
 export default function Promotions() {

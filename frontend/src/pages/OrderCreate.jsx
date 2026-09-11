@@ -5,10 +5,11 @@ import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
 import { listProducts } from '../api/products'
-import { formatRupiah } from '../utils/format'
+import { getShippingSettings } from '../api/settings'
+import { formatCurrency } from '../utils/format'
 import CustomerPicker from '../components/CustomerPicker'
 
-const emptyLine = () => ({ hostId: '', productId: '', variantId: '', qty: 1 })
+const emptyLine = (defaultHostId = '') => ({ hostId: defaultHostId, productId: '', variantId: '', qty: 1 })
 
 export default function OrderCreate() {
   const navigate = useNavigate()
@@ -25,6 +26,9 @@ export default function OrderCreate() {
   const [liveSessions, setLiveSessions] = useState([])
   const [discountAmount, setDiscountAmount] = useState('')
   const [additionalAmount, setAdditionalAmount] = useState('')
+  const [keepDate, setKeepDate] = useState('')
+  const [freeShippingOverride, setFreeShippingOverride] = useState(false)
+  const [shippingSettings, setShippingSettings] = useState(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -33,6 +37,7 @@ export default function OrderCreate() {
     listPickupChains().then(setPickupChains)
     listProducts().then(setProducts)
     listLiveSessions({ status: 'live' }).then(setLiveSessions)
+    getShippingSettings().then(setShippingSettings)
   }, [])
 
   const selectedChain = pickupChains.find((c) => String(c.id) === String(pickupChainId))
@@ -48,7 +53,7 @@ export default function OrderCreate() {
   }
 
   function addLine() {
-    setLines((ls) => [...ls, emptyLine()])
+    setLines((ls) => [...ls, emptyLine(ls[ls.length - 1]?.hostId ?? '')])
   }
 
   function removeLine(idx) {
@@ -69,7 +74,24 @@ export default function OrderCreate() {
     return lines.reduce((sum, l) => sum + variantPrice(l.productId, l.variantId) * (Number(l.qty) || 0), 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, products])
-  const total = Math.max(0, subtotal - (Number(discountAmount) || 0) + (Number(additionalAmount) || 0))
+
+  // Mirrors backend ComputeShippingFee (shipping_fee.go): 0 if overridden or subtotal clears
+  // the relevant threshold, otherwise the chain's target_fee (minimarket) or the flat
+  // home-delivery fee (Alamat Customer / Lainnya) - preview only, backend recomputes on submit.
+  const shippingFee = useMemo(() => {
+    if (freeShippingOverride || !selectedChain || !shippingSettings) return 0
+    const isHomeDelivery = selectedChain.name === 'Alamat Customer' || selectedChain.name === 'Lainnya'
+    if (isHomeDelivery) {
+      const threshold = shippingSettings.free_shipping_threshold_pos
+      if (threshold > 0 && subtotal >= threshold) return 0
+      return shippingSettings.home_delivery_flat_fee
+    }
+    const threshold = shippingSettings.free_shipping_threshold_minimarket
+    if (threshold > 0 && subtotal >= threshold) return 0
+    return selectedChain.target_fee
+  }, [freeShippingOverride, selectedChain, shippingSettings, subtotal])
+
+  const total = Math.max(0, subtotal - (Number(discountAmount) || 0) + (Number(additionalAmount) || 0) + shippingFee)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -106,6 +128,8 @@ export default function OrderCreate() {
         items,
         discount_amount: Number(discountAmount) || 0,
         additional_amount: Number(additionalAmount) || 0,
+        keep_date: keepDate || null,
+        free_shipping_override: freeShippingOverride,
       })
       navigate(`/orders/${res.order_id}`)
     } catch (err) {
@@ -168,7 +192,7 @@ export default function OrderCreate() {
                   <input type="number" min="1" value={l.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">{formatRupiah(variantPrice(l.productId, l.variantId) * (Number(l.qty) || 0))}</span>
+                  <span className="text-sm font-semibold text-gray-700">{formatCurrency(variantPrice(l.productId, l.variantId) * (Number(l.qty) || 0))}</span>
                   {lines.length > 1 && (
                     <button type="button" onClick={() => removeLine(idx)} className="text-xs text-red-600 hover:underline ml-2">Hapus</button>
                   )}
@@ -203,7 +227,7 @@ export default function OrderCreate() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nama Toko</label>
-                <input value={pickupStoreName} onChange={(e) => setPickupStoreName(e.target.value)} placeholder="Contoh: Indomaret Sudirman" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <input value={pickupStoreName} onChange={(e) => setPickupStoreName(e.target.value)} placeholder="Contoh: 7-Eleven Zhongxiao" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kode Toko</label>
@@ -228,26 +252,39 @@ export default function OrderCreate() {
               <input type="number" min="0" value={additionalAmount} onChange={(e) => setAdditionalAmount(e.target.value)} placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Keep Order sampai (opsional)</label>
+            <input type="date" value={keepDate} onChange={(e) => setKeepDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <p className="text-xs text-gray-400 mt-1">Order baru masuk antrian picking mulai H-1 dari tanggal ini.</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={freeShippingOverride} onChange={(e) => setFreeShippingOverride(e.target.checked)} />
+            Gratis Ongkir (manual)
+          </label>
           <div className="border-t pt-3 space-y-1 text-sm">
             <div className="flex items-center justify-between text-gray-500">
               <span>Subtotal</span>
-              <span>{formatRupiah(subtotal)}</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
             {Number(discountAmount) > 0 && (
               <div className="flex items-center justify-between text-red-600">
                 <span>Diskon</span>
-                <span>-{formatRupiah(Number(discountAmount))}</span>
+                <span>-{formatCurrency(Number(discountAmount))}</span>
               </div>
             )}
             {Number(additionalAmount) > 0 && (
               <div className="flex items-center justify-between text-gray-500">
                 <span>Biaya Tambahan</span>
-                <span>+{formatRupiah(Number(additionalAmount))}</span>
+                <span>+{formatCurrency(Number(additionalAmount))}</span>
               </div>
             )}
+            <div className="flex items-center justify-between text-gray-500">
+              <span>Ongkir</span>
+              <span>{shippingFee > 0 ? `+${formatCurrency(shippingFee)}` : 'Gratis'}</span>
+            </div>
             <div className="flex items-center justify-between pt-1">
               <span className="font-bold text-gray-800">Total</span>
-              <span className="text-xl font-extrabold text-brand-600">{formatRupiah(total)}</span>
+              <span className="text-xl font-extrabold text-brand-600">{formatCurrency(total)}</span>
             </div>
           </div>
         </div>

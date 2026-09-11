@@ -323,7 +323,7 @@ func (h *DashboardHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 		SELECT COUNT(*) FROM stock_buckets WHERE minimum_stock > 0 AND available_stock <= minimum_stock`).Scan(&lowStock)
 
 	var shipToday int
-	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE status IN ('confirm','packing','picking')`).Scan(&shipToday)
+	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE status IN ('picking','ready_to_ship')`).Scan(&shipToday)
 
 	var completed int
 	h.DB.QueryRow(ctx, `

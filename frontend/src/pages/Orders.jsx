@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listOrders, updateOrderStatus } from '../api/orders'
+import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listProducts } from '../api/products'
 import { getSummary } from '../api/dashboard'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import BigStatCard from '../components/BigStatCard'
@@ -20,14 +20,14 @@ function IconX(props) {
 }
 
 const nextStatus = {
-  pending: 'confirm', confirm: 'packing', packing: 'picking', picking: 'shipped', shipped: 'delivered',
+  pending: 'picking', picking: 'ready_to_ship', ready_to_ship: 'shipped', shipped: 'delivered',
 }
 
 const statusTabs = [
   { label: 'Semua', value: '' },
   { label: 'Pesanan Baru', value: 'pending' },
-  { label: 'Diproses', value: 'confirm,packing' },
-  { label: 'Siap Kirim', value: 'picking' },
+  { label: 'Picking', value: 'picking' },
+  { label: 'Siap Kirim', value: 'ready_to_ship' },
   { label: 'Dikirim', value: 'shipped' },
   { label: 'Selesai', value: 'delivered' },
   { label: 'Dibatalkan', value: 'cancelled,return' },
@@ -42,6 +42,7 @@ export default function Orders() {
   const [hostId, setHostId] = useState('')
   const [category, setCategory] = useState('')
   const [pickupChainId, setPickupChainId] = useState('')
+  const [blacklistOnly, setBlacklistOnly] = useState(false)
   const [range, setRange] = useState(null)
   const [page, setPage] = useState(1)
   const [advancing, setAdvancing] = useState(null)
@@ -55,19 +56,42 @@ export default function Orders() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkResult, setBulkResult] = useState('')
 
+  const [mergeSuggestions, setMergeSuggestions] = useState([])
+  const [dismissedMerges, setDismissedMerges] = useState(new Set())
+  const [mergeModal, setMergeModal] = useState(null)
+  const [mergeBusy, setMergeBusy] = useState(false)
+
+  function fetchMergeSuggestions() {
+    getMergeSuggestions().then(setMergeSuggestions)
+  }
+
   useEffect(() => {
     listHosts(true).then(setHosts)
     listPickupChains(true).then(setPickupChains)
     listProducts().then((products) => {
       setCategories([...new Set(products.map((p) => p.category).filter(Boolean))])
     })
+    fetchMergeSuggestions()
   }, [])
+
+  async function handleMerge(orderIds) {
+    setMergeBusy(true)
+    try {
+      await createMergeGroup(orderIds)
+      setMergeModal(null)
+      fetchMergeSuggestions()
+      fetchOrders()
+    } finally {
+      setMergeBusy(false)
+    }
+  }
 
   function fetchOrders() {
     if (!range) return
     setLoading(true)
     listOrders({
       q: search, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
+      blacklist_only: blacklistOnly ? 'true' : '',
       date_from: range.from, date_to: range.to, page, page_size: 20,
     }).then((res) => {
       setData(res)
@@ -77,10 +101,10 @@ export default function Orders() {
     getSummary(range).then(setSummary)
   }
 
-  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, range, page])
+  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, blacklistOnly, range, page])
 
   function resetFilters() {
-    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setPage(1)
+    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setBlacklistOnly(false); setPage(1)
   }
 
   async function handleAdvance(order) {
@@ -138,18 +162,61 @@ export default function Orders() {
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size))
   const counts = summary?.order_status_counts || {}
   const revenue = summary?.order_status_revenue || {}
-  const processing = ['confirm', 'packing', 'picking', 'shipped'].reduce((sum, s) => sum + (counts[s] || 0), 0)
-  const processingRevenue = ['confirm', 'packing', 'picking', 'shipped'].reduce((sum, s) => sum + (revenue[s] || 0), 0)
+  const processing = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (counts[s] || 0), 0)
+  const processingRevenue = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (revenue[s] || 0), 0)
+
+  const visibleMerges = mergeSuggestions.filter((s) => !dismissedMerges.has(s.customer_id + '-' + s.pickup_store_code))
 
   return (
     <div className="px-4 sm:px-6 py-6">
+      {visibleMerges.map((s) => {
+        const key = s.customer_id + '-' + s.pickup_store_code
+        return (
+          <div key={key} className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-amber-800">
+              💡 <span className="font-semibold">{s.order_nos.length} order</span> dari <span className="font-semibold">{s.customer_name}</span> ({s.pickup_chain_name}) bisa digabung jadi satu pengiriman: {s.order_nos.join(', ')}
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => setMergeModal(s)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700">
+                Gabungkan
+              </button>
+              <button onClick={() => setDismissedMerges((d) => new Set(d).add(key))} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100">
+                Abaikan
+              </button>
+            </div>
+          </div>
+        )
+      })}
+
+      {mergeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setMergeModal(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-bold text-gray-800 mb-2">Gabungkan Pengiriman</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Gabungkan {mergeModal.order_nos.length} order dari {mergeModal.customer_name} ({mergeModal.pickup_chain_name}) menjadi satu pengiriman. Ongkir hanya dihitung sekali pada order pertama.
+            </p>
+            <ul className="text-sm text-gray-700 mb-4 list-disc pl-5">
+              {mergeModal.order_nos.map((no) => <li key={no}>{no}</li>)}
+            </ul>
+            <div className="flex gap-2">
+              <button onClick={() => handleMerge(mergeModal.order_ids)} disabled={mergeBusy} className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
+                {mergeBusy ? 'Menggabungkan...' : 'Gabungkan'}
+              </button>
+              <button onClick={() => setMergeModal(null)} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {summary && (
         <div className="flex flex-wrap gap-4 mb-6">
           <BigStatCard title="Total Order" value={Object.values(counts).reduce((a, b) => a + b, 0)} subLabel={`${summary.total_qty} item`} iconBg="bg-blue-50" iconColor="text-blue-600" icon="📦" />
-          <BigStatCard title="Total Revenue" value={formatRupiah(summary.total_revenue)} iconBg="bg-green-50" iconColor="text-green-600" icon="💰" />
-          <BigStatCard title="Menunggu Konfirmasi" value={formatRupiah(revenue.pending || 0)} subLabel={`${counts.pending || 0} order`} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⏳" />
-          <BigStatCard title="Sedang Diproses" value={formatRupiah(processingRevenue)} subLabel={`${processing} order`} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🚚" />
-          <BigStatCard title="Selesai" value={formatRupiah(revenue.delivered || 0)} subLabel={`${counts.delivered || 0} order`} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
+          <BigStatCard title="Total Revenue" value={formatCurrency(summary.total_revenue)} iconBg="bg-green-50" iconColor="text-green-600" icon="💰" />
+          <BigStatCard title="Menunggu Konfirmasi" value={formatCurrency(revenue.pending || 0)} subLabel={`${counts.pending || 0} order`} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⏳" />
+          <BigStatCard title="Sedang Diproses" value={formatCurrency(processingRevenue)} subLabel={`${processing} order`} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🚚" />
+          <BigStatCard title="Selesai" value={formatCurrency(revenue.delivered || 0)} subLabel={`${counts.delivered || 0} order`} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
         </div>
       )}
 
@@ -179,6 +246,14 @@ export default function Orders() {
             <option value="">Semua Metode Pengambilan</option>
             {pickupChains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <button
+            onClick={() => { setBlacklistOnly((v) => !v); setPage(1) }}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
+              blacklistOnly ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            🚫 Daftar Hitam
+          </button>
           <button onClick={resetFilters} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">
             Reset
           </button>
@@ -257,7 +332,12 @@ export default function Orders() {
                     </td>
                     <td className="p-3 font-semibold text-gray-800">{o.order_no}</td>
                     <td className="p-3">
-                      <p className="text-gray-700">{o.customer_name}</p>
+                      <p className="text-gray-700 flex items-center gap-1.5">
+                        {o.customer_name}
+                        {o.customer_blacklisted && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">Daftar Hitam</span>
+                        )}
+                      </p>
                       <p className="text-xs text-gray-400">{o.customer_phone}</p>
                     </td>
                     <td className="p-3 text-gray-700 font-medium">{o.host_names}</td>
@@ -266,7 +346,7 @@ export default function Orders() {
                       {o.pickup_store_code && <span className="font-mono text-xs text-gray-400"> #{o.pickup_store_code}</span>}
                     </td>
                     <td className="p-3 text-gray-500">{o.total_qty}</td>
-                    <td className="p-3 font-semibold text-brand-600">{formatRupiah(o.total)}</td>
+                    <td className="p-3 font-semibold text-brand-600">{formatCurrency(o.total)}</td>
                     <td className="p-3"><StatusPill status={o.status} /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">

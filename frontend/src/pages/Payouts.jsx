@@ -1,5 +1,5 @@
 import MockPage from '../components/MockPage'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 const payouts = [
   { period: '1-7 Sep 2026', amount: 8450000, status: 'Dibayarkan', date: '8 Sep 2026' },
@@ -17,7 +17,7 @@ export default function Payouts() {
               <p className="text-xs text-gray-500">{p.date}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-brand-600">{formatRupiah(p.amount)}</p>
+              <p className="text-sm font-semibold text-brand-600">{formatCurrency(p.amount)}</p>
               <p className="text-xs text-gray-500">{p.status}</p>
             </div>
           </div>

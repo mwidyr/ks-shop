@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -95,6 +95,7 @@ const titleOverrides = [
   { prefix: '/panel-siaran/history', title: 'Riwayat Sesi' },
   { prefix: '/panel-siaran/new', title: 'Tambah Sesi Siaran' },
   { prefix: '/panel-siaran/', title: 'Kelola Sesi' },
+  { prefix: '/shipping/export', title: 'Ekspor Data Pengiriman' },
 ]
 
 function buildTitleMap(t) {
@@ -123,6 +124,7 @@ export default function AppShell({ children }) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   function handleLogout() {
     logout()
@@ -135,9 +137,18 @@ export default function AppShell({ children }) {
     return location.pathname === to || location.pathname.startsWith(to + '/')
   }
 
+  useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
+
   return (
     <div className="min-h-screen flex bg-gray-50">
-      <aside className="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col">
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div className="flex items-center gap-2 px-4 py-4 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-extrabold text-lg">K</div>
           <span className="font-extrabold text-gray-800 tracking-tight">{t('brand.name')}</span>
@@ -212,9 +223,20 @@ export default function AppShell({ children }) {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-6">
-          <h1 className="text-xl font-extrabold text-gray-800">{pageTitle(location.pathname, t)}</h1>
-          <div className="flex items-center gap-4">
+        <header className="h-16 shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="lg:hidden shrink-0 text-gray-500 hover:text-gray-800 p-1"
+              aria-label="Buka menu"
+            >
+              <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-lg sm:text-xl font-extrabold text-gray-800 truncate">{pageTitle(location.pathname, t)}</h1>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <button title={t('nav.items.notifications')} className="text-gray-400 hover:text-gray-600 relative">
               <IconBell />
             </button>

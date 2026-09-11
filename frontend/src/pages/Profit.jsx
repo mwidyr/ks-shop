@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getProfit } from '../api/dashboard'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import DateRangePicker from '../components/DateRangePicker'
 
 function Row({ label, value, isNegative, bold, indent }) {
@@ -8,7 +8,7 @@ function Row({ label, value, isNegative, bold, indent }) {
     <div className={`flex items-center justify-between py-2 ${bold ? 'border-t mt-1 pt-3' : ''}`}>
       <span className={`text-sm ${bold ? 'font-bold text-gray-800' : 'text-gray-600'} ${indent ? 'pl-4' : ''}`}>{label}</span>
       <span className={`text-sm ${bold ? 'font-extrabold text-lg' : 'font-semibold'} ${isNegative ? 'text-red-600' : bold ? 'text-brand-600' : 'text-gray-700'}`}>
-        {isNegative && value > 0 ? '-' : ''}{formatRupiah(value)}
+        {isNegative && value > 0 ? '-' : ''}{formatCurrency(value)}
       </span>
     </div>
   )
@@ -58,7 +58,7 @@ export default function Profit() {
             </div>
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Net Sales</p>
-              <p className="text-2xl font-extrabold text-gray-800">{formatRupiah(data.net_sales)}</p>
+              <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.net_sales)}</p>
               <p className="text-xs text-gray-400 mt-1">Gross Sales - Diskon + Biaya Tambahan</p>
             </div>
           </div>

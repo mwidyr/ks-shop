@@ -1,5 +1,5 @@
 import MockPage from '../components/MockPage'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 const refunds = [
   { order: 'ORD-SEED-9', customer: 'Dedi Kurniawan', amount: 1755281, type: 'Full', status: 'Diproses' },
@@ -17,7 +17,7 @@ export default function Refunds() {
               <p className="text-xs text-gray-500">{r.customer} · {r.type}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-brand-600">{formatRupiah(r.amount)}</p>
+              <p className="text-sm font-semibold text-brand-600">{formatCurrency(r.amount)}</p>
               <p className="text-xs text-gray-500">{r.status}</p>
             </div>
           </div>

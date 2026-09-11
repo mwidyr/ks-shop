@@ -17,6 +17,7 @@ import Chat from './pages/Chat'
 import Reviews from './pages/Reviews'
 import Warehouses from './pages/Warehouses'
 import Shipping from './pages/Shipping'
+import ShippingExport from './pages/ShippingExport'
 import DaftarPengambilan from './pages/DaftarPengambilan'
 import PanelSiaran from './pages/PanelSiaran'
 import LiveSessionHistory from './pages/LiveSessionHistory'
@@ -93,6 +94,7 @@ export default function App() {
 
       {/* Fulfillment */}
       <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
+      <Route path="/shipping/export" element={<ProtectedRoute><ShippingExport /></ProtectedRoute>} />
       <Route path="/picking" element={<ProtectedRoute><DaftarPengambilan /></ProtectedRoute>} />
       <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
       <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />

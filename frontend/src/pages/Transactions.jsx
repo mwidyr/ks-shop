@@ -1,5 +1,5 @@
 import MockPage from '../components/MockPage'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 
 const rows = [
   { id: 'TRX-2026-091', type: 'Pembayaran Order', amount: 949440, status: 'Berhasil' },
@@ -18,7 +18,7 @@ export default function Transactions() {
               <p className="text-xs text-gray-500">{t.type}</p>
             </div>
             <div className="text-right">
-              <p className={`text-sm font-semibold ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatRupiah(t.amount)}</p>
+              <p className={`text-sm font-semibold ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(t.amount)}</p>
               <p className="text-xs text-gray-500">{t.status}</p>
             </div>
           </div>

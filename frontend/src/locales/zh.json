@@ -74,10 +74,9 @@
     "font_xxlarge": "超大"
   },
   "status": {
-    "pending": "待處理",
-    "confirm": "已確認",
-    "packing": "包裝中",
+    "pending": "新訂單",
     "picking": "揀貨中",
+    "ready_to_ship": "待出貨",
     "shipped": "已出貨",
     "delivered": "已完成",
     "cancelled": "已取消",

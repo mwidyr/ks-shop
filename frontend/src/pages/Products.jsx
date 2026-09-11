@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Papa from 'papaparse'
 import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct } from '../api/products'
-import { formatRupiah } from '../utils/format'
+import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 
@@ -18,8 +18,8 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
   const prices = p.variants.map((v) => v.price)
   const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
-    ? formatRupiah(Math.min(...prices))
-    : `${formatRupiah(Math.min(...prices))} - ${formatRupiah(Math.max(...prices))}`) : '-'
+    ? formatCurrency(Math.min(...prices))
+    : `${formatCurrency(Math.min(...prices))} - ${formatCurrency(Math.max(...prices))}`) : '-'
 
   async function toggleActive() {
     await updateProduct(p.id, { name: p.name, description: p.description, category: p.category, brand: p.brand, is_active: !p.is_active })

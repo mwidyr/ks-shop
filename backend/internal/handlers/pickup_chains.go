@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PickupChainHandler manages minimarket/pickup fulfillment chains (Indomaret, Alfamart,
-// Kantor Pos, Lainnya) - this replaced courier-delivery as the app's fulfillment model.
+// PickupChainHandler manages minimarket/pickup fulfillment chains (7-Eleven, FamilyMart,
+// Alamat Customer, Lainnya) - this replaced courier-delivery as the app's fulfillment model.
 type PickupChainHandler struct {
 	DB *pgxpool.Pool
 }

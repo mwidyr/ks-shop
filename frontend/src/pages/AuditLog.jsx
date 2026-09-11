@@ -1,5 +1,5 @@
 const entries = [
-  { actor: 'admin01', action: 'Changed price', entity: 'SKU-001', oldValue: 'Rp500.000', newValue: 'Rp550.000', time: '10:32', ip: '10.0.0.4' },
+  { actor: 'admin01', action: 'Changed price', entity: 'SKU-001', oldValue: 'NT$500', newValue: 'NT$550', time: '10:32', ip: '10.0.0.4' },
   { actor: 'admin01', action: 'Updated stock', entity: 'SKU-003', oldValue: '100', newValue: '80', time: '10:35', ip: '10.0.0.4' },
   { actor: 'sales1', action: 'Cancelled order', entity: 'ORD-123', oldValue: 'pending', newValue: 'cancelled', time: '10:40', ip: '10.0.0.7' },
   { actor: 'management', action: 'Deactivated product', entity: 'SKU-011', oldValue: 'active', newValue: 'nonaktif', time: '11:02', ip: '10.0.0.2' },
