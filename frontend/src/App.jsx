@@ -19,6 +19,9 @@ import Warehouses from './pages/Warehouses'
 import Shipping from './pages/Shipping'
 import DaftarPengambilan from './pages/DaftarPengambilan'
 import PanelSiaran from './pages/PanelSiaran'
+import LiveSessionHistory from './pages/LiveSessionHistory'
+import LiveSessionNew from './pages/LiveSessionNew'
+import LiveSessionDetail from './pages/LiveSessionDetail'
 import PickupPublic from './pages/PickupPublic'
 import Returns from './pages/Returns'
 import Refunds from './pages/Refunds'
@@ -66,6 +69,9 @@ export default function App() {
 
       {/* Sales */}
       <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />
+      <Route path="/panel-siaran/history" element={<ProtectedRoute><LiveSessionHistory /></ProtectedRoute>} />
+      <Route path="/panel-siaran/new" element={<ProtectedRoute><LiveSessionNew /></ProtectedRoute>} />
+      <Route path="/panel-siaran/:id" element={<ProtectedRoute><LiveSessionDetail /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
       <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />

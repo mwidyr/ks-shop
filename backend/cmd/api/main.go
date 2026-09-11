@@ -129,7 +129,12 @@ func main() {
 			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
 			r.Get("/live-sessions", liveSessionH.List)
 			r.Post("/live-sessions", liveSessionH.Create)
+			r.Get("/live-sessions/{id}", liveSessionH.Detail)
+			r.Patch("/live-sessions/{id}", liveSessionH.Update)
+			r.Patch("/live-sessions/{id}/go-live", liveSessionH.GoLive)
 			r.Patch("/live-sessions/{id}/end", liveSessionH.End)
+			r.Post("/live-sessions/{id}/products", liveSessionH.AddProduct)
+			r.Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
 		})
 
 		// Catalog & reference-data management: super_user + management only

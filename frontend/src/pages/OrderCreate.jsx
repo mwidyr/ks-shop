@@ -32,7 +32,7 @@ export default function OrderCreate() {
     listHosts().then(setHosts)
     listPickupChains().then(setPickupChains)
     listProducts().then(setProducts)
-    listLiveSessions({ active: 'true' }).then(setLiveSessions)
+    listLiveSessions({ status: 'live' }).then(setLiveSessions)
   }, [])
 
   const selectedChain = pickupChains.find((c) => String(c.id) === String(pickupChainId))

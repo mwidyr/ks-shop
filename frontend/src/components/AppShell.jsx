@@ -92,6 +92,9 @@ const titleOverrides = [
   { prefix: '/products/', title: 'Edit Produk' },
   { prefix: '/settings', title: 'Pengaturan' },
   { prefix: '/dashboard', title: 'Dashboard' },
+  { prefix: '/panel-siaran/history', title: 'Riwayat Sesi' },
+  { prefix: '/panel-siaran/new', title: 'Tambah Sesi Siaran' },
+  { prefix: '/panel-siaran/', title: 'Kelola Sesi' },
 ]
 
 function buildTitleMap(t) {
