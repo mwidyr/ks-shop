@@ -6,18 +6,24 @@ import PreferencesModal from './PreferencesModal'
 import {
   IconDashboard, IconOrders, IconProducts, IconSettings, IconLogout, IconBell,
   IconTag, IconTruck, IconMegaphone, IconChartLine, IconWallet, IconStore, IconGear,
-  IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles,
-  IconBroadcast, IconUsers, IconChat, IconLayers, IconWarehouse, IconClipboard,
+  IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles, IconUser,
+  IconBroadcast, IconUsers, IconChat, IconWarehouse, IconClipboard,
   IconUndo, IconBarChart, IconUserCog, IconPuzzle, IconFileText, IconPalette,
+  IconCart, IconMolecule, IconTrendUp, IconLink,
 } from './icons'
 
+// Grouped into our own 8-category taxonomy (kept by deliberate choice rather than the
+// reference's flat list), but item names/icons and relative ordering within each group are
+// matched to the reference wherever a direct feature equivalent exists.
 const navGroups = [
   {
     title: 'sales', icon: IconTag, items: [
       { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
-      { to: '/orders', key: 'orders', icon: IconOrders },
-      { to: '/customers', key: 'customers', icon: IconUsers },
+      { to: '/orders', key: 'orders', icon: IconCart },
+      { to: '/picking', key: 'picking', icon: IconClipboard },
+      { to: '/shipping', key: 'shipping', icon: IconTruck },
       { to: '/chat', key: 'chat', icon: IconChat },
+      { to: '/customers', key: 'customers', icon: IconUsers },
       { to: '/reviews', key: 'reviews', icon: IconStar },
     ],
   },
@@ -25,14 +31,12 @@ const navGroups = [
     title: 'catalog', icon: IconProducts, items: [
       { to: '/products', key: 'products', icon: IconProducts },
       { to: '/categories', key: 'categories', icon: IconTag },
-      { to: '/inventory', key: 'inventory', icon: IconLayers },
+      { to: '/inventory', key: 'inventory', icon: IconMolecule },
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse },
     ],
   },
   {
     title: 'fulfillment', icon: IconTruck, items: [
-      { to: '/picking', key: 'picking', icon: IconClipboard },
-      { to: '/shipping', key: 'shipping', icon: IconTruck },
       { to: '/returns', key: 'returns', icon: IconUndo },
       { to: '/refunds', key: 'refunds', icon: IconWallet },
     ],
@@ -46,11 +50,9 @@ const navGroups = [
   },
   {
     title: 'analytics', icon: IconChartLine, items: [
-      { to: '/analytics/sales', key: 'sales_analytics', icon: IconChartLine },
-      { to: '/analytics/products', key: 'product_analytics', icon: IconChartLine },
-      { to: '/customers', key: 'customers', icon: IconUsers },
+      { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
+      { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
       { to: '/profit', key: 'profit', icon: IconWallet },
-      { to: '/advertising', key: 'advertising', icon: IconSend },
     ],
   },
   {
@@ -64,6 +66,8 @@ const navGroups = [
   {
     title: 'store', icon: IconStore, items: [
       { to: '/store/profile', key: 'store_profile', icon: IconStore },
+      { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
+      { to: '/hosts', key: 'hosts', icon: IconUser },
       { to: '/store/design', key: 'store_design', icon: IconPalette },
       { to: '/store/team', key: 'team', icon: IconUsers },
     ],
@@ -102,8 +106,11 @@ function buildTitleMap(t) {
 
 function pageTitle(pathname, t) {
   const titleMap = buildTitleMap(t)
-  const match = titleMap.find((entry) => pathname.startsWith(entry.prefix))
-  return match ? match.title : t('brand.name')
+  // Longest-prefix-first so a specific route (e.g. /settings/shipping) wins over a shorter,
+  // more general one (e.g. /settings) regardless of which array it came from.
+  const matches = titleMap.filter((entry) => pathname.startsWith(entry.prefix))
+  matches.sort((a, b) => b.prefix.length - a.prefix.length)
+  return matches[0] ? matches[0].title : t('brand.name')
 }
 
 export default function AppShell({ children }) {

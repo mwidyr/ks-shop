@@ -37,6 +37,8 @@ import RolesMatrix from './pages/RolesMatrix'
 import Notifications from './pages/Notifications'
 import Integrations from './pages/Integrations'
 import AuditLog from './pages/AuditLog'
+import HostManagement from './pages/HostManagement'
+import ShippingSettings from './pages/ShippingSettings'
 import { useAuth } from './context/AuthContext'
 
 function ProtectedRoute({ children }) {
@@ -116,6 +118,8 @@ export default function App() {
       <Route path="/system/roles" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
       <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
 
+      <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
+      <Route path="/settings/shipping" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     </Routes>
   )

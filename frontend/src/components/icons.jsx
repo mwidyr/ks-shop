@@ -234,6 +234,59 @@ export function IconSliders(props) {
   )
 }
 
+export function IconCart(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M2.5 3h2l2.7 12.4a1.5 1.5 0 0 0 1.5 1.2h8a1.5 1.5 0 0 0 1.5-1.2L20 7H6" />
+      <circle cx="9.5" cy="20" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="20" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function IconMolecule(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <circle cx="12" cy="5.5" r="2.3" />
+      <circle cx="6" cy="17" r="2.3" />
+      <circle cx="18" cy="17" r="2.3" />
+      <path d="M10.3 7.4 7.6 15M13.7 7.4l2.7 7.6M8.3 17h7.4" />
+    </svg>
+  )
+}
+
+export function IconTrendUp(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="m3 16 6-6 4 3 8-8" />
+      <path d="M15 5h6v6" />
+    </svg>
+  )
+}
+
+export function IconChecklist(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="m3 6 1.5 1.5L7 5" />
+      <line x1="10" y1="6" x2="21" y2="6" />
+      <path d="m3 12 1.5 1.5L7 11" />
+      <line x1="10" y1="12" x2="21" y2="12" />
+      <path d="m3 18 1.5 1.5L7 17" />
+      <line x1="10" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
+export function IconLink(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M9.5 14.5 14.5 9.5" />
+      <path d="M11 6.5 12.6 4.9a3.5 3.5 0 1 1 5 5L16 11.5" />
+      <path d="M13 17.5 11.4 19.1a3.5 3.5 0 1 1-5-5L8 12.5" />
+    </svg>
+  )
+}
+
 export function IconBroadcast(props) {
   return (
     <svg {...base} width={16} height={16} {...props}>
@@ -260,9 +313,7 @@ export function IconUsers(props) {
 export function IconChat(props) {
   return (
     <svg {...base} width={16} height={16} {...props}>
-      <path d="M4 4h16v12H8l-4 4Z" />
-      <line x1="8" y1="9" x2="16" y2="9" />
-      <line x1="8" y1="12.5" x2="13" y2="12.5" />
+      <path d="M21 11.5a7.5 7.5 0 0 1-11.4 6.4L4 19l1.4-4.2A7.5 7.5 0 1 1 21 11.5Z" />
     </svg>
   )
 }
