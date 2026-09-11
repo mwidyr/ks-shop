@@ -65,6 +65,7 @@ func main() {
 	pickingH := &handlers.PickingHandler{DB: pool}
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
+	reportsH := &handlers.ReportsHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -118,6 +119,8 @@ func main() {
 			r.Get("/settings/shipping", shippingSettingsH.Get)
 			r.Get("/picking-queue", pickingH.Queue)
 			r.Get("/categories", categoryH.List)
+			r.Get("/reports/products", reportsH.Products)
+			r.Get("/reports/orders", reportsH.Orders)
 			r.Get("/pickup-links", pickupLinkH.List)
 			r.Post("/pickup-links", pickupLinkH.Create)
 			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
