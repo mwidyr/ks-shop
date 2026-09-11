@@ -49,8 +49,12 @@ function LabelView({ order }) {
       <p className="text-lg font-bold">{order.customer_name}</p>
       <p className="text-sm">{order.customer_phone}</p>
       <p className="text-sm mb-4">{order.shipping_address}</p>
-      <p className="text-xs uppercase text-gray-500 mb-1">Kurir</p>
-      <p className="text-base font-semibold mb-4">{order.courier_name}</p>
+      <p className="text-xs uppercase text-gray-500 mb-1">Metode Pengambilan</p>
+      <p className="text-base font-semibold mb-4">
+        {order.pickup_chain_name}
+        {order.pickup_store_name && ` · ${order.pickup_store_name}`}
+        {order.pickup_store_code && ` #${order.pickup_store_code}`}
+      </p>
       <p className="text-xs uppercase text-gray-500 mb-1">No. Order</p>
       <p className="text-base font-mono">{order.order_no}</p>
     </div>

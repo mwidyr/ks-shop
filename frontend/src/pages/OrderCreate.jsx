@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createOrder } from '../api/orders'
 import { listHosts } from '../api/hosts'
-import { listCouriers } from '../api/couriers'
+import { listPickupChains } from '../api/pickupChains'
 import { listProducts } from '../api/products'
 import { formatRupiah } from '../utils/format'
 import CustomerPicker from '../components/CustomerPicker'
@@ -12,12 +12,14 @@ const emptyLine = () => ({ hostId: '', productId: '', variantId: '', qty: 1 })
 export default function OrderCreate() {
   const navigate = useNavigate()
   const [hosts, setHosts] = useState([])
-  const [couriers, setCouriers] = useState([])
+  const [pickupChains, setPickupChains] = useState([])
   const [products, setProducts] = useState([])
   const [lines, setLines] = useState([emptyLine()])
   const [customer, setCustomer] = useState(null)
   const [shippingAddress, setShippingAddress] = useState('')
-  const [courierId, setCourierId] = useState('')
+  const [pickupChainId, setPickupChainId] = useState('')
+  const [pickupStoreName, setPickupStoreName] = useState('')
+  const [pickupStoreCode, setPickupStoreCode] = useState('')
   const [discountAmount, setDiscountAmount] = useState('')
   const [additionalAmount, setAdditionalAmount] = useState('')
   const [error, setError] = useState('')
@@ -25,9 +27,12 @@ export default function OrderCreate() {
 
   useEffect(() => {
     listHosts().then(setHosts)
-    listCouriers().then(setCouriers)
+    listPickupChains().then(setPickupChains)
     listProducts().then(setProducts)
   }, [])
+
+  const selectedChain = pickupChains.find((c) => String(c.id) === String(pickupChainId))
+  const needsStoreInfo = selectedChain && selectedChain.name !== 'Lainnya'
 
   function updateLine(idx, field, value) {
     setLines((ls) => ls.map((l, i) => {
@@ -69,8 +74,8 @@ export default function OrderCreate() {
       setError('Pilih atau tambahkan pelanggan terlebih dahulu')
       return
     }
-    if (!courierId) {
-      setError('Pilih kurir pengiriman')
+    if (!pickupChainId) {
+      setError('Pilih metode pengambilan')
       return
     }
     if (!shippingAddress) {
@@ -88,7 +93,9 @@ export default function OrderCreate() {
       const res = await createOrder({
         customer,
         shipping_address: shippingAddress,
-        shipping_courier_id: Number(courierId),
+        pickup_chain_id: Number(pickupChainId),
+        pickup_store_name: pickupStoreName,
+        pickup_store_code: pickupStoreCode,
         items,
         discount_amount: Number(discountAmount) || 0,
         additional_amount: Number(additionalAmount) || 0,
@@ -158,14 +165,38 @@ export default function OrderCreate() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-          <h2 className="font-bold text-gray-800">Pengiriman</h2>
+          <h2 className="font-bold text-gray-800">Metode Pengiriman</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Kurir</label>
-            <select value={courierId} onChange={(e) => setCourierId(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
-              <option value="">Pilih kurir</option>
-              {couriers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Metode Pengambilan</label>
+            <div className="flex flex-wrap gap-2">
+              {pickupChains.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setPickupChainId(String(c.id))}
+                  className={`text-sm font-semibold px-4 py-2 rounded-lg border ${
+                    String(pickupChainId) === String(c.id)
+                      ? 'bg-brand-600 border-brand-600 text-white'
+                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
+          {needsStoreInfo && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Toko</label>
+                <input value={pickupStoreName} onChange={(e) => setPickupStoreName(e.target.value)} placeholder="Contoh: Indomaret Sudirman" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kode Toko</label>
+                <input value={pickupStoreCode} onChange={(e) => setPickupStoreCode(e.target.value)} placeholder="Contoh: #12345" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Pengiriman</label>
             <textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required />

@@ -102,10 +102,14 @@ export default function OrderDetail() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Metode Pengambilan</p>
+            <p className="text-sm text-gray-500 mb-3">
+              {order.pickup_chain_name || '-'}
+              {order.pickup_store_name && ` · ${order.pickup_store_name}`}
+              {order.pickup_store_code && <span className="font-mono"> #{order.pickup_store_code}</span>}
+            </p>
             <p className="text-sm font-semibold text-gray-700 mb-1">Alamat Pengiriman</p>
-            <p className="text-sm text-gray-500 mb-3">{order.shipping_address || '-'}</p>
-            <p className="text-sm font-semibold text-gray-700 mb-1">Kurir</p>
-            <p className="text-sm text-gray-500">{order.courier_name || '-'}</p>
+            <p className="text-sm text-gray-500">{order.shipping_address || '-'}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">

@@ -27,20 +27,22 @@ var validTransitions = map[string][]string{
 }
 
 type orderListItem struct {
-	ID            int     `json:"id"`
-	OrderNo       string  `json:"order_no"`
-	Status        string  `json:"status"`
-	CustomerName  string  `json:"customer_name"`
-	CustomerPhone string  `json:"customer_phone"`
-	CourierName   string  `json:"courier_name"`
-	HostNames     string  `json:"host_names"`
-	TotalQty      int     `json:"total_qty"`
-	Total         float64 `json:"total"`
-	CreatedAt     string  `json:"created_at"`
+	ID              int     `json:"id"`
+	OrderNo         string  `json:"order_no"`
+	Status          string  `json:"status"`
+	CustomerName    string  `json:"customer_name"`
+	CustomerPhone   string  `json:"customer_phone"`
+	PickupChainName string  `json:"pickup_chain_name"`
+	PickupStoreName string  `json:"pickup_store_name"`
+	PickupStoreCode string  `json:"pickup_store_code"`
+	HostNames       string  `json:"host_names"`
+	TotalQty        int     `json:"total_qty"`
+	Total           float64 `json:"total"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // List returns orders, filtered by role (sales sees only their own), plus optional
-// filters: status, date_from/date_to, host_id, category, courier_id, q
+// filters: status, date_from/date_to, host_id, category, pickup_chain_id, q
 // (customer name/phone search). Paginated.
 func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	claims := appmw.GetClaims(r)
@@ -69,8 +71,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	if dateTo := q.Get("date_to"); dateTo != "" {
 		baseWhere += " AND o.created_at < " + addArg(dateTo) + "::date + interval '1 day'"
 	}
-	if courierID := q.Get("courier_id"); courierID != "" {
-		baseWhere += " AND o.shipping_courier_id = " + addArg(courierID)
+	if pickupChainID := q.Get("pickup_chain_id"); pickupChainID != "" {
+		baseWhere += " AND o.pickup_chain_id = " + addArg(pickupChainID)
 	}
 	if hostID := q.Get("host_id"); hostID != "" {
 		baseWhere += " AND EXISTS (SELECT 1 FROM order_items oih WHERE oih.order_id = o.id AND oih.host_id = " + addArg(hostID) + ")"
@@ -108,17 +110,18 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	listArgs = append(listArgs, (page-1)*pageSize)
 
 	query := `
-		SELECT o.id, o.order_no, o.status, c.name, c.phone, sc.name, o.created_at,
+		SELECT o.id, o.order_no, o.status, c.name, c.phone, pc.name,
+		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.created_at,
 		       COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount + o.additional_amount,
 		       COALESCE((SELECT SUM(oi3.qty) FROM order_items oi3 WHERE oi3.order_id = o.id), 0),
 		       COALESCE((SELECT string_agg(DISTINCT h.name, ', ') FROM order_items oi2
 		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-')
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
-		JOIN shipping_couriers sc ON sc.id = o.shipping_courier_id
+		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_items oi ON oi.order_id = o.id` +
 		baseWhere +
-		" GROUP BY o.id, c.name, c.phone, sc.name ORDER BY o.created_at DESC LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		" GROUP BY o.id, c.name, c.phone, pc.name ORDER BY o.created_at DESC LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {
@@ -131,8 +134,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var o orderListItem
 		var createdAt time.Time
-		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CourierName,
-			&createdAt, &o.Total, &o.TotalQty, &o.HostNames); err != nil {
+		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)
@@ -163,7 +166,9 @@ type orderDetailView struct {
 	CustomerName     string          `json:"customer_name"`
 	CustomerPhone    string          `json:"customer_phone"`
 	ShippingAddress  string          `json:"shipping_address"`
-	CourierName      string          `json:"courier_name"`
+	PickupChainName  string          `json:"pickup_chain_name"`
+	PickupStoreName  string          `json:"pickup_store_name"`
+	PickupStoreCode  string          `json:"pickup_store_code"`
 	Items            []orderItemView `json:"items"`
 	Subtotal         float64         `json:"subtotal"`
 	DiscountAmount   float64         `json:"discount_amount"`
@@ -190,13 +195,14 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	var o orderDetailView
 	err = h.DB.QueryRow(ctx, `
-		SELECT o.id, o.order_no, o.status, c.name, c.phone, o.shipping_address, sc.name, o.discount_amount, o.additional_amount
+		SELECT o.id, o.order_no, o.status, c.name, c.phone, o.shipping_address, pc.name,
+		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount
 		FROM orders o
 		JOIN customers c ON c.id=o.customer_id
-		JOIN shipping_couriers sc ON sc.id = o.shipping_courier_id
+		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		WHERE o.id=$1`, id).
-		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress, &o.CourierName,
-			&o.DiscountAmount, &o.AdditionalAmount)
+		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress, &o.PickupChainName,
+			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
@@ -254,12 +260,14 @@ type createOrderItem struct {
 }
 
 type createOrderRequest struct {
-	Customer          createOrderCustomer `json:"customer"`
-	ShippingAddress   string              `json:"shipping_address"`
-	ShippingCourierID int                 `json:"shipping_courier_id"`
-	Items             []createOrderItem   `json:"items"`
-	DiscountAmount    float64             `json:"discount_amount"`
-	AdditionalAmount  float64             `json:"additional_amount"`
+	Customer         createOrderCustomer `json:"customer"`
+	ShippingAddress  string              `json:"shipping_address"`
+	PickupChainID    int                 `json:"pickup_chain_id"`
+	PickupStoreName  string              `json:"pickup_store_name"`
+	PickupStoreCode  string              `json:"pickup_store_code"`
+	Items            []createOrderItem   `json:"items"`
+	DiscountAmount   float64             `json:"discount_amount"`
+	AdditionalAmount float64             `json:"additional_amount"`
 }
 
 // Create builds a manual order directly (no cart/checkout step): resolves/creates the
@@ -274,8 +282,8 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "shipping_address is required")
 		return
 	}
-	if req.ShippingCourierID == 0 {
-		respondError(w, http.StatusBadRequest, "shipping_courier_id is required")
+	if req.PickupChainID == 0 {
+		respondError(w, http.StatusBadRequest, "pickup_chain_id is required")
 		return
 	}
 	if len(req.Items) == 0 {
@@ -322,9 +330,9 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, shipping_courier_id, discount_amount, additional_amount)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7) RETURNING id`,
-		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.ShippingCourierID,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9) RETURNING id`,
+		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		req.DiscountAmount, req.AdditionalAmount).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return

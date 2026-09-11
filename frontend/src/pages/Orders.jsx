@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listOrders, updateOrderStatus } from '../api/orders'
 import { listHosts } from '../api/hosts'
-import { listCouriers } from '../api/couriers'
+import { listPickupChains } from '../api/pickupChains'
 import { listProducts } from '../api/products'
 import { getSummary } from '../api/dashboard'
 import { formatRupiah } from '../utils/format'
@@ -31,13 +31,13 @@ export default function Orders() {
   const [status, setStatus] = useState('')
   const [hostId, setHostId] = useState('')
   const [category, setCategory] = useState('')
-  const [courierId, setCourierId] = useState('')
+  const [pickupChainId, setPickupChainId] = useState('')
   const [range, setRange] = useState(null)
   const [page, setPage] = useState(1)
   const [advancing, setAdvancing] = useState(null)
 
   const [hosts, setHosts] = useState([])
-  const [couriers, setCouriers] = useState([])
+  const [pickupChains, setPickupChains] = useState([])
   const [categories, setCategories] = useState([])
 
   const [selected, setSelected] = useState(new Set())
@@ -47,7 +47,7 @@ export default function Orders() {
 
   useEffect(() => {
     listHosts(true).then(setHosts)
-    listCouriers(true).then(setCouriers)
+    listPickupChains(true).then(setPickupChains)
     listProducts().then((products) => {
       setCategories([...new Set(products.map((p) => p.category).filter(Boolean))])
     })
@@ -57,7 +57,7 @@ export default function Orders() {
     if (!range) return
     setLoading(true)
     listOrders({
-      q: search, status, host_id: hostId, category, courier_id: courierId,
+      q: search, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
       date_from: range.from, date_to: range.to, page, page_size: 20,
     }).then((res) => {
       setData(res)
@@ -67,10 +67,10 @@ export default function Orders() {
     getSummary(range).then(setSummary)
   }
 
-  useEffect(fetchOrders, [search, status, hostId, category, courierId, range, page])
+  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, range, page])
 
   function resetFilters() {
-    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setCourierId(''); setPage(1)
+    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setPage(1)
   }
 
   async function handleAdvance(order) {
@@ -165,9 +165,9 @@ export default function Orders() {
             <option value="">Semua Kategori</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={courierId} onChange={(e) => { setCourierId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">Semua Kurir</option>
-            {couriers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <select value={pickupChainId} onChange={(e) => { setPickupChainId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">Semua Metode Pengambilan</option>
+            {pickupChains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button onClick={resetFilters} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">
             Reset
@@ -232,7 +232,7 @@ export default function Orders() {
                   <th className="p-3">No. Order</th>
                   <th className="p-3">Customer</th>
                   <th className="p-3">Host</th>
-                  <th className="p-3">Kurir</th>
+                  <th className="p-3">Pengambilan</th>
                   <th className="p-3">Qty</th>
                   <th className="p-3">Total</th>
                   <th className="p-3">Status</th>
@@ -251,7 +251,10 @@ export default function Orders() {
                       <p className="text-xs text-gray-400">{o.customer_phone}</p>
                     </td>
                     <td className="p-3 text-gray-700 font-medium">{o.host_names}</td>
-                    <td className="p-3 text-gray-500">{o.courier_name}</td>
+                    <td className="p-3 text-gray-500">
+                      {o.pickup_chain_name}
+                      {o.pickup_store_code && <span className="font-mono text-xs text-gray-400"> #{o.pickup_store_code}</span>}
+                    </td>
                     <td className="p-3 text-gray-500">{o.total_qty}</td>
                     <td className="p-3 font-semibold text-brand-600">{formatRupiah(o.total)}</td>
                     <td className="p-3"><StatusPill status={o.status} /></td>

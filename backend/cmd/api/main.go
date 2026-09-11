@@ -52,7 +52,7 @@ func main() {
 	customerH := &handlers.CustomerHandler{DB: pool}
 	dashboardH := &handlers.DashboardHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
-	courierH := &handlers.ShippingCourierHandler{DB: pool}
+	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
 		CloudinaryCloudName: cfg.CloudinaryCloudName,
@@ -61,6 +61,7 @@ func main() {
 	}
 	imageH := &handlers.ProductImageHandler{DB: pool}
 	feesH := &handlers.FeeSettingsHandler{DB: pool}
+	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -96,13 +97,14 @@ func main() {
 			r.Get("/dashboard/alerts", dashboardH.Alerts)
 
 			r.Get("/hosts", hostH.List)
-			r.Get("/shipping-couriers", courierH.List)
+			r.Get("/pickup-chains", pickupChainH.List)
 
 			r.Get("/customers", customerH.Search)
 			r.Post("/customers", customerH.Create)
 			r.Get("/customers/stats", customerH.Stats)
 
 			r.Get("/settings/fees", feesH.Get)
+			r.Get("/settings/shipping", shippingSettingsH.Get)
 		})
 
 		// Catalog & reference-data management: super_user + management only
@@ -124,11 +126,12 @@ func main() {
 			r.Patch("/hosts/{id}", hostH.Update)
 			r.Delete("/hosts/{id}", hostH.Delete)
 
-			r.Post("/shipping-couriers", courierH.Create)
-			r.Patch("/shipping-couriers/{id}", courierH.Update)
-			r.Delete("/shipping-couriers/{id}", courierH.Delete)
+			r.Post("/pickup-chains", pickupChainH.Create)
+			r.Patch("/pickup-chains/{id}", pickupChainH.Update)
+			r.Delete("/pickup-chains/{id}", pickupChainH.Delete)
 
 			r.Patch("/settings/fees", feesH.Update)
+			r.Patch("/settings/shipping", shippingSettingsH.Update)
 		})
 	})
 
