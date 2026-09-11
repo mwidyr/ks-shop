@@ -234,6 +234,127 @@ export function IconSliders(props) {
   )
 }
 
+export function IconBroadcast(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M5.5 5.5a9 9 0 0 0 0 13" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  )
+}
+
+export function IconUsers(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
+      <circle cx="17" cy="8" r="2.3" />
+      <path d="M16 14.5c2.5.3 4 2 4 5.5" />
+    </svg>
+  )
+}
+
+export function IconChat(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M4 4h16v12H8l-4 4Z" />
+      <line x1="8" y1="9" x2="16" y2="9" />
+      <line x1="8" y1="12.5" x2="13" y2="12.5" />
+    </svg>
+  )
+}
+
+export function IconLayers(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="m12 3 9 5-9 5-9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </svg>
+  )
+}
+
+export function IconWarehouse(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M3 10 12 4l9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+      <path d="M9 21v-7h6v7" />
+    </svg>
+  )
+}
+
+export function IconClipboard(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <rect x="5" y="4" width="14" height="17" rx="1.5" />
+      <rect x="9" y="2.5" width="6" height="3" rx="1" fill="currentColor" stroke="none" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+export function IconUndo(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M4 10h10a5 5 0 0 1 0 10h-2" />
+      <path d="M8 5 4 10l4 5" />
+    </svg>
+  )
+}
+
+export function IconBarChart(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <line x1="5" y1="21" x2="5" y2="13" />
+      <line x1="12" y1="21" x2="12" y2="7" />
+      <line x1="19" y1="21" x2="19" y2="11" />
+    </svg>
+  )
+}
+
+export function IconUserCog(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <circle cx="9" cy="7" r="3.5" />
+      <path d="M3 20c0-3.3 2.7-5.8 6-5.8s6 2.5 6 5.8" />
+      <circle cx="18.5" cy="15.5" r="2" />
+      <path d="M18.5 12.3v.7M18.5 17.8v.7M21 15.5h-.7M16.7 15.5H16M20.1 13l-.5.5M17.4 17.5l-.5.5M20.1 18l-.5-.5M17.4 13.5l-.5-.5" />
+    </svg>
+  )
+}
+
+export function IconPuzzle(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M9 4h4v2.2a1.8 1.8 0 1 0 0 3.6V12h4a1.8 1.8 0 1 1 0 4v4H4v-4a1.8 1.8 0 1 0 0-4V9a1.8 1.8 0 1 0 0-3.6V4h5Z" />
+    </svg>
+  )
+}
+
+export function IconFileText(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M7 3h7l5 5v13H7Z" />
+      <path d="M14 3v5h5" />
+      <line x1="9.5" y1="12" x2="14.5" y2="12" />
+      <line x1="9.5" y1="15.5" x2="14.5" y2="15.5" />
+    </svg>
+  )
+}
+
+export function IconPalette(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.1-1.7-.4-.6-.1-1.5.7-1.6h1.7A3.5 3.5 0 0 0 19 14c0-6-3-11-7-11Z" />
+      <circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="8" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function IconSparkles(props) {
   return (
     <svg {...base} width={16} height={16} {...props}>

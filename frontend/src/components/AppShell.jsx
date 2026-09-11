@@ -6,72 +6,74 @@ import PreferencesModal from './PreferencesModal'
 import {
   IconDashboard, IconOrders, IconProducts, IconSettings, IconLogout, IconBell,
   IconTag, IconTruck, IconMegaphone, IconChartLine, IconWallet, IconStore, IconGear,
-  IconSliders, IconChevronDown,
+  IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles,
+  IconBroadcast, IconUsers, IconChat, IconLayers, IconWarehouse, IconClipboard,
+  IconUndo, IconBarChart, IconUserCog, IconPuzzle, IconFileText, IconPalette,
 } from './icons'
 
 const navGroups = [
   {
     title: 'sales', icon: IconTag, items: [
-      { to: '/panel-siaran', key: 'panel_siaran' },
-      { to: '/orders', key: 'orders' },
-      { to: '/customers', key: 'customers' },
-      { to: '/chat', key: 'chat' },
-      { to: '/reviews', key: 'reviews' },
+      { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
+      { to: '/orders', key: 'orders', icon: IconOrders },
+      { to: '/customers', key: 'customers', icon: IconUsers },
+      { to: '/chat', key: 'chat', icon: IconChat },
+      { to: '/reviews', key: 'reviews', icon: IconStar },
     ],
   },
   {
     title: 'catalog', icon: IconProducts, items: [
-      { to: '/products', key: 'products' },
-      { to: '/categories', key: 'categories' },
-      { to: '/inventory', key: 'inventory' },
-      { to: '/warehouses', key: 'warehouses' },
+      { to: '/products', key: 'products', icon: IconProducts },
+      { to: '/categories', key: 'categories', icon: IconTag },
+      { to: '/inventory', key: 'inventory', icon: IconLayers },
+      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse },
     ],
   },
   {
     title: 'fulfillment', icon: IconTruck, items: [
-      { to: '/picking', key: 'picking' },
-      { to: '/shipping', key: 'shipping' },
-      { to: '/returns', key: 'returns' },
-      { to: '/refunds', key: 'refunds' },
+      { to: '/picking', key: 'picking', icon: IconClipboard },
+      { to: '/shipping', key: 'shipping', icon: IconTruck },
+      { to: '/returns', key: 'returns', icon: IconUndo },
+      { to: '/refunds', key: 'refunds', icon: IconWallet },
     ],
   },
   {
     title: 'marketing', icon: IconMegaphone, items: [
-      { to: '/promotions', key: 'promotions' },
-      { to: '/campaigns', key: 'campaigns' },
-      { to: '/advertising', key: 'advertising' },
+      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
+      { to: '/campaigns', key: 'campaigns', icon: IconSparkles },
+      { to: '/advertising', key: 'advertising', icon: IconSend },
     ],
   },
   {
     title: 'analytics', icon: IconChartLine, items: [
-      { to: '/analytics/sales', key: 'sales_analytics' },
-      { to: '/analytics/products', key: 'product_analytics' },
-      { to: '/customers', key: 'customers' },
-      { to: '/profit', key: 'profit' },
-      { to: '/advertising', key: 'advertising' },
+      { to: '/analytics/sales', key: 'sales_analytics', icon: IconChartLine },
+      { to: '/analytics/products', key: 'product_analytics', icon: IconChartLine },
+      { to: '/customers', key: 'customers', icon: IconUsers },
+      { to: '/profit', key: 'profit', icon: IconWallet },
+      { to: '/advertising', key: 'advertising', icon: IconSend },
     ],
   },
   {
     title: 'finance', icon: IconWallet, items: [
-      { to: '/finance/transactions', key: 'transactions' },
-      { to: '/finance/payouts', key: 'payouts' },
-      { to: '/finance/fees', key: 'fees' },
-      { to: '/finance/reports', key: 'reports' },
+      { to: '/finance/transactions', key: 'transactions', icon: IconWallet },
+      { to: '/finance/payouts', key: 'payouts', icon: IconWallet },
+      { to: '/finance/fees', key: 'fees', icon: IconWallet },
+      { to: '/finance/reports', key: 'reports', icon: IconBarChart },
     ],
   },
   {
     title: 'store', icon: IconStore, items: [
-      { to: '/store/profile', key: 'store_profile' },
-      { to: '/store/design', key: 'store_design' },
-      { to: '/store/team', key: 'team' },
+      { to: '/store/profile', key: 'store_profile', icon: IconStore },
+      { to: '/store/design', key: 'store_design', icon: IconPalette },
+      { to: '/store/team', key: 'team', icon: IconUsers },
     ],
   },
   {
     title: 'system', icon: IconGear, items: [
-      { to: '/system/notifications', key: 'notifications' },
-      { to: '/system/integrations', key: 'integrations' },
-      { to: '/system/roles', key: 'roles' },
-      { to: '/system/audit-logs', key: 'audit_logs' },
+      { to: '/system/notifications', key: 'notifications', icon: IconBell },
+      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle },
+      { to: '/system/roles', key: 'roles', icon: IconUserCog },
+      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
     ],
   },
 ]
@@ -149,17 +151,21 @@ export default function AppShell({ children }) {
                   <GroupIcon width={13} height={13} /> {t(`nav.groups.${group.title}`)}
                 </div>
                 <div className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <Link
-                      key={item.to + item.key}
-                      to={item.to}
-                      className={`block px-3 py-1.5 rounded-lg text-sm ${
-                        isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {t(`nav.items.${item.key}`)}
-                    </Link>
-                  ))}
+                  {group.items.map((item) => {
+                    const ItemIcon = item.icon
+                    return (
+                      <Link
+                        key={item.to + item.key}
+                        to={item.to}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
+                          isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {ItemIcon && <ItemIcon width={15} height={15} className="shrink-0" />}
+                        <span className="truncate">{t(`nav.items.${item.key}`)}</span>
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )
