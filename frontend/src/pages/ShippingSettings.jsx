@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listPickupChains, createPickupChain, updatePickupChain, deletePickupChain } from '../api/pickupChains'
 import { getShippingSettings, updateShippingSettings } from '../api/settings'
 import { formatCurrency } from '../utils/format'
@@ -7,6 +8,7 @@ import { formatCurrency } from '../utils/format'
 // (read-only) vs. the seller's own target fee charged to the buyer, with the margin
 // ("Selisih Kamu") computed inline.
 function PickupChainsCard({ chains, reload }) {
+  const { t } = useTranslation()
   const [targetDrafts, setTargetDrafts] = useState({})
   const [newName, setNewName] = useState('')
   const [error, setError] = useState('')
@@ -29,7 +31,7 @@ function PickupChainsCard({ chains, reload }) {
       await deletePickupChain(chain.id)
       reload()
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal menghapus')
+      setError(err.response?.data?.error || t('page_shipping_settings.chains.delete_error'))
     }
   }
 
@@ -42,16 +44,15 @@ function PickupChainsCard({ chains, reload }) {
       setNewName('')
       reload()
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal menambah')
+      setError(err.response?.data?.error || t('page_shipping_settings.chains.add_error'))
     }
   }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h2 className="font-bold text-gray-800 mb-1">Metode Pengambilan</h2>
+      <h2 className="font-bold text-gray-800 mb-1">{t('page_shipping_settings.chains.heading')}</h2>
       <p className="text-xs text-gray-500 mb-4">
-        Ongkir Dasar ditetapkan platform (tidak bisa diubah). Ongkir Target adalah yang kamu
-        tagih ke pembeli — selisihnya jadi margin kamu.
+        {t('page_shipping_settings.chains.description')}
       </p>
       <div className="space-y-3 mb-4">
         {chains.map((c) => {
@@ -63,21 +64,21 @@ function PickupChainsCard({ chains, reload }) {
                 <p className="text-sm font-semibold text-gray-800">{c.name}</p>
                 <div className="flex items-center gap-2">
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {c.is_active ? 'Aktif' : 'Nonaktif'}
+                    {c.is_active ? t('page_shipping_settings.chains.active') : t('page_shipping_settings.chains.inactive')}
                   </span>
                   <button onClick={() => toggleActive(c)} className="text-xs text-brand-600 hover:underline">
-                    {c.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                    {c.is_active ? t('page_shipping_settings.chains.deactivate') : t('page_shipping_settings.chains.activate')}
                   </button>
-                  <button onClick={() => handleDelete(c)} className="text-xs text-red-600 hover:underline">Hapus</button>
+                  <button onClick={() => handleDelete(c)} className="text-xs text-red-600 hover:underline">{t('common.delete')}</button>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 items-end">
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">Ongkir Dasar</label>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.chains.base_fee')}</label>
                   <p className="text-sm font-semibold text-gray-700 px-2 py-1.5">{formatCurrency(c.base_fee)}</p>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">Ongkir Target</label>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.chains.target_fee')}</label>
                   <input
                     type="number"
                     value={target}
@@ -87,7 +88,7 @@ function PickupChainsCard({ chains, reload }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-1">Selisih Kamu</label>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.chains.your_margin')}</label>
                   <p className={`text-sm font-bold px-2 py-1.5 ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(margin)}</p>
                 </div>
               </div>
@@ -99,11 +100,11 @@ function PickupChainsCard({ chains, reload }) {
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Nama metode pengambilan baru"
+          placeholder={t('page_shipping_settings.chains.new_method_placeholder')}
           className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
         />
         <button type="submit" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg">
-          Tambah
+          {t('common.add')}
         </button>
       </form>
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
@@ -112,6 +113,7 @@ function PickupChainsCard({ chains, reload }) {
 }
 
 function FreeShippingCard() {
+  const { t } = useTranslation()
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -143,26 +145,26 @@ function FreeShippingCard() {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h2 className="font-bold text-gray-800 mb-1">Gratis Ongkir & Ongkir Lainnya</h2>
-      <p className="text-xs text-gray-500 mb-4">Atur ambang belanja untuk gratis ongkir (kosongkan/0 = nonaktif) dan tarif flat untuk metode "Lainnya".</p>
+      <h2 className="font-bold text-gray-800 mb-1">{t('page_shipping_settings.free_shipping.heading')}</h2>
+      <p className="text-xs text-gray-500 mb-4">{t('page_shipping_settings.free_shipping.description')}</p>
       <form onSubmit={save} className="space-y-3">
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Ambang Gratis Ongkir — Minimarket</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.threshold_minimarket')}</label>
           <input type="number" value={form.free_shipping_threshold_minimarket} onChange={(e) => update('free_shipping_threshold_minimarket', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Ambang Gratis Ongkir — Alamat Customer</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.threshold_customer_address')}</label>
           <input type="number" value={form.free_shipping_threshold_pos} onChange={(e) => update('free_shipping_threshold_pos', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Ongkir Flat — Lainnya</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.flat_fee_other')}</label>
           <input type="number" value={form.home_delivery_flat_fee} onChange={(e) => update('home_delivery_flat_fee', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div className="flex items-center gap-3">
           <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg disabled:opacity-50">
-            {saving ? 'Menyimpan...' : 'Simpan'}
+            {saving ? t('page_shipping_settings.free_shipping.saving') : t('common.save')}
           </button>
-          {saved && <span className="text-xs text-green-600">Tersimpan</span>}
+          {saved && <span className="text-xs text-green-600">{t('page_shipping_settings.free_shipping.saved')}</span>}
         </div>
       </form>
     </div>

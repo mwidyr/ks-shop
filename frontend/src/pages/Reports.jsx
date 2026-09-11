@@ -1,24 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Papa from 'papaparse'
 import { getProductReport, getOrderReport } from '../api/reports'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 
-const tabs = [
-  { key: 'products', label: 'Produk' },
-  { key: 'customers', label: 'Pelanggan' },
-  { key: 'hosts', label: 'Host' },
-  { key: 'staff', label: 'Staf' },
-]
-
-function SummaryCard({ summary }) {
+function SummaryCard({ summary, t }) {
   if (!summary) return null
   return (
     <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-      <p className="text-xs text-gray-400 uppercase">Penjualan Bersih</p>
+      <p className="text-xs text-gray-400 uppercase">{t('page_reports.net_sales')}</p>
       <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(summary.net_sales)}</p>
-      <p className="text-xs text-gray-500">{summary.order_count} pesanan · rata-rata {formatCurrency(summary.avg_order)}</p>
+      <p className="text-xs text-gray-500">{t('page_reports.summary_orders_line', { count: summary.order_count, avg: formatCurrency(summary.avg_order) })}</p>
     </div>
   )
 }
@@ -35,6 +29,13 @@ function exportCsv(filename, rows) {
 }
 
 export default function Reports() {
+  const { t } = useTranslation()
+  const tabs = [
+    { key: 'products', label: t('page_reports.tab_products') },
+    { key: 'customers', label: t('page_reports.tab_customers') },
+    { key: 'hosts', label: t('page_reports.tab_hosts') },
+    { key: 'staff', label: t('page_reports.tab_staff') },
+  ]
   const [tab, setTab] = useState('products')
   const [range, setRange] = useState(presetRange(29))
   const [search, setSearch] = useState('')
@@ -63,20 +64,20 @@ export default function Reports() {
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <div className="flex gap-2 overflow-x-auto">
-          {tabs.map((t) => (
+          {tabs.map((tItem) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`text-sm font-medium px-4 py-1.5 rounded-full border ${tab === t.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+              key={tItem.key}
+              onClick={() => setTab(tItem.key)}
+              className={`text-sm font-medium px-4 py-1.5 rounded-full border ${tab === tItem.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
             >
-              {t.label}
+              {tItem.label}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           <DateRangePicker value={range} onChange={setRange} />
           <button onClick={handleExport} className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
-            ⬇ Ekspor CSV
+            {t('page_reports.export_csv')}
           </button>
         </div>
       </div>
@@ -85,34 +86,34 @@ export default function Reports() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari nama atau telepon pelanggan..."
+          placeholder={t('page_reports.customer_search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
         />
       )}
       {tab === 'hosts' && (
         <select value={hostId} onChange={(e) => setHostId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4">
-          <option value="">Semua Host</option>
+          <option value="">{t('page_reports.all_hosts')}</option>
           {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
         </select>
       )}
 
-      <SummaryCard summary={data?.summary} />
+      <SummaryCard summary={data?.summary} t={t} />
 
       {loading ? (
-        <p className="text-gray-500 py-10 text-center">Memuat laporan...</p>
+        <p className="text-gray-500 py-10 text-center">{t('page_reports.loading_report')}</p>
       ) : !data || data.items.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">Tidak ada data pada rentang ini.</div>
+        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_reports.no_data_in_range')}</div>
       ) : tab === 'products' ? (
         <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">Produk</th>
-                <th className="p-3">Varian</th>
-                <th className="p-3 text-right">Jml Pesanan</th>
-                <th className="p-3 text-right">Qty</th>
-                <th className="p-3 text-right">Retur</th>
-                <th className="p-3 text-right">Jumlah</th>
+                <th className="p-3">{t('page_reports.col_product')}</th>
+                <th className="p-3">{t('page_reports.col_variant')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_order_count')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_qty')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_returns')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_amount')}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -134,15 +135,15 @@ export default function Reports() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">Tanggal</th>
-                <th className="p-3">Pesanan</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Produk</th>
-                <th className="p-3">Varian</th>
-                <th className="p-3 text-right">Qty</th>
-                <th className="p-3 text-right">Jumlah</th>
-                {tab !== 'hosts' && <th className="p-3">Pelanggan</th>}
-                {tab === 'hosts' ? <th className="p-3">Host</th> : tab === 'staff' ? <th className="p-3">Staf</th> : null}
+                <th className="p-3">{t('page_reports.col_date')}</th>
+                <th className="p-3">{t('page_reports.col_order')}</th>
+                <th className="p-3">{t('page_reports.col_status')}</th>
+                <th className="p-3">{t('page_reports.col_product')}</th>
+                <th className="p-3">{t('page_reports.col_variant')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_qty')}</th>
+                <th className="p-3 text-right">{t('page_reports.col_amount')}</th>
+                {tab !== 'hosts' && <th className="p-3">{t('page_reports.col_customer')}</th>}
+                {tab === 'hosts' ? <th className="p-3">{t('page_reports.col_host')}</th> : tab === 'staff' ? <th className="p-3">{t('page_reports.col_staff')}</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y">

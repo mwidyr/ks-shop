@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listCategories, createCategory } from '../api/categories'
 
 const NEW_CATEGORY = '__new__'
@@ -6,6 +7,7 @@ const NEW_CATEGORY = '__new__'
 // Dropdown backed by the real categories table, plus a "+ Kategori baru" option that reveals
 // a text input for typing a brand new category (which gets created for real on save).
 export default function CategorySelect({ value, onChange }) {
+  const { t } = useTranslation()
   const [categories, setCategories] = useState([])
   const [addingNew, setAddingNew] = useState(false)
 
@@ -50,7 +52,7 @@ export default function CategorySelect({ value, onChange }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={commitNewCategory}
-          placeholder="Nama kategori baru"
+          placeholder={t('shared.category_new_placeholder')}
           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         {categories.length > 0 && (
@@ -59,7 +61,7 @@ export default function CategorySelect({ value, onChange }) {
             onClick={() => { setAddingNew(false); onChange('') }}
             className="text-sm text-gray-500 px-2 hover:underline"
           >
-            Batal
+            {t('common.cancel')}
           </button>
         )}
       </div>
@@ -72,9 +74,9 @@ export default function CategorySelect({ value, onChange }) {
       onChange={handleSelect}
       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
     >
-      <option value="">Pilih kategori</option>
+      <option value="">{t('shared.category_choose')}</option>
       {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-      <option value={NEW_CATEGORY}>+ Kategori baru...</option>
+      <option value={NEW_CATEGORY}>{t('shared.category_new_option')}</option>
     </select>
   )
 }

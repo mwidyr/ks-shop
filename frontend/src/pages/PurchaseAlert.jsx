@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listPurchaseAlert } from '../api/purchases'
 
-const periods = [
-  { value: 7, label: '7 Hari' },
-  { value: 14, label: '14 Hari' },
-  { value: 30, label: '30 Hari' },
-]
-
 export default function PurchaseAlert() {
+  const { t } = useTranslation()
+  const periods = [
+    { value: 7, label: t('shared.date_7d') },
+    { value: 14, label: t('page_purchase_alert.period_14d') },
+    { value: 30, label: t('shared.date_30d') },
+  ]
   const [days, setDays] = useState(30)
   const [atRiskOnly, setAtRiskOnly] = useState(true)
   const [rows, setRows] = useState([])
@@ -39,7 +40,7 @@ export default function PurchaseAlert() {
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-600">
           <input type="checkbox" checked={atRiskOnly} onChange={(e) => setAtRiskOnly(e.target.checked)} />
-          Hanya tampilkan yang berisiko habis (≤7 hari)
+          {t('page_purchase_alert.filter_at_risk_only')}
         </label>
       </div>
 
@@ -47,17 +48,17 @@ export default function PurchaseAlert() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-3">Produk</th>
-              <th className="p-3">SKU</th>
-              <th className="p-3">Stok Tersedia</th>
-              <th className="p-3">Rata-rata Terjual/Hari</th>
-              <th className="p-3">Estimasi Habis</th>
+              <th className="p-3">{t('page_purchase_alert.th_product')}</th>
+              <th className="p-3">{t('page_purchase_alert.th_sku')}</th>
+              <th className="p-3">{t('page_purchase_alert.th_available_stock')}</th>
+              <th className="p-3">{t('page_purchase_alert.th_avg_daily_sold')}</th>
+              <th className="p-3">{t('page_purchase_alert.th_estimated_out')}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {!loading && rows.length === 0 && (
               <tr><td colSpan={5} className="p-6 text-center text-gray-400">
-                {atRiskOnly ? 'Tidak ada produk yang berisiko habis stok.' : 'Belum ada data penjualan pada periode ini.'}
+                {atRiskOnly ? t('page_purchase_alert.empty_no_at_risk') : t('page_purchase_alert.empty_no_sales_data')}
               </td></tr>
             )}
             {rows.map((r) => (
@@ -69,10 +70,10 @@ export default function PurchaseAlert() {
                 <td className="p-3">
                   {r.estimated_days_left != null ? (
                     <span className={`font-semibold ${r.estimated_days_left <= 7 ? 'text-red-600' : 'text-gray-700'}`}>
-                      {Math.floor(r.estimated_days_left)} hari lagi
+                      {t('page_purchase_alert.days_left', { days: Math.floor(r.estimated_days_left) })}
                     </span>
                   ) : (
-                    <span className="text-gray-400">Belum ada penjualan</span>
+                    <span className="text-gray-400">{t('page_purchase_alert.no_sales_yet')}</span>
                   )}
                 </td>
               </tr>

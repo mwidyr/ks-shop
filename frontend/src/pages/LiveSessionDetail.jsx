@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   getLiveSession, updateLiveSession, goLiveSession, endLiveSession,
@@ -11,6 +12,7 @@ import SessionStatusPill from '../components/SessionStatusPill'
 import { IconClose, IconPlus, IconTrash } from '../components/icons'
 
 function AddProductModal({ variants, onAdd, onClose }) {
+  const { t } = useTranslation()
   const [variantId, setVariantId] = useState('')
   const [livePrice, setLivePrice] = useState('')
   const [saving, setSaving] = useState(false)
@@ -31,23 +33,23 @@ function AddProductModal({ variants, onAdd, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-800">Tambah Produk ke Keranjang Live</h2>
+          <h2 className="font-bold text-gray-800">{t('page_live_session_detail.modal_add_product_title')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IconClose /></button>
         </div>
         <form onSubmit={handleSubmit}>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Pilih Produk *</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('page_live_session_detail.label_choose_product')}</label>
           <select
             value={variantId}
             onChange={(e) => setVariantId(e.target.value)}
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm mb-4"
             required
           >
-            <option value="">Pilih produk...</option>
+            <option value="">{t('page_live_session_detail.option_choose_product')}</option>
             {variants.map((v) => (
               <option key={v.id} value={v.id}>{v.productName} — {v.color}/{v.size} ({v.sku})</option>
             ))}
           </select>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Harga Live *</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('page_live_session_detail.label_live_price')}</label>
           <input
             type="number" min="1"
             value={livePrice}
@@ -58,10 +60,10 @@ function AddProductModal({ variants, onAdd, onClose }) {
           />
           <div className="flex gap-2">
             <button type="submit" disabled={saving || !variantId || !livePrice} className="bg-gray-800 hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold px-5 py-2 rounded-full">
-              {saving ? 'Menambah...' : 'Tambah'}
+              {saving ? t('page_live_session_detail.adding') : t('common.add')}
             </button>
             <button type="button" onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
-              Batal
+              {t('common.cancel')}
             </button>
           </div>
         </form>
@@ -71,6 +73,7 @@ function AddProductModal({ variants, onAdd, onClose }) {
 }
 
 export default function LiveSessionDetail() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const [session, setSession] = useState(null)
@@ -119,7 +122,7 @@ export default function LiveSessionDetail() {
       await goLiveSession(id)
       reload()
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal mulai siaran')
+      setError(err.response?.data?.error || t('page_live_session_detail.error_start_failed'))
     } finally {
       setBusy(false)
     }
@@ -145,35 +148,35 @@ export default function LiveSessionDetail() {
     reload()
   }
 
-  if (!session) return <div className="px-4 sm:px-6 py-16 text-center text-gray-500">Memuat...</div>
+  if (!session) return <div className="px-4 sm:px-6 py-16 text-center text-gray-500">{t('common.loading')}</div>
 
   return (
     <div className="px-4 sm:px-6 py-6">
       <button onClick={() => navigate('/panel-siaran/history')} className="text-sm text-gray-500 hover:text-gray-800 mb-4">
-        ← Kembali
+        ← {t('page_live_session_detail.back_button')}
       </button>
 
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="font-bold text-gray-800">Info Sesi</p>
+            <p className="font-bold text-gray-800">{t('page_live_session_detail.label_session_info')}</p>
             <SessionStatusPill status={session.status} />
           </div>
-          <p className="text-xs text-gray-500 mb-1">Nama Sesi</p>
+          <p className="text-xs text-gray-500 mb-1">{t('page_live_session_detail.label_session_name')}</p>
           {editingLabel ? (
             <div className="flex items-center gap-2 mb-4">
               <input value={labelDraft} onChange={(e) => setLabelDraft(e.target.value)} onBlur={saveLabel} autoFocus className="border border-gray-300 rounded-lg px-2 py-1 text-lg font-bold flex-1" />
             </div>
           ) : (
             <p className="text-lg font-bold text-gray-800 mb-4">
-              {session.label} <button onClick={() => setEditingLabel(true)} className="text-xs font-semibold text-brand-600 hover:underline align-middle ml-1">Edit</button>
+              {session.label} <button onClick={() => setEditingLabel(true)} className="text-xs font-semibold text-brand-600 hover:underline align-middle ml-1">{t('common.edit')}</button>
             </p>
           )}
 
-          <p className="text-xs text-gray-500 mb-1">Host</p>
+          <p className="text-xs text-gray-500 mb-1">{t('page_live_session_detail.label_host')}</p>
           {session.status === 'draft' ? (
             <select value={session.host_id || ''} onChange={(e) => setHost(Number(e.target.value))} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm mb-4 w-full">
-              <option value="">Pilih host...</option>
+              <option value="">{t('page_live_session_detail.option_choose_host')}</option>
               {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
           ) : (
@@ -182,11 +185,11 @@ export default function LiveSessionDetail() {
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <p className="text-xs text-gray-500">Jumlah Pesanan</p>
+              <p className="text-xs text-gray-500">{t('page_live_session_detail.label_order_count')}</p>
               <p className="text-lg font-bold text-gray-800">{session.order_count}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Puncak Penonton</p>
+              <p className="text-xs text-gray-500">{t('page_live_session_detail.label_peak_viewers')}</p>
               <p className="text-lg font-bold text-gray-800">{session.peak_viewers}</p>
             </div>
           </div>
@@ -194,38 +197,38 @@ export default function LiveSessionDetail() {
           {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
           {session.status === 'draft' && (
             <button onClick={handleGoLive} disabled={busy || !session.host_id} className="w-full bg-gray-800 hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold py-2.5 rounded-full">
-              📡 Mulai Siaran
+              {t('page_live_session_detail.start_broadcast_button')}
             </button>
           )}
           {session.status === 'live' && (
             <button onClick={handleEnd} disabled={busy} className="w-full bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold py-2.5 rounded-full">
-              Akhiri Siaran
+              {t('page_live_session_detail.end_broadcast_button')}
             </button>
           )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
-          <p className="font-bold text-gray-800 mb-4">Konsol Siaran</p>
+          <p className="font-bold text-gray-800 mb-4">{t('page_live_session_detail.label_broadcast_console')}</p>
           {cart.length === 0 ? (
             <div className="border border-gray-200 rounded-xl py-4 text-center text-sm text-gray-400">
-              Tambahkan produk ke keranjang live dulu
+              {t('page_live_session_detail.hint_add_product_first')}
             </div>
           ) : (
-            <p className="text-sm text-gray-600">{cart.length} produk siap ditampilkan saat live.</p>
+            <p className="text-sm text-gray-600">{t('page_live_session_detail.cart_ready_summary', { count: cart.length })}</p>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-bold text-gray-800">Produk Keranjang Live ({cart.length})</h2>
+        <h2 className="font-bold text-gray-800">{t('page_live_session_detail.cart_products_heading', { count: cart.length })}</h2>
         <button onClick={() => setModalOpen(true)} className="bg-gray-800 hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5">
-          <IconPlus width={14} height={14} /> Tambah Produk
+          <IconPlus width={14} height={14} /> {t('page_live_session_detail.add_product_button')}
         </button>
       </div>
 
       {cart.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-400">
-          Belum ada produk di keranjang live
+          {t('page_live_session_detail.empty_cart')}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm divide-y">

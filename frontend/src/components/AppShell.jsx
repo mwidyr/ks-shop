@@ -88,21 +88,21 @@ const navGroups = [
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
 // literal nav destinations (detail/create/edit/print pages).
 const titleOverrides = [
-  { prefix: '/orders/new', title: 'Buat Order Baru' },
-  { prefix: '/orders/print', title: 'Cetak Order' },
-  { prefix: '/orders/', title: 'Detail Order' },
-  { prefix: '/products/new', title: 'Tambah Produk' },
-  { prefix: '/products/', title: 'Edit Produk' },
-  { prefix: '/settings', title: 'Pengaturan' },
-  { prefix: '/dashboard', title: 'Dashboard' },
-  { prefix: '/panel-siaran/history', title: 'Riwayat Sesi' },
-  { prefix: '/panel-siaran/new', title: 'Tambah Sesi Siaran' },
-  { prefix: '/panel-siaran/', title: 'Kelola Sesi' },
-  { prefix: '/shipping/export', title: 'Ekspor Data Pengiriman' },
+  { prefix: '/orders/new', titleKey: 'shared.title_new_order' },
+  { prefix: '/orders/print', titleKey: 'shared.title_print_order' },
+  { prefix: '/orders/', titleKey: 'shared.title_order_detail' },
+  { prefix: '/products/new', titleKey: 'shared.title_new_product' },
+  { prefix: '/products/', titleKey: 'shared.title_edit_product' },
+  { prefix: '/settings', titleKey: 'shared.title_settings' },
+  { prefix: '/dashboard', titleKey: 'shared.title_dashboard' },
+  { prefix: '/panel-siaran/history', titleKey: 'shared.title_session_history' },
+  { prefix: '/panel-siaran/new', titleKey: 'shared.title_new_session' },
+  { prefix: '/panel-siaran/', titleKey: 'shared.title_manage_session' },
+  { prefix: '/shipping/export', titleKey: 'shared.title_shipping_export' },
 ]
 
 function buildTitleMap(t) {
-  const map = [...titleOverrides]
+  const map = titleOverrides.map((o) => ({ prefix: o.prefix, title: t(o.titleKey) }))
   for (const group of navGroups) {
     for (const item of group.items) {
       map.push({ prefix: item.to, title: t(`nav.items.${item.key}`) })

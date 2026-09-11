@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { resolveUrl } from '../utils/image'
 
 // Shared picking control: qty stepper + checkmark "confirm picked" action, with the
@@ -8,6 +9,7 @@ export default function PickingLineItem({
   itemId, sku, productName, imageUrl, color, size, qty, pickedQty,
   availableToPick, physicalStock, isOversell, hostName, onPick, meta,
 }) {
+  const { t } = useTranslation()
   const [draft, setDraft] = useState(pickedQty)
   const [saving, setSaving] = useState(false)
   const confirmed = draft >= qty
@@ -48,7 +50,7 @@ export default function PickingLineItem({
             type="button"
             onClick={() => save(qty)}
             disabled={saving}
-            title="Tandai selesai diambil"
+            title={t('shared.mark_picked')}
             className={`w-7 h-7 rounded-lg flex items-center justify-center ${confirmed ? 'bg-green-500 text-white' : 'border border-gray-300 text-gray-400'}`}
           >
             ✓

@@ -1,6 +1,9 @@
+import { useTranslation } from 'react-i18next'
+
 // Generic placeholder for spec'd modules that aren't wired to a backend yet.
 // `children` can carry a bit of static sample content so the page isn't blank.
 export default function MockPage({ icon, title, description, children }) {
+  const { t } = useTranslation()
   return (
     <div className="px-4 sm:px-6 py-6">
       <div className="bg-white rounded-2xl shadow-sm p-8 text-center mb-6">
@@ -10,7 +13,7 @@ export default function MockPage({ icon, title, description, children }) {
         <h2 className="text-lg font-bold text-gray-800 mb-1">{title}</h2>
         <p className="text-sm text-gray-500 max-w-md mx-auto">{description}</p>
         <span className="inline-block mt-3 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-          Preview — belum terhubung ke data asli
+          {t('shared.mock_preview_badge')}
         </span>
       </div>
       {children}

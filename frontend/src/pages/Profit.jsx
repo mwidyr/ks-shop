@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getProfit } from '../api/dashboard'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker from '../components/DateRangePicker'
@@ -15,6 +16,7 @@ function Row({ label, value, isNegative, bold, indent }) {
 }
 
 export default function Profit() {
+  const { t } = useTranslation()
   const [range, setRange] = useState(null)
   const [data, setData] = useState(null)
 
@@ -30,36 +32,35 @@ export default function Profit() {
       </div>
 
       {!data ? (
-        <p className="text-gray-500 py-10 text-center">Memuat profit analytics...</p>
+        <p className="text-gray-500 py-10 text-center">{t('page_profit.loading')}</p>
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="font-bold text-gray-800 mb-4">Profit Waterfall</h2>
-            <Row label="Selling Price (Gross Sales)" value={data.gross_sales} />
-            <Row label="Diskon" value={data.discount} isNegative />
-            <Row label="Platform Fee" value={data.platform_fee} isNegative />
-            <Row label="Payment Fee" value={data.payment_fee} isNegative />
-            <Row label="Shipping Subsidy" value={data.shipping_subsidy} isNegative />
-            <Row label="Ad Cost" value={data.ad_cost} isNegative />
-            <Row label="Refund" value={data.refund} isNegative />
-            <Row label="Product Cost (COGS)" value={data.cogs} isNegative />
-            <Row label="Net Profit" value={data.net_profit} bold />
+            <h2 className="font-bold text-gray-800 mb-4">{t('page_profit.waterfall_title')}</h2>
+            <Row label={t('page_profit.selling_price')} value={data.gross_sales} />
+            <Row label={t('page_profit.discount')} value={data.discount} isNegative />
+            <Row label={t('page_profit.platform_fee')} value={data.platform_fee} isNegative />
+            <Row label={t('page_profit.payment_fee')} value={data.payment_fee} isNegative />
+            <Row label={t('page_profit.shipping_subsidy')} value={data.shipping_subsidy} isNegative />
+            <Row label={t('page_profit.ad_cost')} value={data.ad_cost} isNegative />
+            <Row label={t('page_profit.refund')} value={data.refund} isNegative />
+            <Row label={t('page_profit.cogs')} value={data.cogs} isNegative />
+            <Row label={t('page_profit.net_profit')} value={data.net_profit} bold />
             <p className="text-xs text-gray-400 mt-3">
-              Platform fee, payment fee, shipping subsidy, dan ad cost dihitung dari asumsi biaya
-              di Pengaturan (bukan integrasi payment/ads yang sesungguhnya).
+              {t('page_profit.assumption_note')}
             </p>
           </div>
 
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-              <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Profit Margin</p>
+              <p className="text-xs text-gray-400 uppercase font-semibold mb-1">{t('page_profit.profit_margin')}</p>
               <p className="text-4xl font-extrabold text-brand-600">{data.margin_pct.toFixed(1)}%</p>
-              <p className="text-xs text-gray-400 mt-1">dari Gross Sales</p>
+              <p className="text-xs text-gray-400 mt-1">{t('page_profit.of_gross_sales')}</p>
             </div>
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Net Sales</p>
+              <p className="text-xs text-gray-400 uppercase font-semibold mb-2">{t('page_profit.net_sales')}</p>
               <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.net_sales)}</p>
-              <p className="text-xs text-gray-400 mt-1">Gross Sales - Diskon + Biaya Tambahan</p>
+              <p className="text-xs text-gray-400 mt-1">{t('page_profit.net_sales_formula')}</p>
             </div>
           </div>
         </div>

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10)
 }
 
 const presets = [
-  { key: 'today', label: 'Hari Ini', days: 0 },
-  { key: '7d', label: '7 Hari', days: 6 },
-  { key: '30d', label: '30 Hari', days: 29 },
-  { key: 'custom', label: 'Custom' },
+  { key: 'today', labelKey: 'shared.date_today', days: 0 },
+  { key: '7d', labelKey: 'shared.date_7d', days: 6 },
+  { key: '30d', labelKey: 'shared.date_30d', days: 29 },
+  { key: 'custom', labelKey: 'shared.date_custom' },
 ]
 
 export function presetRange(days) {
@@ -20,6 +21,7 @@ export function presetRange(days) {
 
 // Controlled date-range selector: emits {from, to} (ISO yyyy-mm-dd) via onChange.
 export default function DateRangePicker({ value, onChange }) {
+  const { t } = useTranslation()
   const [active, setActive] = useState('7d')
   const [customFrom, setCustomFrom] = useState(value?.from || presetRange(6).from)
   const [customTo, setCustomTo] = useState(value?.to || presetRange(6).to)
@@ -52,7 +54,7 @@ export default function DateRangePicker({ value, onChange }) {
             active === p.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
           }`}
         >
-          {p.label}
+          {t(p.labelKey)}
         </button>
       ))}
       {active === 'custom' && (
@@ -63,7 +65,7 @@ export default function DateRangePicker({ value, onChange }) {
             onChange={(e) => setCustomFrom(e.target.value)}
             className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
           />
-          <span className="text-gray-400 text-sm">s/d</span>
+          <span className="text-gray-400 text-sm">{t('shared.date_range_separator')}</span>
           <input
             type="date"
             value={customTo}
@@ -74,7 +76,7 @@ export default function DateRangePicker({ value, onChange }) {
             onClick={applyCustom}
             className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
           >
-            Terapkan
+            {t('shared.apply')}
           </button>
         </div>
       )}

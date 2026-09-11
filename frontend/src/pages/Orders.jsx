@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
@@ -24,16 +25,17 @@ const nextStatus = {
 }
 
 const statusTabs = [
-  { label: 'Semua', value: '' },
-  { label: 'Pesanan Baru', value: 'pending' },
-  { label: 'Picking', value: 'picking' },
-  { label: 'Siap Kirim', value: 'ready_to_ship' },
-  { label: 'Dikirim', value: 'shipped' },
-  { label: 'Selesai', value: 'delivered' },
-  { label: 'Dibatalkan', value: 'cancelled,return' },
+  { key: 'all', value: '', labelKey: 'page_orders.tab_all' },
+  { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders' },
+  { key: 'picking', value: 'picking', labelKey: 'status.picking' },
+  { key: 'ready_to_ship', value: 'ready_to_ship', labelKey: 'status.ready_to_ship' },
+  { key: 'shipped', value: 'shipped', labelKey: 'status.shipped' },
+  { key: 'delivered', value: 'delivered', labelKey: 'status.delivered' },
+  { key: 'cancelled', value: 'cancelled,return', labelKey: 'status.cancelled' },
 ]
 
 export default function Orders() {
+  const { t } = useTranslation()
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -122,7 +124,7 @@ export default function Orders() {
   async function handleReject(order) {
     setAdvancing(order.id)
     try {
-      await updateOrderStatus(order.id, 'cancelled', 'Ditolak oleh seller')
+      await updateOrderStatus(order.id, 'cancelled', t('page_orders.reject_reason_default'))
       fetchOrders()
     } finally {
       setAdvancing(null)
@@ -152,8 +154,8 @@ export default function Orders() {
     const okCount = results.filter((r) => r.status === 'fulfilled').length
     const failCount = results.length - okCount
     setBulkResult(failCount > 0
-      ? `${okCount} order berhasil diubah, ${failCount} dilewati (transisi status tidak valid)`
-      : `${okCount} order berhasil diubah ke ${statusLabels[bulkStatus]}`)
+      ? t('page_orders.bulk_result_partial', { ok: okCount, fail: failCount })
+      : t('page_orders.bulk_result_success', { ok: okCount, status: t(`status.${bulkStatus}`, statusLabels[bulkStatus]) }))
     setBulkStatus('')
     setBulkBusy(false)
     fetchOrders()
@@ -174,14 +176,14 @@ export default function Orders() {
         return (
           <div key={key} className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-sm text-amber-800">
-              💡 <span className="font-semibold">{s.order_nos.length} order</span> dari <span className="font-semibold">{s.customer_name}</span> ({s.pickup_chain_name}) bisa digabung jadi satu pengiriman: {s.order_nos.join(', ')}
+              💡 <span className="font-semibold">{t('page_orders.order_count', { count: s.order_nos.length })}</span> {t('page_orders.merge_suggestion_from')} <span className="font-semibold">{s.customer_name}</span> ({s.pickup_chain_name}) {t('page_orders.merge_suggestion_desc', { orderNos: s.order_nos.join(', ') })}
             </p>
             <div className="flex gap-2 shrink-0">
               <button onClick={() => setMergeModal(s)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700">
-                Gabungkan
+                {t('page_orders.merge_action')}
               </button>
               <button onClick={() => setDismissedMerges((d) => new Set(d).add(key))} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100">
-                Abaikan
+                {t('page_orders.dismiss')}
               </button>
             </div>
           </div>
@@ -191,19 +193,19 @@ export default function Orders() {
       {mergeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setMergeModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-bold text-gray-800 mb-2">Gabungkan Pengiriman</h2>
+            <h2 className="font-bold text-gray-800 mb-2">{t('page_orders.merge_modal_title')}</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Gabungkan {mergeModal.order_nos.length} order dari {mergeModal.customer_name} ({mergeModal.pickup_chain_name}) menjadi satu pengiriman. Ongkir hanya dihitung sekali pada order pertama.
+              {t('page_orders.merge_modal_desc', { count: mergeModal.order_nos.length, customerName: mergeModal.customer_name, chainName: mergeModal.pickup_chain_name })}
             </p>
             <ul className="text-sm text-gray-700 mb-4 list-disc pl-5">
               {mergeModal.order_nos.map((no) => <li key={no}>{no}</li>)}
             </ul>
             <div className="flex gap-2">
               <button onClick={() => handleMerge(mergeModal.order_ids)} disabled={mergeBusy} className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
-                {mergeBusy ? 'Menggabungkan...' : 'Gabungkan'}
+                {mergeBusy ? t('page_orders.merging') : t('page_orders.merge_action')}
               </button>
               <button onClick={() => setMergeModal(null)} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
-                Batal
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -212,11 +214,11 @@ export default function Orders() {
 
       {summary && (
         <div className="flex flex-wrap gap-4 mb-6">
-          <BigStatCard title="Total Order" value={Object.values(counts).reduce((a, b) => a + b, 0)} subLabel={`${summary.total_qty} item`} iconBg="bg-blue-50" iconColor="text-blue-600" icon="📦" />
-          <BigStatCard title="Total Revenue" value={formatCurrency(summary.total_revenue)} iconBg="bg-green-50" iconColor="text-green-600" icon="💰" />
-          <BigStatCard title="Menunggu Konfirmasi" value={formatCurrency(revenue.pending || 0)} subLabel={`${counts.pending || 0} order`} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⏳" />
-          <BigStatCard title="Sedang Diproses" value={formatCurrency(processingRevenue)} subLabel={`${processing} order`} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🚚" />
-          <BigStatCard title="Selesai" value={formatCurrency(revenue.delivered || 0)} subLabel={`${counts.delivered || 0} order`} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
+          <BigStatCard title={t('page_orders.stat_total_order')} value={Object.values(counts).reduce((a, b) => a + b, 0)} subLabel={t('page_orders.total_qty_sublabel', { count: summary.total_qty })} iconBg="bg-blue-50" iconColor="text-blue-600" icon="📦" />
+          <BigStatCard title={t('page_orders.stat_total_revenue')} value={formatCurrency(summary.total_revenue)} iconBg="bg-green-50" iconColor="text-green-600" icon="💰" />
+          <BigStatCard title={t('page_orders.stat_pending_confirmation')} value={formatCurrency(revenue.pending || 0)} subLabel={t('page_orders.order_count', { count: counts.pending || 0 })} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⏳" />
+          <BigStatCard title={t('page_orders.stat_processing')} value={formatCurrency(processingRevenue)} subLabel={t('page_orders.order_count', { count: processing })} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🚚" />
+          <BigStatCard title={t('status.delivered')} value={formatCurrency(revenue.delivered || 0)} subLabel={t('page_orders.order_count', { count: counts.delivered || 0 })} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
         </div>
       )}
 
@@ -224,26 +226,26 @@ export default function Orders() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <DateRangePicker value={range} onChange={(r) => { setRange(r); setPage(1) }} />
           <Link to="/orders/new" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-            + Buat Order Baru
+            {t('page_orders.create_order_button')}
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Cari nama atau HP customer..."
+            placeholder={t('page_orders.search_placeholder')}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px]"
           />
           <select value={hostId} onChange={(e) => { setHostId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">Semua Host</option>
+            <option value="">{t('page_orders.all_hosts')}</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
           </select>
           <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">Semua Kategori</option>
+            <option value="">{t('page_orders.all_categories')}</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={pickupChainId} onChange={(e) => { setPickupChainId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">Semua Metode Pengambilan</option>
+            <option value="">{t('page_orders.all_pickup_methods')}</option>
             {pickupChains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button
@@ -252,22 +254,22 @@ export default function Orders() {
               blacklistOnly ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            🚫 Daftar Hitam
+            {t('page_orders.blacklist_filter')}
           </button>
           <button onClick={resetFilters} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">
-            Reset
+            {t('page_orders.reset')}
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto">
-          {statusTabs.map((t) => (
+          {statusTabs.map((tab) => (
             <button
-              key={t.label}
-              onClick={() => { setStatus(t.value); setPage(1) }}
+              key={tab.key}
+              onClick={() => { setStatus(tab.value); setPage(1) }}
               className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${
-                status === t.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                status === tab.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
               }`}
             >
-              {t.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -275,36 +277,36 @@ export default function Orders() {
 
       {selected.size > 0 && (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-3 mb-4 flex items-center gap-3 flex-wrap">
-          <span className="text-sm font-medium text-brand-800">{selected.size} order dipilih</span>
+          <span className="text-sm font-medium text-brand-800">{t('page_orders.selected_count', { count: selected.size })}</span>
           <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">Ubah status ke...</option>
-            {Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}
+            <option value="">{t('page_orders.change_status_placeholder')}</option>
+            {Object.keys(statusLabels).map((s) => <option key={s} value={s}>{t(`status.${s}`, statusLabels[s])}</option>)}
           </select>
           <button
             onClick={applyBulkStatus}
             disabled={!bulkStatus || bulkBusy}
             className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg disabled:opacity-50"
           >
-            {bulkBusy ? 'Menerapkan...' : 'Terapkan'}
+            {bulkBusy ? t('page_orders.applying') : t('shared.apply')}
           </button>
           <a
             href={`/orders/print/invoice?ids=${[...selected].join(',')}`}
             target="_blank" rel="noreferrer"
             className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-white"
           >
-            Cetak Invoice Terpilih
+            {t('page_orders.print_selected_invoice')}
           </a>
           <button onClick={() => setSelected(new Set())} className="text-sm text-gray-500 hover:underline">
-            Batal
+            {t('common.cancel')}
           </button>
         </div>
       )}
       {bulkResult && <p className="text-sm text-gray-600 mb-4">{bulkResult}</p>}
 
       {loading ? (
-        <p className="text-gray-500 py-10 text-center">Memuat order...</p>
+        <p className="text-gray-500 py-10 text-center">{t('page_orders.loading_orders')}</p>
       ) : data.items.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">Belum ada order.</div>
+        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_orders.empty_state')}</div>
       ) : (
         <>
           <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
@@ -314,14 +316,14 @@ export default function Orders() {
                   <th className="p-3 w-8">
                     <input type="checkbox" checked={selected.size === data.items.length} onChange={toggleSelectAll} />
                   </th>
-                  <th className="p-3">No. Order</th>
-                  <th className="p-3">Customer</th>
-                  <th className="p-3">Host</th>
-                  <th className="p-3">Pengambilan</th>
-                  <th className="p-3">Qty</th>
-                  <th className="p-3">Total</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Aksi</th>
+                  <th className="p-3">{t('page_orders.col_order_no')}</th>
+                  <th className="p-3">{t('page_orders.col_customer')}</th>
+                  <th className="p-3">{t('page_orders.col_host')}</th>
+                  <th className="p-3">{t('page_orders.col_pickup')}</th>
+                  <th className="p-3">{t('page_orders.col_qty')}</th>
+                  <th className="p-3">{t('page_orders.col_total')}</th>
+                  <th className="p-3">{t('page_orders.col_status')}</th>
+                  <th className="p-3">{t('page_orders.col_action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -335,7 +337,7 @@ export default function Orders() {
                       <p className="text-gray-700 flex items-center gap-1.5">
                         {o.customer_name}
                         {o.customer_blacklisted && (
-                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">Daftar Hitam</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">{t('page_orders.blacklist_badge')}</span>
                         )}
                       </p>
                       <p className="text-xs text-gray-400">{o.customer_phone}</p>
@@ -350,14 +352,14 @@ export default function Orders() {
                     <td className="p-3"><StatusPill status={o.status} /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <Link to={`/orders/${o.id}`} title="Lihat" className="text-gray-400 hover:text-brand-600">
+                        <Link to={`/orders/${o.id}`} title={t('page_orders.view_tooltip')} className="text-gray-400 hover:text-brand-600">
                           <IconEye />
                         </Link>
                         {o.status === 'pending' && (
                           <button
                             onClick={() => handleReject(o)}
                             disabled={advancing === o.id}
-                            title="Tolak Order"
+                            title={t('page_orders.reject_tooltip')}
                             className="text-gray-400 hover:text-red-600 disabled:opacity-40"
                           >
                             <IconX />
@@ -367,7 +369,7 @@ export default function Orders() {
                           <button
                             onClick={() => handleAdvance(o)}
                             disabled={advancing === o.id}
-                            title={o.status === 'pending' ? 'Terima Order' : `Lanjutkan ke ${statusLabels[nextStatus[o.status]]}`}
+                            title={o.status === 'pending' ? t('page_orders.accept_tooltip') : t('page_orders.advance_tooltip', { status: t(`status.${nextStatus[o.status]}`, statusLabels[nextStatus[o.status]]) })}
                             className="text-gray-400 hover:text-brand-600 disabled:opacity-40"
                           >
                             <IconArrowRight />
@@ -376,7 +378,7 @@ export default function Orders() {
                         <a
                           href={`/orders/${o.id}/print/invoice`}
                           target="_blank" rel="noreferrer"
-                          title="Cetak Invoice"
+                          title={t('page_orders.print_invoice_tooltip')}
                           className="text-gray-400 hover:text-brand-600"
                         >
                           🖨️
@@ -389,21 +391,21 @@ export default function Orders() {
             </table>
           </div>
           <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
-            <span>Halaman {data.page} dari {totalPages} ({data.total} order)</span>
+            <span>{t('page_orders.pagination_info', { page: data.page, totalPages, total: data.total })}</span>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
                 className="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40"
               >
-                Sebelumnya
+                {t('page_orders.prev')}
               </button>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
                 className="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40"
               >
-                Berikutnya
+                {t('page_orders.next')}
               </button>
             </div>
           </div>

@@ -1,10 +1,15 @@
+import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '../utils/format'
 
-const stages = ['Diajukan', 'Ditinjau', 'Disetujui', 'Barang Diterima', 'Inspeksi', 'Refund']
+const stageKeys = ['submitted', 'reviewed', 'approved', 'item_received', 'inspection', 'refund']
 
-const reasonLabels = {
-  damaged: 'Barang rusak', wrong_item: 'Salah barang', missing_item: 'Barang tidak lengkap',
-  defective: 'Cacat produksi', change_of_mind: 'Berubah pikiran',
+const reasonKeys = {
+  damaged: 'damaged', wrong_item: 'wrong_item', missing_item: 'missing_item',
+  defective: 'defective', change_of_mind: 'change_of_mind',
+}
+
+const refundTypeKeys = {
+  Full: 'full', Replacement: 'replacement', 'Store Credit': 'store_credit',
 }
 
 const returns = [
@@ -14,10 +19,13 @@ const returns = [
 ]
 
 export default function Returns() {
+  const { t } = useTranslation()
+  const stages = stageKeys.map((k) => t(`page_returns.stages.${k}`))
+
   return (
     <div className="px-4 sm:px-6 py-6">
       <span className="inline-block mb-4 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-        Preview — belum terhubung ke data asli
+        {t('shared.mock_preview_badge')}
       </span>
       <div className="space-y-4">
         {returns.map((ret) => (
@@ -25,7 +33,7 @@ export default function Returns() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="font-semibold text-gray-800">{ret.id} · {ret.order}</p>
-                <p className="text-xs text-gray-500">{ret.customer} · Alasan: {reasonLabels[ret.reason]}</p>
+                <p className="text-xs text-gray-500">{ret.customer} · {t('page_returns.reason_prefix')} {t(`page_returns.reason.${reasonKeys[ret.reason]}`)}</p>
               </div>
               <p className="font-semibold text-brand-600">{formatCurrency(ret.amount)}</p>
             </div>
@@ -42,11 +50,11 @@ export default function Returns() {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Jenis Refund:</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{ret.refundType}</span>
+              <span className="text-xs text-gray-500">{t('page_returns.refund_type_label')}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{t(`page_returns.refund_type.${refundTypeKeys[ret.refundType]}`)}</span>
               <div className="ml-auto flex gap-2">
-                <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100">Setujui</button>
-                <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">Tolak</button>
+                <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100">{t('page_returns.approve')}</button>
+                <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">{t('page_returns.reject')}</button>
               </div>
             </div>
           </div>

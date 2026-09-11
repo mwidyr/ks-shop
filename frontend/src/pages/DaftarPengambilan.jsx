@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { getPickingQueue, pickOrderItem } from '../api/orders'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import PickingLineItem from '../components/PickingLineItem'
 
 export default function DaftarPengambilan() {
+  const { t } = useTranslation()
   const [data, setData] = useState({ items: [], total: 0 })
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -32,17 +34,17 @@ export default function DaftarPengambilan() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari produk / kode / pelanggan / no. pesanan..."
+          placeholder={t('page_picking.search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         />
       </div>
 
-      <p className="text-sm text-gray-500 mb-3">ITEM · {data.total}</p>
+      <p className="text-sm text-gray-500 mb-3">{t('page_picking.item_count_label', { count: data.total })}</p>
 
       {loading ? (
-        <p className="text-gray-500 py-10 text-center">Memuat...</p>
+        <p className="text-gray-500 py-10 text-center">{t('common.loading')}</p>
       ) : data.items.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">Tidak ada item yang perlu diambil.</div>
+        <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_picking.empty_state')}</div>
       ) : (
         <div className="space-y-3">
           {data.items.map((it) => (
@@ -73,9 +75,9 @@ export default function DaftarPengambilan() {
       )}
 
       <div className="sticky bottom-0 bg-white border-t border-gray-200 mt-4 p-3 flex items-center justify-around text-center text-sm rounded-b-2xl shadow-sm">
-        <div><p className="text-[11px] text-gray-400 uppercase">Baris</p><p className="font-bold text-gray-800">{data.items.length}</p></div>
-        <div><p className="text-[11px] text-gray-400 uppercase">Total</p><p className="font-bold text-gray-800">{data.total}</p></div>
-        <div><p className="text-[11px] text-gray-400 uppercase">Ambil</p><p className="font-bold text-gray-800">{totalPicked}/{totalQty}</p></div>
+        <div><p className="text-[11px] text-gray-400 uppercase">{t('page_picking.row_label')}</p><p className="font-bold text-gray-800">{data.items.length}</p></div>
+        <div><p className="text-[11px] text-gray-400 uppercase">{t('page_picking.total_label')}</p><p className="font-bold text-gray-800">{data.total}</p></div>
+        <div><p className="text-[11px] text-gray-400 uppercase">{t('page_picking.picked_label')}</p><p className="font-bold text-gray-800">{totalPicked}/{totalQty}</p></div>
       </div>
     </div>
   )

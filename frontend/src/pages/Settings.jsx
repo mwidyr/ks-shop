@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getFeeSettings, updateFeeSettings } from '../api/settings'
 
 function FeeSettingsCard() {
+  const { t } = useTranslation()
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -34,30 +36,30 @@ function FeeSettingsCard() {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h2 className="font-bold text-gray-800 mb-1">Asumsi Biaya</h2>
-      <p className="text-xs text-gray-500 mb-4">Dipakai untuk menghitung Profit Analytics — bukan integrasi payment/ads asli.</p>
+      <h2 className="font-bold text-gray-800 mb-1">{t('page_settings.fee_assumption_title')}</h2>
+      <p className="text-xs text-gray-500 mb-4">{t('page_settings.fee_assumption_desc')}</p>
       <form onSubmit={save} className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Platform Fee (%)</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_settings.label_platform_fee')}</label>
           <input type="number" step="0.1" value={form.platform_fee_pct} onChange={(e) => update('platform_fee_pct', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Payment Fee (%)</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_settings.label_payment_fee')}</label>
           <input type="number" step="0.1" value={form.payment_fee_pct} onChange={(e) => update('payment_fee_pct', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Shipping Subsidy / order</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_settings.label_shipping_subsidy')}</label>
           <input type="number" value={form.shipping_subsidy_flat} onChange={(e) => update('shipping_subsidy_flat', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Ad Cost / order</label>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_settings.label_ad_cost')}</label>
           <input type="number" value={form.ad_cost_flat} onChange={(e) => update('ad_cost_flat', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
         </div>
         <div className="col-span-2 md:col-span-4 flex items-center gap-3">
           <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg disabled:opacity-50">
-            {saving ? 'Menyimpan...' : 'Simpan'}
+            {saving ? t('page_settings.saving') : t('common.save')}
           </button>
-          {saved && <span className="text-xs text-green-600">Tersimpan</span>}
+          {saved && <span className="text-xs text-green-600">{t('page_settings.saved_label')}</span>}
         </div>
       </form>
     </div>
@@ -65,11 +67,12 @@ function FeeSettingsCard() {
 }
 
 export default function Settings() {
+  const { t } = useTranslation()
   return (
     <div className="px-4 sm:px-6 py-6 max-w-2xl">
       <p className="text-sm text-gray-500 mb-4">
-        Pengaturan host live dan metode pengambilan/ongkir sudah dipindah ke halaman
-        <span className="font-semibold"> Manajemen Penyiar</span> dan <span className="font-semibold">Pengaturan Ongkir</span> masing-masing.
+        {t('page_settings.moved_settings_notice_prefix')}
+        <span className="font-semibold"> {t('nav.items.hosts')}</span> {t('page_settings.and')} <span className="font-semibold">{t('nav.items.shipping_settings')}</span> {t('page_settings.moved_settings_notice_suffix')}
       </p>
       <FeeSettingsCard />
     </div>

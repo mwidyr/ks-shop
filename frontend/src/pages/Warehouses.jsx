@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import MockPage from '../components/MockPage'
 
 const warehouses = [
@@ -6,8 +7,9 @@ const warehouses = [
 ]
 
 export default function Warehouses() {
+  const { t } = useTranslation()
   return (
-    <MockPage icon="🏬" title="Warehouses" description="Kelola beberapa lokasi gudang penyimpanan stok.">
+    <MockPage icon="🏬" title={t('page_warehouses.title')} description={t('page_warehouses.description')}>
       <div className="bg-white rounded-2xl shadow-sm divide-y">
         {warehouses.map((w) => (
           <div key={w.name} className="flex items-center justify-between p-4">
@@ -15,7 +17,7 @@ export default function Warehouses() {
               <p className="text-sm font-semibold text-gray-800">{w.name}</p>
               <p className="text-xs text-gray-500">{w.address}</p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">{w.items} item</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">{t('page_warehouses.item_count', { count: w.items })}</span>
           </div>
         ))}
       </div>

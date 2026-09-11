@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, addProductImage, deleteProductImage } from '../api/products'
 import PhotoSlots from '../components/PhotoSlots'
 import CategorySelect from '../components/CategorySelect'
@@ -17,6 +18,7 @@ function suggestSku(productName, variant) {
 }
 
 export default function ProductForm() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
@@ -91,7 +93,7 @@ export default function ProductForm() {
     e.preventDefault()
     setError('')
     if (images.length === 0) {
-      setError('Foto Utama wajib diisi')
+      setError(t('page_product_form.main_photo_required'))
       return
     }
     setSaving(true)
@@ -116,24 +118,24 @@ export default function ProductForm() {
         navigate('/products')
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal menyimpan produk')
+      setError(err.response?.data?.error || t('page_product_form.save_failed'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">Memuat...</div>
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">{t('common.loading')}</div>
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Foto Produk</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('page_product_form.product_photos')}</label>
             <PhotoSlots value={images} onAdd={handleAddImage} onRemove={handleRemoveImage} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Produk</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_name')}</label>
             <input
               value={product.name}
               onChange={(e) => updateField('name', e.target.value)}
@@ -143,21 +145,21 @@ export default function ProductForm() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.category')}</label>
               <CategorySelect value={product.category} onChange={(v) => updateField('category', v)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.brand')}</label>
               <input
                 value={product.brand}
                 onChange={(e) => updateField('brand', e.target.value)}
-                placeholder="Opsional"
+                placeholder={t('page_product_form.optional_placeholder')}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.description')}</label>
             <textarea
               value={product.description}
               onChange={(e) => updateField('description', e.target.value)}
@@ -168,17 +170,17 @@ export default function ProductForm() {
           <label className="flex items-start gap-2 border border-gray-200 rounded-lg p-3">
             <input type="checkbox" checked={product.allow_oversell} onChange={(e) => updateField('allow_oversell', e.target.checked)} className="mt-0.5" />
             <span>
-              <span className="block text-sm font-semibold text-gray-700">Izinkan oversell</span>
-              <span className="block text-xs text-gray-500">Jika aktif, order tetap diterima walau stok tersedia habis (akan ditandai "Oversell, perlu restock").</span>
+              <span className="block text-sm font-semibold text-gray-700">{t('page_product_form.allow_oversell')}</span>
+              <span className="block text-xs text-gray-500">{t('page_product_form.allow_oversell_hint')}</span>
             </span>
           </label>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-800">Varian</h2>
+            <h2 className="font-bold text-gray-800">{t('page_product_form.variants_heading')}</h2>
             <button type="button" onClick={addVariant} className="text-sm font-semibold text-brand-600 hover:underline">
-              + Tambah Varian
+              + {t('page_product_form.add_variant')}
             </button>
           </div>
           <div className="space-y-4">
@@ -187,18 +189,18 @@ export default function ProductForm() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="flex gap-1">
                     <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm flex-1 min-w-0" required />
-                    <button type="button" onClick={() => autoSku(idx)} title="Buat SKU otomatis" className="text-[11px] px-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 shrink-0">
-                      Auto
+                    <button type="button" onClick={() => autoSku(idx)} title={t('page_product_form.auto_sku_tooltip')} className="text-[11px] px-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 shrink-0">
+                      {t('page_product_form.auto_sku_button')}
                     </button>
                   </div>
-                  <input placeholder="Warna" value={v.color} onChange={(e) => updateVariantField(idx, 'color', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                  <input placeholder="Ukuran" value={v.size} onChange={(e) => updateVariantField(idx, 'size', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                  <input placeholder="Harga Jual" type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
+                  <input placeholder={t('page_product_form.color_placeholder')} value={v.color} onChange={(e) => updateVariantField(idx, 'color', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  <input placeholder={t('page_product_form.size_placeholder')} value={v.size} onChange={(e) => updateVariantField(idx, 'size', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  <input placeholder={t('page_product_form.sell_price_placeholder')} type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1 flex items-center gap-1.5">
-                      Harga Diskon (Sebelum)
+                      {t('page_product_form.compare_price_label')}
                       {Number(v.compare_at_price) > Number(v.price) && Number(v.price) > 0 && (
                         <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-600">
                           -{Math.round((1 - Number(v.price) / Number(v.compare_at_price)) * 100)}%
@@ -206,42 +208,42 @@ export default function ProductForm() {
                       )}
                     </label>
                     <input type="number" value={v.compare_at_price} onChange={(e) => updateVariantField(idx, 'compare_at_price', e.target.value)} placeholder="0" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                    <p className="text-[10px] text-gray-400 mt-0.5">Isi jika Harga Jual di atas sedang diskon dari harga normal ini.</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.compare_price_hint')}</p>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Cost Price</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.cost_price_label')}</label>
                     <input type="number" value={v.cost_price} onChange={(e) => updateVariantField(idx, 'cost_price', e.target.value)} placeholder="0" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 items-end">
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Available</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.available_label')}</label>
                     <input type="number" value={v.available_stock} onChange={(e) => updateVariantField(idx, 'available_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Reserve</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.reserve_label')}</label>
                     <input type="number" value={v.reserve_stock} onChange={(e) => updateVariantField(idx, 'reserve_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Broken</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.broken_label')}</label>
                     <input type="number" value={v.broken_stock} onChange={(e) => updateVariantField(idx, 'broken_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Incoming</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.incoming_label')}</label>
                     <input type="number" value={v.incoming_stock} onChange={(e) => updateVariantField(idx, 'incoming_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Min. Stock</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.min_stock_label')}</label>
                     <input type="number" value={v.minimum_stock} onChange={(e) => updateVariantField(idx, 'minimum_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Total Stock</label>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.total_stock_label')}</label>
                     <input type="text" value={totalStock(v)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
                   </div>
                 </div>
                 {variants.length > 1 && (
                   <button type="button" onClick={() => removeVariant(idx)} className="text-xs text-red-600 hover:underline">
-                    Hapus varian ini
+                    {t('page_product_form.remove_variant')}
                   </button>
                 )}
               </div>
@@ -253,10 +255,10 @@ export default function ProductForm() {
 
         <div className="flex gap-2">
           <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-lg disabled:opacity-60">
-            {saving ? 'Menyimpan...' : 'Simpan'}
+            {saving ? t('page_product_form.saving') : t('common.save')}
           </button>
           <button type="button" onClick={() => navigate('/products')} className="text-gray-500 px-5 py-2.5">
-            Batal
+            {t('common.cancel')}
           </button>
         </div>
       </form>

@@ -1,13 +1,15 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 
 const MAX_PHOTOS = 5
-const slotLabels = ['Foto Utama', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5']
 
 // Up to 5 photo slots: value = array of {id?, url}. onAdd(url)/onRemove(image, index) let the
 // caller decide whether to just update local state (create flow) or fire an API call
 // immediately (edit flow).
 export default function PhotoSlots({ value = [], onAdd, onRemove }) {
+  const { t } = useTranslation()
+  const slotLabels = [t('shared.photo_slot_main'), t('shared.photo_slot_n', { n: 2 }), t('shared.photo_slot_n', { n: 3 }), t('shared.photo_slot_n', { n: 4 }), t('shared.photo_slot_n', { n: 5 })]
   const [uploadingSlot, setUploadingSlot] = useState(null)
   const [error, setError] = useState('')
 
@@ -20,7 +22,7 @@ export default function PhotoSlots({ value = [], onAdd, onRemove }) {
       const url = await uploadImageFile(file)
       onAdd(url)
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal upload gambar')
+      setError(err.response?.data?.error || t('shared.photo_upload_failed'))
     } finally {
       setUploadingSlot(null)
       e.target.value = ''
@@ -58,7 +60,7 @@ export default function PhotoSlots({ value = [], onAdd, onRemove }) {
                   disabled ? 'border-gray-100 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-400 cursor-pointer hover:border-brand-400 hover:text-brand-500'
                 }`}
               >
-                {uploadingSlot === i ? '...' : '+ Tambah'}
+                {uploadingSlot === i ? '...' : t('shared.photo_add')}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -72,7 +74,7 @@ export default function PhotoSlots({ value = [], onAdd, onRemove }) {
           )
         })}
       </div>
-      <p className="text-[11px] text-gray-400 mt-2">Format .jpg .jpeg .png, maksimal 5 foto. Foto Utama wajib diisi.</p>
+      <p className="text-[11px] text-gray-400 mt-2">{t('shared.photo_hint')}</p>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   )

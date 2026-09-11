@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listCustomerStats, setCustomerLabel, deleteCustomer } from '../api/customers'
 import { listOrders } from '../api/orders'
 import { formatCurrency } from '../utils/format'
@@ -6,14 +7,14 @@ import BigStatCard from '../components/BigStatCard'
 import StatusPill from '../components/StatusPill'
 
 const availableLabels = [
-  { key: 'vip', label: 'VIP' },
-  { key: 'blacklist', label: 'Daftar Hitam' },
-  { key: 'sering_retur', label: 'Sering Retur' },
-  { key: 'pelanggan_baru', label: 'Pelanggan Baru' },
+  { key: 'vip', labelKey: 'vip' },
+  { key: 'blacklist', labelKey: 'blacklist' },
+  { key: 'sering_retur', labelKey: 'frequent_returns' },
+  { key: 'pelanggan_baru', labelKey: 'new_customer' },
 ]
 
-const segmentLabels = {
-  new: 'Baru', returning: 'Returning', vip: 'VIP', high_value: 'High Value', inactive: 'Inactive',
+const segmentKeys = {
+  new: 'new', returning: 'returning', vip: 'vip', high_value: 'high_value', inactive: 'inactive',
 }
 const segmentColors = {
   new: 'bg-blue-100 text-blue-700',
@@ -24,6 +25,7 @@ const segmentColors = {
 }
 
 function CustomerDetail({ customer, onClose, onChanged }) {
+  const { t } = useTranslation()
   const [orders, setOrders] = useState(null)
   const [labels, setLabels] = useState(new Set(customer.labels || []))
   const [deleteError, setDeleteError] = useState('')
@@ -51,7 +53,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
       onChanged()
       onClose()
     } catch (err) {
-      setDeleteError(err.response?.data?.error || 'Gagal menghapus pelanggan')
+      setDeleteError(err.response?.data?.error || t('page_customers.detail.delete_error_fallback'))
     }
   }
 
@@ -60,15 +62,15 @@ function CustomerDetail({ customer, onClose, onChanged }) {
       <div className="w-full max-w-md bg-white h-full overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">{customer.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">Tutup</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">{t('common.close')}</button>
         </div>
         <p className="text-sm text-gray-500 mb-1">{customer.phone}</p>
         <p className="text-sm text-gray-500 mb-4">{customer.address || '-'}</p>
         <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mb-4 ${segmentColors[customer.segment]}`}>
-          {segmentLabels[customer.segment]}
+          {t(`page_customers.segment.${segmentKeys[customer.segment]}`)}
         </span>
 
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Label</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{t('page_customers.detail.label_heading')}</p>
         <div className="flex flex-wrap gap-2 mb-6">
           {availableLabels.map((l) => (
             <button
@@ -80,26 +82,26 @@ function CustomerDetail({ customer, onClose, onChanged }) {
                   : 'border-gray-300 text-gray-500 hover:bg-gray-50'
               }`}
             >
-              {l.label}
+              {t(`page_customers.labels.${l.labelKey}`)}
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-[11px] text-gray-400 uppercase">Total Order</p>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_customers.detail.total_order')}</p>
             <p className="text-lg font-bold text-gray-800">{customer.order_count}</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-[11px] text-gray-400 uppercase">Lifetime Value</p>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_customers.detail.lifetime_value')}</p>
             <p className="text-lg font-bold text-brand-600">{formatCurrency(customer.total_spend)}</p>
           </div>
         </div>
-        <h3 className="text-sm font-bold text-gray-700 mb-2">Riwayat Order</h3>
+        <h3 className="text-sm font-bold text-gray-700 mb-2">{t('page_customers.detail.order_history')}</h3>
         {!orders ? (
-          <p className="text-sm text-gray-400">Memuat...</p>
+          <p className="text-sm text-gray-400">{t('common.loading')}</p>
         ) : orders.length === 0 ? (
-          <p className="text-sm text-gray-400">Belum ada order.</p>
+          <p className="text-sm text-gray-400">{t('page_customers.detail.no_orders')}</p>
         ) : (
           <div className="divide-y">
             {orders.map((o) => (
@@ -118,9 +120,9 @@ function CustomerDetail({ customer, onClose, onChanged }) {
         )}
 
         <div className="mt-8 border border-red-200 bg-red-50 rounded-xl p-4">
-          <p className="text-xs font-bold text-red-600 uppercase mb-2">Tindakan Berbahaya</p>
+          <p className="text-xs font-bold text-red-600 uppercase mb-2">{t('page_customers.detail.danger_zone')}</p>
           <button onClick={handleDelete} className="w-full text-sm font-semibold text-red-600 border border-red-300 rounded-lg py-2 hover:bg-red-100">
-            Hapus pelanggan ini
+            {t('page_customers.detail.delete_customer')}
           </button>
           {deleteError && <p className="text-xs text-red-600 mt-2">{deleteError}</p>}
         </div>
@@ -130,6 +132,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
 }
 
 export default function Customers() {
+  const { t } = useTranslation()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [segment, setSegment] = useState('')
@@ -165,17 +168,17 @@ export default function Customers() {
   return (
     <div className="px-4 sm:px-6 py-6">
       <div className="flex flex-wrap gap-4 mb-6">
-        <BigStatCard title="Total Customer" value={customers.length} iconBg="bg-blue-50" iconColor="text-blue-600" icon="👥" />
-        <BigStatCard title="VIP" value={counts.vip} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⭐" />
-        <BigStatCard title="Returning" value={counts.returning} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🔁" />
-        <BigStatCard title="Inactive" value={counts.inactive} iconBg="bg-gray-50" iconColor="text-gray-500" icon="💤" />
+        <BigStatCard title={t('page_customers.stat_total_customers')} value={customers.length} iconBg="bg-blue-50" iconColor="text-blue-600" icon="👥" />
+        <BigStatCard title={t('page_customers.segment.vip')} value={counts.vip} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⭐" />
+        <BigStatCard title={t('page_customers.segment.returning')} value={counts.returning} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🔁" />
+        <BigStatCard title={t('page_customers.segment.inactive')} value={counts.inactive} iconBg="bg-gray-50" iconColor="text-gray-500" icon="💤" />
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flex flex-wrap gap-2">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari nama atau HP..."
+          placeholder={t('page_customers.search_placeholder')}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px]"
         />
         {['', 'new', 'returning', 'vip', 'high_value', 'inactive'].map((s) => (
@@ -186,24 +189,24 @@ export default function Customers() {
               segment === s ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
             }`}
           >
-            {s ? segmentLabels[s] : 'Semua'}
+            {s ? t(`page_customers.segment.${segmentKeys[s]}`) : t('page_customers.segment.all')}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-gray-500 py-10 text-center">Memuat customer...</p>
+        <p className="text-gray-500 py-10 text-center">{t('page_customers.loading_customers')}</p>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">Nama</th>
-                <th className="p-3">HP</th>
-                <th className="p-3">Orders</th>
-                <th className="p-3">Total Spending</th>
-                <th className="p-3">Last Order</th>
-                <th className="p-3">Segment</th>
+                <th className="p-3">{t('page_customers.table.name')}</th>
+                <th className="p-3">{t('page_customers.table.phone')}</th>
+                <th className="p-3">{t('page_customers.table.orders')}</th>
+                <th className="p-3">{t('page_customers.table.total_spending')}</th>
+                <th className="p-3">{t('page_customers.table.last_order')}</th>
+                <th className="p-3">{t('page_customers.table.segment')}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -216,7 +219,7 @@ export default function Customers() {
                   <td className="p-3 text-gray-500">{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="p-3">
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${segmentColors[c.segment]}`}>
-                      {segmentLabels[c.segment]}
+                      {t(`page_customers.segment.${segmentKeys[c.segment]}`)}
                     </span>
                   </td>
                 </tr>

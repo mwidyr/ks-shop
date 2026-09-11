@@ -1,15 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import MockPage from '../components/MockPage'
 import { IconStar } from '../components/icons'
 
 const reviews = [
-  { customer: 'Rina Wijaya', product: 'Sneakers Classic White', rating: 5, text: 'Bagus banget, sesuai foto!' },
-  { customer: 'Joko Santoso', product: 'Kaos Polos Premium', rating: 4, text: 'Bahannya adem, pengiriman cepat.' },
-  { customer: 'Maya Sari', product: 'Jaket Denim Jeans', rating: 2, text: 'Ukuran kekecilan dari yang diharapkan.' },
+  { customer: 'Rina Wijaya', product: 'Sneakers Classic White', rating: 5, textKey: 'review_1_text' },
+  { customer: 'Joko Santoso', product: 'Kaos Polos Premium', rating: 4, textKey: 'review_2_text' },
+  { customer: 'Maya Sari', product: 'Jaket Denim Jeans', rating: 2, textKey: 'review_3_text' },
 ]
 
 export default function Reviews() {
+  const { t } = useTranslation()
   return (
-    <MockPage icon="⭐" title="Reviews" description="Ulasan pelanggan untuk setiap produk.">
+    <MockPage icon="⭐" title={t('page_reviews.title')} description={t('page_reviews.description')}>
       <div className="bg-white rounded-2xl shadow-sm divide-y">
         {reviews.map((r, i) => (
           <div key={i} className="p-4">
@@ -20,7 +22,7 @@ export default function Reviews() {
               </div>
             </div>
             <p className="text-xs text-gray-400 mb-1">{r.product}</p>
-            <p className="text-sm text-gray-600">{r.text}</p>
+            <p className="text-sm text-gray-600">{t(`page_reviews.${r.textKey}`)}</p>
           </div>
         ))}
       </div>

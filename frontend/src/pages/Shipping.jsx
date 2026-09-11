@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listPickupLinks, createPickupLink, updatePickupLink } from '../api/pickupLinks'
 
-const tabs = [
-  { key: 'perlu_diproses', label: 'Perlu Diproses' },
-  { key: 'menunggu_pilih', label: 'Menunggu Pilih' },
-  { key: 'selesai', label: 'Selesai' },
-  { key: 'batal', label: 'Kedaluwarsa / Batal' },
-]
+const tabKeys = ['perlu_diproses', 'menunggu_pilih', 'selesai', 'batal']
 
 const statusColors = {
   perlu_diproses: 'bg-yellow-100 text-yellow-700',
@@ -18,6 +14,8 @@ const statusColors = {
 }
 
 export default function Shipping() {
+  const { t } = useTranslation()
+  const tabs = tabKeys.map((key) => ({ key, label: t(`page_shipping.tabs.${key}`) }))
   const [label, setLabel] = useState('')
   const [creating, setCreating] = useState(false)
   const [lastLink, setLastLink] = useState(null)
@@ -66,52 +64,52 @@ export default function Shipping() {
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className="flex justify-end">
         <Link to="/shipping/export" className="text-sm font-semibold text-brand-600 hover:underline">
-          Ekspor Data Pengiriman →
+          {t('page_shipping.export_link')}
         </Link>
       </div>
       <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h2 className="font-bold text-gray-800 mb-1">Buat Tautan Pickup</h2>
-        <p className="text-xs text-gray-500 mb-3">Buat tautan yang bisa dibagikan, misalnya per host/sesi live.</p>
+        <h2 className="font-bold text-gray-800 mb-1">{t('page_shipping.create_link_heading')}</h2>
+        <p className="text-xs text-gray-500 mb-3">{t('page_shipping.create_link_description')}</p>
         <form onSubmit={handleCreate} className="flex gap-2">
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="Contoh: Pelanggan Live Juni"
+            placeholder={t('page_shipping.label_placeholder')}
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
           />
           <button type="submit" disabled={creating} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">
-            {creating ? 'Membuat...' : 'Buat Tautan'}
+            {creating ? t('page_shipping.creating') : t('page_shipping.create_link_button')}
           </button>
         </form>
         {lastLink && (
           <div className="mt-3 flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-lg p-2">
             <input readOnly value={lastLink} className="flex-1 bg-transparent text-sm text-brand-800 font-mono outline-none" />
-            <button onClick={() => navigator.clipboard.writeText(lastLink)} className="text-xs font-semibold text-brand-600 hover:underline">Salin</button>
+            <button onClick={() => navigator.clipboard.writeText(lastLink)} className="text-xs font-semibold text-brand-600 hover:underline">{t('page_shipping.copy')}</button>
           </div>
         )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h2 className="font-bold text-gray-800 mb-3">Daftar Tautan Pickup</h2>
+        <h2 className="font-bold text-gray-800 mb-3">{t('page_shipping.list_heading')}</h2>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari label..."
+          placeholder={t('page_shipping.search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
         />
         <div className="flex gap-2 overflow-x-auto mb-4">
-          {tabs.map((t) => (
+          {tabs.map((tabItem) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${tab === t.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+              key={tabItem.key}
+              onClick={() => setTab(tabItem.key)}
+              className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${tab === tabItem.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
             >
-              {t.label}
+              {tabItem.label}
             </button>
           ))}
         </div>
         {links.length === 0 ? (
-          <p className="text-sm text-gray-400 py-6 text-center">Belum ada tautan pickup.</p>
+          <p className="text-sm text-gray-400 py-6 text-center">{t('page_shipping.empty_list')}</p>
         ) : (
           <div className="divide-y">
             {links.map((l) => (
@@ -121,15 +119,15 @@ export default function Shipping() {
                   <p className="text-xs text-gray-400">{new Date(l.created_at).toLocaleString('id-ID')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[l.status]}`}>{l.status}</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[l.status]}`}>{t(`page_shipping.status_badge.${l.status}`, l.status)}</span>
                   <button onClick={() => copyLink(l.id, l.token)} className="text-xs text-brand-600 hover:underline">
-                    {copiedId === l.id ? 'Tersalin!' : 'Salin Tautan'}
+                    {copiedId === l.id ? t('page_shipping.copied') : t('page_shipping.copy_link')}
                   </button>
                   {l.status !== 'selesai' && (
-                    <button onClick={() => markStatus(l.id, 'selesai')} className="text-xs text-green-600 hover:underline">Selesai</button>
+                    <button onClick={() => markStatus(l.id, 'selesai')} className="text-xs text-green-600 hover:underline">{t('page_shipping.tabs.selesai')}</button>
                   )}
                   {l.status !== 'batal' && (
-                    <button onClick={() => markStatus(l.id, 'batal')} className="text-xs text-red-600 hover:underline">Batalkan</button>
+                    <button onClick={() => markStatus(l.id, 'batal')} className="text-xs text-red-600 hover:underline">{t('page_shipping.cancel_link')}</button>
                   )}
                 </div>
               </div>

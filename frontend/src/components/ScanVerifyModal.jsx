@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { IconClose } from './icons'
 
@@ -6,6 +7,7 @@ import { IconClose } from './icons'
 // SKU during picking ("Pindai Verifikasi" in the reference). Decoded text is matched against
 // the order's item SKUs by the caller via onMatch.
 export default function ScanVerifyModal({ onMatch, onClose }) {
+  const { t } = useTranslation()
   const videoRef = useRef(null)
   const controlsRef = useRef(null)
   const [error, setError] = useState('')
@@ -25,7 +27,7 @@ export default function ScanVerifyModal({ onMatch, onClose }) {
       if (cancelled) controls.stop()
       else controlsRef.current = controls
     }).catch((err) => {
-      setError(err?.message || 'Tidak bisa mengakses kamera. Pastikan izin kamera diaktifkan.')
+      setError(err?.message || t('shared.scan_verify_camera_error'))
     })
 
     return () => {
@@ -38,7 +40,7 @@ export default function ScanVerifyModal({ onMatch, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-white rounded-2xl p-5 w-full max-w-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-800">Pindai Verifikasi</h2>
+          <h2 className="font-bold text-gray-800">{t('shared.scan_verify_title')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IconClose /></button>
         </div>
         {error ? (
@@ -46,8 +48,8 @@ export default function ScanVerifyModal({ onMatch, onClose }) {
         ) : (
           <>
             <video ref={videoRef} className="w-full rounded-xl bg-black aspect-square object-cover" muted playsInline />
-            <p className="text-xs text-gray-500 mt-2 text-center">Arahkan kamera ke barcode/QR SKU produk.</p>
-            {lastCode && <p className="text-xs font-mono text-green-600 mt-1 text-center">Terbaca: {lastCode}</p>}
+            <p className="text-xs text-gray-500 mt-2 text-center">{t('shared.scan_verify_hint')}</p>
+            {lastCode && <p className="text-xs font-mono text-green-600 mt-1 text-center">{t('shared.scan_verify_read', { code: lastCode })}</p>}
           </>
         )}
       </div>
