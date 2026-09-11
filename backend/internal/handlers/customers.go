@@ -2,10 +2,17 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var allowedCustomerLabels = map[string]bool{
+	"vip": true, "blacklist": true, "sering_retur": true, "pelanggan_baru": true,
+}
 
 type CustomerHandler struct {
 	DB *pgxpool.Pool
@@ -82,6 +89,7 @@ type customerStats struct {
 	TotalSpend  float64    `json:"total_spend"`
 	LastOrderAt *time.Time `json:"last_order_at"`
 	Segment     string     `json:"segment"`
+	Labels      []string   `json:"labels"`
 }
 
 // Stats returns every customer with order count, total spend, last order date, and a
@@ -110,14 +118,33 @@ func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	list := []customerStats{}
+	idIndex := map[int]int{}
 	for rows.Next() {
 		var s customerStats
 		if err := rows.Scan(&s.ID, &s.Name, &s.Phone, &s.Address, &s.OrderCount, &s.TotalSpend, &s.LastOrderAt); err != nil {
 			continue
 		}
 		s.Segment = segmentFor(s.OrderCount, s.TotalSpend, s.LastOrderAt)
+		s.Labels = []string{}
+		idIndex[s.ID] = len(list)
 		list = append(list, s)
 	}
+
+	labelRows, err := h.DB.Query(r.Context(), `SELECT customer_id, label FROM customer_labels`)
+	if err == nil {
+		defer labelRows.Close()
+		for labelRows.Next() {
+			var customerID int
+			var label string
+			if err := labelRows.Scan(&customerID, &label); err != nil {
+				continue
+			}
+			if idx, ok := idIndex[customerID]; ok {
+				list[idx].Labels = append(list[idx].Labels, label)
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, list)
 }
 
@@ -138,4 +165,59 @@ func segmentFor(orderCount int, totalSpend float64, lastOrderAt *time.Time) stri
 		return "returning"
 	}
 	return "new"
+}
+
+type setLabelRequest struct {
+	Label   string `json:"label"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SetLabel toggles one manual CRM label (vip/blacklist/sering_retur/pelanggan_baru) on a
+// customer - independent of the computed segment above, this is a staff action.
+func (h *CustomerHandler) SetLabel(w http.ResponseWriter, r *http.Request) {
+	customerID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid customer id")
+		return
+	}
+	var req setLabelRequest
+	if err := decodeJSON(r, &req); err != nil || !allowedCustomerLabels[req.Label] {
+		respondError(w, http.StatusBadRequest, "invalid label")
+		return
+	}
+	if req.Enabled {
+		if _, err := h.DB.Exec(r.Context(), `
+			INSERT INTO customer_labels (customer_id, label) VALUES ($1,$2)
+			ON CONFLICT (customer_id, label) DO NOTHING`, customerID, req.Label); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to set label")
+			return
+		}
+	} else {
+		if _, err := h.DB.Exec(r.Context(), `
+			DELETE FROM customer_labels WHERE customer_id=$1 AND label=$2`, customerID, req.Label); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to remove label")
+			return
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Delete removes a customer permanently. Blocked with 409 if they have order history, since
+// order_items has no cascade delete from customers.
+func (h *CustomerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid customer id")
+		return
+	}
+	_, err = h.DB.Exec(r.Context(), `DELETE FROM customers WHERE id=$1`, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "violates") {
+			respondError(w, http.StatusConflict, "pelanggan pernah memiliki order; tidak bisa dihapus")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to delete customer")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

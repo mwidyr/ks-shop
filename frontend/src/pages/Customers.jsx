@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listCustomerStats } from '../api/customers'
+import { listCustomerStats, setCustomerLabel, deleteCustomer } from '../api/customers'
 import { listOrders } from '../api/orders'
 import { formatRupiah } from '../utils/format'
 import BigStatCard from '../components/BigStatCard'
 import StatusPill from '../components/StatusPill'
+
+const availableLabels = [
+  { key: 'vip', label: 'VIP' },
+  { key: 'blacklist', label: 'Daftar Hitam' },
+  { key: 'sering_retur', label: 'Sering Retur' },
+  { key: 'pelanggan_baru', label: 'Pelanggan Baru' },
+]
 
 const segmentLabels = {
   new: 'Baru', returning: 'Returning', vip: 'VIP', high_value: 'High Value', inactive: 'Inactive',
@@ -16,12 +23,37 @@ const segmentColors = {
   inactive: 'bg-gray-100 text-gray-500',
 }
 
-function CustomerDetail({ customer, onClose }) {
+function CustomerDetail({ customer, onClose, onChanged }) {
   const [orders, setOrders] = useState(null)
+  const [labels, setLabels] = useState(new Set(customer.labels || []))
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     listOrders({ q: customer.phone, page_size: 10 }).then((res) => setOrders(res.items))
   }, [customer.phone])
+
+  async function toggleLabel(key) {
+    const enabled = !labels.has(key)
+    await setCustomerLabel(customer.id, key, enabled)
+    setLabels((s) => {
+      const next = new Set(s)
+      if (enabled) next.add(key)
+      else next.delete(key)
+      return next
+    })
+    onChanged()
+  }
+
+  async function handleDelete() {
+    setDeleteError('')
+    try {
+      await deleteCustomer(customer.id)
+      onChanged()
+      onClose()
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'Gagal menghapus pelanggan')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-30 flex justify-end bg-black/30" onClick={onClose}>
@@ -35,6 +67,24 @@ function CustomerDetail({ customer, onClose }) {
         <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full mb-4 ${segmentColors[customer.segment]}`}>
           {segmentLabels[customer.segment]}
         </span>
+
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Label</p>
+        <div className="flex flex-wrap gap-2 mb-6">
+          {availableLabels.map((l) => (
+            <button
+              key={l.key}
+              onClick={() => toggleLabel(l.key)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                labels.has(l.key)
+                  ? l.key === 'blacklist' ? 'bg-red-600 border-red-600 text-white' : 'bg-brand-600 border-brand-600 text-white'
+                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-[11px] text-gray-400 uppercase">Total Order</p>
@@ -66,6 +116,14 @@ function CustomerDetail({ customer, onClose }) {
             ))}
           </div>
         )}
+
+        <div className="mt-8 border border-red-200 bg-red-50 rounded-xl p-4">
+          <p className="text-xs font-bold text-red-600 uppercase mb-2">Tindakan Berbahaya</p>
+          <button onClick={handleDelete} className="w-full text-sm font-semibold text-red-600 border border-red-300 rounded-lg py-2 hover:bg-red-100">
+            Hapus pelanggan ini
+          </button>
+          {deleteError && <p className="text-xs text-red-600 mt-2">{deleteError}</p>}
+        </div>
       </div>
     </div>
   )
@@ -78,12 +136,14 @@ export default function Customers() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
 
-  useEffect(() => {
+  function reload() {
     listCustomerStats().then((data) => {
       setCustomers(data)
       setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(reload, [])
 
   const counts = useMemo(() => {
     const c = { vip: 0, returning: 0, inactive: 0, high_value: 0, new: 0 }
@@ -166,7 +226,7 @@ export default function Customers() {
         </div>
       )}
 
-      {selected && <CustomerDetail customer={selected} onClose={() => setSelected(null)} />}
+      {selected && <CustomerDetail customer={selected} onClose={() => setSelected(null)} onChanged={reload} />}
     </div>
   )
 }

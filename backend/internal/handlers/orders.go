@@ -176,6 +176,7 @@ type orderDetailView struct {
 	Status           string          `json:"status"`
 	CustomerName     string          `json:"customer_name"`
 	CustomerPhone    string          `json:"customer_phone"`
+	CustomerBlocked  bool            `json:"customer_blacklisted"`
 	ShippingAddress  string          `json:"shipping_address"`
 	PickupChainName  string          `json:"pickup_chain_name"`
 	PickupStoreName  string          `json:"pickup_store_name"`
@@ -211,7 +212,9 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var o orderDetailView
 	var createdAt time.Time
 	err = h.DB.QueryRow(ctx, `
-		SELECT o.id, o.order_no, o.status, c.name, c.phone, o.shipping_address, pc.name,
+		SELECT o.id, o.order_no, o.status, c.name, c.phone,
+		       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist'),
+		       o.shipping_address, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
 		       COALESCE(o.internal_notes,''), COALESCE(u.name,'system'), o.created_at
 		FROM orders o
@@ -219,7 +222,8 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN users u ON u.id = o.sales_id
 		WHERE o.id=$1`, id).
-		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress, &o.PickupChainName,
+		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerBlocked,
+			&o.ShippingAddress, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
 			&o.InternalNotes, &o.CreatedBy, &createdAt)
 	if err != nil {

@@ -110,6 +110,8 @@ func main() {
 			r.Get("/customers", customerH.Search)
 			r.Post("/customers", customerH.Create)
 			r.Get("/customers/stats", customerH.Stats)
+			r.Patch("/customers/{id}/labels", customerH.SetLabel)
+			r.Delete("/customers/{id}", customerH.Delete)
 
 			r.Get("/settings/fees", feesH.Get)
 			r.Get("/settings/shipping", shippingSettingsH.Get)

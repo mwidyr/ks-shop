@@ -182,6 +182,12 @@ export default function OrderDetail() {
       </div>
       <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}</p>
 
+      {order.customer_blacklisted && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 mb-4">
+          ⚠️ Pelanggan ini ditandai sebagai daftar hitam. Periksa dulu sebelum memproses pesanan ini.
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl shadow-sm p-4 grid grid-cols-2 gap-3 text-sm">

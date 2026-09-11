@@ -12,3 +12,11 @@ export function createCustomer(payload) {
 export function listCustomerStats() {
   return client.get('/customers/stats').then((res) => res.data)
 }
+
+export function setCustomerLabel(id, label, enabled) {
+  return client.patch(`/customers/${id}/labels`, { label, enabled }).then((res) => res.data)
+}
+
+export function deleteCustomer(id) {
+  return client.delete(`/customers/${id}`).then((res) => res.data)
+}
