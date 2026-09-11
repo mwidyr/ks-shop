@@ -66,9 +66,11 @@ func main() {
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
 	reportsH := &handlers.ReportsHandler{DB: pool}
+	userH := &handlers.UserHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
+	superUserOnly := []string{"super_user"}
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
@@ -154,6 +156,16 @@ func main() {
 
 			r.Patch("/settings/fees", feesH.Update)
 			r.Patch("/settings/shipping", shippingSettingsH.Update)
+		})
+
+		// Staff management: super_user only
+		r.Group(func(r chi.Router) {
+			r.Use(appmw.JWTAuth(cfg.JWTSecret))
+			r.Use(appmw.RequireRole(superUserOnly...))
+
+			r.Get("/users", userH.List)
+			r.Post("/users", userH.Create)
+			r.Patch("/users/{id}", userH.Update)
 		})
 	})
 
