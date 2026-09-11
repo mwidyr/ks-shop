@@ -18,6 +18,7 @@ import Reviews from './pages/Reviews'
 import Warehouses from './pages/Warehouses'
 import Shipping from './pages/Shipping'
 import DaftarPengambilan from './pages/DaftarPengambilan'
+import PickupPublic from './pages/PickupPublic'
 import Returns from './pages/Returns'
 import Refunds from './pages/Refunds'
 import Promotions from './pages/Promotions'
@@ -56,6 +57,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
+      <Route path="/pickup/:token" element={<PickupPublic />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 

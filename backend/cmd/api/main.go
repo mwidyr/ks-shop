@@ -63,6 +63,7 @@ func main() {
 	feesH := &handlers.FeeSettingsHandler{DB: pool}
 	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
 	pickingH := &handlers.PickingHandler{DB: pool}
+	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 
 	internalRoles := []string{"sales", "spv", "management", "super_user"}
 	catalogWriteRoles := []string{"super_user", "management"}
@@ -76,6 +77,7 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 		// Public
 		r.Post("/auth/login", authH.Login)
+		r.Get("/public/pickup/{token}", pickupLinkH.PublicGet)
 
 		// Authenticated (any internal role)
 		r.Group(func(r chi.Router) {
@@ -111,6 +113,9 @@ func main() {
 			r.Get("/settings/fees", feesH.Get)
 			r.Get("/settings/shipping", shippingSettingsH.Get)
 			r.Get("/picking-queue", pickingH.Queue)
+			r.Get("/pickup-links", pickupLinkH.List)
+			r.Post("/pickup-links", pickupLinkH.Create)
+			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
 		})
 
 		// Catalog & reference-data management: super_user + management only
