@@ -55,9 +55,14 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
       <td className="p-3 text-gray-600">{totalStock}</td>
       <td className="p-3 text-gray-600">{p.units_sold}</td>
       <td className="p-3">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
-          {statusLabels[p.status_label]}
-        </span>
+        <div className="flex flex-col gap-1 items-start">
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
+            {statusLabels[p.status_label]}
+          </span>
+          {p.is_oversell && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Oversell</span>
+          )}
+        </div>
       </td>
       <td className="p-3 relative">
         <button

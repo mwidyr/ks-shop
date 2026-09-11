@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -52,6 +53,7 @@ type Product struct {
 	Variants      []Variant      `json:"variants"`
 	UnitsSold     int            `json:"units_sold"`
 	StatusLabel   string         `json:"status_label"`
+	IsOversell    bool           `json:"is_oversell"`
 }
 
 // List returns all products with their images, variants, stock, units sold and a
@@ -145,6 +147,12 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	for i := range products {
 		products[i].StatusLabel = statusLabelFor(products[i].IsActive, totalAvailable[products[i].ID], totalMinimum[products[i].ID])
+		for _, v := range products[i].Variants {
+			if v.AvailableStock < 0 {
+				products[i].IsOversell = true
+				break
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, products)
@@ -508,4 +516,71 @@ func logAdjustment(ctx context.Context, tx pgx.Tx, variantID int, bucket string,
 		INSERT INTO stock_movements (variant_id, bucket_from, bucket_to, qty, event_type, user_id, note)
 		VALUES ($1,$2,$2,$3,'stock_adjustment',$4,$5)`,
 		variantID, bucket, qty, userID, direction+" via product edit")
+}
+
+type stockHistoryRow struct {
+	ProductName string `json:"product_name"`
+	SKU         string `json:"sku"`
+	Color       string `json:"color"`
+	Size        string `json:"size"`
+	BucketFrom  string `json:"bucket_from"`
+	BucketTo    string `json:"bucket_to"`
+	Qty         int    `json:"qty"`
+	EventType   string `json:"event_type"`
+	Note        string `json:"note"`
+	ChangedBy   string `json:"changed_by"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// StockHistory returns the stock_movements audit trail (real data already recorded by order
+// creation/lifecycle and manual product-edit adjustments) for the "Riwayat Perubahan" tab.
+func (h *ProductHandler) StockHistory(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	where := " WHERE 1=1 "
+	args := []interface{}{}
+	argN := 1
+	if search := q.Get("q"); search != "" {
+		where += " AND (p.name ILIKE $" + strconv.Itoa(argN) + " OR pv.sku ILIKE $" + strconv.Itoa(argN) + ")"
+		args = append(args, "%"+search+"%")
+		argN++
+	}
+	if direction := q.Get("direction"); direction == "in" {
+		where += " AND sm.qty >= 0 AND sm.bucket_to IN ('available_stock','order_stock')"
+	} else if direction == "out" {
+		where += " AND sm.event_type IN ('order_delivered','order_return')"
+	}
+
+	limit := 100
+	if l, err := strconv.Atoi(q.Get("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	query := `
+		SELECT p.name, pv.sku, pv.color, pv.size, COALESCE(sm.bucket_from,'-'), COALESCE(sm.bucket_to,'-'),
+		       sm.qty, sm.event_type, COALESCE(sm.note,''), COALESCE(u.name,'system'), sm.created_at
+		FROM stock_movements sm
+		JOIN product_variants pv ON pv.id = sm.variant_id
+		JOIN products p ON p.id = pv.product_id
+		LEFT JOIN users u ON u.id = sm.user_id` +
+		where + " ORDER BY sm.created_at DESC LIMIT " + strconv.Itoa(limit)
+
+	rows, err := h.DB.Query(r.Context(), query, args...)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch stock history")
+		return
+	}
+	defer rows.Close()
+
+	list := []stockHistoryRow{}
+	for rows.Next() {
+		var row stockHistoryRow
+		var createdAt time.Time
+		if err := rows.Scan(&row.ProductName, &row.SKU, &row.Color, &row.Size, &row.BucketFrom, &row.BucketTo,
+			&row.Qty, &row.EventType, &row.Note, &row.ChangedBy, &createdAt); err != nil {
+			continue
+		}
+		row.CreatedAt = createdAt.Format(time.RFC3339)
+		list = append(list, row)
+	}
+	respondJSON(w, http.StatusOK, list)
 }

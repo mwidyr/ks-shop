@@ -86,6 +86,7 @@ func main() {
 
 			r.Get("/products", productH.List)
 			r.Get("/products/{id}", productH.Detail)
+			r.Get("/inventory/history", productH.StockHistory)
 
 			r.Get("/orders", orderH.List)
 			r.Get("/orders/{id}", orderH.Detail)

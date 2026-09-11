@@ -35,3 +35,8 @@ export function addProductImage(productId, url) {
 export function deleteProductImage(productId, imageId) {
   return client.delete(`/products/${productId}/images/${imageId}`).then((res) => res.data)
 }
+
+export function getStockHistory(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/inventory/history?${q.toString()}`).then((res) => res.data)
+}
