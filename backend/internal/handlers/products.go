@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -441,6 +442,9 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var beforePrice float64
+	tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice)
+
 	if _, err := tx.Exec(ctx, `
 		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6 WHERE id=$7`,
 		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, variantID); err != nil {
@@ -459,6 +463,14 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	logAdjustment(ctx, tx, variantID, "broken_stock", before.Broken, req.BrokenStock, claims)
 	logAdjustment(ctx, tx, variantID, "reserve_stock", before.Reserve, req.ReserveStock, claims)
 	logAdjustment(ctx, tx, variantID, "incoming_stock", before.Incoming, req.IncomingStock, claims)
+	if req.Price != beforePrice {
+		var userID *int
+		if claims != nil {
+			userID = &claims.UserID
+		}
+		logActivity(ctx, tx, "product_variant", variantID, "price_changed", userID,
+			fmt.Sprintf("%s: NT$%.0f -> NT$%.0f", req.SKU, beforePrice, req.Price))
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")

@@ -9,3 +9,8 @@ export function getOrderReport(params) {
   const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
   return client.get(`/reports/orders?${q.toString()}`).then((res) => res.data)
 }
+
+export function getProductAnalysis(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/reports/product-analysis?${q.toString()}`).then((res) => res.data)
+}

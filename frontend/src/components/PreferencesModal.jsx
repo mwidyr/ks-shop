@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { changeLanguage } from '../i18n'
 import { FONT_SCALES, applyFontScale, getFontScale } from '../utils/fontScale'
+import { applyDarkMode, getDarkMode } from '../utils/darkMode'
 import { IconClose } from './icons'
 
 const LANGUAGES = [
@@ -13,10 +14,16 @@ const LANGUAGES = [
 export default function PreferencesModal({ onClose }) {
   const { t, i18n } = useTranslation()
   const [scale, setScale] = useState(getFontScale())
+  const [darkMode, setDarkMode] = useState(getDarkMode())
 
   function handleScaleChange(value) {
     setScale(value)
     applyFontScale(value)
+  }
+
+  function handleDarkModeToggle(value) {
+    setDarkMode(value)
+    applyDarkMode(value)
   }
 
   return (
@@ -66,6 +73,18 @@ export default function PreferencesModal({ onClose }) {
           {FONT_SCALES.map((f) => (
             <span key={f.value}>{t(`preferences.${f.key}`)}</span>
           ))}
+        </div>
+
+        <div className="flex items-center justify-between mt-6">
+          <p className="text-sm font-semibold text-gray-700">{t('preferences.dark_mode')}</p>
+          <button
+            role="switch"
+            aria-checked={darkMode}
+            onClick={() => handleDarkModeToggle(!darkMode)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${darkMode ? 'bg-brand-600' : 'bg-gray-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${darkMode ? 'translate-x-5' : ''}`} />
+          </button>
         </div>
       </div>
     </div>

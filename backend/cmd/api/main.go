@@ -54,6 +54,10 @@ func main() {
 	rolePermH := &handlers.RolePermissionHandler{DB: pool}
 	customerH := &handlers.CustomerHandler{DB: pool}
 	dashboardH := &handlers.DashboardHandler{DB: pool}
+	activityLogH := &handlers.ActivityLogHandler{DB: pool}
+	supplierH := &handlers.SupplierHandler{DB: pool}
+	purchaseH := &handlers.PurchaseHandler{DB: pool}
+	purchaseAlertH := &handlers.PurchaseAlertHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
@@ -112,6 +116,7 @@ func main() {
 			r.Post("/shipping-export/mark-exported", shippingExportH.MarkExported)
 			r.Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)
 
+			r.Get("/activity-log", activityLogH.List)
 			r.Get("/dashboard/summary", dashboardH.Summary)
 			r.Get("/dashboard/graph", dashboardH.Graph)
 			r.Get("/dashboard/host-ranking", dashboardH.HostRanking)
@@ -121,6 +126,11 @@ func main() {
 
 			r.Get("/hosts", hostH.List)
 			r.Get("/pickup-chains", pickupChainH.List)
+
+			r.Get("/suppliers", supplierH.List)
+			r.Get("/purchases", purchaseH.List)
+			r.Get("/purchases/{id}", purchaseH.Detail)
+			r.Get("/purchase-alert", purchaseAlertH.List)
 
 			r.Get("/customers", customerH.Search)
 			r.Post("/customers", customerH.Create)
@@ -134,6 +144,7 @@ func main() {
 			r.Get("/categories", categoryH.List)
 			r.Get("/reports/products", reportsH.Products)
 			r.Get("/reports/orders", reportsH.Orders)
+			r.Get("/reports/product-analysis", reportsH.ProductAnalysis)
 			r.Get("/pickup-links", pickupLinkH.List)
 			r.Post("/pickup-links", pickupLinkH.Create)
 			r.Patch("/pickup-links/{id}", pickupLinkH.Update)
@@ -172,6 +183,14 @@ func main() {
 			r.Post("/pickup-chains", pickupChainH.Create)
 			r.Patch("/pickup-chains/{id}", pickupChainH.Update)
 			r.Delete("/pickup-chains/{id}", pickupChainH.Delete)
+
+			r.Post("/suppliers", supplierH.Create)
+			r.Patch("/suppliers/{id}", supplierH.Update)
+			r.Delete("/suppliers/{id}", supplierH.Delete)
+
+			r.Post("/purchases", purchaseH.Create)
+			r.Patch("/purchases/{id}/receive", purchaseH.Receive)
+			r.Delete("/purchases/{id}", purchaseH.Delete)
 
 			r.Patch("/settings/fees", feesH.Update)
 			r.Patch("/settings/shipping", shippingSettingsH.Update)

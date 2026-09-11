@@ -3,12 +3,15 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	appmw "ordermgmt/internal/middleware"
 )
 
 // UserHandler manages internal staff accounts (Manajemen Pengguna) - real CRUD on top of the
@@ -115,6 +118,11 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	claims := appmw.GetClaims(r)
+	var actorID *int
+	if claims != nil {
+		actorID = &claims.UserID
+	}
 	if req.Role != nil {
 		if !staffRoles[*req.Role] {
 			respondError(w, http.StatusBadRequest, "invalid role")
@@ -125,12 +133,14 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusInternalServerError, "failed to update role")
 			return
 		}
+		logActivity(r.Context(), h.DB, "user", id, "role_changed", actorID, fmt.Sprintf("role -> %s", *req.Role))
 	}
 	if req.IsActive != nil {
 		if _, err := h.DB.Exec(r.Context(), `UPDATE users SET is_active=$1 WHERE id=$2`, *req.IsActive, id); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to update status")
 			return
 		}
+		logActivity(r.Context(), h.DB, "user", id, "active_changed", actorID, fmt.Sprintf("is_active -> %v", *req.IsActive))
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

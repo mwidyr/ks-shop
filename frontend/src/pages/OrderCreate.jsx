@@ -65,6 +65,11 @@ export default function OrderCreate() {
     return p ? p.variants : []
   }
 
+  function variantCompareAtPrice(productId, variantId) {
+    const v = variantsFor(productId).find((v) => String(v.id) === String(variantId))
+    return v && v.compare_at_price > v.price ? v.compare_at_price : null
+  }
+
   function variantPrice(productId, variantId) {
     const v = variantsFor(productId).find((v) => String(v.id) === String(variantId))
     return v ? v.price : 0
@@ -192,7 +197,12 @@ export default function OrderCreate() {
                   <input type="number" min="1" value={l.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">{formatCurrency(variantPrice(l.productId, l.variantId) * (Number(l.qty) || 0))}</span>
+                  <span className="text-sm font-semibold text-gray-700">
+                    {variantCompareAtPrice(l.productId, l.variantId) && (
+                      <span className="text-xs text-gray-400 line-through mr-1">{formatCurrency(variantCompareAtPrice(l.productId, l.variantId) * (Number(l.qty) || 0))}</span>
+                    )}
+                    {formatCurrency(variantPrice(l.productId, l.variantId) * (Number(l.qty) || 0))}
+                  </span>
                   {lines.length > 1 && (
                     <button type="button" onClick={() => removeLine(idx)} className="text-xs text-red-600 hover:underline ml-2">Hapus</button>
                   )}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	appmw "ordermgmt/internal/middleware"
 )
 
 var allowedCustomerLabels = map[string]bool{
@@ -185,6 +188,7 @@ func (h *CustomerHandler) SetLabel(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid label")
 		return
 	}
+	action := "label_added"
 	if req.Enabled {
 		if _, err := h.DB.Exec(r.Context(), `
 			INSERT INTO customer_labels (customer_id, label) VALUES ($1,$2)
@@ -193,12 +197,19 @@ func (h *CustomerHandler) SetLabel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		action = "label_removed"
 		if _, err := h.DB.Exec(r.Context(), `
 			DELETE FROM customer_labels WHERE customer_id=$1 AND label=$2`, customerID, req.Label); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to remove label")
 			return
 		}
 	}
+	claims := appmw.GetClaims(r)
+	var userID *int
+	if claims != nil {
+		userID = &claims.UserID
+	}
+	logActivity(r.Context(), h.DB, "customer", customerID, action, userID, fmt.Sprintf("label: %s", req.Label))
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

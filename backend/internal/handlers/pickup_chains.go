@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	appmw "ordermgmt/internal/middleware"
 )
 
 // PickupChainHandler manages minimarket/pickup fulfillment chains (7-Eleven, FamilyMart,
@@ -86,6 +89,9 @@ func (h *PickupChainHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
+	var beforeBase, beforeTarget float64
+	h.DB.QueryRow(r.Context(), `SELECT base_fee, target_fee FROM pickup_chains WHERE id=$1`, id).Scan(&beforeBase, &beforeTarget)
+
 	ct, err := h.DB.Exec(r.Context(), `
 		UPDATE pickup_chains SET name=$1, base_fee=$2, target_fee=$3, is_active=$4 WHERE id=$5`,
 		req.Name, req.BaseFee, req.TargetFee, isActive, id)
@@ -96,6 +102,15 @@ func (h *PickupChainHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "pickup chain not found")
 		return
+	}
+	if req.BaseFee != beforeBase || req.TargetFee != beforeTarget {
+		claims := appmw.GetClaims(r)
+		var userID *int
+		if claims != nil {
+			userID = &claims.UserID
+		}
+		logActivity(r.Context(), h.DB, "pickup_chain", id, "fee_changed", userID,
+			fmt.Sprintf("%s: base NT$%.0f->NT$%.0f, target NT$%.0f->NT$%.0f", req.Name, beforeBase, req.BaseFee, beforeTarget, req.TargetFee))
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

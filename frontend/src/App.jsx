@@ -16,6 +16,9 @@ import Categories from './pages/Categories'
 import Chat from './pages/Chat'
 import Reviews from './pages/Reviews'
 import Warehouses from './pages/Warehouses'
+import Suppliers from './pages/Suppliers'
+import Purchases from './pages/Purchases'
+import PurchaseAlert from './pages/PurchaseAlert'
 import Shipping from './pages/Shipping'
 import ShippingExport from './pages/ShippingExport'
 import DaftarPengambilan from './pages/DaftarPengambilan'
@@ -91,6 +94,9 @@ export default function App() {
       <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
+      <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+      <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
+      <Route path="/purchase-alert" element={<ProtectedRoute><PurchaseAlert /></ProtectedRoute>} />
 
       {/* Fulfillment */}
       <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />

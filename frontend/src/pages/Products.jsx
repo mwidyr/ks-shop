@@ -20,6 +20,10 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
     ? formatCurrency(Math.min(...prices))
     : `${formatCurrency(Math.min(...prices))} - ${formatCurrency(Math.max(...prices))}`) : '-'
+  const discountPcts = p.variants
+    .filter((v) => v.compare_at_price > v.price)
+    .map((v) => Math.round((1 - v.price / v.compare_at_price) * 100))
+  const maxDiscountPct = discountPcts.length ? Math.max(...discountPcts) : 0
 
   async function toggleActive() {
     await updateProduct(p.id, { name: p.name, description: p.description, category: p.category, brand: p.brand, is_active: !p.is_active })
@@ -51,7 +55,12 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
           </div>
         </div>
       </td>
-      <td className="p-3 font-semibold text-brand-600 whitespace-nowrap">{priceLabel}</td>
+      <td className="p-3 font-semibold text-brand-600 whitespace-nowrap">
+        {priceLabel}
+        {maxDiscountPct > 0 && (
+          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 align-middle">-{maxDiscountPct}%</span>
+        )}
+      </td>
       <td className="p-3 text-gray-600">{totalStock}</td>
       <td className="p-3 text-gray-600">{p.units_sold}</td>
       <td className="p-3">

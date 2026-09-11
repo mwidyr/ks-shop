@@ -38,6 +38,9 @@
       "categories": "Manajemen Kategori",
       "inventory": "Manajemen Stok",
       "warehouses": "Gudang",
+      "suppliers": "Supplier",
+      "purchases": "Pembelian",
+      "purchase_alert": "Purchase Alert",
       "picking": "Daftar Pengambilan",
       "shipping": "Manajemen Logistik",
       "returns": "Manajemen Retur",
@@ -71,7 +74,8 @@
     "font_standard": "Standar",
     "font_large": "Besar",
     "font_xlarge": "Sangat Besar",
-    "font_xxlarge": "Ekstra Besar"
+    "font_xxlarge": "Ekstra Besar",
+    "dark_mode": "Mode Gelap"
   },
   "status": {
     "pending": "Baru",

@@ -93,6 +93,100 @@ func (h *ReportsHandler) Products(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type categoryAnalysisRow struct {
+	Category string  `json:"category"`
+	Qty      int     `json:"qty"`
+	GMV      float64 `json:"gmv"`
+	GMVPct   float64 `json:"gmv_pct"`
+}
+
+type variantAnalysisRow struct {
+	SKU         string  `json:"sku"`
+	Category    string  `json:"category"`
+	ProductName string  `json:"product_name"`
+	Color       string  `json:"color"`
+	Qty         int     `json:"qty"`
+	GMV         float64 `json:"gmv"`
+	GMVPct      float64 `json:"gmv_pct"`
+}
+
+// ProductAnalysis mirrors the client's own Google Sheet structure for this report: a
+// Ringkasan (total qty/GMV for the scope, optionally one host), Analisis Penjualan (by
+// category), and a SKU/variant-level breakdown - both with GMV% of the period total.
+func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request) {
+	from, to, filtered := dateRange(r)
+	if !filtered {
+		to = time.Now()
+		from = to.AddDate(0, 0, -30)
+	}
+	q := r.URL.Query()
+
+	where := " WHERE o.status <> 'cancelled' AND o.created_at >= $1 AND o.created_at < $2 "
+	args := []interface{}{from, to}
+	var hostName string
+	if hostID := q.Get("host_id"); hostID != "" {
+		where += " AND oi.host_id = $3 "
+		args = append(args, hostID)
+		h.DB.QueryRow(r.Context(), `SELECT name FROM hosts WHERE id=$1`, hostID).Scan(&hostName)
+	}
+
+	var totalQty int
+	var totalGMV float64
+	h.DB.QueryRow(r.Context(), `
+		SELECT COALESCE(SUM(oi.qty),0), COALESCE(SUM(oi.qty*oi.price_at_order),0)
+		FROM order_items oi JOIN orders o ON o.id = oi.order_id`+where, args...).Scan(&totalQty, &totalGMV)
+
+	catRows, err := h.DB.Query(r.Context(), `
+		SELECT COALESCE(p.category,'-'), SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id`+where+`
+		GROUP BY p.category ORDER BY 3 DESC`, args...)
+	byCategory := []categoryAnalysisRow{}
+	if err == nil {
+		defer catRows.Close()
+		for catRows.Next() {
+			var c categoryAnalysisRow
+			if err := catRows.Scan(&c.Category, &c.Qty, &c.GMV); err != nil {
+				continue
+			}
+			if totalGMV > 0 {
+				c.GMVPct = c.GMV / totalGMV * 100
+			}
+			byCategory = append(byCategory, c)
+		}
+	}
+
+	varRows, err := h.DB.Query(r.Context(), `
+		SELECT pv.sku, COALESCE(p.category,'-'), p.name, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id`+where+`
+		GROUP BY pv.id, pv.sku, p.category, p.name, pv.color ORDER BY 6 DESC LIMIT 100`, args...)
+	byVariant := []variantAnalysisRow{}
+	if err == nil {
+		defer varRows.Close()
+		for varRows.Next() {
+			var v variantAnalysisRow
+			if err := varRows.Scan(&v.SKU, &v.Category, &v.ProductName, &v.Color, &v.Qty, &v.GMV); err != nil {
+				continue
+			}
+			if totalGMV > 0 {
+				v.GMVPct = v.GMV / totalGMV * 100
+			}
+			byVariant = append(byVariant, v)
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"summary":     map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName},
+		"by_category": byCategory,
+		"by_variant":  byVariant,
+	})
+}
+
 type orderReportRow struct {
 	Date          string  `json:"date"`
 	OrderNo       string  `json:"order_no"`

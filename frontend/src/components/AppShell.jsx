@@ -9,7 +9,7 @@ import {
   IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles, IconUser,
   IconBroadcast, IconUsers, IconChat, IconWarehouse, IconClipboard,
   IconUndo, IconBarChart, IconUserCog, IconPuzzle, IconFileText, IconPalette,
-  IconCart, IconMolecule, IconTrendUp, IconLink,
+  IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist,
 } from './icons'
 
 // Grouped into our own 8-category taxonomy (kept by deliberate choice rather than the
@@ -33,6 +33,9 @@ const navGroups = [
       { to: '/categories', key: 'categories', icon: IconTag },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
+      { to: '/suppliers', key: 'suppliers', icon: IconTruck },
+      { to: '/purchases', key: 'purchases', icon: IconClipboard },
+      { to: '/purchase-alert', key: 'purchase_alert', icon: IconChecklist },
     ],
   },
   {
@@ -77,7 +80,7 @@ const navGroups = [
       { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
       { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
       { to: '/system/roles', key: 'roles', icon: IconUserCog },
-      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText, upcoming: true },
+      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
     ],
   },
 ]

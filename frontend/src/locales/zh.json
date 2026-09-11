@@ -38,6 +38,9 @@
       "categories": "分類管理",
       "inventory": "庫存管理",
       "warehouses": "倉庫",
+      "suppliers": "供應商",
+      "purchases": "採購",
+      "purchase_alert": "採購提醒",
       "picking": "揀貨清單",
       "shipping": "物流管理",
       "returns": "退貨管理",
@@ -71,7 +74,8 @@
     "font_standard": "標準",
     "font_large": "大",
     "font_xlarge": "特大",
-    "font_xxlarge": "超大"
+    "font_xxlarge": "超大",
+    "dark_mode": "深色模式"
   },
   "status": {
     "pending": "新訂單",

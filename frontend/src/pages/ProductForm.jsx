@@ -197,8 +197,16 @@ export default function ProductForm() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">Compare-at Price</label>
+                    <label className="block text-[11px] text-gray-500 mb-1 flex items-center gap-1.5">
+                      Harga Diskon (Sebelum)
+                      {Number(v.compare_at_price) > Number(v.price) && Number(v.price) > 0 && (
+                        <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-600">
+                          -{Math.round((1 - Number(v.price) / Number(v.compare_at_price)) * 100)}%
+                        </span>
+                      )}
+                    </label>
                     <input type="number" value={v.compare_at_price} onChange={(e) => updateVariantField(idx, 'compare_at_price', e.target.value)} placeholder="0" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
+                    <p className="text-[10px] text-gray-400 mt-0.5">Isi jika Harga Jual di atas sedang diskon dari harga normal ini.</p>
                   </div>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">Cost Price</label>

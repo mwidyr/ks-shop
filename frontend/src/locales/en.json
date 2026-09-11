@@ -38,6 +38,9 @@
       "categories": "Category Management",
       "inventory": "Stock Management",
       "warehouses": "Warehouses",
+      "suppliers": "Suppliers",
+      "purchases": "Purchases",
+      "purchase_alert": "Purchase Alert",
       "picking": "Picking List",
       "shipping": "Logistics Management",
       "returns": "Return Management",
@@ -71,7 +74,8 @@
     "font_standard": "Standard",
     "font_large": "Large",
     "font_xlarge": "Extra Large",
-    "font_xxlarge": "Maximum"
+    "font_xxlarge": "Maximum",
+    "dark_mode": "Dark Mode"
   },
   "status": {
     "pending": "New Order",
