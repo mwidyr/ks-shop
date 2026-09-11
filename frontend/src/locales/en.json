@@ -1,0 +1,81 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "add": "Add",
+    "delete": "Delete",
+    "search": "Search",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "logout": "Log out"
+  },
+  "brand": {
+    "name": "KS Shop"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "groups": {
+      "sales": "SALES",
+      "catalog": "CATALOG",
+      "fulfillment": "FULFILLMENT",
+      "marketing": "MARKETING",
+      "analytics": "ANALYTICS",
+      "finance": "FINANCE",
+      "store": "STORE",
+      "system": "SYSTEM"
+    },
+    "items": {
+      "orders": "Orders",
+      "customers": "Customers",
+      "chat": "Chat",
+      "reviews": "Reviews",
+      "products": "Products",
+      "categories": "Categories",
+      "inventory": "Inventory",
+      "warehouses": "Warehouses",
+      "shipping": "Shipping",
+      "returns": "Returns",
+      "refunds": "Refunds",
+      "promotions": "Promotions",
+      "campaigns": "Campaigns",
+      "advertising": "Advertising",
+      "sales_analytics": "Sales",
+      "product_analytics": "Products",
+      "profit": "Profit",
+      "transactions": "Transactions",
+      "payouts": "Payouts",
+      "fees": "Fees",
+      "reports": "Reports",
+      "store_profile": "Store Profile",
+      "store_design": "Store Design",
+      "team": "Team",
+      "notifications": "Notifications",
+      "integrations": "Integrations",
+      "roles": "Roles & Permissions",
+      "audit_logs": "Audit Logs"
+    }
+  },
+  "preferences": {
+    "title": "Preferences",
+    "manage_account": "Manage Account",
+    "language": "Language",
+    "font_size": "Font Size",
+    "font_standard": "Standard",
+    "font_large": "Large",
+    "font_xlarge": "Extra Large",
+    "font_xxlarge": "Maximum"
+  },
+  "status": {
+    "pending": "Pending",
+    "confirm": "Confirmed",
+    "packing": "Packing",
+    "picking": "Picking",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "cancelled": "Cancelled",
+    "return": "Returned"
+  }
+}

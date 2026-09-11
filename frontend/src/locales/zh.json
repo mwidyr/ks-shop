@@ -1,0 +1,81 @@
+{
+  "common": {
+    "save": "儲存",
+    "cancel": "取消",
+    "add": "新增",
+    "delete": "刪除",
+    "search": "搜尋",
+    "edit": "編輯",
+    "close": "關閉",
+    "confirm": "確認",
+    "loading": "載入中...",
+    "logout": "登出"
+  },
+  "brand": {
+    "name": "KS Shop"
+  },
+  "nav": {
+    "dashboard": "儀表板",
+    "settings": "設定",
+    "groups": {
+      "sales": "銷售",
+      "catalog": "商品目錄",
+      "fulfillment": "訂單處理",
+      "marketing": "行銷",
+      "analytics": "分析",
+      "finance": "財務",
+      "store": "商店",
+      "system": "系統"
+    },
+    "items": {
+      "orders": "訂單",
+      "customers": "顧客",
+      "chat": "聊天",
+      "reviews": "評價",
+      "products": "商品",
+      "categories": "分類",
+      "inventory": "庫存",
+      "warehouses": "倉庫",
+      "shipping": "物流",
+      "returns": "退貨",
+      "refunds": "退款",
+      "promotions": "促銷",
+      "campaigns": "活動",
+      "advertising": "廣告",
+      "sales_analytics": "銷售",
+      "product_analytics": "商品",
+      "profit": "利潤",
+      "transactions": "交易紀錄",
+      "payouts": "撥款",
+      "fees": "費用",
+      "reports": "報表",
+      "store_profile": "商店資料",
+      "store_design": "商店設計",
+      "team": "團隊",
+      "notifications": "通知",
+      "integrations": "整合",
+      "roles": "角色與權限",
+      "audit_logs": "稽核紀錄"
+    }
+  },
+  "preferences": {
+    "title": "偏好設定",
+    "manage_account": "管理帳戶",
+    "language": "語言",
+    "font_size": "字體大小",
+    "font_standard": "標準",
+    "font_large": "大",
+    "font_xlarge": "特大",
+    "font_xxlarge": "超大"
+  },
+  "status": {
+    "pending": "待處理",
+    "confirm": "已確認",
+    "packing": "包裝中",
+    "picking": "揀貨中",
+    "shipped": "已出貨",
+    "delivered": "已完成",
+    "cancelled": "已取消",
+    "return": "已退貨"
+  }
+}

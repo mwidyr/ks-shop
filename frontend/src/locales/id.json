@@ -1,0 +1,81 @@
+{
+  "common": {
+    "save": "Simpan",
+    "cancel": "Batal",
+    "add": "Tambah",
+    "delete": "Hapus",
+    "search": "Cari",
+    "edit": "Edit",
+    "close": "Tutup",
+    "confirm": "Konfirmasi",
+    "loading": "Memuat...",
+    "logout": "Keluar"
+  },
+  "brand": {
+    "name": "KS Shop"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "settings": "Pengaturan",
+    "groups": {
+      "sales": "PENJUALAN",
+      "catalog": "KATALOG",
+      "fulfillment": "PEMENUHAN",
+      "marketing": "PEMASARAN",
+      "analytics": "ANALITIK",
+      "finance": "KEUANGAN",
+      "store": "TOKO",
+      "system": "SISTEM"
+    },
+    "items": {
+      "orders": "Pesanan",
+      "customers": "Pelanggan",
+      "chat": "Chat",
+      "reviews": "Ulasan",
+      "products": "Produk",
+      "categories": "Kategori",
+      "inventory": "Stok",
+      "warehouses": "Gudang",
+      "shipping": "Pengiriman",
+      "returns": "Retur",
+      "refunds": "Refund",
+      "promotions": "Promosi",
+      "campaigns": "Kampanye",
+      "advertising": "Iklan",
+      "sales_analytics": "Penjualan",
+      "product_analytics": "Produk",
+      "profit": "Profit",
+      "transactions": "Transaksi",
+      "payouts": "Pencairan Dana",
+      "fees": "Biaya",
+      "reports": "Laporan",
+      "store_profile": "Profil Toko",
+      "store_design": "Desain Toko",
+      "team": "Tim",
+      "notifications": "Notifikasi",
+      "integrations": "Integrasi",
+      "roles": "Peran & Izin",
+      "audit_logs": "Log Audit"
+    }
+  },
+  "preferences": {
+    "title": "Preferensi",
+    "manage_account": "Kelola Akun",
+    "language": "Bahasa",
+    "font_size": "Ukuran Font",
+    "font_standard": "Standar",
+    "font_large": "Besar",
+    "font_xlarge": "Sangat Besar",
+    "font_xxlarge": "Ekstra Besar"
+  },
+  "status": {
+    "pending": "Menunggu",
+    "confirm": "Dikonfirmasi",
+    "packing": "Dikemas",
+    "picking": "Diambil",
+    "shipped": "Dikirim",
+    "delivered": "Selesai",
+    "cancelled": "Dibatalkan",
+    "return": "Retur"
+  }
+}
