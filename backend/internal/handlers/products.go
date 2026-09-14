@@ -28,13 +28,14 @@ type Variant struct {
 	Price          float64 `json:"price"`
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
+	AllowOversell  bool    `json:"allow_oversell"` // per-variant; seeded from the product's flag at creation, editable after
 	AvailableStock int     `json:"available_stock"`
 	ReserveStock   int     `json:"reserve_stock"`
 	OrderStock     int     `json:"order_stock"`
 	BrokenStock    int     `json:"broken_stock"`
 	IncomingStock  int     `json:"incoming_stock"`
 	MinimumStock   int     `json:"minimum_stock"`
-	TotalStock     int     `json:"total_stock"`
+	TotalStock     int     `json:"total_stock"` // computed: available_stock - order_stock (sellable headroom, gates picking)
 }
 
 type ProductImage struct {
@@ -44,10 +45,13 @@ type ProductImage struct {
 
 type Product struct {
 	ID            int            `json:"id"`
+	SKU           string         `json:"sku"` // master product code, distinct from each variant's own sku
+	VendorSKU     string         `json:"vendor_sku"`
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
+	BasePrice     float64        `json:"base_price"` // 0 = unset; frontend defaults new variant prices to this when > 0
 	IsActive      bool           `json:"is_active"`
 	AllowOversell bool           `json:"allow_oversell"`
 	Images        []ProductImage `json:"images"`
@@ -55,13 +59,16 @@ type Product struct {
 	UnitsSold     int            `json:"units_sold"`
 	StatusLabel   string         `json:"status_label"`
 	IsOversell    bool           `json:"is_oversell"`
+	CreatedAt     string         `json:"created_at"`
 }
 
 // List returns all products with their images, variants, stock, units sold and a
 // computed status label (active / low_stock / out_of_stock / nonaktif).
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT id, name, description, category, COALESCE(brand,''), is_active, allow_oversell FROM products ORDER BY id`)
+		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
+		       base_price, is_active, allow_oversell, created_at
+		FROM products ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
 		return
@@ -72,9 +79,12 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	idIndex := map[int]int{}
 	for rows.Next() {
 		var p Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive, &p.AllowOversell); err != nil {
+		var createdAt time.Time
+		if err := rows.Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
+			&p.BasePrice, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
 			continue
 		}
+		p.CreatedAt = createdAt.Format(time.RFC3339)
 		p.Variants = []Variant{}
 		p.Images = []ProductImage{}
 		idIndex[p.ID] = len(products)
@@ -98,7 +108,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vrows, err := h.DB.Query(r.Context(), `
-		SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price,
+		SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock
 		FROM product_variants pv
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
@@ -114,11 +124,11 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	for vrows.Next() {
 		var v Variant
 		var productID int
-		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice,
+		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock); err != nil {
 			continue
 		}
-		v.TotalStock = v.AvailableStock + v.ReserveStock + v.BrokenStock
+		v.TotalStock = v.AvailableStock - v.OrderStock
 		if idx, ok := idIndex[productID]; ok {
 			products[idx].Variants = append(products[idx].Variants, v)
 		}
@@ -149,7 +159,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i := range products {
 		products[i].StatusLabel = statusLabelFor(products[i].IsActive, totalAvailable[products[i].ID], totalMinimum[products[i].ID])
 		for _, v := range products[i].Variants {
-			if v.AvailableStock < 0 {
+			if v.TotalStock < 0 {
 				products[i].IsOversell = true
 				break
 			}
@@ -181,12 +191,18 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p Product
-	err = h.DB.QueryRow(r.Context(), `SELECT id, name, description, category, COALESCE(brand,''), is_active, allow_oversell FROM products WHERE id=$1`, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Brand, &p.IsActive, &p.AllowOversell)
+	var createdAt time.Time
+	err = h.DB.QueryRow(r.Context(), `
+		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
+		       base_price, is_active, allow_oversell, created_at
+		FROM products WHERE id=$1`, id).
+		Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
+			&p.BasePrice, &p.IsActive, &p.AllowOversell, &createdAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
 	}
+	p.CreatedAt = createdAt.Format(time.RFC3339)
 
 	p.Images = []ProductImage{}
 	irows, err := h.DB.Query(r.Context(), `SELECT id, url FROM product_images WHERE product_id=$1 ORDER BY sort_order`, id)
@@ -200,7 +216,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vrows, err := h.DB.Query(r.Context(), `
-		SELECT pv.id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price,
+		SELECT pv.id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock
 		FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
 		WHERE pv.product_id = $1 ORDER BY pv.id`, id)
@@ -213,9 +229,9 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	p.Variants = []Variant{}
 	for vrows.Next() {
 		var v Variant
-		vrows.Scan(&v.ID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice,
+		vrows.Scan(&v.ID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock)
-		v.TotalStock = v.AvailableStock + v.ReserveStock + v.BrokenStock
+		v.TotalStock = v.AvailableStock - v.OrderStock
 		p.Variants = append(p.Variants, v)
 	}
 
@@ -229,6 +245,7 @@ type variantInput struct {
 	Price          float64 `json:"price"`
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
+	AllowOversell  bool    `json:"allow_oversell"`
 	AvailableStock int     `json:"available_stock"`
 	BrokenStock    int     `json:"broken_stock"`
 	ReserveStock   int     `json:"reserve_stock"`
@@ -239,10 +256,14 @@ type variantInput struct {
 const maxProductImages = 5
 
 type createProductRequest struct {
+	SKU           string         `json:"sku"`
+	VendorSKU     string         `json:"vendor_sku"`
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
+	BasePrice     float64        `json:"base_price"`
+	IsActive      *bool          `json:"is_active"`
 	AllowOversell bool           `json:"allow_oversell"`
 	Images        []string       `json:"images"`
 	Variants      []variantInput `json:"variants"`
@@ -259,6 +280,10 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "maksimal 5 foto per produk")
 		return
 	}
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
 
 	ctx := r.Context()
 	tx, err := h.DB.Begin(ctx)
@@ -270,10 +295,11 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (name, description, category, brand, allow_oversell) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-		req.Name, req.Description, req.Category, req.Brand, req.AllowOversell).Scan(&id)
+		INSERT INTO products (sku, vendor_sku, name, description, category, brand, base_price, is_active, allow_oversell)
+		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, req.AllowOversell).Scan(&id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create product")
+		respondError(w, http.StatusConflict, "failed to create product (kode produk mungkin sudah dipakai)")
 		return
 	}
 
@@ -300,12 +326,15 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProductRequest struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	Category      string `json:"category"`
-	Brand         string `json:"brand"`
-	IsActive      *bool  `json:"is_active"`
-	AllowOversell *bool  `json:"allow_oversell"`
+	SKU           string  `json:"sku"`
+	VendorSKU     string  `json:"vendor_sku"`
+	Name          string  `json:"name"`
+	Description   string  `json:"description"`
+	Category      string  `json:"category"`
+	Brand         string  `json:"brand"`
+	BasePrice     float64 `json:"base_price"`
+	IsActive      *bool   `json:"is_active"`
+	AllowOversell *bool   `json:"allow_oversell"`
 }
 
 // Update edits a product's own fields (not variants/stock/photos).
@@ -329,10 +358,11 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		allowOversell = *req.AllowOversell
 	}
 	ct, err := h.DB.Exec(r.Context(), `
-		UPDATE products SET name=$1, description=$2, category=$3, brand=$4, is_active=$5, allow_oversell=$6 WHERE id=$7`,
-		req.Name, req.Description, req.Category, req.Brand, isActive, allowOversell, id)
+		UPDATE products SET sku=NULLIF($1,''), vendor_sku=NULLIF($2,''), name=$3, description=$4, category=$5,
+		                     brand=$6, base_price=$7, is_active=$8, allow_oversell=$9 WHERE id=$10`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, allowOversell, id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to update product")
+		respondError(w, http.StatusConflict, "failed to update product (kode produk mungkin sudah dipakai)")
 		return
 	}
 	if ct.RowsAffected() == 0 {
@@ -357,6 +387,26 @@ func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to delete product")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DeleteVariant removes one variant (cascades to its stock_buckets row). Blocked with 409 if it
+// has order/stock-movement history, same FK-tolerant pattern as Delete.
+func (h *ProductHandler) DeleteVariant(w http.ResponseWriter, r *http.Request) {
+	variantID, err := strconv.Atoi(chi.URLParam(r, "variantId"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+	_, err = h.DB.Exec(r.Context(), `DELETE FROM product_variants WHERE id=$1`, variantID)
+	if err != nil {
+		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "violates") {
+			respondError(w, http.StatusConflict, "varian pernah digunakan di order; tidak bisa dihapus")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to delete variant")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -402,6 +452,7 @@ type updateVariantRequest struct {
 	Price          float64 `json:"price"`
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
+	AllowOversell  bool    `json:"allow_oversell"`
 	AvailableStock int     `json:"available_stock"`
 	BrokenStock    int     `json:"broken_stock"`
 	ReserveStock   int     `json:"reserve_stock"`
@@ -433,12 +484,16 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 
 	var before struct {
-		Available, Broken, Reserve, Incoming int
+		Available, Broken, Reserve, Incoming, OrderStock int
 	}
 	if err := tx.QueryRow(ctx, `
-		SELECT available_stock, broken_stock, reserve_stock, incoming_stock FROM stock_buckets WHERE variant_id=$1 FOR UPDATE`,
-		variantID).Scan(&before.Available, &before.Broken, &before.Reserve, &before.Incoming); err != nil {
+		SELECT available_stock, broken_stock, reserve_stock, incoming_stock, order_stock FROM stock_buckets WHERE variant_id=$1 FOR UPDATE`,
+		variantID).Scan(&before.Available, &before.Broken, &before.Reserve, &before.Incoming, &before.OrderStock); err != nil {
 		respondError(w, http.StatusNotFound, "variant not found")
+		return
+	}
+	if req.AvailableStock < before.OrderStock {
+		respondError(w, http.StatusConflict, fmt.Sprintf("available_stock tidak boleh kurang dari order_stock (%d)", before.OrderStock))
 		return
 	}
 
@@ -446,8 +501,8 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice)
 
 	if _, err := tx.Exec(ctx, `
-		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6 WHERE id=$7`,
-		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, variantID); err != nil {
+		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7 WHERE id=$8`,
+		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, variantID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update variant")
 		return
 	}
@@ -487,9 +542,9 @@ func insertVariant(ctx context.Context, tx pgx.Tx, productID int, v variantInput
 func insertVariantReturningID(ctx context.Context, tx pgx.Tx, productID int, v variantInput) (int, error) {
 	var variantID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice).Scan(&variantID); err != nil {
+		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price, allow_oversell)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice, v.AllowOversell).Scan(&variantID); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `

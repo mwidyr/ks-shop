@@ -21,6 +21,7 @@ type PickupChainHandler struct {
 type pickupChainView struct {
 	ID        int     `json:"id"`
 	Name      string  `json:"name"`
+	ChainType string  `json:"chain_type"`
 	BaseFee   float64 `json:"base_fee"`
 	TargetFee float64 `json:"target_fee"`
 	IsActive  bool    `json:"is_active"`
@@ -28,7 +29,7 @@ type pickupChainView struct {
 
 // List returns active pickup chains by default; pass ?include_inactive=true for Settings.
 func (h *PickupChainHandler) List(w http.ResponseWriter, r *http.Request) {
-	query := `SELECT id, name, base_fee, target_fee, is_active FROM pickup_chains`
+	query := `SELECT id, name, chain_type, base_fee, target_fee, is_active FROM pickup_chains`
 	if r.URL.Query().Get("include_inactive") != "true" {
 		query += ` WHERE is_active = true`
 	}
@@ -44,14 +45,17 @@ func (h *PickupChainHandler) List(w http.ResponseWriter, r *http.Request) {
 	list := []pickupChainView{}
 	for rows.Next() {
 		var c pickupChainView
-		rows.Scan(&c.ID, &c.Name, &c.BaseFee, &c.TargetFee, &c.IsActive)
+		rows.Scan(&c.ID, &c.Name, &c.ChainType, &c.BaseFee, &c.TargetFee, &c.IsActive)
 		list = append(list, c)
 	}
 	respondJSON(w, http.StatusOK, list)
 }
 
+var validChainTypes = map[string]bool{"cvs_711": true, "cvs_familymart": true, "courier": true, "other": true}
+
 type pickupChainRequest struct {
 	Name      string  `json:"name"`
+	ChainType string  `json:"chain_type"`
 	BaseFee   float64 `json:"base_fee"`
 	TargetFee float64 `json:"target_fee"`
 	IsActive  *bool   `json:"is_active"`
@@ -63,10 +67,13 @@ func (h *PickupChainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	if req.ChainType == "" || !validChainTypes[req.ChainType] {
+		req.ChainType = "other"
+	}
 	var id int
 	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO pickup_chains (name, base_fee, target_fee) VALUES ($1,$2,$3) RETURNING id`,
-		req.Name, req.BaseFee, req.TargetFee).Scan(&id)
+		INSERT INTO pickup_chains (name, chain_type, base_fee, target_fee) VALUES ($1,$2,$3,$4) RETURNING id`,
+		req.Name, req.ChainType, req.BaseFee, req.TargetFee).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create pickup chain (name may already exist)")
 		return
@@ -85,6 +92,9 @@ func (h *PickupChainHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.ChainType == "" || !validChainTypes[req.ChainType] {
+		req.ChainType = "other"
+	}
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
@@ -93,8 +103,8 @@ func (h *PickupChainHandler) Update(w http.ResponseWriter, r *http.Request) {
 	h.DB.QueryRow(r.Context(), `SELECT base_fee, target_fee FROM pickup_chains WHERE id=$1`, id).Scan(&beforeBase, &beforeTarget)
 
 	ct, err := h.DB.Exec(r.Context(), `
-		UPDATE pickup_chains SET name=$1, base_fee=$2, target_fee=$3, is_active=$4 WHERE id=$5`,
-		req.Name, req.BaseFee, req.TargetFee, isActive, id)
+		UPDATE pickup_chains SET name=$1, chain_type=$2, base_fee=$3, target_fee=$4, is_active=$5 WHERE id=$6`,
+		req.Name, req.ChainType, req.BaseFee, req.TargetFee, isActive, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update pickup chain")
 		return

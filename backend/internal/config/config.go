@@ -14,6 +14,17 @@ type Config struct {
 	CloudinaryCloudName string
 	CloudinaryAPIKey    string
 	CloudinaryAPISecret string
+
+	// Optional: when SMTPHost is unset, invite/reset-password emails are logged to stdout
+	// instead of sent - fine for local dev, no real mailbox needed to test the flow.
+	SMTPHost string
+	SMTPPort string
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
+
+	// Base URL used to build links embedded in emails (invite / reset password).
+	AppBaseURL string
 }
 
 func Load() Config {
@@ -24,6 +35,12 @@ func Load() Config {
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
 		CloudinaryAPIKey:    getEnv("CLOUDINARY_API_KEY", ""),
 		CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
+		SMTPHost:            getEnv("SMTP_HOST", ""),
+		SMTPPort:            getEnv("SMTP_PORT", "587"),
+		SMTPUser:            getEnv("SMTP_USER", ""),
+		SMTPPass:            getEnv("SMTP_PASS", ""),
+		SMTPFrom:            getEnv("SMTP_FROM", "no-reply@ks-shop.local"),
+		AppBaseURL:          getEnv("APP_BASE_URL", "http://localhost:5173"),
 	}
 }
 

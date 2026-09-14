@@ -10,10 +10,10 @@ import (
 	appmw "ordermgmt/internal/middleware"
 )
 
-// OrderMergeHandler implements "Suggested Merge": grouping multiple not-yet-shipped orders from
-// the same customer, same pickup chain/store, into one shipment so the shipping fee is only
-// charged once (see shipping_export.go). Orders/order_items are never modified - see
-// 031_order_shipment_groups.sql for why.
+// OrderMergeHandler implements "Suggested Merge": grouping multiple not-yet-shipped, not-currently-
+// picking orders from the same customer, same pickup chain/store, into one shipment so the
+// shipping fee is only charged once (see shipping_export.go). Orders/order_items are never
+// modified - see 031_order_shipment_groups.sql for why.
 type OrderMergeHandler struct {
 	DB *pgxpool.Pool
 }
@@ -28,8 +28,9 @@ type mergeSuggestion struct {
 	OrderNos        []string `json:"order_nos"`
 }
 
-// Suggestions lists groups of ungrouped, eligible orders (status pending/picking, i.e. not yet
-// shipped) sharing the same customer + pickup chain + pickup store, 2 or more at a time.
+// Suggestions lists groups of ungrouped, eligible orders (status pending/ready_to_ship - not yet
+// shipped, and not currently being picked) sharing the same customer + pickup chain + pickup
+// store, 2 or more at a time.
 func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
 	claims := appmw.GetClaims(r)
 	roleFilter := ""
@@ -45,7 +46,7 @@ func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) 
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
-		WHERE o.status IN ('pending','picking')
+		WHERE o.status IN ('pending','ready_to_ship')
 		  AND NOT EXISTS (SELECT 1 FROM order_shipment_group_members m WHERE m.order_id = o.id)`+roleFilter+`
 		GROUP BY o.customer_id, c.name, c.phone, pc.name, o.pickup_chain_id, COALESCE(o.pickup_store_code,'')
 		HAVING COUNT(*) > 1`, args...)
@@ -72,8 +73,9 @@ type createMergeGroupRequest struct {
 }
 
 // CreateGroup merges 2+ eligible orders into one shipment group. All must share the same
-// pickup chain + store and be not-yet-shipped; the first order (by created_at) carries the
-// shipping fee, the rest show as included-in-that-order at export time.
+// pickup chain + store, be not-yet-shipped, and not currently be in picking; the first order
+// (by created_at) carries the shipping fee, the rest show as included-in-that-order at export
+// time.
 func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	var req createMergeGroupRequest
 	if err := decodeJSON(r, &req); err != nil || len(req.OrderIDs) < 2 {
@@ -119,7 +121,11 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	for _, o := range orders {
-		if o.Status != "pending" && o.Status != "picking" {
+		if o.Status == "picking" {
+			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is currently being picked and can't be merged")
+			return
+		}
+		if o.Status != "pending" && o.Status != "ready_to_ship" {
 			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already shipped and can't be merged")
 			return
 		}

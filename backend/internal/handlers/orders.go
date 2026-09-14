@@ -1,18 +1,28 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	appmw "ordermgmt/internal/middleware"
 )
+
+// querier is satisfied by both *pgxpool.Pool and pgx.Tx, so validation helpers can run
+// either inside or outside a transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 type OrderHandler struct {
 	DB *pgxpool.Pool
@@ -92,10 +102,14 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := q.Get("q"); search != "" {
 		like := "%" + search + "%"
-		baseWhere += " AND (c.name ILIKE " + addArg(like) + " OR c.phone ILIKE " + addArg(like) + ")"
+		likeArg := addArg(like)
+		baseWhere += " AND (c.name ILIKE " + likeArg + " OR c.phone ILIKE " + likeArg + " OR o.order_no ILIKE " + likeArg + ")"
 	}
 	if q.Get("blacklist_only") == "true" {
 		baseWhere += " AND EXISTS (SELECT 1 FROM customer_labels cl WHERE cl.customer_id = o.customer_id AND cl.label = 'blacklist')"
+	}
+	if sessionID := q.Get("session_id"); sessionID != "" {
+		baseWhere += " AND EXISTS (SELECT 1 FROM order_items ois WHERE ois.order_id = o.id AND ois.live_session_id = " + addArg(sessionID) + ")"
 	}
 
 	page := 1
@@ -118,6 +132,16 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	offsetPlaceholder := "$" + itoa(argN)
 	listArgs = append(listArgs, (page-1)*pageSize)
 
+	orderBy := "o.created_at DESC"
+	switch q.Get("sort") {
+	case "oldest":
+		orderBy = "o.created_at ASC"
+	case "total_desc":
+		orderBy = "total_amount DESC"
+	case "total_asc":
+		orderBy = "total_amount ASC"
+	}
+
 	query := `
 		SELECT o.id, o.order_no, o.status, c.name, c.phone, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.created_at,
@@ -126,7 +150,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		           SELECT 1 FROM order_shipment_group_members gm
 		           JOIN order_shipment_groups g ON g.id = gm.group_id
 		           WHERE gm.order_id = o.id AND g.shipping_fee_order_id != o.id
-		       ) THEN 0 ELSE o.shipping_fee END,
+		       ) THEN 0 ELSE o.shipping_fee END AS total_amount,
 		       COALESCE((SELECT SUM(oi3.qty) FROM order_items oi3 WHERE oi3.order_id = o.id), 0),
 		       COALESCE((SELECT string_agg(DISTINCT h.name, ', ') FROM order_items oi2
 		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-'),
@@ -136,7 +160,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_items oi ON oi.order_id = o.id` +
 		baseWhere +
-		" GROUP BY o.id, c.name, c.phone, pc.name ORDER BY o.created_at DESC LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		" GROUP BY o.id, c.name, c.phone, pc.name ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {
@@ -174,37 +198,50 @@ type orderItemView struct {
 	Price           float64 `json:"price"`
 	HostID          *int    `json:"host_id"`
 	HostName        string  `json:"host_name"`
-	AvailableToPick int     `json:"available_to_pick"`
-	PhysicalStock   int     `json:"physical_stock"`
+	AvailableToPick int     `json:"available_to_pick"` // total_stock = available_stock - order_stock: the actual pick-time gate value
+	PhysicalStock   int     `json:"physical_stock"`    // raw available_stock, for staff reference
 	IsOversell      bool    `json:"is_oversell"`
 }
 
+// groupItemView is an orderItemView plus the source order's number, used only for the combined
+// cross-order item list shown when an order is part of a shipment group (see Detail).
+type groupItemView struct {
+	orderItemView
+	OrderNo string `json:"order_no"`
+}
+
 type orderDetailView struct {
-	ID                   int             `json:"id"`
-	OrderNo              string          `json:"order_no"`
-	Status               string          `json:"status"`
-	CustomerName         string          `json:"customer_name"`
-	CustomerPhone        string          `json:"customer_phone"`
-	CustomerBlocked      bool            `json:"customer_blacklisted"`
-	ShippingAddress      string          `json:"shipping_address"`
-	PickupChainName      string          `json:"pickup_chain_name"`
-	PickupStoreName      string          `json:"pickup_store_name"`
-	PickupStoreCode      string          `json:"pickup_store_code"`
-	Items                []orderItemView `json:"items"`
-	Subtotal             float64         `json:"subtotal"`
-	DiscountAmount       float64         `json:"discount_amount"`
-	AdditionalAmount     float64         `json:"additional_amount"`
-	Total                float64         `json:"total"`
-	InternalNotes        string          `json:"internal_notes"`
-	Attachments          []string        `json:"attachments"`
-	CreatedBy            string          `json:"created_by"`
-	CreatedAt            string          `json:"created_at"`
-	KeepDate             *string         `json:"keep_date"`
-	ShippingFee          float64         `json:"shipping_fee"`
-	FreeShippingOverride bool            `json:"free_shipping_override"`
-	ShipmentGroupID      *int            `json:"shipment_group_id"`
-	ShipmentGroupOrders  []string        `json:"shipment_group_order_nos"`
-	StatusHistory        []statusLogView `json:"status_history"`
+	ID                       int             `json:"id"`
+	OrderNo                  string          `json:"order_no"`
+	Status                   string          `json:"status"`
+	CustomerName             string          `json:"customer_name"`
+	CustomerPhone            string          `json:"customer_phone"`
+	CustomerBlocked          bool            `json:"customer_blacklisted"`
+	ShippingAddress          string          `json:"shipping_address"`
+	PickupChainID            int             `json:"pickup_chain_id"`
+	PickupChainName          string          `json:"pickup_chain_name"`
+	PickupStoreName          string          `json:"pickup_store_name"`
+	PickupStoreCode          string          `json:"pickup_store_code"`
+	Items                    []orderItemView `json:"items"`
+	Subtotal                 float64         `json:"subtotal"`
+	DiscountAmount           float64         `json:"discount_amount"`
+	AdditionalAmount         float64         `json:"additional_amount"`
+	Total                    float64         `json:"total"`
+	InternalNotes            string          `json:"internal_notes"`
+	IsUrgent                 bool            `json:"is_urgent"`
+	NotesDeadline            *string         `json:"notes_deadline"`
+	Attachments              []string        `json:"attachments"`
+	CreatedBy                string          `json:"created_by"`
+	CreatedAt                string          `json:"created_at"`
+	KeepDate                 *string         `json:"keep_date"`
+	ShippingFee              float64         `json:"shipping_fee"`
+	FreeShippingOverride     bool            `json:"free_shipping_override"`
+	ShipmentGroupID          *int            `json:"shipment_group_id"`
+	ShipmentGroupOrders      []string        `json:"shipment_group_order_nos"`
+	ShipmentGroupItems       []groupItemView `json:"shipment_group_items,omitempty"`
+	ShipmentGroupTotal       float64         `json:"shipment_group_total"`
+	ShipmentGroupShippingFee float64         `json:"shipment_group_shipping_fee"`
+	StatusHistory            []statusLogView `json:"status_history"`
 }
 
 type statusLogView struct {
@@ -226,12 +263,13 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var o orderDetailView
 	var createdAt time.Time
 	var keepDate *time.Time
+	var notesDeadline *time.Time
 	err = h.DB.QueryRow(ctx, `
 		SELECT o.id, o.order_no, o.status, c.name, c.phone,
 		       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist'),
-		       o.shipping_address, pc.name,
+		       o.shipping_address, pc.id, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
-		       COALESCE(o.internal_notes,''), COALESCE(u.name,'system'), o.created_at, o.keep_date,
+		       COALESCE(o.internal_notes,''), o.is_urgent, o.notes_deadline, COALESCE(u.name,'system'), o.created_at, o.keep_date,
 		       o.shipping_fee, o.free_shipping_override
 		FROM orders o
 		JOIN customers c ON c.id=o.customer_id
@@ -239,9 +277,9 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN users u ON u.id = o.sales_id
 		WHERE o.id=$1`, id).
 		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerBlocked,
-			&o.ShippingAddress, &o.PickupChainName,
+			&o.ShippingAddress, &o.PickupChainID, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
-			&o.InternalNotes, &o.CreatedBy, &createdAt, &keepDate,
+			&o.InternalNotes, &o.IsUrgent, &notesDeadline, &o.CreatedBy, &createdAt, &keepDate,
 			&o.ShippingFee, &o.FreeShippingOverride)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
@@ -252,12 +290,16 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		v := keepDate.Format("2006-01-02")
 		o.KeepDate = &v
 	}
+	if notesDeadline != nil {
+		v := notesDeadline.Format(time.RFC3339)
+		o.NotesDeadline = &v
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
-		       sb.available_stock, sb.available_stock + sb.reserve_stock + sb.broken_stock
+		       sb.available_stock - sb.order_stock, sb.available_stock
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -302,6 +344,48 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 				o.ShipmentGroupOrders = append(o.ShipmentGroupOrders, no)
 			}
 		}
+
+		// The real, one-time shipping fee for the whole group lives on the fee-holder order -
+		// every member's own o.ShippingFee is display-zeroed above except the holder's, so this
+		// is the only reliable way to get it regardless of which member is being viewed.
+		if feeOrderID != nil {
+			h.DB.QueryRow(ctx, `SELECT shipping_fee FROM orders WHERE id=$1`, *feeOrderID).Scan(&o.ShipmentGroupShippingFee)
+		}
+
+		itemRows, err := h.DB.Query(ctx, `
+			SELECT oi.id, oi.variant_id, p.name,
+			       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
+			       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
+			       sb.available_stock - sb.order_stock, sb.available_stock, o2.order_no
+			FROM order_shipment_group_members m2
+			JOIN orders o2 ON o2.id = m2.order_id
+			JOIN order_items oi ON oi.order_id = o2.id
+			JOIN product_variants pv ON pv.id = oi.variant_id
+			JOIN products p ON p.id = pv.product_id
+			JOIN stock_buckets sb ON sb.variant_id = pv.id
+			LEFT JOIN hosts h2 ON h2.id = oi.host_id
+			WHERE m2.group_id = $1
+			ORDER BY o2.created_at, oi.id`, *groupID)
+		if err == nil {
+			defer itemRows.Close()
+			o.ShipmentGroupItems = []groupItemView{}
+			for itemRows.Next() {
+				var it groupItemView
+				itemRows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.PickedQty,
+					&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock, &it.OrderNo)
+				it.IsOversell = it.AvailableToPick < 0
+				o.ShipmentGroupTotal += it.Price * float64(it.Qty)
+				o.ShipmentGroupItems = append(o.ShipmentGroupItems, it)
+			}
+		}
+
+		var groupDiscount, groupAdditional float64
+		h.DB.QueryRow(ctx, `
+			SELECT COALESCE(SUM(o2.discount_amount),0), COALESCE(SUM(o2.additional_amount),0)
+			FROM order_shipment_group_members m2
+			JOIN orders o2 ON o2.id = m2.order_id
+			WHERE m2.group_id = $1`, *groupID).Scan(&groupDiscount, &groupAdditional)
+		o.ShipmentGroupTotal = o.ShipmentGroupTotal - groupDiscount + groupAdditional + o.ShipmentGroupShippingFee
 	}
 	o.Total = o.Subtotal - o.DiscountAmount + o.AdditionalAmount + o.ShippingFee
 
@@ -358,6 +442,38 @@ type createOrderRequest struct {
 	AdditionalAmount     float64             `json:"additional_amount"`
 	KeepDate             *string             `json:"keep_date"`
 	FreeShippingOverride bool                `json:"free_shipping_override"`
+	ShippingFeeOverride  *float64            `json:"shipping_fee_override"`
+}
+
+var cvsStoreCodePattern = regexp.MustCompile(`^\d{6}$`)
+
+// resolvePickupAddress validates the pickup fields for a chain (looked up by chainID) and
+// returns the final shipping_address to store. CVS chains (7-Eleven/FamilyMart) require a
+// 6-digit store code and get a fallback address composed from store name/code, since many
+// pages display shipping_address unconditionally; other chains require a non-empty address
+// as typed. badRequestMsg is non-empty (and finalAddress should be ignored) on validation
+// failure. Shared by Create and UpdatePickup so both stay in sync.
+func resolvePickupAddress(ctx context.Context, db querier, chainID int, storeCode, storeName, address string) (finalAddress string, badRequestMsg string) {
+	var chainType string
+	if err := db.QueryRow(ctx, `SELECT chain_type FROM pickup_chains WHERE id=$1`, chainID).Scan(&chainType); err != nil {
+		return "", "invalid pickup_chain_id"
+	}
+	if chainType == "cvs_711" || chainType == "cvs_familymart" {
+		if !cvsStoreCodePattern.MatchString(storeCode) {
+			return "", "Kode Toko harus 6 digit angka"
+		}
+		if address == "" {
+			address = strings.TrimSpace(storeName + " " + storeCode)
+			if address == "" {
+				address = "-"
+			}
+		}
+		return address, ""
+	}
+	if address == "" {
+		return "", "shipping_address is required"
+	}
+	return address, ""
 }
 
 // Create builds a manual order directly (no cart/checkout step): resolves/creates the
@@ -366,10 +482,6 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createOrderRequest
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.ShippingAddress == "" {
-		respondError(w, http.StatusBadRequest, "shipping_address is required")
 		return
 	}
 	if req.PickupChainID == 0 {
@@ -393,6 +505,13 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	claims := appmw.GetClaims(r)
 	ctx := r.Context()
+
+	finalAddress, badRequest := resolvePickupAddress(ctx, h.DB, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
+	if badRequest != "" {
+		respondError(w, http.StatusBadRequest, badRequest)
+		return
+	}
+	req.ShippingAddress = finalAddress
 
 	tx, err := h.DB.Begin(ctx)
 	if err != nil {
@@ -435,37 +554,17 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Order creation never validates or touches stock - the only enforcement point is
+	// PickItem, gated on total_stock (available_stock - order_stock) staying positive. This
+	// deliberately allows an order to be created even with zero/insufficient stock on hand.
 	var subtotal float64
 	for _, it := range req.Items {
-		var available int
 		var price float64
-		var allowOversell bool
-		if err := tx.QueryRow(ctx, `
-			SELECT sb.available_stock, pv.price, p.allow_oversell FROM stock_buckets sb
-			JOIN product_variants pv ON pv.id = sb.variant_id
-			JOIN products p ON p.id = pv.product_id
-			WHERE sb.variant_id=$1 FOR UPDATE`, it.VariantID).Scan(&available, &price, &allowOversell); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, it.VariantID).Scan(&price); err != nil {
 			respondError(w, http.StatusBadRequest, "variant not found")
 			return
 		}
 		subtotal += price * float64(it.Qty)
-		if available < it.Qty && !allowOversell {
-			respondError(w, http.StatusConflict, fmt.Sprintf("stock tidak cukup untuk variant %d (tersedia %d, diminta %d)", it.VariantID, available, it.Qty))
-			return
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE stock_buckets SET available_stock = available_stock - $1, order_stock = order_stock + $1
-			WHERE variant_id = $2`, it.Qty, it.VariantID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to update stock")
-			return
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id)
-			VALUES ($1,$2,'available_stock','order_stock',$3,'order_created',$4)`,
-			it.VariantID, orderID, it.Qty, claims.UserID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to log stock movement")
-			return
-		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id, live_session_id)
 			VALUES ($1,$2,$3,$4,$5,$6)`, orderID, it.VariantID, it.Qty, price, it.HostID, it.LiveSessionID); err != nil {
@@ -474,13 +573,21 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	shippingFee, err := ComputeShippingFee(ctx, tx, req.PickupChainID, subtotal, req.FreeShippingOverride)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
-		return
+	shippingFee := 0.0
+	freeShippingOverride := req.FreeShippingOverride
+	if req.ShippingFeeOverride != nil {
+		// A caller-chosen fee wins outright - skip the settings/chain-based computation.
+		shippingFee = *req.ShippingFeeOverride
+		freeShippingOverride = shippingFee == 0
+	} else {
+		shippingFee, err = ComputeShippingFee(ctx, tx, req.PickupChainID, subtotal, req.FreeShippingOverride)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
+			return
+		}
 	}
 	if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=$1, free_shipping_override=$2 WHERE id=$3`,
-		shippingFee, req.FreeShippingOverride, orderID); err != nil {
+		shippingFee, freeShippingOverride, orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save shipping fee")
 		return
 	}
@@ -546,7 +653,7 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := tx.Query(ctx, `SELECT variant_id, qty FROM order_items WHERE order_id=$1`, id)
+	rows, err := tx.Query(ctx, `SELECT variant_id, qty, picked_qty FROM order_items WHERE order_id=$1`, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load order items")
 		return
@@ -554,11 +661,12 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	type item struct {
 		VariantID int
 		Qty       int
+		PickedQty int
 	}
 	var items []item
 	for rows.Next() {
 		var it item
-		rows.Scan(&it.VariantID, &it.Qty)
+		rows.Scan(&it.VariantID, &it.Qty, &it.PickedQty)
 		items = append(items, it)
 	}
 	rows.Close()
@@ -566,28 +674,31 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	for _, it := range items {
 		switch req.Status {
 		case "delivered":
-			// order_stock decreases (sale finalized). total_stock unaffected (already decreased at Pending).
-			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1 WHERE variant_id=$2`, it.Qty, it.VariantID)
+			// order_stock decreases (sale finalized). available_stock was already decreased at
+			// pick time, so no change there - by this stage picked_qty == qty for every item.
+			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
 			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
 				VALUES ($1,$2,'order_stock','(finalized)',$3,'order_delivered',$4,$5)`,
-				it.VariantID, id, it.Qty, claims.UserID, req.Reason)
+				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
 		case "cancelled":
-			// order_stock -> available_stock, total_stock increases back.
-			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, available_stock = available_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID)
+			// Only the actually-picked portion ever touched stock (order creation no longer
+			// reserves anything) - reverse picked_qty, not the full ordered qty.
+			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
 			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
 				VALUES ($1,$2,'order_stock','available_stock',$3,'order_cancelled',$4,$5)`,
-				it.VariantID, id, it.Qty, claims.UserID, req.Reason)
+				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
 		case "return":
-			// order_stock -> broken_stock (if still present, e.g. from Shipped), total_stock increases.
-			// If coming from 'delivered', order_stock was already 0, so this just adds to broken_stock (physical item returned).
+			// order_stock -> available_stock (if still present, e.g. from Shipped) - returned items
+			// go straight back to sellable stock. If coming from 'delivered', order_stock was
+			// already 0, so this just adds the returned qty back to available_stock.
 			if currentStatus == "delivered" {
-				tx.Exec(ctx, `UPDATE stock_buckets SET broken_stock = broken_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID)
+				tx.Exec(ctx, `UPDATE stock_buckets SET available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
 			} else {
-				tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, broken_stock = broken_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID)
+				tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
 			}
 			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
-				VALUES ($1,$2,'order_stock','broken_stock',$3,'order_return',$4,$5)`,
-				it.VariantID, id, it.Qty, claims.UserID, req.Reason)
+				VALUES ($1,$2,'order_stock','available_stock',$3,'order_return',$4,$5)`,
+				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
 		}
 	}
 
@@ -611,10 +722,13 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateNotesRequest struct {
-	InternalNotes string `json:"internal_notes"`
+	InternalNotes string  `json:"internal_notes"`
+	IsUrgent      bool    `json:"is_urgent"`
+	NotesDeadline *string `json:"notes_deadline"`
 }
 
-// UpdateNotes edits the order's free-text internal staff note.
+// UpdateNotes edits the order's free-text internal staff note, plus an urgent flag and an
+// optional deadline shown alongside it.
 func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -626,7 +740,8 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1 WHERE id=$2`, req.InternalNotes, id)
+	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1, is_urgent=$2, notes_deadline=$3 WHERE id=$4`,
+		req.InternalNotes, req.IsUrgent, req.NotesDeadline, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save note")
 		return
@@ -635,6 +750,67 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type updatePickupRequest struct {
+	PickupChainID       int      `json:"pickup_chain_id"`
+	PickupStoreName     string   `json:"pickup_store_name"`
+	PickupStoreCode     string   `json:"pickup_store_code"`
+	ShippingAddress     string   `json:"shipping_address"`
+	ShippingFeeOverride *float64 `json:"shipping_fee_override"`
+}
+
+// UpdatePickup lets staff change an existing order's pickup method/store/address after
+// creation (e.g. the customer changes their mind about which CVS branch to use).
+func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	var req updatePickupRequest
+	if err := decodeJSON(r, &req); err != nil || req.PickupChainID == 0 {
+		respondError(w, http.StatusBadRequest, "pickup_chain_id is required")
+		return
+	}
+	ctx := r.Context()
+	finalAddress, badRequest := resolvePickupAddress(ctx, h.DB, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
+	if badRequest != "" {
+		respondError(w, http.StatusBadRequest, badRequest)
+		return
+	}
+
+	var ct pgconn.CommandTag
+	if req.ShippingFeeOverride != nil {
+		freeShippingOverride := *req.ShippingFeeOverride == 0
+		ct, err = h.DB.Exec(ctx, `
+			UPDATE orders SET pickup_chain_id=$1, pickup_store_name=$2, pickup_store_code=$3, shipping_address=$4,
+			       shipping_fee=$5, free_shipping_override=$6
+			WHERE id=$7`,
+			req.PickupChainID, req.PickupStoreName, req.PickupStoreCode, finalAddress,
+			*req.ShippingFeeOverride, freeShippingOverride, id)
+	} else {
+		ct, err = h.DB.Exec(ctx, `
+			UPDATE orders SET pickup_chain_id=$1, pickup_store_name=$2, pickup_store_code=$3, shipping_address=$4
+			WHERE id=$5`,
+			req.PickupChainID, req.PickupStoreName, req.PickupStoreCode, finalAddress, id)
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update pickup method")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+
+	claims := appmw.GetClaims(r)
+	var userID *int
+	if claims != nil {
+		userID = &claims.UserID
+	}
+	logActivity(ctx, h.DB, "order", id, "pickup_updated", userID, fmt.Sprintf("pickup_chain_id=%d store=%s", req.PickupChainID, req.PickupStoreCode))
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -722,8 +898,9 @@ func (h *OrderHandler) PickItem(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	var orderID int
-	if err := tx.QueryRow(ctx, `SELECT order_id FROM order_items WHERE id=$1`, itemID).Scan(&orderID); err != nil {
+	var orderID, variantID, qty, oldPickedQty int
+	if err := tx.QueryRow(ctx, `SELECT order_id, variant_id, qty, picked_qty FROM order_items WHERE id=$1`, itemID).
+		Scan(&orderID, &variantID, &qty, &oldPickedQty); err != nil {
 		respondError(w, http.StatusNotFound, "order item not found")
 		return
 	}
@@ -731,7 +908,53 @@ func (h *OrderHandler) PickItem(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "db error")
 		return
 	}
-	if _, err := tx.Exec(ctx, `UPDATE order_items SET picked_qty = LEAST($1, qty) WHERE id=$2`, req.PickedQty, itemID); err != nil {
+
+	newPickedQty := req.PickedQty
+	if newPickedQty > qty {
+		newPickedQty = qty
+	}
+	delta := newPickedQty - oldPickedQty
+
+	// Stock is only ever touched here, not at order creation: picking is the sole enforcement
+	// point. total_stock = available_stock - order_stock must stay positive for a pick to add
+	// quantity; releasing quantity (delta < 0, picked_qty being lowered) never needs a gate.
+	if delta > 0 {
+		var available, orderStock int
+		var allowOversell bool
+		if err := tx.QueryRow(ctx, `
+			SELECT sb.available_stock, sb.order_stock, pv.allow_oversell FROM stock_buckets sb
+			JOIN product_variants pv ON pv.id = sb.variant_id
+			WHERE sb.variant_id=$1 FOR UPDATE`, variantID).Scan(&available, &orderStock, &allowOversell); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to load stock")
+			return
+		}
+		totalStock := available - orderStock
+		if totalStock <= 0 && !allowOversell {
+			respondError(w, http.StatusConflict, fmt.Sprintf("stok tidak mencukupi untuk picking (total_stock: %d)", totalStock))
+			return
+		}
+	}
+	if delta != 0 {
+		if _, err := tx.Exec(ctx, `
+			UPDATE stock_buckets SET available_stock = available_stock - $1, order_stock = order_stock + $1
+			WHERE variant_id = $2`, delta, variantID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update stock")
+			return
+		}
+		eventType, bucketFrom, bucketTo, movementQty := "item_picked", "available_stock", "order_stock", delta
+		if delta < 0 {
+			eventType, bucketFrom, bucketTo, movementQty = "item_unpicked", "order_stock", "available_stock", -delta
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			variantID, orderID, bucketFrom, bucketTo, movementQty, eventType, claims.UserID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to log stock movement")
+			return
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE order_items SET picked_qty = $1 WHERE id=$2`, newPickedQty, itemID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update picked quantity")
 		return
 	}

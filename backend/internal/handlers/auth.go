@@ -2,17 +2,23 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"ordermgmt/internal/auth"
+	"ordermgmt/internal/config"
+	"ordermgmt/internal/mailer"
 )
 
 type AuthHandler struct {
 	DB        *pgxpool.Pool
 	JWTSecret string
+	Cfg       config.Config
 }
 
 type loginRequest struct {
@@ -64,4 +70,133 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			"id": id, "name": name, "email": email, "role": role, "customer_id": customerID,
 		},
 	})
+}
+
+type forgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+// ForgotPassword always responds with the same generic message regardless of whether the email
+// matched an account, to avoid leaking which emails are registered.
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var userID int
+	err := h.DB.QueryRow(r.Context(), `SELECT id FROM users WHERE email=$1 AND is_active=true`, req.Email).Scan(&userID)
+	if err == nil {
+		if raw, tokenErr := h.issueToken(r, userID, "reset", time.Hour); tokenErr == nil {
+			link := fmt.Sprintf("%s/reset-password?token=%s", h.Cfg.AppBaseURL, raw)
+			mailer.Send(h.Cfg, req.Email, "Reset your password",
+				fmt.Sprintf("Click the link below to reset your password (valid 1 hour):\n\n%s", link))
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"message": "if that email is registered, a reset link has been sent"})
+}
+
+type resetPasswordRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" || len(req.Password) < 6 {
+		respondError(w, http.StatusBadRequest, "invalid token or password too short")
+		return
+	}
+
+	userID, tokenID, err := h.lookupToken(r, req.Token, "reset")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid or expired token")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2`, string(hash), userID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update password")
+		return
+	}
+	h.DB.Exec(r.Context(), `UPDATE auth_tokens SET used_at=now() WHERE id=$1`, tokenID)
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type acceptInviteRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (h *AuthHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
+	var req acceptInviteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" || len(req.Password) < 6 {
+		respondError(w, http.StatusBadRequest, "invalid token or password too short")
+		return
+	}
+
+	userID, tokenID, err := h.lookupToken(r, req.Token, "invite")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid or expired token")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `UPDATE users SET password_hash=$1, is_active=true WHERE id=$2`, string(hash), userID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to activate account")
+		return
+	}
+	h.DB.Exec(r.Context(), `UPDATE auth_tokens SET used_at=now() WHERE id=$1`, tokenID)
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ValidateToken lets the frontend show "invite for foo@bar.com" / "link expired" before the
+// user fills in a password, without spending the token.
+func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	var purpose, email string
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT at.purpose, u.email
+		FROM auth_tokens at JOIN users u ON u.id = at.user_id
+		WHERE at.token_hash=$1 AND at.used_at IS NULL AND at.expires_at > now()`,
+		auth.HashToken(token)).Scan(&purpose, &email)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]interface{}{"valid": false})
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"valid": true, "purpose": purpose, "email": email})
+}
+
+func (h *AuthHandler) issueToken(r *http.Request, userID int, purpose string, ttl time.Duration) (string, error) {
+	raw, err := auth.NewRawToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = h.DB.Exec(r.Context(), `
+		INSERT INTO auth_tokens (user_id, token_hash, purpose, expires_at) VALUES ($1,$2,$3,now()+$4::interval)`,
+		userID, auth.HashToken(raw), purpose, fmt.Sprintf("%d seconds", int(ttl.Seconds())))
+	if err != nil {
+		return "", err
+	}
+	return raw, nil
+}
+
+func (h *AuthHandler) lookupToken(r *http.Request, raw, purpose string) (userID int, tokenID int, err error) {
+	err = h.DB.QueryRow(r.Context(), `
+		SELECT user_id, id FROM auth_tokens
+		WHERE token_hash=$1 AND purpose=$2 AND used_at IS NULL AND expires_at > now()`,
+		auth.HashToken(raw), purpose).Scan(&userID, &tokenID)
+	return
 }

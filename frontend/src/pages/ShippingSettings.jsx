@@ -4,6 +4,8 @@ import { listPickupChains, createPickupChain, updatePickupChain, deletePickupCha
 import { getShippingSettings, updateShippingSettings } from '../api/settings'
 import { formatCurrency } from '../utils/format'
 
+const chainTypeOptions = ['cvs_711', 'cvs_familymart', 'courier', 'other']
+
 // Matches the reference's "Pengaturan Ongkir" layout: per-chain platform-fixed base fee
 // (read-only) vs. the seller's own target fee charged to the buyer, with the margin
 // ("Selisih Kamu") computed inline.
@@ -16,12 +18,17 @@ function PickupChainsCard({ chains, reload }) {
   async function saveTarget(chain) {
     const value = Number(targetDrafts[chain.id])
     if (Number.isNaN(value)) return
-    await updatePickupChain(chain.id, { name: chain.name, base_fee: chain.base_fee, target_fee: value, is_active: chain.is_active })
+    await updatePickupChain(chain.id, { ...chain, target_fee: value })
     reload()
   }
 
   async function toggleActive(chain) {
     await updatePickupChain(chain.id, { ...chain, is_active: !chain.is_active })
+    reload()
+  }
+
+  async function changeChainType(chain, chainType) {
+    await updatePickupChain(chain.id, { ...chain, chain_type: chainType })
     reload()
   }
 
@@ -71,6 +78,18 @@ function PickupChainsCard({ chains, reload }) {
                   </button>
                   <button onClick={() => handleDelete(c)} className="text-xs text-red-600 hover:underline">{t('common.delete')}</button>
                 </div>
+              </div>
+              <div className="mb-2">
+                <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.chains.chain_type')}</label>
+                <select
+                  value={c.chain_type || 'other'}
+                  onChange={(e) => changeChainType(c, e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1 text-xs"
+                >
+                  {chainTypeOptions.map((ct) => (
+                    <option key={ct} value={ct}>{t(`page_shipping_settings.chains.chain_type_${ct}`)}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-3 gap-3 items-end">
                 <div>
@@ -150,11 +169,19 @@ function FreeShippingCard() {
       <form onSubmit={save} className="space-y-3">
         <div>
           <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.threshold_minimarket')}</label>
-          <input type="number" value={form.free_shipping_threshold_minimarket} onChange={(e) => update('free_shipping_threshold_minimarket', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+            <input type="number" min="60" value={form.free_shipping_threshold_minimarket} onChange={(e) => update('free_shipping_threshold_minimarket', e.target.value)} className="w-full border border-gray-300 rounded-lg pl-6 pr-2 py-1.5 text-sm" />
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">{t('page_shipping_settings.free_shipping.threshold_minimarket_hint')}</p>
         </div>
         <div>
           <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.threshold_customer_address')}</label>
-          <input type="number" value={form.free_shipping_threshold_pos} onChange={(e) => update('free_shipping_threshold_pos', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+            <input type="number" min="1" value={form.free_shipping_threshold_pos} onChange={(e) => update('free_shipping_threshold_pos', e.target.value)} className="w-full border border-gray-300 rounded-lg pl-6 pr-2 py-1.5 text-sm" />
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">{t('page_shipping_settings.free_shipping.threshold_pos_hint')}</p>
         </div>
         <div>
           <label className="block text-[11px] text-gray-500 mb-1">{t('page_shipping_settings.free_shipping.flat_fee_other')}</label>

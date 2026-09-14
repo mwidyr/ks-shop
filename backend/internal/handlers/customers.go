@@ -22,11 +22,28 @@ type CustomerHandler struct {
 }
 
 type customerView struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	Phone   string `json:"phone"`
-	Address string `json:"address"`
+	ID                  int     `json:"id"`
+	Name                string  `json:"name"`
+	Phone               string  `json:"phone"`
+	Address             string  `json:"address"`
+	LastPickupChainID   *int    `json:"last_pickup_chain_id"`
+	LastPickupStoreName *string `json:"last_pickup_store_name"`
+	LastPickupStoreCode *string `json:"last_pickup_store_code"`
+	IsBlacklisted       bool    `json:"is_blacklisted"`
 }
+
+// customerSearchColumns is shared by both branches of Search below - joins each customer's
+// most recent order to surface their last-used pickup method (chain/store), so a manual-order
+// flow can auto-fill it when an existing customer is picked instead of asking again. Also
+// surfaces blacklist status so CS can be warned before an order is even created, not just after.
+const customerSearchColumns = `
+	SELECT c.id, c.name, c.phone, COALESCE(c.address,''), lo.pickup_chain_id, lo.pickup_store_name, lo.pickup_store_code,
+	       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist')
+	FROM customers c
+	LEFT JOIN LATERAL (
+		SELECT pickup_chain_id, pickup_store_name, pickup_store_code
+		FROM orders WHERE customer_id = c.id ORDER BY created_at DESC LIMIT 1
+	) lo ON true`
 
 // Search finds customers by name or phone (used by Sales during checkout attribution).
 func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
@@ -38,12 +55,11 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	if q == "" {
-		res, e := h.DB.Query(r.Context(), `SELECT id, name, phone, COALESCE(address,'') FROM customers ORDER BY name LIMIT 50`)
+		res, e := h.DB.Query(r.Context(), customerSearchColumns+` ORDER BY c.name LIMIT 50`)
 		rows, err = res, e
 	} else {
-		res, e := h.DB.Query(r.Context(), `
-			SELECT id, name, phone, COALESCE(address,'') FROM customers
-			WHERE name ILIKE '%'||$1||'%' OR phone ILIKE '%'||$1||'%' ORDER BY name LIMIT 50`, q)
+		res, e := h.DB.Query(r.Context(), customerSearchColumns+`
+			WHERE c.name ILIKE '%'||$1||'%' OR c.phone ILIKE '%'||$1||'%' ORDER BY c.name LIMIT 50`, q)
 		rows, err = res, e
 	}
 	if err != nil {
@@ -55,7 +71,7 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 	list := []customerView{}
 	for rows.Next() {
 		var c customerView
-		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address)
+		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address, &c.LastPickupChainID, &c.LastPickupStoreName, &c.LastPickupStoreCode, &c.IsBlacklisted)
 		list = append(list, c)
 	}
 	respondJSON(w, http.StatusOK, list)

@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listProducts } from '../api/products'
+import { listLiveSessions } from '../api/liveSessions'
 import { getSummary } from '../api/dashboard'
 import { formatCurrency } from '../utils/format'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import BigStatCard from '../components/BigStatCard'
+import ExportCvsModal from '../components/ExportCvsModal'
+import ExportKurirModal from '../components/ExportKurirModal'
 import { IconArrowRight, IconEye } from '../components/icons'
 
 function IconX(props) {
@@ -25,17 +28,25 @@ const nextStatus = {
 }
 
 const statusTabs = [
-  { key: 'all', value: '', labelKey: 'page_orders.tab_all' },
-  { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders' },
-  { key: 'picking', value: 'picking', labelKey: 'status.picking' },
-  { key: 'ready_to_ship', value: 'ready_to_ship', labelKey: 'status.ready_to_ship' },
-  { key: 'shipped', value: 'shipped', labelKey: 'status.shipped' },
-  { key: 'delivered', value: 'delivered', labelKey: 'status.delivered' },
-  { key: 'cancelled', value: 'cancelled,return', labelKey: 'status.cancelled' },
+  { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
+  { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
+  { key: 'picking', value: 'picking', labelKey: 'page_orders.tab_processing', countKeys: ['picking'] },
+  { key: 'ready_to_ship', value: 'ready_to_ship', labelKey: 'status.ready_to_ship', countKeys: ['ready_to_ship'] },
+  { key: 'shipped', value: 'shipped', labelKey: 'status.shipped', countKeys: ['shipped'] },
+  { key: 'delivered', value: 'delivered', labelKey: 'status.delivered', countKeys: ['delivered'] },
+  { key: 'cancelled', value: 'cancelled,return', labelKey: 'page_orders.tab_cancelled_merged', countKeys: ['cancelled', 'return'] },
+]
+
+const sortOptions = [
+  { value: '', labelKey: 'page_orders.sort_newest' },
+  { value: 'oldest', labelKey: 'page_orders.sort_oldest' },
+  { value: 'total_desc', labelKey: 'page_orders.sort_total_desc' },
+  { value: 'total_asc', labelKey: 'page_orders.sort_total_asc' },
 ]
 
 export default function Orders() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -48,10 +59,13 @@ export default function Orders() {
   const [range, setRange] = useState(null)
   const [page, setPage] = useState(1)
   const [advancing, setAdvancing] = useState(null)
+  const [sort, setSort] = useState('')
+  const [sessionId, setSessionId] = useState('')
 
   const [hosts, setHosts] = useState([])
   const [pickupChains, setPickupChains] = useState([])
   const [categories, setCategories] = useState([])
+  const [liveSessions, setLiveSessions] = useState([])
 
   const [selected, setSelected] = useState(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
@@ -59,9 +73,9 @@ export default function Orders() {
   const [bulkResult, setBulkResult] = useState('')
 
   const [mergeSuggestions, setMergeSuggestions] = useState([])
-  const [dismissedMerges, setDismissedMerges] = useState(new Set())
-  const [mergeModal, setMergeModal] = useState(null)
-  const [mergeBusy, setMergeBusy] = useState(false)
+  const [mergeAllBusy, setMergeAllBusy] = useState(false)
+  const [mergeAllResult, setMergeAllResult] = useState('')
+  const [exportModal, setExportModal] = useState(null)
 
   function fetchMergeSuggestions() {
     getMergeSuggestions().then(setMergeSuggestions)
@@ -73,19 +87,21 @@ export default function Orders() {
     listProducts().then((products) => {
       setCategories([...new Set(products.map((p) => p.category).filter(Boolean))])
     })
+    listLiveSessions().then(setLiveSessions)
     fetchMergeSuggestions()
   }, [])
 
-  async function handleMerge(orderIds) {
-    setMergeBusy(true)
-    try {
-      await createMergeGroup(orderIds)
-      setMergeModal(null)
-      fetchMergeSuggestions()
-      fetchOrders()
-    } finally {
-      setMergeBusy(false)
-    }
+  async function handleMergeAll() {
+    setMergeAllBusy(true)
+    setMergeAllResult('')
+    const results = await Promise.allSettled(mergeSuggestions.map((s) => createMergeGroup(s.order_ids)))
+    const fail = results.filter((r) => r.status === 'rejected').length
+    setMergeAllResult(fail > 0
+      ? t('page_orders.merge_all_result_partial', { success: results.length - fail, fail })
+      : t('page_orders.merge_all_result_success', { count: results.length }))
+    setMergeAllBusy(false)
+    fetchMergeSuggestions()
+    fetchOrders()
   }
 
   function fetchOrders() {
@@ -93,7 +109,7 @@ export default function Orders() {
     setLoading(true)
     listOrders({
       q: search, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
-      blacklist_only: blacklistOnly ? 'true' : '',
+      blacklist_only: blacklistOnly ? 'true' : '', session_id: sessionId, sort,
       date_from: range.from, date_to: range.to, page, page_size: 20,
     }).then((res) => {
       setData(res)
@@ -103,10 +119,11 @@ export default function Orders() {
     getSummary(range).then(setSummary)
   }
 
-  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, blacklistOnly, range, page])
+  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, blacklistOnly, sessionId, sort, range, page])
 
   function resetFilters() {
-    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setBlacklistOnly(false); setPage(1)
+    setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setBlacklistOnly(false)
+    setSessionId(''); setSort(''); setPage(1)
   }
 
   async function handleAdvance(order) {
@@ -167,50 +184,39 @@ export default function Orders() {
   const processing = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (counts[s] || 0), 0)
   const processingRevenue = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (revenue[s] || 0), 0)
 
-  const visibleMerges = mergeSuggestions.filter((s) => !dismissedMerges.has(s.customer_id + '-' + s.pickup_store_code))
+  const mergeTotalOrders = mergeSuggestions.reduce((sum, s) => sum + s.order_nos.length, 0)
 
   return (
     <div className="px-4 sm:px-6 py-6">
-      {visibleMerges.map((s) => {
-        const key = s.customer_id + '-' + s.pickup_store_code
-        return (
-          <div key={key} className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm text-amber-800">
-              💡 <span className="font-semibold">{t('page_orders.order_count', { count: s.order_nos.length })}</span> {t('page_orders.merge_suggestion_from')} <span className="font-semibold">{s.customer_name}</span> ({s.pickup_chain_name}) {t('page_orders.merge_suggestion_desc', { orderNos: s.order_nos.join(', ') })}
-            </p>
-            <div className="flex gap-2 shrink-0">
-              <button onClick={() => setMergeModal(s)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700">
-                {t('page_orders.merge_action')}
-              </button>
-              <button onClick={() => setDismissedMerges((d) => new Set(d).add(key))} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100">
-                {t('page_orders.dismiss')}
-              </button>
-            </div>
-          </div>
-        )
-      })}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <h1 className="text-xl font-bold text-gray-800">{t('page_orders.page_heading')}</h1>
+        <p className="text-sm text-gray-500">{t('page_orders.total_orders', { count: data.total })}</p>
+      </div>
 
-      {mergeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setMergeModal(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-bold text-gray-800 mb-2">{t('page_orders.merge_modal_title')}</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              {t('page_orders.merge_modal_desc', { count: mergeModal.order_nos.length, customerName: mergeModal.customer_name, chainName: mergeModal.pickup_chain_name })}
-            </p>
-            <ul className="text-sm text-gray-700 mb-4 list-disc pl-5">
-              {mergeModal.order_nos.map((no) => <li key={no}>{no}</li>)}
-            </ul>
-            <div className="flex gap-2">
-              <button onClick={() => handleMerge(mergeModal.order_ids)} disabled={mergeBusy} className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
-                {mergeBusy ? t('page_orders.merging') : t('page_orders.merge_action')}
-              </button>
-              <button onClick={() => setMergeModal(null)} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
-                {t('common.cancel')}
-              </button>
-            </div>
-          </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button onClick={() => setExportModal('cvs')} className="text-sm font-medium px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50">
+          {t('page_orders.export_cvs_button')}
+        </button>
+        <button onClick={() => setExportModal('kurir')} className="text-sm font-medium px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50">
+          {t('page_orders.export_kurir_button')}
+        </button>
+      </div>
+
+      {exportModal === 'cvs' && <ExportCvsModal onClose={() => setExportModal(null)} onExported={fetchOrders} />}
+      {exportModal === 'kurir' && <ExportKurirModal onClose={() => setExportModal(null)} onExported={fetchOrders} />}
+
+      {mergeSuggestions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-amber-800">
+            💡 <span className="font-semibold">{t('page_orders.merge_all_title')}</span>{' '}
+            {t('page_orders.merge_all_desc', { groups: mergeSuggestions.length, orders: mergeTotalOrders })}
+          </p>
+          <button onClick={handleMergeAll} disabled={mergeAllBusy} className="text-sm font-semibold px-4 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 shrink-0">
+            {mergeAllBusy ? t('page_orders.merging') : t('page_orders.merge_all_action')}
+          </button>
         </div>
       )}
+      {mergeAllResult && <p className="text-sm text-gray-600 mb-4">{mergeAllResult}</p>}
 
       {summary && (
         <div className="flex flex-wrap gap-4 mb-6">
@@ -248,6 +254,13 @@ export default function Orders() {
             <option value="">{t('page_orders.all_pickup_methods')}</option>
             {pickupChains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <select value={sessionId} onChange={(e) => { setSessionId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">{t('page_orders.all_sessions')}</option>
+            {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            {sortOptions.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
+          </select>
           <button
             onClick={() => { setBlacklistOnly((v) => !v); setPage(1) }}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
@@ -261,17 +274,20 @@ export default function Orders() {
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => { setStatus(tab.value); setPage(1) }}
-              className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${
-                status === tab.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {t(tab.labelKey)}
-            </button>
-          ))}
+          {statusTabs.map((tab) => {
+            const count = tab.countKeys ? tab.countKeys.reduce((sum, k) => sum + (counts[k] || 0), 0) : null
+            return (
+              <button
+                key={tab.key}
+                onClick={() => { setStatus(tab.value); setPage(1) }}
+                className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-full border ${
+                  status === tab.value ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {t(tab.labelKey)}{count > 0 && ` ${count}`}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -328,8 +344,12 @@ export default function Orders() {
               </thead>
               <tbody className="divide-y">
                 {data.items.map((o) => (
-                  <tr key={o.id} className={`hover:bg-gray-50 ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}>
-                    <td className="p-3">
+                  <tr
+                    key={o.id}
+                    onClick={() => navigate(`/orders/${o.id}`)}
+                    className={`hover:bg-gray-50 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
+                  >
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
                     </td>
                     <td className="p-3 font-semibold text-gray-800">{o.order_no}</td>
@@ -350,7 +370,7 @@ export default function Orders() {
                     <td className="p-3 text-gray-500">{o.total_qty}</td>
                     <td className="p-3 font-semibold text-brand-600">{formatCurrency(o.total)}</td>
                     <td className="p-3"><StatusPill status={o.status} /></td>
-                    <td className="p-3">
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <Link to={`/orders/${o.id}`} title={t('page_orders.view_tooltip')} className="text-gray-400 hover:text-brand-600">
                           <IconEye />

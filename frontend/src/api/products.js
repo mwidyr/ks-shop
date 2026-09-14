@@ -28,6 +28,10 @@ export function deleteProduct(id) {
   return client.delete(`/products/${id}`).then((res) => res.data)
 }
 
+export function deleteVariant(productId, variantId) {
+  return client.delete(`/products/${productId}/variants/${variantId}`).then((res) => res.data)
+}
+
 export function addProductImage(productId, url) {
   return client.post(`/products/${productId}/images`, { url }).then((res) => res.data)
 }

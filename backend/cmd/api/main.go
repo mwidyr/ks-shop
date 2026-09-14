@@ -46,7 +46,7 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	authH := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret}
+	authH := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, Cfg: cfg}
 	productH := &handlers.ProductHandler{DB: pool}
 	orderH := &handlers.OrderHandler{DB: pool}
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
@@ -73,7 +73,7 @@ func main() {
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
 	reportsH := &handlers.ReportsHandler{DB: pool}
-	userH := &handlers.UserHandler{DB: pool}
+	userH := &handlers.UserHandler{DB: pool, Cfg: cfg}
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
 
 	// Any authenticated staff role may reach this outer gate; the real per-section
@@ -93,6 +93,10 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 		// Public
 		r.Post("/auth/login", authH.Login)
+		r.Post("/auth/forgot-password", authH.ForgotPassword)
+		r.Post("/auth/reset-password", authH.ResetPassword)
+		r.Post("/auth/accept-invite", authH.AcceptInvite)
+		r.Get("/auth/tokens/{token}", authH.ValidateToken)
 		r.Get("/public/pickup/{token}", pickupLinkH.PublicGet)
 
 		r.Group(func(r chi.Router) {
@@ -106,6 +110,7 @@ func main() {
 			r.With(edit("products")).Patch("/products/{id}", productH.Update)
 			r.With(edit("products")).Post("/products/{id}/variants", productH.CreateVariant)
 			r.With(edit("products")).Patch("/products/{id}/variants/{variantId}", productH.UpdateVariant)
+			r.With(edit("products")).Delete("/products/{id}/variants/{variantId}", productH.DeleteVariant)
 			r.With(edit("products")).Delete("/products/{id}", productH.Delete)
 			r.With(edit("products")).Post("/products/{id}/images", imageH.AddImage)
 			r.With(edit("products")).Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
@@ -121,6 +126,7 @@ func main() {
 			r.With(edit("orders")).Patch("/orders/{id}/status", orderH.UpdateStatus)
 			r.With(edit("orders")).Patch("/orders/{id}/notes", orderH.UpdateNotes)
 			r.With(edit("orders")).Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
+			r.With(edit("orders")).Patch("/orders/{id}/pickup", orderH.UpdatePickup)
 			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
 			r.With(edit("picking")).Patch("/order-items/{itemId}/pick", orderH.PickItem)
 			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)

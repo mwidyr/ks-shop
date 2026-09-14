@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 
@@ -67,7 +67,12 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_login.password_label')}</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">{t('page_login.password_label')}</label>
+                <Link to="/forgot-password" className="text-xs text-brand-600 hover:text-brand-700">
+                  {t('page_login.forgot_password_link')}
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -83,6 +88,14 @@ export default function Login() {
               className="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg transition disabled:opacity-60"
             >
               {loading ? t('page_login.processing') : t('page_login.login_heading')}
+            </button>
+            <button
+              type="button"
+              disabled
+              title={t('page_login.google_signin_soon')}
+              className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-400 font-semibold py-2.5 rounded-lg cursor-not-allowed opacity-60"
+            >
+              {t('page_login.google_signin_button')}
             </button>
           </form>
 

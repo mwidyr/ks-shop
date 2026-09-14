@@ -38,16 +38,16 @@ function AddStaffForm({ onCreated }) {
   const [role, setRole] = useState('sales')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [tempPassword, setTempPassword] = useState('')
+  const [invitedEmail, setInvitedEmail] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
     setError('')
-    setTempPassword('')
+    setInvitedEmail('')
     try {
-      const res = await createUser({ name, email, role })
-      setTempPassword(res.temp_password)
+      await createUser({ name, email, role })
+      setInvitedEmail(email)
       setName('')
       setEmail('')
       onCreated()
@@ -78,9 +78,9 @@ function AddStaffForm({ onCreated }) {
         {saving ? t('page_roles.adding') : t('page_roles.add_staff_button')}
       </button>
       {error && <p className="text-xs text-red-600 w-full">{error}</p>}
-      {tempPassword && (
+      {invitedEmail && (
         <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 w-full">
-          {t('page_roles.account_created_message')} <span className="font-mono font-bold">{tempPassword}</span>
+          {t('page_roles.account_created_message', { email: invitedEmail })}
         </p>
       )}
     </form>

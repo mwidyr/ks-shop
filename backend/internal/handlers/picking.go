@@ -29,8 +29,8 @@ type pickingRow struct {
 	CustomerName    string `json:"customer_name"`
 	HostName        string `json:"host_name"`
 	Status          string `json:"status"`
-	AvailableToPick int    `json:"available_to_pick"`
-	PhysicalStock   int    `json:"physical_stock"`
+	AvailableToPick int    `json:"available_to_pick"` // total_stock = available_stock - order_stock: the actual pick-time gate value
+	PhysicalStock   int    `json:"physical_stock"`    // raw available_stock, for staff reference
 	IsOversell      bool   `json:"is_oversell"`
 }
 
@@ -98,7 +98,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		SELECT o.id, o.order_no, oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.sku, pv.color, pv.size, oi.qty, oi.picked_qty, c.name, COALESCE(h.name,'-'), o.status,
-		       sb.available_stock, sb.available_stock + sb.reserve_stock + sb.broken_stock
+		       sb.available_stock - sb.order_stock, sb.available_stock
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN customers c ON c.id = o.customer_id

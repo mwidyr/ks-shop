@@ -1,23 +1,24 @@
 package handlers
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 
+	"ordermgmt/internal/auth"
+	"ordermgmt/internal/config"
+	"ordermgmt/internal/mailer"
 	appmw "ordermgmt/internal/middleware"
 )
 
 // UserHandler manages internal staff accounts (Manajemen Pengguna) - real CRUD on top of the
 // existing JWT+bcrypt auth system (no new auth provider). super_user only.
 type UserHandler struct {
-	DB *pgxpool.Pool
+	DB  *pgxpool.Pool
+	Cfg config.Config
 }
 
 var staffRoles = map[string]bool{"super_user": true, "management": true, "spv": true, "sales": true, "cs": true, "warehouse": true}
@@ -60,45 +61,40 @@ type createUserRequest struct {
 	Role  string `json:"role"`
 }
 
-func generateTempPassword() (string, error) {
-	b := make([]byte, 6)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
-}
-
-// Create directly provisions a new staff account (name/email/role) with a generated temp
-// password returned once in the response - there's no outbound-email infra in this app to
-// send a real invite, so this is the internal-tool-equivalent of "Undang Staf".
+// Create provisions a new staff account (name/email/role) as pending: no password yet,
+// is_active=false. An invite token is emailed (or logged to stdout if SMTP isn't configured -
+// see internal/mailer) with a link to accept-invite, where the user sets their own password.
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createUserRequest
 	if err := decodeJSON(r, &req); err != nil || req.Name == "" || req.Email == "" || !staffRoles[req.Role] {
 		respondError(w, http.StatusBadRequest, "name, email dan role (valid) wajib diisi")
 		return
 	}
-	tempPassword, err := generateTempPassword()
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to generate password")
-		return
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to hash password")
-		return
-	}
 
 	var id int
-	err = h.DB.QueryRow(r.Context(), `
+	err := h.DB.QueryRow(r.Context(), `
 		INSERT INTO users (name, email, password_hash, role_id, is_active)
-		VALUES ($1,$2,$3,(SELECT id FROM roles WHERE name=$4),true) RETURNING id`,
-		req.Name, req.Email, string(hash), req.Role).Scan(&id)
+		VALUES ($1,$2,NULL,(SELECT id FROM roles WHERE name=$3),false) RETURNING id`,
+		req.Name, req.Email, req.Role).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create user (email mungkin sudah dipakai)")
 		return
 	}
-	respondJSON(w, http.StatusCreated, map[string]interface{}{
-		"id": id, "temp_password": tempPassword,
+
+	raw, err := auth.NewRawToken()
+	if err == nil {
+		_, err = h.DB.Exec(r.Context(), `
+			INSERT INTO auth_tokens (user_id, token_hash, purpose, expires_at)
+			VALUES ($1,$2,'invite', now() + interval '7 days')`, id, auth.HashToken(raw))
+	}
+	if err == nil {
+		link := fmt.Sprintf("%s/accept-invite?token=%s", h.Cfg.AppBaseURL, raw)
+		mailer.Send(h.Cfg, req.Email, "You've been invited",
+			fmt.Sprintf("You've been invited to join as %s. Set your password here (valid 7 days):\n\n%s", req.Role, link))
+	}
+
+	respondJSON(w, http.StatusCreated, map[string]any{
+		"id": id, "invited": true,
 	})
 }
 

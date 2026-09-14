@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getProduct, createProduct, updateProduct, createVariant, updateVariant, addProductImage, deleteProductImage } from '../api/products'
+import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import PhotoSlots from '../components/PhotoSlots'
 import CategorySelect from '../components/CategorySelect'
 
-const emptyVariant = () => ({
-  sku: '', color: '', size: '', price: '', compare_at_price: '', cost_price: '',
-  available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
-})
+function parseList(text) {
+  return text.split(',').map((s) => s.trim()).filter(Boolean)
+}
 
 function suggestSku(productName, variant) {
   const initials = productName.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'SKU'
@@ -17,15 +16,31 @@ function suggestSku(productName, variant) {
   return [initials, colorPart, sizePart].filter(Boolean).join('-')
 }
 
+function freshVariantRow(color, size, product) {
+  return {
+    sku: suggestSku(product.name || 'Produk', { color, size }), color, size,
+    price: product.base_price || '', compare_at_price: 0, cost_price: 0,
+    allow_oversell: product.allow_oversell,
+    available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
+    order_stock: 0,
+  }
+}
+
 export default function ProductForm() {
   const { t } = useTranslation()
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
 
-  const [product, setProduct] = useState({ name: '', description: '', category: '', brand: '', allow_oversell: false })
+  const [product, setProduct] = useState({
+    sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '',
+    base_price: '', is_active: true, allow_oversell: false,
+  })
   const [images, setImages] = useState([])
-  const [variants, setVariants] = useState([emptyVariant()])
+  const [colorsText, setColorsText] = useState('')
+  const [sizesText, setSizesText] = useState('')
+  const [variants, setVariants] = useState([])
+  const [deletedVariantIds, setDeletedVariantIds] = useState([])
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -33,12 +48,29 @@ export default function ProductForm() {
   useEffect(() => {
     if (!isEdit) return
     getProduct(id).then((p) => {
-      setProduct({ name: p.name, description: p.description, category: p.category, brand: p.brand, allow_oversell: p.allow_oversell })
+      setProduct({
+        sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description,
+        category: p.category, brand: p.brand, base_price: p.base_price || '',
+        is_active: p.is_active, allow_oversell: p.allow_oversell,
+      })
       setImages(p.images)
       setVariants(p.variants.map((v) => ({ ...v })))
+      setColorsText([...new Set(p.variants.map((v) => v.color).filter(Boolean))].join(', '))
+      setSizesText([...new Set(p.variants.map((v) => v.size).filter(Boolean))].join(', '))
       setLoading(false)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEdit])
+
+  // The variant section only "forms" once name, product code and base price are all filled in -
+  // at that point a single default variant (one color, one size) is created automatically.
+  useEffect(() => {
+    if (isEdit || variants.length > 0) return
+    if (product.name && product.sku && product.base_price) {
+      regenerateVariants()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, variants.length, product.name, product.sku, product.base_price])
 
   async function handleAddImage(url) {
     if (!isEdit) {
@@ -64,28 +96,48 @@ export default function ProductForm() {
     setVariants((vs) => vs.map((v, i) => (i === idx ? { ...v, [field]: value } : v)))
   }
 
-  function autoSku(idx) {
-    setVariants((vs) => vs.map((v, i) => (i === idx ? { ...v, sku: suggestSku(product.name || 'Produk', v) } : v)))
+  // Regenerates the variant list as the color x size Cartesian product, reconciling against the
+  // current list by exact (color, size) match so existing rows (sku/price/stock/oversell, and any
+  // saved id) survive unchanged. Combinations no longer present are dropped, queuing their id (if
+  // any) for server-side deletion on save.
+  function regenerateVariants() {
+    const colors = parseList(colorsText)
+    const sizes = parseList(sizesText)
+    const colorList = colors.length ? colors : ['']
+    const sizeList = sizes.length ? sizes : ['']
+    setVariants((prev) => {
+      const next = []
+      for (const color of colorList) {
+        for (const size of sizeList) {
+          const existing = prev.find((v) => v.color === color && v.size === size)
+          next.push(existing || freshVariantRow(color, size, product))
+        }
+      }
+      const nextKeys = new Set(next.map((v) => `${v.color}|${v.size}`))
+      const removed = prev.filter((v) => v.id && !nextKeys.has(`${v.color}|${v.size}`))
+      if (removed.length) {
+        setDeletedVariantIds((ids) => [...ids, ...removed.map((v) => v.id)])
+      }
+      return next
+    })
   }
 
-  function addVariant() {
-    setVariants((vs) => [...vs, emptyVariant()])
-  }
-
-  function removeVariant(idx) {
-    setVariants((vs) => vs.filter((_, i) => i !== idx))
-  }
-
-  function totalStock(v) {
-    return (Number(v.available_stock) || 0) + (Number(v.reserve_stock) || 0) + (Number(v.broken_stock) || 0)
+  function removeVariantRow(idx) {
+    setVariants((vs) => {
+      const removed = vs[idx]
+      if (removed?.id) setDeletedVariantIds((ids) => [...ids, removed.id])
+      return vs.filter((_, i) => i !== idx)
+    })
   }
 
   function variantBody(v) {
     return {
-      sku: v.sku, color: v.color, size: v.size, price: Number(v.price),
+      sku: v.sku, color: v.color, size: v.size, price: Number(v.price) || 0,
       compare_at_price: Number(v.compare_at_price) || 0, cost_price: Number(v.cost_price) || 0,
-      available_stock: Number(v.available_stock), broken_stock: Number(v.broken_stock), reserve_stock: Number(v.reserve_stock),
-      incoming_stock: Number(v.incoming_stock) || 0, minimum_stock: Number(v.minimum_stock) || 0,
+      allow_oversell: Boolean(v.allow_oversell),
+      available_stock: Number(v.available_stock) || 0, broken_stock: Number(v.broken_stock) || 0,
+      reserve_stock: Number(v.reserve_stock) || 0, incoming_stock: Number(v.incoming_stock) || 0,
+      minimum_stock: Number(v.minimum_stock) || 0,
     }
   }
 
@@ -96,17 +148,33 @@ export default function ProductForm() {
       setError(t('page_product_form.main_photo_required'))
       return
     }
+    if (variants.length === 0) {
+      setError(t('page_product_form.variant_required'))
+      return
+    }
+    if (isEdit) {
+      for (const v of variants) {
+        if (v.id && Number(v.available_stock) < (v.order_stock || 0)) {
+          setError(t('page_product_form.available_below_order_error', { name: v.sku || `${v.color}/${v.size}`, order_stock: v.order_stock }))
+          return
+        }
+      }
+    }
     setSaving(true)
     try {
+      const productBody = { ...product, base_price: Number(product.base_price) || 0 }
       if (!isEdit) {
         await createProduct({
-          ...product,
+          ...productBody,
           images: images.map((img) => img.url),
           variants: variants.map(variantBody),
         })
         navigate('/products')
       } else {
-        await updateProduct(id, product)
+        await updateProduct(id, productBody)
+        for (const variantId of deletedVariantIds) {
+          await deleteVariant(id, variantId)
+        }
         for (const v of variants) {
           const body = variantBody(v)
           if (v.id) {
@@ -143,9 +211,29 @@ export default function ProductForm() {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_sku')}</label>
+            <input
+              value={product.sku}
+              onChange={(e) => updateField('sku', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.vendor_sku')}</label>
+            <input
+              value={product.vendor_sku}
+              onChange={(e) => updateField('vendor_sku', e.target.value)}
+              placeholder={t('page_product_form.optional_placeholder')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.category')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('page_product_form.category')} <span className="text-gray-400 font-normal">({t('page_product_form.optional_word')})</span>
+              </label>
               <CategorySelect value={product.category} onChange={(v) => updateField('category', v)} />
             </div>
             <div>
@@ -159,6 +247,15 @@ export default function ProductForm() {
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.base_price_label')}</label>
+            <input
+              type="number" value={product.base_price} onChange={(e) => updateField('base_price', e.target.value)}
+              placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              required
+            />
+            <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.base_price_hint')}</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.description')}</label>
             <textarea
               value={product.description}
@@ -167,6 +264,13 @@ export default function ProductForm() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+          <label className="flex items-start gap-2 border border-gray-200 rounded-lg p-3">
+            <input type="checkbox" checked={product.is_active} onChange={(e) => updateField('is_active', e.target.checked)} className="mt-0.5" />
+            <span>
+              <span className="block text-sm font-semibold text-gray-700">{t('page_product_form.is_active_label')}</span>
+              <span className="block text-xs text-gray-500">{t('page_product_form.is_active_hint')}</span>
+            </span>
+          </label>
           <label className="flex items-start gap-2 border border-gray-200 rounded-lg p-3">
             <input type="checkbox" checked={product.allow_oversell} onChange={(e) => updateField('allow_oversell', e.target.checked)} className="mt-0.5" />
             <span>
@@ -177,75 +281,69 @@ export default function ProductForm() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-800">{t('page_product_form.variants_heading')}</h2>
-            <button type="button" onClick={addVariant} className="text-sm font-semibold text-brand-600 hover:underline">
-              + {t('page_product_form.add_variant')}
-            </button>
+          <h2 className="font-bold text-gray-800 mb-3">{t('page_product_form.variants_heading')}</h2>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.colors_label')}</label>
+              <input
+                value={colorsText}
+                onChange={(e) => setColorsText(e.target.value)}
+                onBlur={regenerateVariants}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
+                placeholder={t('page_product_form.colors_placeholder')}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sizes_label')}</label>
+              <input
+                value={sizesText}
+                onChange={(e) => setSizesText(e.target.value)}
+                onBlur={regenerateVariants}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
+                placeholder={t('page_product_form.sizes_placeholder')}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+              />
+            </div>
           </div>
           <div className="space-y-4">
             {variants.map((v, idx) => (
-              <div key={idx} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="flex gap-1">
-                    <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm flex-1 min-w-0" required />
-                    <button type="button" onClick={() => autoSku(idx)} title={t('page_product_form.auto_sku_tooltip')} className="text-[11px] px-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 shrink-0">
-                      {t('page_product_form.auto_sku_button')}
+              <div key={`${v.color}|${v.size}`} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-700">
+                    {v.color || t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
+                  </p>
+                  {variants.length > 1 && (
+                    <button type="button" onClick={() => removeVariantRow(idx)} className="text-xs text-red-600 hover:underline">
+                      {t('page_product_form.remove_variant')}
                     </button>
-                  </div>
-                  <input placeholder={t('page_product_form.color_placeholder')} value={v.color} onChange={(e) => updateVariantField(idx, 'color', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                  <input placeholder={t('page_product_form.size_placeholder')} value={v.size} onChange={(e) => updateVariantField(idx, 'size', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  )}
+                </div>
+                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3`}>
+                  <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   <input placeholder={t('page_product_form.sell_price_placeholder')} type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1 flex items-center gap-1.5">
-                      {t('page_product_form.compare_price_label')}
-                      {Number(v.compare_at_price) > Number(v.price) && Number(v.price) > 0 && (
-                        <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-600">
-                          -{Math.round((1 - Number(v.price) / Number(v.compare_at_price)) * 100)}%
-                        </span>
-                      )}
-                    </label>
-                    <input type="number" value={v.compare_at_price} onChange={(e) => updateVariantField(idx, 'compare_at_price', e.target.value)} placeholder="0" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                    <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.compare_price_hint')}</p>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.cost_price_label')}</label>
-                    <input type="number" value={v.cost_price} onChange={(e) => updateVariantField(idx, 'cost_price', e.target.value)} placeholder="0" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 items-end">
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.available_label')}</label>
-                    <input type="number" value={v.available_stock} onChange={(e) => updateVariantField(idx, 'available_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
+                    <input
+                      type="number" min={isEdit ? v.order_stock : 0} value={v.available_stock}
+                      onChange={(e) => updateVariantField(idx, 'available_stock', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.reserve_label')}</label>
-                    <input type="number" value={v.reserve_stock} onChange={(e) => updateVariantField(idx, 'reserve_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.broken_label')}</label>
-                    <input type="number" value={v.broken_stock} onChange={(e) => updateVariantField(idx, 'broken_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.incoming_label')}</label>
-                    <input type="number" value={v.incoming_stock} onChange={(e) => updateVariantField(idx, 'incoming_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.min_stock_label')}</label>
-                    <input type="number" value={v.minimum_stock} onChange={(e) => updateVariantField(idx, 'minimum_stock', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.total_stock_label')}</label>
-                    <input type="text" value={totalStock(v)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
-                  </div>
+                  {isEdit && (
+                    <div>
+                      <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.total_stock_label')}</label>
+                      <input type="text" value={(Number(v.available_stock) || 0) - (v.order_stock || 0)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
+                    </div>
+                  )}
                 </div>
-                {variants.length > 1 && (
-                  <button type="button" onClick={() => removeVariant(idx)} className="text-xs text-red-600 hover:underline">
-                    {t('page_product_form.remove_variant')}
-                  </button>
+                {isEdit && (
+                  <p className="text-[11px] text-gray-400">{t('page_product_form.order_stock_note', { order_stock: v.order_stock || 0 })}</p>
                 )}
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="checkbox" checked={v.allow_oversell} onChange={(e) => updateVariantField(idx, 'allow_oversell', e.target.checked)} />
+                  {t('page_product_form.variant_allow_oversell')}
+                </label>
               </div>
             ))}
           </div>

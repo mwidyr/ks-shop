@@ -1,52 +1,59 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell'
-import Login from './pages/Login'
-import Orders from './pages/Orders'
-import OrderCreate from './pages/OrderCreate'
-import OrderDetail from './pages/OrderDetail'
-import OrderPrint from './pages/OrderPrint'
-import Products from './pages/Products'
-import ProductForm from './pages/ProductForm'
-import Settings from './pages/Settings'
-import Dashboard from './pages/Dashboard'
-import Customers from './pages/Customers'
-import Inventory from './pages/Inventory'
-import Profit from './pages/Profit'
-import Categories from './pages/Categories'
-import Chat from './pages/Chat'
-import Reviews from './pages/Reviews'
-import Warehouses from './pages/Warehouses'
-import Suppliers from './pages/Suppliers'
-import Purchases from './pages/Purchases'
-import PurchaseAlert from './pages/PurchaseAlert'
-import Shipping from './pages/Shipping'
-import ShippingExport from './pages/ShippingExport'
-import DaftarPengambilan from './pages/DaftarPengambilan'
-import PanelSiaran from './pages/PanelSiaran'
-import LiveSessionHistory from './pages/LiveSessionHistory'
-import LiveSessionNew from './pages/LiveSessionNew'
-import LiveSessionDetail from './pages/LiveSessionDetail'
-import PickupPublic from './pages/PickupPublic'
-import Returns from './pages/Returns'
-import Refunds from './pages/Refunds'
-import Promotions from './pages/Promotions'
-import Campaigns from './pages/Campaigns'
-import Advertising from './pages/Advertising'
-import SalesAnalyticsDetail from './pages/SalesAnalyticsDetail'
-import ProductAnalytics from './pages/ProductAnalytics'
-import Transactions from './pages/Transactions'
-import Payouts from './pages/Payouts'
-import Fees from './pages/Fees'
-import Reports from './pages/Reports'
-import StoreProfile from './pages/StoreProfile'
-import StoreDesign from './pages/StoreDesign'
-import RolesMatrix from './pages/RolesMatrix'
-import Notifications from './pages/Notifications'
-import Integrations from './pages/Integrations'
-import AuditLog from './pages/AuditLog'
-import HostManagement from './pages/HostManagement'
-import ShippingSettings from './pages/ShippingSettings'
 import { useAuth } from './context/AuthContext'
+
+// Route-level code splitting: each page is only transformed/downloaded when actually
+// navigated to, instead of the whole ~45-page tree loading up front on every visit.
+const Login = lazy(() => import('./pages/Login'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'))
+const Orders = lazy(() => import('./pages/Orders'))
+const OrderCreate = lazy(() => import('./pages/OrderCreate'))
+const OrderDetail = lazy(() => import('./pages/OrderDetail'))
+const OrderPrint = lazy(() => import('./pages/OrderPrint'))
+const Products = lazy(() => import('./pages/Products'))
+const ProductForm = lazy(() => import('./pages/ProductForm'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Customers = lazy(() => import('./pages/Customers'))
+const Inventory = lazy(() => import('./pages/Inventory'))
+const Profit = lazy(() => import('./pages/Profit'))
+const Categories = lazy(() => import('./pages/Categories'))
+const Chat = lazy(() => import('./pages/Chat'))
+const Reviews = lazy(() => import('./pages/Reviews'))
+const Warehouses = lazy(() => import('./pages/Warehouses'))
+const Suppliers = lazy(() => import('./pages/Suppliers'))
+const Purchases = lazy(() => import('./pages/Purchases'))
+const PurchaseAlert = lazy(() => import('./pages/PurchaseAlert'))
+const Shipping = lazy(() => import('./pages/Shipping'))
+const ShippingExport = lazy(() => import('./pages/ShippingExport'))
+const DaftarPengambilan = lazy(() => import('./pages/DaftarPengambilan'))
+const PanelSiaran = lazy(() => import('./pages/PanelSiaran'))
+const LiveSessionHistory = lazy(() => import('./pages/LiveSessionHistory'))
+const LiveSessionNew = lazy(() => import('./pages/LiveSessionNew'))
+const LiveSessionDetail = lazy(() => import('./pages/LiveSessionDetail'))
+const PickupPublic = lazy(() => import('./pages/PickupPublic'))
+const Returns = lazy(() => import('./pages/Returns'))
+const Refunds = lazy(() => import('./pages/Refunds'))
+const Promotions = lazy(() => import('./pages/Promotions'))
+const Campaigns = lazy(() => import('./pages/Campaigns'))
+const Advertising = lazy(() => import('./pages/Advertising'))
+const SalesAnalyticsDetail = lazy(() => import('./pages/SalesAnalyticsDetail'))
+const ProductAnalytics = lazy(() => import('./pages/ProductAnalytics'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const Payouts = lazy(() => import('./pages/Payouts'))
+const Fees = lazy(() => import('./pages/Fees'))
+const Reports = lazy(() => import('./pages/Reports'))
+const StoreProfile = lazy(() => import('./pages/StoreProfile'))
+const StoreDesign = lazy(() => import('./pages/StoreDesign'))
+const RolesMatrix = lazy(() => import('./pages/RolesMatrix'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const Integrations = lazy(() => import('./pages/Integrations'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
+const HostManagement = lazy(() => import('./pages/HostManagement'))
+const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth()
@@ -60,81 +67,94 @@ function RequireAuth({ children }) {
   return children
 }
 
+function PageLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">
+      Loading...
+    </div>
+  )
+}
+
 export default function App() {
   const { user } = useAuth()
 
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
-      <Route path="/pickup/:token" element={<PickupPublic />} />
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
+        <Route path="/pickup/:token" element={<PickupPublic />} />
 
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-      {/* Sales */}
-      <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />
-      <Route path="/panel-siaran/history" element={<ProtectedRoute><LiveSessionHistory /></ProtectedRoute>} />
-      <Route path="/panel-siaran/new" element={<ProtectedRoute><LiveSessionNew /></ProtectedRoute>} />
-      <Route path="/panel-siaran/:id" element={<ProtectedRoute><LiveSessionDetail /></ProtectedRoute>} />
-      <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-      <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
-      <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
-      <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-      <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
+        {/* Sales */}
+        <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />
+        <Route path="/panel-siaran/history" element={<ProtectedRoute><LiveSessionHistory /></ProtectedRoute>} />
+        <Route path="/panel-siaran/new" element={<ProtectedRoute><LiveSessionNew /></ProtectedRoute>} />
+        <Route path="/panel-siaran/:id" element={<ProtectedRoute><LiveSessionDetail /></ProtectedRoute>} />
+        <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+        <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
+        <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
+        <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+        <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+        <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
 
-      {/* Order print views: no sidebar chrome, still requires login */}
-      <Route path="/orders/:id/print/:type" element={<RequireAuth><OrderPrint /></RequireAuth>} />
-      <Route path="/orders/print/:type" element={<RequireAuth><OrderPrint /></RequireAuth>} />
+        {/* Order print views: no sidebar chrome, still requires login */}
+        <Route path="/orders/:id/print/:type" element={<RequireAuth><OrderPrint /></RequireAuth>} />
+        <Route path="/orders/print/:type" element={<RequireAuth><OrderPrint /></RequireAuth>} />
 
-      {/* Catalog */}
-      <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-      <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
-      <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
-      <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-      <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-      <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
-      <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-      <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
-      <Route path="/purchase-alert" element={<ProtectedRoute><PurchaseAlert /></ProtectedRoute>} />
+        {/* Catalog */}
+        <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+        <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
+        <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
+        <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+        <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
+        <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+        <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
+        <Route path="/purchase-alert" element={<ProtectedRoute><PurchaseAlert /></ProtectedRoute>} />
 
-      {/* Fulfillment */}
-      <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
-      <Route path="/shipping/export" element={<ProtectedRoute><ShippingExport /></ProtectedRoute>} />
-      <Route path="/picking" element={<ProtectedRoute><DaftarPengambilan /></ProtectedRoute>} />
-      <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
-      <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />
+        {/* Fulfillment */}
+        <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
+        <Route path="/shipping/export" element={<ProtectedRoute><ShippingExport /></ProtectedRoute>} />
+        <Route path="/picking" element={<ProtectedRoute><DaftarPengambilan /></ProtectedRoute>} />
+        <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
+        <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />
 
-      {/* Marketing */}
-      <Route path="/promotions" element={<ProtectedRoute><Promotions /></ProtectedRoute>} />
-      <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
-      <Route path="/advertising" element={<ProtectedRoute><Advertising /></ProtectedRoute>} />
+        {/* Marketing */}
+        <Route path="/promotions" element={<ProtectedRoute><Promotions /></ProtectedRoute>} />
+        <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+        <Route path="/advertising" element={<ProtectedRoute><Advertising /></ProtectedRoute>} />
 
-      {/* Analytics */}
-      <Route path="/analytics/sales" element={<ProtectedRoute><SalesAnalyticsDetail /></ProtectedRoute>} />
-      <Route path="/analytics/products" element={<ProtectedRoute><ProductAnalytics /></ProtectedRoute>} />
-      <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
+        {/* Analytics */}
+        <Route path="/analytics/sales" element={<ProtectedRoute><SalesAnalyticsDetail /></ProtectedRoute>} />
+        <Route path="/analytics/products" element={<ProtectedRoute><ProductAnalytics /></ProtectedRoute>} />
+        <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
 
-      {/* Finance */}
-      <Route path="/finance/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-      <Route path="/finance/payouts" element={<ProtectedRoute><Payouts /></ProtectedRoute>} />
-      <Route path="/finance/fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
-      <Route path="/finance/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+        {/* Finance */}
+        <Route path="/finance/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+        <Route path="/finance/payouts" element={<ProtectedRoute><Payouts /></ProtectedRoute>} />
+        <Route path="/finance/fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
+        <Route path="/finance/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 
-      {/* Store */}
-      <Route path="/store/profile" element={<ProtectedRoute><StoreProfile /></ProtectedRoute>} />
-      <Route path="/store/design" element={<ProtectedRoute><StoreDesign /></ProtectedRoute>} />
-      <Route path="/store/team" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
+        {/* Store */}
+        <Route path="/store/profile" element={<ProtectedRoute><StoreProfile /></ProtectedRoute>} />
+        <Route path="/store/design" element={<ProtectedRoute><StoreDesign /></ProtectedRoute>} />
+        <Route path="/store/team" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
 
-      {/* System */}
-      <Route path="/system/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-      <Route path="/system/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
-      <Route path="/system/roles" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
-      <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+        {/* System */}
+        <Route path="/system/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="/system/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
+        <Route path="/system/roles" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
+        <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
 
-      <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
-      <Route path="/settings/shipping" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-    </Routes>
+        <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
+        <Route path="/settings/shipping" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      </Routes>
+    </Suspense>
   )
 }

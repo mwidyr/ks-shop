@@ -14,20 +14,19 @@ type queryRower interface {
 }
 
 // ComputeShippingFee resolves the actual shipping fee for an order: 0 if overridden or the
-// subtotal clears the relevant free-shipping threshold, otherwise the chain's fee. "Alamat
-// Customer" (home delivery) and "Lainnya" use the flat home_delivery_flat_fee setting since
-// their per-chain target_fee is always 0 (no fixed courier rate to reference); minimarket
-// chains (7-Eleven/FamilyMart) use their own seller-set target_fee. Chain type is inferred by
-// name since pickup_chains has no separate category column.
+// subtotal clears the relevant free-shipping threshold, otherwise the chain's fee. Home-delivery
+// chains (chain_type='courier') use the flat home_delivery_flat_fee setting since their per-chain
+// target_fee is always 0 (no fixed courier rate to reference); minimarket chains
+// (cvs_711/cvs_familymart/other) use their own seller-set target_fee.
 func ComputeShippingFee(ctx context.Context, db queryRower, pickupChainID int, subtotal float64, override bool) (float64, error) {
 	if override {
 		return 0, nil
 	}
 
-	var chainName string
+	var chainType string
 	var targetFee float64
-	if err := db.QueryRow(ctx, `SELECT name, target_fee FROM pickup_chains WHERE id=$1`, pickupChainID).
-		Scan(&chainName, &targetFee); err != nil {
+	if err := db.QueryRow(ctx, `SELECT chain_type, target_fee FROM pickup_chains WHERE id=$1`, pickupChainID).
+		Scan(&chainType, &targetFee); err != nil {
 		return 0, err
 	}
 
@@ -36,8 +35,8 @@ func ComputeShippingFee(ctx context.Context, db queryRower, pickupChainID int, s
 		return 0, err
 	}
 
-	switch chainName {
-	case "Alamat Customer", "Lainnya":
+	switch chainType {
+	case "courier":
 		if values["free_shipping_threshold_pos"] > 0 && subtotal >= values["free_shipping_threshold_pos"] {
 			return 0, nil
 		}

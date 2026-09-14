@@ -24,7 +24,6 @@ const navGroups = [
       { to: '/picking', key: 'picking', icon: IconClipboard },
       { to: '/shipping', key: 'shipping', icon: IconTruck },
       { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
-      { to: '/customers', key: 'customers', icon: IconUsers, upcoming: true },
       { to: '/reviews', key: 'reviews', icon: IconStar, upcoming: true },
     ],
   },
@@ -33,16 +32,11 @@ const navGroups = [
       { to: '/products', key: 'products', icon: IconProducts },
       { to: '/categories', key: 'categories', icon: IconTag },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
+      { to: '/customers', key: 'customers', icon: IconUsers, upcoming: true },
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
       { to: '/suppliers', key: 'suppliers', icon: IconTruck },
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
       { to: '/purchase-alert', key: 'purchase_alert', icon: IconChecklist },
-    ],
-  },
-  {
-    title: 'fulfillment', icon: IconTruck, items: [
-      { to: '/returns', key: 'returns', icon: IconUndo },
-      { to: '/refunds', key: 'refunds', icon: IconWallet, upcoming: true },
     ],
   },
   {
@@ -68,6 +62,12 @@ const navGroups = [
     ],
   },
   {
+    title: 'fulfillment', icon: IconTruck, items: [
+      { to: '/returns', key: 'returns', icon: IconUndo },
+      { to: '/refunds', key: 'refunds', icon: IconWallet, upcoming: true },
+    ],
+  },
+  {
     title: 'store', icon: IconStore, items: [
       { to: '/store/profile', key: 'store_profile', icon: IconStore },
       { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
@@ -85,6 +85,16 @@ const navGroups = [
     ],
   },
 ]
+
+// Product decision: only these tabs are shown in the sidebar for now. Everything else stays
+// fully implemented (routes, handlers, translations, navGroups entry) - just hidden from nav
+// until it's ready to ship. This is a blanket visibility gate on top of (not a replacement
+// for) the per-role canSeeTab() permission check below.
+const VISIBLE_TAB_KEYS = new Set([
+  'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
+  'reports', 'sales_analytics', 'product_analytics', 'profit', 'hosts', 'returns',
+  'store_profile', 'shipping_settings', 'roles',
+])
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
 // literal nav destinations (detail/create/edit/print pages).
@@ -187,7 +197,7 @@ export default function AppShell({ children }) {
 
           {navGroups.map((group) => {
             const GroupIcon = group.icon
-            const visibleItems = group.items.filter((item) => canSeeTab(item.key))
+            const visibleItems = group.items.filter((item) => VISIBLE_TAB_KEYS.has(item.key) && canSeeTab(item.key))
             if (visibleItems.length === 0) return null
             return (
               <div key={group.title}>

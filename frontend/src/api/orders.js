@@ -17,12 +17,16 @@ export function updateOrderStatus(id, status, reason) {
   return client.patch(`/orders/${id}/status`, { status, reason }).then((res) => res.data)
 }
 
-export function updateOrderNotes(id, internalNotes) {
-  return client.patch(`/orders/${id}/notes`, { internal_notes: internalNotes }).then((res) => res.data)
+export function updateOrderNotes(id, payload) {
+  return client.patch(`/orders/${id}/notes`, payload).then((res) => res.data)
 }
 
 export function updateOrderKeepDate(id, keepDate) {
   return client.patch(`/orders/${id}/keep-date`, { keep_date: keepDate || null }).then((res) => res.data)
+}
+
+export function updateOrderPickup(id, payload) {
+  return client.patch(`/orders/${id}/pickup`, payload).then((res) => res.data)
 }
 
 export function addOrderAttachment(id, url) {

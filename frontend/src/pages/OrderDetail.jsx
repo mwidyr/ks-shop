@@ -2,14 +2,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderStatus,
+  addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
 } from '../api/orders'
+import { listPickupChains } from '../api/pickupChains'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
 import { IconClose } from '../components/icons'
+
+function isoToLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 const transitions = {
   pending: ['picking', 'cancelled'],
@@ -86,6 +94,185 @@ function SplitOrderModal({ order, onClose, onDone }) {
   )
 }
 
+function NotesModal({ order, onClose, onDone }) {
+  const { t } = useTranslation()
+  const [notes, setNotes] = useState(order.internal_notes || '')
+  const [isUrgent, setIsUrgent] = useState(order.is_urgent || false)
+  const [deadline, setDeadline] = useState(isoToLocalInput(order.notes_deadline))
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await updateOrderNotes(order.id, {
+        internal_notes: notes,
+        is_urgent: isUrgent,
+        notes_deadline: isUrgent && deadline ? new Date(deadline).toISOString() : null,
+      })
+      onDone()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-gray-100">
+          <h2 className="font-bold text-lg text-gray-800 mb-1">{t('page_order_detail.notes_modal_title')}</h2>
+          <p className="text-xs text-gray-500">{t('page_order_detail.notes_modal_hint', { orderNo: order.order_no })}</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <label className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5 cursor-pointer">
+            <span className="text-sm font-medium text-gray-700">{t('page_order_detail.mark_urgent_label')}</span>
+            <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="w-4 h-4" />
+          </label>
+          {isUrgent && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_detail.deadline_label')}</label>
+              <input
+                type="datetime-local"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_detail.internal_notes_label')}</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 2000))}
+              rows={4}
+              maxLength={2000}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y"
+            />
+            <p className="text-xs text-gray-400 text-right mt-1">{notes.length} / 2000</p>
+          </div>
+        </div>
+        <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
+            {t('common.back')}
+          </button>
+          <button onClick={handleSave} disabled={saving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
+            {saving ? t('page_order_detail.saving_button') : t('common.save')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
+  const { t } = useTranslation()
+  const [chainId, setChainId] = useState(String(order.pickup_chain_id || ''))
+  const [storeName, setStoreName] = useState(order.pickup_store_name || '')
+  const [storeCode, setStoreCode] = useState(order.pickup_store_code || '')
+  const [address, setAddress] = useState(order.shipping_address || '')
+  const [fee, setFee] = useState(order.shipping_fee || 0)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const selectedChain = pickupChains.find((c) => String(c.id) === chainId)
+  const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
+  const storeCodeValid = !isCvs || /^\d{6}$/.test(storeCode)
+
+  async function handleSave() {
+    setError('')
+    if (!chainId) {
+      setError(t('page_order_create.block_error_pickup_method', { index: 1 }))
+      return
+    }
+    if (!storeCodeValid) return
+    setSaving(true)
+    try {
+      await updateOrderPickup(order.id, {
+        pickup_chain_id: Number(chainId),
+        pickup_store_name: storeName,
+        pickup_store_code: storeCode,
+        shipping_address: isCvs ? '' : address,
+        shipping_fee_override: Number(fee) || 0,
+      })
+      onDone()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_order_detail.update_status_failed_error'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-bold text-lg text-gray-800">{t('page_order_detail.pickup_modal_title')}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IconClose /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.pickup_method_label')}</label>
+            <div className="flex flex-wrap gap-2">
+              {pickupChains.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setChainId(String(c.id))}
+                  className={`text-sm font-semibold px-4 py-2 rounded-lg border ${
+                    chainId === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedChain && (isCvs ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.store_code_label')}</label>
+                <input
+                  value={storeCode}
+                  onChange={(e) => setStoreCode(e.target.value)}
+                  placeholder={t('page_order_create.store_code_placeholder')}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm ${storeCodeValid ? 'border-gray-300' : 'border-red-400'}`}
+                />
+                {!storeCodeValid && <p className="text-xs text-red-600 mt-1">{t('page_order_create.store_code_format_error')}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.store_name_label')}</label>
+                <input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder={t('page_order_create.store_name_placeholder')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_address_label')}</label>
+              <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          ))}
+
+          {selectedChain && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
+              <input type="number" min="0" value={fee} onChange={(e) => setFee(Number(e.target.value) || 0)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+        <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
+            {t('common.back')}
+          </button>
+          <button onClick={handleSave} disabled={saving || !storeCodeValid} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
+            {saving ? t('page_order_detail.saving_button') : t('common.save')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function OrderDetail() {
   const { t } = useTranslation()
   const { id } = useParams()
@@ -94,21 +281,22 @@ export default function OrderDetail() {
   const [reason, setReason] = useState('')
   const [pendingAction, setPendingAction] = useState(null)
   const [error, setError] = useState('')
-  const [notesDraft, setNotesDraft] = useState('')
-  const [notesSaving, setNotesSaving] = useState(false)
-  const [notesSaved, setNotesSaved] = useState(false)
   const [keepDateDraft, setKeepDateDraft] = useState('')
   const [keepDateSaving, setKeepDateSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useState(false)
+  const [notesModalOpen, setNotesModalOpen] = useState(false)
+  const [pickupModalOpen, setPickupModalOpen] = useState(false)
+  const [pickupChains, setPickupChains] = useState([])
 
   function load() {
-    getOrder(id).then((o) => { setOrder(o); setNotesDraft(o.internal_notes || ''); setKeepDateDraft(o.keep_date || '') })
+    getOrder(id).then((o) => { setOrder(o); setKeepDateDraft(o.keep_date || '') })
   }
 
   useEffect(() => { load() }, [id])
+  useEffect(() => { listPickupChains().then(setPickupChains) }, [])
 
   async function handleUpdateStatus(status) {
     setError('')
@@ -152,18 +340,6 @@ export default function OrderDetail() {
     }
   }
 
-  async function saveNotes() {
-    setNotesSaving(true)
-    setNotesSaved(false)
-    try {
-      await updateOrderNotes(id, notesDraft)
-      setNotesSaved(true)
-      setTimeout(() => setNotesSaved(false), 2000)
-    } finally {
-      setNotesSaving(false)
-    }
-  }
-
   async function handleUploadAttachment(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -199,10 +375,16 @@ export default function OrderDetail() {
     : t('page_order_detail.progress_done')
 
   async function copyOrderInfo() {
+    const isGrouped = order.shipment_group_id && order.shipment_group_items?.length > 0
     const orderNos = order.shipment_group_id ? [order.order_no, ...order.shipment_group_order_nos] : [order.order_no]
     const pickupInfo = `${order.pickup_chain_name}${order.pickup_store_name ? ' - ' + order.pickup_store_name : ''}${order.pickup_store_code ? ' #' + order.pickup_store_code : ''}`
-    const shippingInfo = order.shipping_fee > 0
-      ? formatCurrency(order.shipping_fee)
+    // When merged, the fee/total/items must reflect the whole group (one shipping charge,
+    // every product across all merged orders) - never just this order's own slice of it.
+    const items = isGrouped ? order.shipment_group_items : order.items
+    const total = isGrouped ? order.shipment_group_total : order.total
+    const shippingFee = isGrouped ? order.shipment_group_shipping_fee : order.shipping_fee
+    const shippingInfo = shippingFee > 0
+      ? formatCurrency(shippingFee)
       : t('page_order_detail.free_label') + (order.shipment_group_id ? t('page_order_detail.copy_combined_shipment_note') : '')
     const lines = [
       t('page_order_detail.copy_order_label', { orderNos: orderNos.join(' + ') }),
@@ -211,10 +393,10 @@ export default function OrderDetail() {
       t('page_order_detail.copy_pickup_label', { pickup: pickupInfo }),
       '',
       t('page_order_detail.copy_products_header'),
-      ...order.items.map((it) => t('page_order_detail.copy_item_line', { name: it.product_name, variant: `${it.color}/${it.size}`, qty: it.qty, subtotal: formatCurrency(it.price * it.qty) })),
+      ...items.map((it) => t('page_order_detail.copy_item_line', { name: it.product_name, variant: `${it.color}/${it.size}`, qty: it.qty, subtotal: formatCurrency(it.price * it.qty) })),
       '',
       t('page_order_detail.copy_shipping_label', { fee: shippingInfo }),
-      t('page_order_detail.copy_total_label', { total: formatCurrency(order.total) }),
+      t('page_order_detail.copy_total_label', { total: formatCurrency(total) }),
     ]
     try {
       await navigator.clipboard.writeText(lines.join('\n'))
@@ -228,7 +410,14 @@ export default function OrderDetail() {
   return (
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-extrabold text-gray-800">{order.order_no}</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-2">
+          {order.order_no}
+          {order.is_urgent && (
+            <span className="text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+              {t('page_order_detail.urgent_badge')}
+            </span>
+          )}
+        </h1>
         <div className="flex items-center gap-2">
           <button onClick={copyOrderInfo} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
             {copied ? t('page_order_detail.copied_label') : t('page_order_detail.copy_info_button')}
@@ -366,11 +555,17 @@ export default function OrderDetail() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-700 mb-1">{t('page_order_detail.pickup_method_label')}</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.pickup_method_label')}</p>
+              <button onClick={() => setPickupModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+                {t('page_order_detail.edit_pickup_button')}
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mb-3">
               {order.pickup_chain_name || '-'}
               {order.pickup_store_name && ` · ${order.pickup_store_name}`}
               {order.pickup_store_code && <span className="font-mono"> #{order.pickup_store_code}</span>}
+              {' · '}{formatCurrency(order.shipping_fee)}
             </p>
             <p className="text-sm font-semibold text-gray-700 mb-1">{t('page_order_detail.shipping_address_label')}</p>
             <p className="text-sm text-gray-500">{order.shipping_address || '-'}</p>
@@ -384,20 +579,25 @@ export default function OrderDetail() {
           )}
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-700 mb-2">{t('page_order_detail.internal_notes_label')}</p>
-            <textarea
-              value={notesDraft}
-              onChange={(e) => setNotesDraft(e.target.value)}
-              rows={2}
-              placeholder={t('page_order_detail.notes_placeholder')}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-2"
-            />
-            <div className="flex items-center gap-2">
-              <button onClick={saveNotes} disabled={notesSaving} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50">
-                {notesSaving ? t('page_order_detail.saving_button') : t('page_order_detail.save_notes_button')}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-700">
+                {t('page_order_detail.internal_notes_label')}
+                {order.is_urgent && (
+                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">
+                    {t('page_order_detail.urgent_badge')}
+                  </span>
+                )}
+              </p>
+              <button onClick={() => setNotesModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+                {t('page_order_detail.edit_notes_button')}
               </button>
-              {notesSaved && <span className="text-xs text-green-600">{t('page_order_detail.saved_label')}</span>}
             </div>
+            {order.is_urgent && order.notes_deadline && (
+              <p className="text-xs text-red-600 mb-1">
+                {t('page_order_detail.deadline_label')}: {new Date(order.notes_deadline).toLocaleString('id-ID')}
+              </p>
+            )}
+            <p className="text-sm text-gray-500 whitespace-pre-wrap">{order.internal_notes || t('page_order_detail.no_notes')}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
@@ -528,6 +728,17 @@ export default function OrderDetail() {
           order={order}
           onClose={() => setSplitOpen(false)}
           onDone={(newOrderId) => navigate(`/orders/${newOrderId}`)}
+        />
+      )}
+      {notesModalOpen && (
+        <NotesModal order={order} onClose={() => setNotesModalOpen(false)} onDone={() => { setNotesModalOpen(false); load() }} />
+      )}
+      {pickupModalOpen && (
+        <PickupMethodModal
+          order={order}
+          pickupChains={pickupChains}
+          onClose={() => setPickupModalOpen(false)}
+          onDone={() => { setPickupModalOpen(false); load() }}
         />
       )}
     </div>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
 import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct } from '../api/products'
+import { listCategories } from '../api/categories'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
@@ -18,6 +19,10 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
+  const colors = [...new Set(p.variants.map((v) => v.color).filter(Boolean))]
+  const sizes = [...new Set(p.variants.map((v) => v.size).filter(Boolean))]
+  const colorsLabel = colors.length <= 1 ? t('page_products.one_color') : colors.join(', ')
+  const sizesLabel = sizes.length <= 1 ? t('page_products.one_size') : sizes.join(', ')
   const prices = p.variants.map((v) => v.price)
   const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
     ? formatCurrency(Math.min(...prices))
@@ -28,7 +33,10 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   const maxDiscountPct = discountPcts.length ? Math.max(...discountPcts) : 0
 
   async function toggleActive() {
-    await updateProduct(p.id, { name: p.name, description: p.description, category: p.category, brand: p.brand, is_active: !p.is_active })
+    await updateProduct(p.id, {
+      sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, category: p.category,
+      brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: !p.is_active,
+    })
     onChanged()
   }
 
@@ -52,8 +60,11 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
         <div className="flex items-center gap-3">
           <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
           <div className="min-w-0">
+            {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
             <p className="font-semibold text-gray-800 text-sm truncate">{p.name}</p>
-            <p className="text-xs text-gray-500">{p.category} · {t('page_products.variant_count', { count: p.variants.length })}</p>
+            {p.category && <p className="text-xs text-gray-500">{p.category}</p>}
+            <p className="text-xs text-gray-500">{colorsLabel}</p>
+            <p className="text-xs text-gray-500">{sizesLabel}</p>
           </div>
         </div>
       </td>
@@ -110,6 +121,10 @@ export default function Products() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('all')
   const [search, setSearch] = useState('')
+  const [stockFilter, setStockFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [sortBy, setSortBy] = useState('newest')
+  const [categories, setCategories] = useState([])
 
   const [selected, setSelected] = useState(new Set())
   const [bulkStock, setBulkStock] = useState('')
@@ -128,23 +143,42 @@ export default function Products() {
   }
 
   useEffect(reload, [])
+  useEffect(() => { listCategories().then((cats) => setCategories(cats.map((c) => c.name).sort())) }, [])
 
   const activeCount = products.filter((p) => p.is_active).length
   const inactiveCount = products.length - activeCount
 
   const filtered = useMemo(() => {
-    return products.filter((p) => {
+    const list = products.filter((p) => {
       if (tab === 'active' && !p.is_active) return false
       if (tab === 'inactive' && p.is_active) return false
       if (search) {
         const q = search.toLowerCase()
         const matchesName = p.name.toLowerCase().includes(q)
-        const matchesSku = p.variants.some((v) => v.sku.toLowerCase().includes(q))
+        const matchesSku = (p.sku || '').toLowerCase().includes(q)
         if (!matchesName && !matchesSku) return false
+      }
+      if (categoryFilter && p.category !== categoryFilter) return false
+      if (stockFilter !== 'all') {
+        const total = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
+        if (stockFilter === 'has_stock' && !(total > 0)) return false
+        if (stockFilter === 'low_stock' && !(total > 0 && total <= 5)) return false
+        if (stockFilter === 'out_of_stock' && total !== 0) return false
+        if (stockFilter === 'oversell' && !p.is_oversell) return false
       }
       return true
     })
-  }, [products, tab, search])
+
+    const priceOf = (p) => (p.variants.length ? Math.min(...p.variants.map((v) => v.price)) : 0)
+    const stockOf = (p) => p.variants.reduce((sum, v) => sum + v.total_stock, 0)
+    const sorted = [...list]
+    if (sortBy === 'newest') sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    else if (sortBy === 'stock_desc') sorted.sort((a, b) => stockOf(b) - stockOf(a))
+    else if (sortBy === 'stock_asc') sorted.sort((a, b) => stockOf(a) - stockOf(b))
+    else if (sortBy === 'price_desc') sorted.sort((a, b) => priceOf(b) - priceOf(a))
+    else if (sortBy === 'price_asc') sorted.sort((a, b) => priceOf(a) - priceOf(b))
+    return sorted
+  }, [products, tab, search, categoryFilter, stockFilter, sortBy])
 
   function toggleSelect(id) {
     setSelected((s) => {
@@ -222,7 +256,10 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const results = await Promise.allSettled(
-      selectedProducts().map((p) => updateProduct(p.id, { name: p.name, description: p.description, brand: p.brand, category: bulkCategory, is_active: p.is_active }))
+      selectedProducts().map((p) => updateProduct(p.id, {
+        sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, brand: p.brand,
+        base_price: p.base_price, allow_oversell: p.allow_oversell, category: bulkCategory, is_active: p.is_active,
+      }))
     )
     const fail = results.filter((r) => r.status === 'rejected').length
     setBulkResult(fail > 0
@@ -237,7 +274,10 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const results = await Promise.allSettled(
-      selectedProducts().map((p) => updateProduct(p.id, { name: p.name, description: p.description, category: p.category, brand: p.brand, is_active: isActive }))
+      selectedProducts().map((p) => updateProduct(p.id, {
+        sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, category: p.category,
+        brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: isActive,
+      }))
     )
     const fail = results.filter((r) => r.status === 'rejected').length
     setBulkResult(fail > 0
@@ -380,13 +420,31 @@ export default function Products() {
           ))}
         </div>
 
-        <div className="p-4 border-b border-gray-100">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-2 items-center">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('page_products.search_placeholder')}
             className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
+          <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
+            <option value="all">{t('page_products.stock_filter_all')}</option>
+            <option value="has_stock">{t('page_products.stock_filter_has_stock')}</option>
+            <option value="low_stock">{t('page_products.stock_filter_low_stock')}</option>
+            <option value="out_of_stock">{t('page_products.stock_filter_out_of_stock')}</option>
+            <option value="oversell">{t('page_products.stock_filter_oversell')}</option>
+          </select>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
+            <option value="">{t('page_products.category_filter_all')}</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
+            <option value="newest">{t('page_products.sort_newest')}</option>
+            <option value="stock_desc">{t('page_products.sort_stock_desc')}</option>
+            <option value="stock_asc">{t('page_products.sort_stock_asc')}</option>
+            <option value="price_desc">{t('page_products.sort_price_desc')}</option>
+            <option value="price_asc">{t('page_products.sort_price_asc')}</option>
+          </select>
         </div>
 
         {loading ? (

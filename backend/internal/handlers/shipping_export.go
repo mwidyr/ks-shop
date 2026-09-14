@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -10,37 +13,67 @@ import (
 )
 
 // ShippingExportHandler builds the two carrier export layouts the client actually uses today:
-// Format A ("Penerima/Alamat/COD/Status") for home delivery ("Alamat Customer"/"Lainnya"), and
-// Format B ("Pembeli/Toko/Nilai barang/Ongkir/Status") for minimarket pickup (7-Eleven/
-// FamilyMart) - chain type is inferred by name, same as shipping_fee.go. Exact column names may
-// still change (the client said the format may be adjusted later); the underlying data and the
+// Format A ("Penerima/Alamat/COD/Status") for home delivery (chain_type='courier'), and
+// Format B ("Pembeli/Toko/Nilai barang/Ongkir/Status") for minimarket pickup
+// (chain_type='cvs_711'/'cvs_familymart'/'other'). Exact column names may still change (the
+// client said the format may be adjusted later); the underlying data and the
 // exported/tracking-number bookkeeping is the durable part.
 type ShippingExportHandler struct {
 	DB *pgxpool.Pool
 }
 
 type shippingExportRow struct {
-	OrderID         int      `json:"order_id"`
-	OrderNo         string   `json:"order_no"`
-	CustomerName    string   `json:"customer_name"`
-	CustomerPhone   string   `json:"customer_phone"`
-	ShippingAddress string   `json:"shipping_address"`
-	PickupChainName string   `json:"pickup_chain_name"`
-	PickupStoreName string   `json:"pickup_store_name"`
-	PickupStoreCode string   `json:"pickup_store_code"`
-	IsHomeDelivery  bool     `json:"is_home_delivery"`
-	ItemValue       float64  `json:"item_value"`
-	ShippingFee     float64  `json:"shipping_fee"`
-	TotalToPay      float64  `json:"total_to_pay"`
-	Status          string   `json:"status"`
-	ExportedAt      *string  `json:"exported_at"`
-	TrackingNumber  *string  `json:"tracking_number"`
-	GroupOrderNos   []string `json:"group_order_nos"`
+	OrderID               int      `json:"order_id"`
+	OrderIDs              []int    `json:"order_ids"`
+	OrderNo               string   `json:"order_no"`
+	GroupOrderNos         []string `json:"group_order_nos"`
+	CustomerName          string   `json:"customer_name"`
+	CustomerPhone         string   `json:"customer_phone"`
+	ShippingAddress       string   `json:"shipping_address"`
+	PickupChainName       string   `json:"pickup_chain_name"`
+	ChainType             string   `json:"chain_type"`
+	PickupStoreName       string   `json:"pickup_store_name"`
+	PickupStoreCode       string   `json:"pickup_store_code"`
+	IsHomeDelivery        bool     `json:"is_home_delivery"`
+	ItemsSummary          string   `json:"items_summary"`
+	TotalQty              int      `json:"total_qty"`
+	ItemValue             float64  `json:"item_value"`
+	ShippingFee           float64  `json:"shipping_fee"`
+	TotalToPay            float64  `json:"total_to_pay"`
+	OrderDate             string   `json:"order_date"`
+	InternalNotesCombined string   `json:"internal_notes_combined"`
+	Status                string   `json:"status"`
+	ExportedAt            *string  `json:"exported_at"`
+	TrackingNumber        *string  `json:"tracking_number"`
 }
 
-// List returns orders eligible for shipping export (status ready_to_ship/shipped). By default
-// already-exported+shipped orders are excluded (they can't be re-exported per the reference
-// system's own wording); pass ?include_exported=true to still see them.
+// exportOrderRow is one raw order fetched for export, before shipment-group collapsing.
+type exportOrderRow struct {
+	ID              int
+	OrderNo         string
+	CustomerName    string
+	CustomerPhone   string
+	ShippingAddress string
+	PickupChainName string
+	ChainType       string
+	PickupStoreName string
+	PickupStoreCode string
+	ItemValue       float64
+	ShippingFee     float64
+	Status          string
+	ExportedAt      *time.Time
+	TrackingNumber  *string
+	CreatedAt       time.Time
+	InternalNotes   string
+	GroupID         *int
+	FeeOrderID      *int
+}
+
+// List returns one row per PHYSICAL SHIPMENT eligible for export (status ready_to_ship/shipped):
+// a merged shipment group collapses to a single row (combined items/value/qty, the shipping fee
+// counted once) instead of one row per original order, since the carrier ships and collects COD
+// as one package. By default already-exported+shipped orders/groups are excluded; pass
+// ?include_exported=true to still see them.
 func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	where := " WHERE o.status IN ('ready_to_ship','shipped') "
 	if r.URL.Query().Get("include_exported") != "true" {
@@ -48,50 +81,150 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT o.id, o.order_no, c.name, c.phone, o.shipping_address, pc.name,
+		SELECT o.id, o.order_no, c.name, c.phone, o.shipping_address, pc.name, pc.chain_type,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
 		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order) FROM order_items oi WHERE oi.order_id = o.id),0) - o.discount_amount + o.additional_amount,
-		       CASE WHEN EXISTS (
-		           SELECT 1 FROM order_shipment_group_members gm
-		           JOIN order_shipment_groups g ON g.id = gm.group_id
-		           WHERE gm.order_id = o.id AND g.shipping_fee_order_id != o.id
-		       ) THEN 0 ELSE o.shipping_fee END,
-		       o.status, o.exported_at, o.tracking_number,
-		       COALESCE((
-		           SELECT array_agg(o3.order_no) FROM order_shipment_group_members gm3
-		           JOIN order_shipment_groups g3 ON g3.id = gm3.group_id
-		           JOIN orders o3 ON o3.id = gm3.order_id
-		           WHERE gm3.group_id = (SELECT group_id FROM order_shipment_group_members WHERE order_id = o.id)
-		             AND o3.id != o.id
-		       ), '{}')
+		       o.shipping_fee, o.status, o.exported_at, o.tracking_number, o.created_at,
+		       COALESCE(o.internal_notes,''), gm.group_id, g.shipping_fee_order_id
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
-		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id`+where+`
-		ORDER BY o.created_at DESC`)
+		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		LEFT JOIN order_shipment_group_members gm ON gm.order_id = o.id
+		LEFT JOIN order_shipment_groups g ON g.id = gm.group_id`+where+`
+		ORDER BY o.created_at ASC`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch export rows")
 		return
 	}
-	defer rows.Close()
-
-	list := []shippingExportRow{}
+	var orders []exportOrderRow
 	for rows.Next() {
-		var row shippingExportRow
-		var exportedAt *time.Time
-		if err := rows.Scan(&row.OrderID, &row.OrderNo, &row.CustomerName, &row.CustomerPhone, &row.ShippingAddress,
-			&row.PickupChainName, &row.PickupStoreName, &row.PickupStoreCode, &row.ItemValue, &row.ShippingFee,
-			&row.Status, &exportedAt, &row.TrackingNumber, &row.GroupOrderNos); err != nil {
+		var o exportOrderRow
+		if err := rows.Scan(&o.ID, &o.OrderNo, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress,
+			&o.PickupChainName, &o.ChainType, &o.PickupStoreName, &o.PickupStoreCode, &o.ItemValue, &o.ShippingFee,
+			&o.Status, &o.ExportedAt, &o.TrackingNumber, &o.CreatedAt, &o.InternalNotes, &o.GroupID, &o.FeeOrderID); err != nil {
 			continue
 		}
-		row.IsHomeDelivery = row.PickupChainName == "Alamat Customer" || row.PickupChainName == "Lainnya"
+		orders = append(orders, o)
+	}
+	rows.Close()
+
+	orderIDs := make([]int, len(orders))
+	for i, o := range orders {
+		orderIDs[i] = o.ID
+	}
+	itemsByOrder, qtyByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
+
+	groups := map[string][]exportOrderRow{}
+	var groupKeys []string
+	for _, o := range orders {
+		key := fmt.Sprintf("solo-%d", o.ID)
+		if o.GroupID != nil {
+			key = fmt.Sprintf("group-%d", *o.GroupID)
+		}
+		if _, ok := groups[key]; !ok {
+			groupKeys = append(groupKeys, key)
+		}
+		groups[key] = append(groups[key], o)
+	}
+
+	list := []shippingExportRow{}
+	for _, key := range groupKeys {
+		members := groups[key]
+		sort.Slice(members, func(i, j int) bool { return members[i].CreatedAt.Before(members[j].CreatedAt) })
+		primary := members[0]
+
+		row := shippingExportRow{
+			OrderID:         primary.ID,
+			OrderNo:         primary.OrderNo,
+			CustomerName:    primary.CustomerName,
+			CustomerPhone:   primary.CustomerPhone,
+			ShippingAddress: primary.ShippingAddress,
+			PickupChainName: primary.PickupChainName,
+			ChainType:       primary.ChainType,
+			PickupStoreName: primary.PickupStoreName,
+			PickupStoreCode: primary.PickupStoreCode,
+			Status:          primary.Status,
+			TrackingNumber:  primary.TrackingNumber,
+			OrderDate:       primary.CreatedAt.Format("2006/1/2"),
+		}
+		row.IsHomeDelivery = row.ChainType == "courier"
+
+		allExported := true
+		var earliestExported *time.Time
+		var itemFragments, notes []string
+		for _, m := range members {
+			row.OrderIDs = append(row.OrderIDs, m.ID)
+			if m.ID != primary.ID {
+				row.GroupOrderNos = append(row.GroupOrderNos, m.OrderNo)
+			}
+			row.ItemValue += m.ItemValue
+			row.TotalQty += qtyByOrder[m.ID]
+			if frag := itemsByOrder[m.ID]; frag != "" {
+				itemFragments = append(itemFragments, frag)
+			}
+			if m.InternalNotes != "" {
+				notes = append(notes, m.InternalNotes)
+			}
+			feeOrderID := primary.ID
+			if m.FeeOrderID != nil {
+				feeOrderID = *m.FeeOrderID
+			}
+			if m.ID == feeOrderID {
+				row.ShippingFee = m.ShippingFee
+			}
+			if m.ExportedAt == nil {
+				allExported = false
+			} else if earliestExported == nil || m.ExportedAt.Before(*earliestExported) {
+				earliestExported = m.ExportedAt
+			}
+		}
+		row.ItemsSummary = strings.Join(itemFragments, ", ")
+		row.InternalNotesCombined = strings.Join(notes, "; ")
 		row.TotalToPay = row.ItemValue + row.ShippingFee
-		if exportedAt != nil {
-			v := exportedAt.Format(time.RFC3339)
+		if allExported && earliestExported != nil {
+			v := earliestExported.Format(time.RFC3339)
 			row.ExportedAt = &v
 		}
 		list = append(list, row)
 	}
+
+	sort.Slice(list, func(i, j int) bool { return list[i].OrderID > list[j].OrderID })
 	respondJSON(w, http.StatusOK, list)
+}
+
+// fetchExportItemSummaries builds a "ProductName*qty" text fragment and a total qty per order,
+// for the given set of order IDs.
+func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]int) {
+	fragments := map[int][]string{}
+	qty := map[int]int{}
+	if len(orderIDs) == 0 {
+		return map[int]string{}, qty
+	}
+	rows, err := db.Query(r.Context(), `
+		SELECT oi.order_id, p.name, oi.qty
+		FROM order_items oi
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE oi.order_id = ANY($1)
+		ORDER BY oi.order_id, oi.id`, orderIDs)
+	if err != nil {
+		return map[int]string{}, qty
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var orderID, itemQty int
+		var name string
+		if err := rows.Scan(&orderID, &name, &itemQty); err != nil {
+			continue
+		}
+		fragments[orderID] = append(fragments[orderID], fmt.Sprintf("%s*%d", name, itemQty))
+		qty[orderID] += itemQty
+	}
+	summary := map[int]string{}
+	for orderID, frags := range fragments {
+		summary[orderID] = strings.Join(frags, ", ")
+	}
+	return summary, qty
 }
 
 type markExportedRequest struct {
