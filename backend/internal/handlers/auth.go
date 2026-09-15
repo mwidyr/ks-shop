@@ -72,6 +72,116 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type requestLoginOTPRequest struct {
+	Email string `json:"email"`
+}
+
+const loginOTPPurpose = "login_otp"
+const loginOTPTTL = 10 * time.Minute
+const loginOTPMaxAttempts = 5
+
+// RequestLoginOTP sends a 6-digit one-time login code to the given email - but only when that
+// email is already a registered, active account. Like ForgotPassword, the response is always
+// the same generic message regardless of whether the email matched, to avoid leaking which
+// emails are registered.
+func (h *AuthHandler) RequestLoginOTP(w http.ResponseWriter, r *http.Request) {
+	var req requestLoginOTPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var userID int
+	err := h.DB.QueryRow(r.Context(), `SELECT id FROM users WHERE email=$1 AND is_active=true`, req.Email).Scan(&userID)
+	if err == nil {
+		// Skip silently if a code was already issued moments ago (e.g. a double-click) instead
+		// of sending another email - the earlier code is still valid and unexpired.
+		var recentlyIssued bool
+		h.DB.QueryRow(r.Context(), `
+			SELECT true FROM auth_tokens
+			WHERE user_id=$1 AND purpose=$2 AND used_at IS NULL AND created_at > now() - interval '30 seconds'`,
+			userID, loginOTPPurpose).Scan(&recentlyIssued)
+
+		if !recentlyIssued {
+			// Invalidate any older still-live codes so only the newest one works.
+			h.DB.Exec(r.Context(), `UPDATE auth_tokens SET used_at=now() WHERE user_id=$1 AND purpose=$2 AND used_at IS NULL`, userID, loginOTPPurpose)
+
+			if code, codeErr := auth.NewOTPCode(); codeErr == nil {
+				if _, tokErr := h.DB.Exec(r.Context(), `
+					INSERT INTO auth_tokens (user_id, token_hash, purpose, expires_at) VALUES ($1,$2,$3,now()+$4::interval)`,
+					userID, auth.HashToken(code), loginOTPPurpose, fmt.Sprintf("%d seconds", int(loginOTPTTL.Seconds()))); tokErr == nil {
+					mailer.Send(h.Cfg, req.Email, "Your login code",
+						fmt.Sprintf("Your login code: %s\n\nValid for 10 minutes. Do not share this code with anyone.", code))
+				}
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"message": "if that email is registered, a login code has been sent"})
+}
+
+type verifyLoginOTPRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+// VerifyLoginOTP checks the code emailed by RequestLoginOTP and, if valid, issues a normal
+// session JWT - same response shape as Login, so the frontend handles both identically.
+func (h *AuthHandler) VerifyLoginOTP(w http.ResponseWriter, r *http.Request) {
+	var req verifyLoginOTPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var (
+		tokenID, attempts, id int
+		storedHash            string
+		name, email, role     string
+		customerID            *int
+		isActive              bool
+	)
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT at.id, at.attempts, at.token_hash, u.id, u.name, u.email, r.name, u.customer_id, u.is_active
+		FROM auth_tokens at
+		JOIN users u ON u.id = at.user_id
+		JOIN roles r ON r.id = u.role_id
+		WHERE u.email=$1 AND at.purpose=$2 AND at.used_at IS NULL AND at.expires_at > now()
+		ORDER BY at.id DESC LIMIT 1`, req.Email, loginOTPPurpose).
+		Scan(&tokenID, &attempts, &storedHash, &id, &name, &email, &role, &customerID, &isActive)
+	if err != nil {
+		respondError(w, http.StatusUnauthorized, "invalid or expired code")
+		return
+	}
+	if attempts >= loginOTPMaxAttempts {
+		respondError(w, http.StatusUnauthorized, "too many attempts, request a new code")
+		return
+	}
+	if !isActive {
+		respondError(w, http.StatusForbidden, "account is inactive")
+		return
+	}
+	if auth.HashToken(req.Code) != storedHash {
+		h.DB.Exec(r.Context(), `UPDATE auth_tokens SET attempts=attempts+1 WHERE id=$1`, tokenID)
+		respondError(w, http.StatusUnauthorized, "invalid or expired code")
+		return
+	}
+	h.DB.Exec(r.Context(), `UPDATE auth_tokens SET used_at=now() WHERE id=$1`, tokenID)
+
+	token, tokenErr := auth.GenerateToken(h.JWTSecret, id, name, email, role, customerID)
+	if tokenErr != nil {
+		respondError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"token": token,
+		"user": map[string]interface{}{
+			"id": id, "name": name, "email": email, "role": role, "customer_id": customerID,
+		},
+	})
+}
+
 type forgotPasswordRequest struct {
 	Email string `json:"email"`
 }

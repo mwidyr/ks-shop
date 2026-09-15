@@ -1,0 +1,65 @@
+# Production stack for a single self-hosted VPS (e.g. IDCloudHost): frontend + backend +
+# Postgres, all in Docker, with nginx (inside the "web" image) as the ONLY publicly exposed
+# service - db and backend stay on the internal compose network only. Access is via the VPS's
+# raw IP on :80 (no domain, no HTTPS) - see docs/DEPLOYMENT_VPS.md for the full setup guide.
+#
+# Usage: cp .env.prod.example .env, fill in real values, then:
+#   docker compose -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 8080
+      APP_BASE_URL: ${APP_BASE_URL}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@ks-shop.local}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      ECPAY_LOGISTICS_ENV: ${ECPAY_LOGISTICS_ENV:-staging}
+      ECPAY_LOGISTICS_MERCHANT_ID: ${ECPAY_LOGISTICS_MERCHANT_ID:-}
+      ECPAY_LOGISTICS_HASH_KEY: ${ECPAY_LOGISTICS_HASH_KEY:-}
+      ECPAY_LOGISTICS_HASH_IV: ${ECPAY_LOGISTICS_HASH_IV:-}
+      ECPAY_LOGISTICS_BASE_URL: ${ECPAY_LOGISTICS_BASE_URL:-}
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  backend_uploads:

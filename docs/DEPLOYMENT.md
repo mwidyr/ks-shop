@@ -1,5 +1,10 @@
 # Panduan Deploy Gratis
 
+> **Catatan**: panduan di bawah ini (Vercel + Back4app + Neon) adalah pendekatan sebelumnya.
+> Pendekatan yang dipakai sekarang adalah VPS sendiri (IDCloudHost) — lihat
+> [`DEPLOYMENT_VPS.md`](./DEPLOYMENT_VPS.md). Dokumen ini dibiarkan apa adanya sebagai referensi
+> kalau suatu saat ingin kembali ke opsi hosting gratis tanpa VPS.
+
 Kode sudah ada di `github.com/mwidyr/ks-shop`. Arsitektur yang dipakai — semua gratis, **tanpa
 kartu kredit**:
 

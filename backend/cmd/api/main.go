@@ -105,6 +105,8 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 		// Public
 		r.Post("/auth/login", authH.Login)
+		r.Post("/auth/otp/request", authH.RequestLoginOTP)
+		r.Post("/auth/otp/verify", authH.VerifyLoginOTP)
 		r.Post("/auth/forgot-password", authH.ForgotPassword)
 		r.Post("/auth/reset-password", authH.ResetPassword)
 		r.Post("/auth/accept-invite", authH.AcceptInvite)

@@ -1,5 +1,13 @@
 import client from './client'
 
+export function requestLoginOtp(email) {
+  return client.post('/auth/otp/request', { email }).then((res) => res.data)
+}
+
+export function verifyLoginOtp(email, code) {
+  return client.post('/auth/otp/verify', { email, code }).then((res) => res.data)
+}
+
 export function forgotPassword(email) {
   return client.post('/auth/forgot-password', { email }).then((res) => res.data)
 }

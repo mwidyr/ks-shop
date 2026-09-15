@@ -9,12 +9,16 @@ export function AuthProvider({ children }) {
     return raw ? JSON.parse(raw) : null
   })
 
+  function applySession(token, sessionUser) {
+    localStorage.setItem('token', token)
+    localStorage.setItem('user', JSON.stringify(sessionUser))
+    setUser(sessionUser)
+    return sessionUser
+  }
+
   async function login(email, password) {
     const res = await client.post('/auth/login', { email, password })
-    localStorage.setItem('token', res.data.token)
-    localStorage.setItem('user', JSON.stringify(res.data.user))
-    setUser(res.data.user)
-    return res.data.user
+    return applySession(res.data.token, res.data.user)
   }
 
   function logout() {
@@ -24,7 +28,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, applySession }}>
       {children}
     </AuthContext.Provider>
   )
