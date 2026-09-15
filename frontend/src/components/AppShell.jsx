@@ -94,7 +94,7 @@ const navGroups = [
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
-  'reports', 'sales_analytics', 'product_analytics', 'product_performance', 'host_category_leaderboard', 'profit', 'hosts', 'returns',
+  'reports', 'product_analytics', 'product_performance', 'host_category_leaderboard', 'hosts', 'returns',
   'store_profile', 'shipping_settings', 'roles',
 ])
 

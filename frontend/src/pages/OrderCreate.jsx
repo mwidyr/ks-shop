@@ -63,6 +63,11 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
   const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, block.pickupStoreCode, isCvs)
 
   useEffect(() => {
+    if (storeCodeCheck?.exists) onUpdate('pickupStoreName', storeCodeCheck.storeName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeCodeCheck])
+
+  useEffect(() => {
     if (block.shippingFeeDirty) return
     onUpdate('shippingFee', defaultShippingFee(selectedChain, shippingSettings, subtotal))
     // eslint-disable-next-line react-hooks/exhaustive-deps

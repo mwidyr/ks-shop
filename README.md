@@ -9,20 +9,35 @@ Live, dll): dashboard performa host, order management (order dibuat manual oleh 
 - **Database:** PostgreSQL 16
 - **Frontend:** React 18 + Vite + Tailwind (CDN) + Recharts (grafik dashboard)
 
-## Deploy Gratis ke Internet
+## Deploy ke Production (VPS sendiri)
 
-Mau publish project ini (frontend di Vercel, backend + database + storage foto gratis)? Ikuti
-[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — sudah termasuk file konfigurasi siap pakai
-(`render.yaml`, `frontend/vercel.json`) dan backend sudah mendukung upload foto ke Cloudinary
-supaya tidak hilang saat server restart.
+Pendekatan saat ini: satu VPS (mis. IDCloudHost) menjalankan frontend + backend + Postgres
+sekaligus lewat Docker Compose, diakses lewat IP VPS langsung (tanpa domain). Panduan lengkap
+langkah demi langkah ada di [`docs/DEPLOYMENT_VPS.md`](docs/DEPLOYMENT_VPS.md) — singkatnya:
 
-## Cara Menjalankan (Docker — paling mudah)
+```bash
+# di VPS, setelah Docker terinstall & repo di-clone
+cp .env.prod.example .env
+nano .env   # isi POSTGRES_PASSWORD, JWT_SECRET, APP_BASE_URL
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+File yang dipakai: `docker-compose.prod.yml` (stack production — hanya nginx/`web` yang
+publik di port 80, `db` & `backend` tetap internal), `frontend/Dockerfile.prod` +
+`frontend/nginx.conf` (build statis + reverse proxy ke backend), `.env.prod.example` (template
+env var). **Ini terpisah dari `docker-compose.yml`** di bawah, yang khusus untuk development
+lokal (Vite dev server, hot reload) — jangan pakai `docker-compose.yml` untuk production.
+
+Alternatif lama (Vercel + Back4app + Neon, semua tier gratis terpisah) masih didokumentasikan di
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) kalau suatu saat ingin kembali ke opsi tanpa VPS.
+
+## Cara Menjalankan Lokal (Docker — paling mudah)
 
 Prasyarat: [Docker](https://www.docker.com/) & Docker Compose terinstall. Build pertama kali butuh koneksi internet (download Go modules & npm packages).
 
 ```bash
 cd project
-docker-compose up --build
+docker compose up --build
 ```
 
 Tunggu sampai semua service siap (backend akan otomatis menjalankan migration + seed data saat start), lalu buka:
@@ -31,7 +46,10 @@ Tunggu sampai semua service siap (backend akan otomatis menjalankan migration + 
 - **Backend API:** http://localhost:8080/api
 - **PostgreSQL:** localhost:5432 (user: `postgres`, password: `postgres`, db: `ordermgmt`)
 
-Untuk stop: `Ctrl+C` lalu `docker-compose down` (tambahkan `-v` untuk reset database).
+Untuk stop: `Ctrl+C` lalu `docker compose down` (tambahkan `-v` untuk reset database).
+
+> Ini adalah stack **development** (`docker-compose.yml`, frontend jalan lewat Vite dev server
+> dengan hot reload di port 5173) — beda dari stack production di atas.
 
 ## Cara Menjalankan Manual (tanpa Docker)
 
@@ -100,18 +118,24 @@ Instagram) dan 5 kurir pengiriman (JNE, J&T, SiCepat, AnterAja, Kurir Toko).
 
 ```
 project/
-├── backend/            # Go API server
-│   ├── cmd/api/         # main.go + migrations (embedded)
-│   ├── internal/        # handlers, middleware, config, db, auth
-│   └── Dockerfile
-├── frontend/            # React + Vite internal app
+├── backend/                  # Go API server
+│   ├── cmd/api/               # main.go + migrations (embedded)
+│   ├── internal/              # handlers, middleware, config, db, auth
+│   └── Dockerfile             # dev image (go run-style build, used by docker-compose.yml)
+├── frontend/                 # React + Vite internal app
 │   ├── src/
-│   │   ├── pages/        # Dashboard, Orders, OrderCreate, OrderDetail, Products, ProductForm, Settings, Login
-│   │   ├── components/   # AppShell, DateRangePicker, StatusPill, StatTile, ImageUpload, CustomerPicker
-│   │   └── context/      # AuthContext
-│   └── Dockerfile
-├── docs/                # Spec & plan per modul (dari sesi requirement sebelumnya)
-├── docker-compose.yml
+│   │   ├── pages/              # Dashboard, Orders, OrderCreate, OrderDetail, Products, ProductForm, Settings, Login
+│   │   ├── components/         # AppShell, DateRangePicker, StatusPill, StatTile, ImageUpload, CustomerPicker
+│   │   └── context/            # AuthContext
+│   ├── Dockerfile              # dev image (npm run dev, used by docker-compose.yml)
+│   ├── Dockerfile.prod         # production image (static build + nginx, used by docker-compose.prod.yml)
+│   └── nginx.conf              # reverse proxy config for the production image
+├── docs/                     # Spec & plan per modul + deployment guides
+│   ├── DEPLOYMENT_VPS.md       # current: self-hosted VPS (Docker Compose)
+│   └── DEPLOYMENT.md           # old alternative: Vercel + Back4app + Neon (free tiers)
+├── docker-compose.yml        # LOCAL DEV stack (Vite dev server, hot reload)
+├── docker-compose.prod.yml   # PRODUCTION stack (nginx + static build, single VPS)
+├── .env.prod.example         # template for docker-compose.prod.yml secrets
 └── README.md
 ```
 

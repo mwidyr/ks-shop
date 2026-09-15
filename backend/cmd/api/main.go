@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -63,6 +64,7 @@ func main() {
 	} else {
 		log.Printf("ECPay logistics: env=%s base_url=%s merchant_id=%s", cfg.ECPayLogisticsEnv, cfg.ECPayLogisticsBaseURL, cfg.ECPayLogisticsMerchantID)
 	}
+	go runCvsStoreScheduler(cvsStoreH)
 	rolePermH := &handlers.RolePermissionHandler{DB: pool}
 	customerH := &handlers.CustomerHandler{DB: pool}
 	dashboardH := &handlers.DashboardHandler{DB: pool}
@@ -231,6 +233,32 @@ func main() {
 	log.Println("server listening on port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// runCvsStoreScheduler keeps the cvs_stores cache warm: refreshes immediately on startup (so a
+// fresh deploy has real data right away instead of an empty table waiting for the first user to
+// type a store code), then once every 24h after that - matching ValidateStoreCode's own 24h
+// staleness window, which stays in place as a lazy fallback.
+func runCvsStoreScheduler(h *handlers.CvsStoreHandler) {
+	if !h.Configured() {
+		log.Printf("CVS store cache scheduler: ECPay not configured, skipping automatic refresh")
+		return
+	}
+	refresh := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := h.RefreshAll(ctx); err != nil {
+			log.Printf("CVS store cache refresh failed: %v", err)
+		} else {
+			log.Printf("CVS store cache refreshed")
+		}
+	}
+	refresh()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		refresh()
 	}
 }
 

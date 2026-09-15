@@ -179,6 +179,10 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
   const storeCodeValid = !isCvs || /^\d{6}$/.test(storeCode)
   const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, storeCode, isCvs)
 
+  useEffect(() => {
+    if (storeCodeCheck?.exists) setStoreName(storeCodeCheck.storeName)
+  }, [storeCodeCheck])
+
   async function handleSave() {
     setError('')
     if (!chainId) {

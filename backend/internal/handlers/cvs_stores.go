@@ -18,8 +18,9 @@ import (
 // CvsStoreHandler validates a typed 7-Eleven/FamilyMart store code against a locally-cached
 // copy of ECPay's own store directory (their "取得門市清單"/GetStoreList Logistics API), so
 // staff get an immediate "kode toko tidak ditemukan" warning instead of only finding out at
-// pickup time. The cache is refreshed lazily (once a day at most) rather than on a schedule,
-// consistent with this app's existing "computed/refreshed at query time" convention.
+// pickup time. The cache is kept warm by a background scheduler (RefreshAll, started from
+// main.go: once at backend startup, then every 24h), with ValidateStoreCode's own lazy
+// missing/stale check as a fallback in case the scheduler hasn't run yet or was skipped.
 type CvsStoreHandler struct {
 	DB         *pgxpool.Pool
 	MerchantID string
@@ -28,7 +29,7 @@ type CvsStoreHandler struct {
 	BaseURL    string
 }
 
-func (h *CvsStoreHandler) configured() bool {
+func (h *CvsStoreHandler) Configured() bool {
 	return h.MerchantID != "" && h.HashKey != "" && h.HashIV != "" && h.BaseURL != ""
 }
 
@@ -189,12 +190,29 @@ func (h *CvsStoreHandler) refreshChain(ctx context.Context, chainType string) er
 	return tx.Commit(ctx)
 }
 
+// RefreshAll re-fetches every supported chain's store list from ECPay. Used both by the
+// startup/daily background scheduler (see main.go) and available for any future manual-refresh
+// entry point. One chain failing doesn't block the other.
+func (h *CvsStoreHandler) RefreshAll(ctx context.Context) error {
+	chains := []string{"cvs_711", "cvs_familymart"}
+	var errs []string
+	for _, chainType := range chains {
+		if err := h.refreshChain(ctx, chainType); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", chainType, err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 // ValidateStoreCode checks whether a typed store code exists for the given chain, refreshing
 // the local cache first if it's missing or more than 24h stale. If ECPay logistics credentials
 // aren't configured, responds {"configured": false} so the frontend can silently skip the
 // check rather than show a false "not found" error.
 func (h *CvsStoreHandler) ValidateStoreCode(w http.ResponseWriter, r *http.Request) {
-	if !h.configured() {
+	if !h.Configured() {
 		respondJSON(w, http.StatusOK, map[string]any{"configured": false})
 		return
 	}

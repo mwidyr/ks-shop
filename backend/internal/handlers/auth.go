@@ -80,10 +80,14 @@ const loginOTPPurpose = "login_otp"
 const loginOTPTTL = 10 * time.Minute
 const loginOTPMaxAttempts = 5
 
-// RequestLoginOTP sends a 6-digit one-time login code to the given email - but only when that
-// email is already a registered, active account. Like ForgotPassword, the response is always
-// the same generic message regardless of whether the email matched, to avoid leaking which
-// emails are registered.
+// RequestLoginOTP sends a 6-digit one-time login code to the given email - when it's either an
+// already-active account, or a still-pending invite (password_hash IS NULL - never completed
+// AcceptInvite, so a deliberately deactivated/offboarded account with a real password on file
+// stays excluded). A pending invite that verifies its code gets activated by VerifyLoginOTP
+// below - receiving and entering an emailed code proves email ownership at the same trust level
+// as clicking an invite link, so OTP can stand in as an alternative onboarding path. Like
+// ForgotPassword, the response is always the same generic message regardless of whether the
+// email matched, to avoid leaking which emails are registered.
 func (h *AuthHandler) RequestLoginOTP(w http.ResponseWriter, r *http.Request) {
 	var req requestLoginOTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
@@ -92,7 +96,7 @@ func (h *AuthHandler) RequestLoginOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userID int
-	err := h.DB.QueryRow(r.Context(), `SELECT id FROM users WHERE email=$1 AND is_active=true`, req.Email).Scan(&userID)
+	err := h.DB.QueryRow(r.Context(), `SELECT id FROM users WHERE email=$1 AND (is_active=true OR password_hash IS NULL)`, req.Email).Scan(&userID)
 	if err == nil {
 		// Skip silently if a code was already issued moments ago (e.g. a double-click) instead
 		// of sending another email - the earlier code is still valid and unexpired.
@@ -139,16 +143,16 @@ func (h *AuthHandler) VerifyLoginOTP(w http.ResponseWriter, r *http.Request) {
 		storedHash            string
 		name, email, role     string
 		customerID            *int
-		isActive              bool
+		isActive, hasPassword bool
 	)
 	err := h.DB.QueryRow(r.Context(), `
-		SELECT at.id, at.attempts, at.token_hash, u.id, u.name, u.email, r.name, u.customer_id, u.is_active
+		SELECT at.id, at.attempts, at.token_hash, u.id, u.name, u.email, r.name, u.customer_id, u.is_active, u.password_hash IS NOT NULL
 		FROM auth_tokens at
 		JOIN users u ON u.id = at.user_id
 		JOIN roles r ON r.id = u.role_id
 		WHERE u.email=$1 AND at.purpose=$2 AND at.used_at IS NULL AND at.expires_at > now()
 		ORDER BY at.id DESC LIMIT 1`, req.Email, loginOTPPurpose).
-		Scan(&tokenID, &attempts, &storedHash, &id, &name, &email, &role, &customerID, &isActive)
+		Scan(&tokenID, &attempts, &storedHash, &id, &name, &email, &role, &customerID, &isActive, &hasPassword)
 	if err != nil {
 		respondError(w, http.StatusUnauthorized, "invalid or expired code")
 		return
@@ -157,7 +161,10 @@ func (h *AuthHandler) VerifyLoginOTP(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnauthorized, "too many attempts, request a new code")
 		return
 	}
-	if !isActive {
+	// A deliberately deactivated (offboarded) account has a real password on file - that must
+	// stay blocked. A still-pending invite (no password ever set) is allowed through here and
+	// gets activated below - same trust level as completing the invite-link flow.
+	if !isActive && hasPassword {
 		respondError(w, http.StatusForbidden, "account is inactive")
 		return
 	}
@@ -167,6 +174,9 @@ func (h *AuthHandler) VerifyLoginOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.DB.Exec(r.Context(), `UPDATE auth_tokens SET used_at=now() WHERE id=$1`, tokenID)
+	if !isActive {
+		h.DB.Exec(r.Context(), `UPDATE users SET is_active=true WHERE id=$1`, id)
+	}
 
 	token, tokenErr := auth.GenerateToken(h.JWTSecret, id, name, email, role, customerID)
 	if tokenErr != nil {
