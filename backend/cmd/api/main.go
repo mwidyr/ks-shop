@@ -51,6 +51,18 @@ func main() {
 	orderH := &handlers.OrderHandler{DB: pool}
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
 	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
+	cvsStoreH := &handlers.CvsStoreHandler{
+		DB:         pool,
+		MerchantID: cfg.ECPayLogisticsMerchantID,
+		HashKey:    cfg.ECPayLogisticsHashKey,
+		HashIV:     cfg.ECPayLogisticsHashIV,
+		BaseURL:    cfg.ECPayLogisticsBaseURL,
+	}
+	if cfg.ECPayLogisticsEnv == "production" && cfg.ECPayLogisticsMerchantID == "" {
+		log.Printf("ECPay logistics: ECPAY_LOGISTICS_ENV=production but no MerchantID/HashKey/HashIV set - CVS store-code validation is disabled until real credentials are provided")
+	} else {
+		log.Printf("ECPay logistics: env=%s base_url=%s merchant_id=%s", cfg.ECPayLogisticsEnv, cfg.ECPayLogisticsBaseURL, cfg.ECPayLogisticsMerchantID)
+	}
 	rolePermH := &handlers.RolePermissionHandler{DB: pool}
 	customerH := &handlers.CustomerHandler{DB: pool}
 	dashboardH := &handlers.DashboardHandler{DB: pool}
@@ -120,6 +132,7 @@ func main() {
 			r.With(edit("categories")).Post("/categories", categoryH.Create)
 			r.With(edit("categories")).Delete("/categories/{id}", categoryH.Delete)
 
+			r.With(view("orders")).Get("/pickup-stores/validate", cvsStoreH.ValidateStoreCode)
 			r.With(view("orders")).Get("/orders", orderH.List)
 			r.With(view("orders")).Get("/orders/{id}", orderH.Detail)
 			r.With(edit("orders")).Post("/orders", orderH.Create)
@@ -188,6 +201,8 @@ func main() {
 			r.With(view("reports")).Get("/reports/products", reportsH.Products)
 			r.With(view("reports")).Get("/reports/orders", reportsH.Orders)
 			r.With(view("product_analytics")).Get("/reports/product-analysis", reportsH.ProductAnalysis)
+			r.With(view("product_performance")).Get("/reports/product-performance", reportsH.ProductPerformance)
+			r.With(view("host_category_leaderboard")).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)
 
 			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)
 			r.With(edit("panel_siaran")).Post("/live-sessions", liveSessionH.Create)

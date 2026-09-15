@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Papa from 'papaparse'
 import { getProductReport, getOrderReport } from '../api/reports'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import ExportReportModal from '../components/ExportReportModal'
 
 function SummaryCard({ summary, t }) {
   if (!summary) return null
@@ -15,17 +15,6 @@ function SummaryCard({ summary, t }) {
       <p className="text-xs text-gray-500">{t('page_reports.summary_orders_line', { count: summary.order_count, avg: formatCurrency(summary.avg_order) })}</p>
     </div>
   )
-}
-
-function exportCsv(filename, rows) {
-  const csv = Papa.unparse(rows)
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 export default function Reports() {
@@ -43,6 +32,7 @@ export default function Reports() {
   const [hosts, setHosts] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
 
@@ -54,11 +44,6 @@ export default function Reports() {
       : getOrderReport({ ...params, q: tab === 'customers' ? search : '', host_id: tab === 'hosts' ? hostId : '' })
     request.then((res) => { setData(res); setLoading(false) })
   }, [tab, range, search, hostId])
-
-  function handleExport() {
-    if (!data) return
-    exportCsv(`laporan-${tab}.csv`, data.items)
-  }
 
   return (
     <div className="px-4 sm:px-6 py-6">
@@ -76,11 +61,13 @@ export default function Reports() {
         </div>
         <div className="flex items-center gap-2">
           <DateRangePicker value={range} onChange={setRange} />
-          <button onClick={handleExport} className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
-            {t('page_reports.export_csv')}
+          <button onClick={() => setShowExportModal(true)} className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+            {t('page_reports.export_button')}
           </button>
         </div>
       </div>
+
+      {showExportModal && <ExportReportModal onClose={() => setShowExportModal(false)} />}
 
       {tab === 'customers' && (
         <input

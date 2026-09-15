@@ -14,3 +14,13 @@ export function getProductAnalysis(params) {
   const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
   return client.get(`/reports/product-analysis?${q.toString()}`).then((res) => res.data)
 }
+
+export function getProductPerformance(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/reports/product-performance?${q.toString()}`).then((res) => res.data)
+}
+
+export function getHostCategoryLeaderboard(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/reports/host-category-leaderboard?${q.toString()}`).then((res) => res.data)
+}

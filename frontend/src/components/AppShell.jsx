@@ -50,6 +50,8 @@ const navGroups = [
     title: 'analytics', icon: IconChartLine, items: [
       { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
       { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
+      { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
+      { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
       { to: '/profit', key: 'profit', icon: IconWallet },
     ],
   },
@@ -92,7 +94,7 @@ const navGroups = [
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
-  'reports', 'sales_analytics', 'product_analytics', 'profit', 'hosts', 'returns',
+  'reports', 'sales_analytics', 'product_analytics', 'product_performance', 'host_category_leaderboard', 'profit', 'hosts', 'returns',
   'store_profile', 'shipping_settings', 'roles',
 ])
 

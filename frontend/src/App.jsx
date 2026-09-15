@@ -42,6 +42,8 @@ const Campaigns = lazy(() => import('./pages/Campaigns'))
 const Advertising = lazy(() => import('./pages/Advertising'))
 const SalesAnalyticsDetail = lazy(() => import('./pages/SalesAnalyticsDetail'))
 const ProductAnalytics = lazy(() => import('./pages/ProductAnalytics'))
+const ProductPerformance = lazy(() => import('./pages/ProductPerformance'))
+const HostCategoryLeaderboard = lazy(() => import('./pages/HostCategoryLeaderboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
 const Payouts = lazy(() => import('./pages/Payouts'))
 const Fees = lazy(() => import('./pages/Fees'))
@@ -132,6 +134,8 @@ export default function App() {
         {/* Analytics */}
         <Route path="/analytics/sales" element={<ProtectedRoute><SalesAnalyticsDetail /></ProtectedRoute>} />
         <Route path="/analytics/products" element={<ProtectedRoute><ProductAnalytics /></ProtectedRoute>} />
+        <Route path="/analytics/product-performance" element={<ProtectedRoute><ProductPerformance /></ProtectedRoute>} />
+        <Route path="/analytics/host-category-leaderboard" element={<ProtectedRoute><HostCategoryLeaderboard /></ProtectedRoute>} />
         <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
 
         {/* Finance */}

@@ -319,9 +319,16 @@ export default function ProductForm() {
                     </button>
                   )}
                 </div>
-                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3`}>
+                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-3`}>
                   <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   <input placeholder={t('page_product_form.sell_price_placeholder')} type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
+                  <div>
+                    <input
+                      placeholder={t('page_product_form.compare_at_price_placeholder')} type="number" min="0" value={v.compare_at_price || ''}
+                      onChange={(e) => updateVariantField(idx, 'compare_at_price', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
+                    />
+                  </div>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.available_label')}</label>
                     <input
@@ -337,6 +344,15 @@ export default function ProductForm() {
                     </div>
                   )}
                 </div>
+                {Number(v.compare_at_price) > 0 && (
+                  Number(v.compare_at_price) > Number(v.price) ? (
+                    <p className="text-[11px] text-green-600 font-medium">
+                      {t('page_product_form.discount_preview', { percent: Math.round((1 - Number(v.price) / Number(v.compare_at_price)) * 100) })}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-600">{t('page_product_form.compare_at_price_hint')}</p>
+                  )
+                )}
                 {isEdit && (
                   <p className="text-[11px] text-gray-400">{t('page_product_form.order_stock_note', { order_stock: v.order_stock || 0 })}</p>
                 )}

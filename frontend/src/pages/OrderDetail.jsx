@@ -7,6 +7,7 @@ import {
 import { listPickupChains } from '../api/pickupChains'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
+import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
@@ -176,6 +177,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
   const selectedChain = pickupChains.find((c) => String(c.id) === chainId)
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
   const storeCodeValid = !isCvs || /^\d{6}$/.test(storeCode)
+  const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, storeCode, isCvs)
 
   async function handleSave() {
     setError('')
@@ -235,9 +237,11 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
                   value={storeCode}
                   onChange={(e) => setStoreCode(e.target.value)}
                   placeholder={t('page_order_create.store_code_placeholder')}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm ${storeCodeValid ? 'border-gray-300' : 'border-red-400'}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm ${storeCodeValid && storeCodeCheck?.exists !== false ? 'border-gray-300' : 'border-red-400'}`}
                 />
                 {!storeCodeValid && <p className="text-xs text-red-600 mt-1">{t('page_order_create.store_code_format_error')}</p>}
+                {storeCodeValid && storeCodeCheck?.exists === false && <p className="text-xs text-red-600 mt-1">{t('page_order_create.store_code_not_found_error')}</p>}
+                {storeCodeValid && storeCodeCheck?.exists === true && <p className="text-xs text-green-600 mt-1">{storeCodeCheck.storeName}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.store_name_label')}</label>
