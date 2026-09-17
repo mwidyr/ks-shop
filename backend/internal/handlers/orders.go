@@ -614,6 +614,39 @@ type updateStatusRequest struct {
 	Reason string `json:"reason"`
 }
 
+// findMergeableSiblings returns the order_nos of other orders belonging to the same customer,
+// pickup chain and store as orderID, that are still pending/ready_to_ship (i.e. still eligible
+// to merge - see order_merge.go's Suggestions/CreateGroup, which use this exact same
+// eligibility) and not already grouped together with orderID.
+func (h *OrderHandler) findMergeableSiblings(ctx context.Context, tx pgx.Tx, orderID int) ([]string, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT o2.order_no
+		FROM orders o1
+		JOIN orders o2 ON o2.customer_id = o1.customer_id
+			AND o2.pickup_chain_id = o1.pickup_chain_id
+			AND COALESCE(o2.pickup_store_code,'') = COALESCE(o1.pickup_store_code,'')
+			AND o2.id <> o1.id
+		WHERE o1.id = $1 AND o2.status IN ('pending','ready_to_ship')
+			AND NOT EXISTS (
+				SELECT 1 FROM order_shipment_group_members m1
+				JOIN order_shipment_group_members m2 ON m2.group_id = m1.group_id
+				WHERE m1.order_id = o1.id AND m2.order_id = o2.id
+			)`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var siblingOrderNos []string
+	for rows.Next() {
+		var no string
+		if err := rows.Scan(&no); err != nil {
+			continue
+		}
+		siblingOrderNos = append(siblingOrderNos, no)
+	}
+	return siblingOrderNos, nil
+}
+
 // UpdateStatus validates the transition and triggers the corresponding stock movement.
 func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -692,30 +725,15 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.Status == "shipped" {
-		var siblingOrderNos []string
-		sibRows, sibErr := tx.Query(ctx, `
-			SELECT o2.order_no
-			FROM orders o1
-			JOIN orders o2 ON o2.customer_id = o1.customer_id
-				AND o2.pickup_chain_id = o1.pickup_chain_id
-				AND COALESCE(o2.pickup_store_code,'') = COALESCE(o1.pickup_store_code,'')
-				AND o2.id <> o1.id
-			WHERE o1.id = $1 AND o2.status IN ('pending','ready_to_ship')
-				AND NOT EXISTS (
-					SELECT 1 FROM order_shipment_group_members m1
-					JOIN order_shipment_group_members m2 ON m2.group_id = m1.group_id
-					WHERE m1.order_id = o1.id AND m2.order_id = o2.id
-				)`, id)
-		if sibErr == nil {
-			for sibRows.Next() {
-				var no string
-				sibRows.Scan(&no)
-				siblingOrderNos = append(siblingOrderNos, no)
-			}
-			sibRows.Close()
-		}
-		if len(siblingOrderNos) > 0 {
+	// Merging only ever works pre-picking/pre-shipment (see order_merge.go's Suggestions/
+	// CreateGroup eligibility: pending or ready_to_ship, never mid-picking) - so the earliest
+	// useful place to warn staff about a mergeable sibling is right when picking is about to
+	// start, not just at the final shipped transition. Both checks stay in place: "picking"
+	// catches it as early as possible, "shipped" is the last-resort safety net in case a
+	// sibling order was only created after this one had already started picking.
+	if req.Status == "picking" || req.Status == "shipped" {
+		siblingOrderNos, sibErr := h.findMergeableSiblings(ctx, tx, id)
+		if sibErr == nil && len(siblingOrderNos) > 0 {
 			respondError(w, http.StatusConflict, "pelanggan ini punya order lain yang bisa digabung sebelum dikirim: "+strings.Join(siblingOrderNos, ", "))
 			return
 		}

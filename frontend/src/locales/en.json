@@ -108,7 +108,10 @@
     "entity_product_variant": "Product Variant",
     "entity_user": "Staff",
     "next": "Next",
-    "prev": "Previous"
+    "prev": "Previous",
+    "entity_product": "Product",
+    "action_product_created": "Product created",
+    "action_product_updated": "Product updated"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -536,7 +539,9 @@
     "upload_photo_button": "+ Upload Photo",
     "uploading_label": "Uploading...",
     "urgent_badge": "Urgent",
-    "start_picking_no_items_error": "Pick at least one product before starting picking"
+    "start_picking_no_items_error": "Pick at least one product before starting picking",
+    "copy_fallback_title": "Copy Manually",
+    "copy_fallback_hint": "Your browser blocked automatic copying. The text below is already selected — press Ctrl+C / Cmd+C."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",

@@ -322,6 +322,11 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+
+	if claims := getClaimsSafe(r); claims != nil {
+		logActivity(ctx, h.DB, "product", id, "product_created", &claims.UserID, fmt.Sprintf("%s (%s)", req.Name, req.SKU))
+	}
+
 	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
 
@@ -357,7 +362,18 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if req.AllowOversell != nil {
 		allowOversell = *req.AllowOversell
 	}
-	ct, err := h.DB.Exec(r.Context(), `
+
+	ctx := r.Context()
+	var before struct {
+		Name      string
+		Category  string
+		BasePrice float64
+		IsActive  bool
+	}
+	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active FROM products WHERE id=$1`, id).
+		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive)
+
+	ct, err := h.DB.Exec(ctx, `
 		UPDATE products SET sku=NULLIF($1,''), vendor_sku=NULLIF($2,''), name=$3, description=$4, category=$5,
 		                     brand=$6, base_price=$7, is_active=$8, allow_oversell=$9 WHERE id=$10`,
 		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, allowOversell, id)
@@ -369,6 +385,26 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
 	}
+
+	var changes []string
+	if before.Name != req.Name {
+		changes = append(changes, fmt.Sprintf("Nama: %s -> %s", before.Name, req.Name))
+	}
+	if before.Category != req.Category {
+		changes = append(changes, fmt.Sprintf("Kategori: %s -> %s", before.Category, req.Category))
+	}
+	if before.BasePrice != req.BasePrice {
+		changes = append(changes, fmt.Sprintf("Harga Utama: NT$%.0f -> NT$%.0f", before.BasePrice, req.BasePrice))
+	}
+	if before.IsActive != isActive {
+		changes = append(changes, fmt.Sprintf("Status Aktif: %v -> %v", before.IsActive, isActive))
+	}
+	if len(changes) > 0 {
+		if claims := getClaimsSafe(r); claims != nil {
+			logActivity(ctx, h.DB, "product", id, "product_updated", &claims.UserID, strings.Join(changes, "; "))
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

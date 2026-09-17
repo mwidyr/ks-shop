@@ -108,7 +108,10 @@
     "entity_product_variant": "Varian Produk",
     "entity_user": "Staf",
     "next": "Berikutnya",
-    "prev": "Sebelumnya"
+    "prev": "Sebelumnya",
+    "entity_product": "Produk",
+    "action_product_created": "Produk dibuat",
+    "action_product_updated": "Produk diubah"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -536,7 +539,9 @@
     "upload_photo_button": "+ Unggah foto",
     "uploading_label": "Mengunggah...",
     "urgent_badge": "Mendesak",
-    "start_picking_no_items_error": "Pilih dan ambil setidaknya satu produk sebelum memulai picking"
+    "start_picking_no_items_error": "Pilih dan ambil setidaknya satu produk sebelum memulai picking",
+    "copy_fallback_title": "Salin Manual",
+    "copy_fallback_hint": "Browser tidak mengizinkan salin otomatis. Pilih semua teks di bawah (sudah terpilih) lalu tekan Ctrl+C / Cmd+C."
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",

@@ -16,6 +16,8 @@ export default function AuditLog() {
     label_removed: t('page_audit_log.action_label_removed'),
     role_changed: t('page_audit_log.action_role_changed'),
     active_changed: t('page_audit_log.action_active_changed'),
+    product_created: t('page_audit_log.action_product_created'),
+    product_updated: t('page_audit_log.action_product_updated'),
   }
 
   function actionLabel(action) {
@@ -27,6 +29,7 @@ export default function AuditLog() {
 
   const entityLabels = {
     order: t('page_audit_log.entity_order'),
+    product: t('page_audit_log.entity_product'),
     product_variant: t('page_audit_log.entity_product_variant'),
     pickup_chain: t('page_audit_log.entity_pickup_chain'),
     customer: t('page_audit_log.entity_customer'),

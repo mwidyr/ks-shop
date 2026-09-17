@@ -8,6 +8,7 @@ import { listPickupChains } from '../api/pickupChains'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
+import { copyToClipboard } from '../utils/clipboard'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
@@ -292,6 +293,7 @@ export default function OrderDetail() {
   const [keepDateDraft, setKeepDateDraft] = useState('')
   const [keepDateSaving, setKeepDateSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copyFallbackText, setCopyFallbackText] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useState(false)
@@ -410,12 +412,15 @@ export default function OrderDetail() {
       t('page_order_detail.copy_shipping_label', { fee: shippingInfo }),
       t('page_order_detail.copy_total_label', { total: formatCurrency(total) }),
     ]
-    try {
-      await navigator.clipboard.writeText(lines.join('\n'))
+    const text = lines.join('\n')
+    const ok = await copyToClipboard(text)
+    if (ok) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // clipboard access denied - nothing more we can do here
+    } else {
+      // Neither the modern Clipboard API nor the legacy fallback worked (e.g. an unusual
+      // browser/permissions combo) - never fail silently, let the user copy it by hand.
+      setCopyFallbackText(text)
     }
   }
 
@@ -743,6 +748,31 @@ export default function OrderDetail() {
         </div>
       </div>
 
+      {copyFallbackText !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setCopyFallbackText(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100">
+              <h2 className="font-bold text-lg text-gray-800 mb-1">{t('page_order_detail.copy_fallback_title')}</h2>
+              <p className="text-xs text-gray-500">{t('page_order_detail.copy_fallback_hint')}</p>
+            </div>
+            <div className="p-5">
+              <textarea
+                readOnly
+                value={copyFallbackText}
+                onFocus={(e) => e.target.select()}
+                autoFocus
+                rows={10}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono resize-y"
+              />
+            </div>
+            <div className="p-5 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setCopyFallbackText(null)} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">
+                {t('common.back')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {scanOpen && <ScanVerifyModal onMatch={handleScanMatch} onClose={() => setScanOpen(false)} />}
       {splitOpen && (
         <SplitOrderModal

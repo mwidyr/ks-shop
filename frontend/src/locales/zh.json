@@ -108,7 +108,10 @@
     "entity_product_variant": "商品規格",
     "entity_user": "員工",
     "next": "下一頁",
-    "prev": "上一頁"
+    "prev": "上一頁",
+    "entity_product": "產品",
+    "action_product_created": "產品已建立",
+    "action_product_updated": "產品已修改"
   },
   "page_campaigns": {
     "campaign_flash_sale": "9.9 限時搶購",
@@ -536,7 +539,9 @@
     "upload_photo_button": "+ 上傳照片",
     "uploading_label": "上傳中...",
     "urgent_badge": "緊急",
-    "start_picking_no_items_error": "開始揀貨前，請至少揀取一項商品"
+    "start_picking_no_items_error": "開始揀貨前，請至少揀取一項商品",
+    "copy_fallback_title": "手動複製",
+    "copy_fallback_hint": "瀏覽器不允許自動複製。下方文字已選取，請按 Ctrl+C / Cmd+C。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
