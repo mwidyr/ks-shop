@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
@@ -310,6 +310,10 @@ export default function OrderDetail() {
     setError('')
     if ((status === 'cancelled' || status === 'return') && !reason) {
       setPendingAction(status)
+      return
+    }
+    if (status === 'picking' && !order.items.some((it) => it.picked_qty > 0)) {
+      setError(t('page_order_detail.start_picking_no_items_error'))
       return
     }
     try {
@@ -694,7 +698,16 @@ export default function OrderDetail() {
                   </div>
                 </div>
               )}
-              {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+              {error && (
+                <div className="mt-2">
+                  <p className="text-red-600 text-sm">{error}</p>
+                  {error.includes('digabung') && (
+                    <Link to="/orders/merge" className="text-xs font-semibold text-brand-600 hover:underline">
+                      {t('page_merge_orders.heading')} →
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

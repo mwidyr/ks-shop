@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "KS Shop"
+    "name": "Ohlala Shop"
   },
   "common": {
     "add": "Add",
@@ -449,7 +449,9 @@
     "subtotal_label": "Subtotal",
     "total_label": "Total",
     "variant_label": "Variant / SKU",
-    "variant_option": "{{sku}} · {{color}}/{{size}} ({{stock}} available)"
+    "variant_option": "{{sku}} · {{color}}/{{size}} ({{stock}} available)",
+    "free_shipping_hint": "Free Shipping",
+    "block_error_phone_format": "Order #{{index}}: Invalid phone format (must be 09xxxxxxxx, 10 digits)"
   },
   "page_order_detail": {
     "additional_fee_label": "Additional Fee",
@@ -533,7 +535,8 @@
     "update_status_failed_error": "Failed to update status",
     "upload_photo_button": "+ Upload Photo",
     "uploading_label": "Uploading...",
-    "urgent_badge": "Urgent"
+    "urgent_badge": "Urgent",
+    "start_picking_no_items_error": "Pick at least one product before starting picking"
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -595,7 +598,7 @@
     "export_cvs_desc": "Review the CVS orders to be exported, then download the file.",
     "export_cvs_title": "Export CVS",
     "export_empty": "No orders in this tab",
-    "export_kurir_button": "Export Courier",
+    "export_kurir_button": "Export Courier (HCT Shinchu)",
     "export_kurir_desc": "Confirm courier orders to export, then generate a file to send to the courier. Orders with missing address data are automatically skipped.",
     "export_kurir_title": "Export Courier Orders",
     "export_merged_note": "+ {{count}} merged orders",
@@ -646,7 +649,9 @@
     "tab_processing": "Processing",
     "total_orders": "Total {{count}} orders",
     "total_qty_sublabel": "{{count}} items",
-    "view_tooltip": "View"
+    "view_tooltip": "View",
+    "urgent_badge": "Urgent",
+    "merge_view_all": "View All Merges"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",
@@ -1189,7 +1194,10 @@
     "label_store_name": "Store Name",
     "label_store_url": "Store URL",
     "label_tiktok": "TikTok",
-    "toast_save_pending": "Store profile saving is coming soon"
+    "toast_save_pending": "Store profile saving is coming soon",
+    "shop_name_card_title": "Shop Name",
+    "shop_name_card_hint": "This name appears on the login page and app sidebar.",
+    "shop_name_saved_toast": "Shop name saved."
   },
   "page_suppliers": {
     "action_activate": "Activate",
@@ -1276,7 +1284,8 @@
     "title_print_order": "Print Order",
     "title_session_history": "Session History",
     "title_settings": "Settings",
-    "title_shipping_export": "Shipping Data Export"
+    "title_shipping_export": "Shipping Data Export",
+    "customer_phone_format_error": "Phone number must be Taiwan format: 09xxxxxxxx (10 digits)"
   },
   "status": {
     "cancelled": "Cancelled",
@@ -1308,5 +1317,13 @@
   "page_host_category_leaderboard": {
     "subtitle": "Hosts ranked by units sold, per category",
     "no_data": "No data yet"
+  },
+  "page_merge_orders": {
+    "heading": "Merge Orders",
+    "subheading": "Orders from the same customer with the same pickup method can share one shipment",
+    "back_to_orders": "Back to Orders",
+    "empty": "No mergeable orders yet",
+    "merge_button": "Merge",
+    "merged_label": "Merged"
   }
 }

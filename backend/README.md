@@ -1,4 +1,4 @@
-# Backend — KS Shop API
+# Backend — Ohlala Shop API
 
 Go API server for the seller/shop-management tool. No framework beyond a router: raw SQL via
 `pgx`, no ORM, one struct per handler holding a `*pgxpool.Pool`. This document explains every

@@ -13,20 +13,6 @@ import DateRangePicker from '../components/DateRangePicker'
 import BigStatCard from '../components/BigStatCard'
 import ExportCvsModal from '../components/ExportCvsModal'
 import ExportKurirModal from '../components/ExportKurirModal'
-import { IconArrowRight, IconEye } from '../components/icons'
-
-function IconX(props) {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" {...props}>
-      <path d="M18 6 6 18M6 6l12 12" />
-    </svg>
-  )
-}
-
-const nextStatus = {
-  pending: 'picking', picking: 'ready_to_ship', ready_to_ship: 'shipped', shipped: 'delivered',
-}
-
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
@@ -58,7 +44,6 @@ export default function Orders() {
   const [blacklistOnly, setBlacklistOnly] = useState(false)
   const [range, setRange] = useState(null)
   const [page, setPage] = useState(1)
-  const [advancing, setAdvancing] = useState(null)
   const [sort, setSort] = useState('')
   const [sessionId, setSessionId] = useState('')
 
@@ -126,28 +111,6 @@ export default function Orders() {
     setSessionId(''); setSort(''); setPage(1)
   }
 
-  async function handleAdvance(order) {
-    const to = nextStatus[order.status]
-    if (!to) return
-    setAdvancing(order.id)
-    try {
-      await updateOrderStatus(order.id, to, '')
-      fetchOrders()
-    } finally {
-      setAdvancing(null)
-    }
-  }
-
-  async function handleReject(order) {
-    setAdvancing(order.id)
-    try {
-      await updateOrderStatus(order.id, 'cancelled', t('page_orders.reject_reason_default'))
-      fetchOrders()
-    } finally {
-      setAdvancing(null)
-    }
-  }
-
   function toggleSelect(id) {
     setSelected((s) => {
       const next = new Set(s)
@@ -211,9 +174,14 @@ export default function Orders() {
             💡 <span className="font-semibold">{t('page_orders.merge_all_title')}</span>{' '}
             {t('page_orders.merge_all_desc', { groups: mergeSuggestions.length, orders: mergeTotalOrders })}
           </p>
-          <button onClick={handleMergeAll} disabled={mergeAllBusy} className="text-sm font-semibold px-4 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 shrink-0">
-            {mergeAllBusy ? t('page_orders.merging') : t('page_orders.merge_all_action')}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link to="/orders/merge" className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100">
+              {t('page_orders.merge_view_all')}
+            </Link>
+            <button onClick={handleMergeAll} disabled={mergeAllBusy} className="text-sm font-semibold px-4 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50">
+              {mergeAllBusy ? t('page_orders.merging') : t('page_orders.merge_all_action')}
+            </button>
+          </div>
         </div>
       )}
       {mergeAllResult && <p className="text-sm text-gray-600 mb-4">{mergeAllResult}</p>}
@@ -339,7 +307,6 @@ export default function Orders() {
                   <th className="p-3">{t('page_orders.col_qty')}</th>
                   <th className="p-3">{t('page_orders.col_total')}</th>
                   <th className="p-3">{t('page_orders.col_status')}</th>
-                  <th className="p-3">{t('page_orders.col_action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -352,7 +319,12 @@ export default function Orders() {
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
                     </td>
-                    <td className="p-3 font-semibold text-gray-800">{o.order_no}</td>
+                    <td className="p-3 font-semibold text-gray-800">
+                      {o.is_urgent && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-red-600 mb-0.5">⚠ {t('page_orders.urgent_badge')}</p>
+                      )}
+                      {o.order_no}
+                    </td>
                     <td className="p-3">
                       <p className="text-gray-700 flex items-center gap-1.5">
                         {o.customer_name}
@@ -370,41 +342,6 @@ export default function Orders() {
                     <td className="p-3 text-gray-500">{o.total_qty}</td>
                     <td className="p-3 font-semibold text-brand-600">{formatCurrency(o.total)}</td>
                     <td className="p-3"><StatusPill status={o.status} /></td>
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        <Link to={`/orders/${o.id}`} title={t('page_orders.view_tooltip')} className="text-gray-400 hover:text-brand-600">
-                          <IconEye />
-                        </Link>
-                        {o.status === 'pending' && (
-                          <button
-                            onClick={() => handleReject(o)}
-                            disabled={advancing === o.id}
-                            title={t('page_orders.reject_tooltip')}
-                            className="text-gray-400 hover:text-red-600 disabled:opacity-40"
-                          >
-                            <IconX />
-                          </button>
-                        )}
-                        {nextStatus[o.status] && (
-                          <button
-                            onClick={() => handleAdvance(o)}
-                            disabled={advancing === o.id}
-                            title={o.status === 'pending' ? t('page_orders.accept_tooltip') : t('page_orders.advance_tooltip', { status: t(`status.${nextStatus[o.status]}`, statusLabels[nextStatus[o.status]]) })}
-                            className="text-gray-400 hover:text-brand-600 disabled:opacity-40"
-                          >
-                            <IconArrowRight />
-                          </button>
-                        )}
-                        <a
-                          href={`/orders/${o.id}/print/invoice`}
-                          target="_blank" rel="noreferrer"
-                          title={t('page_orders.print_invoice_tooltip')}
-                          className="text-gray-400 hover:text-brand-600"
-                        >
-                          🖨️
-                        </a>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>

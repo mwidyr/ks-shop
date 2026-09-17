@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { getMyAccess } from '../api/rolePermissions'
+import { getStoreSettings } from '../api/storeSettings'
 import PreferencesModal from './PreferencesModal'
 import {
   IconDashboard, IconOrders, IconProducts, IconSettings, IconLogout, IconBell,
@@ -102,6 +103,7 @@ const VISIBLE_TAB_KEYS = new Set([
 // literal nav destinations (detail/create/edit/print pages).
 const titleOverrides = [
   { prefix: '/orders/new', titleKey: 'shared.title_new_order' },
+  { prefix: '/orders/merge', titleKey: 'page_merge_orders.heading' },
   { prefix: '/orders/print', titleKey: 'shared.title_print_order' },
   { prefix: '/orders/', titleKey: 'shared.title_order_detail' },
   { prefix: '/products/new', titleKey: 'shared.title_new_product' },
@@ -143,12 +145,14 @@ export default function AppShell({ children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [access, setAccess] = useState(null) // null = still loading (show everything to avoid flicker)
   const [isSuperUser, setIsSuperUser] = useState(true)
+  const [shopName, setShopName] = useState(t('brand.name'))
 
   useEffect(() => {
     getMyAccess().then((res) => {
       setIsSuperUser(res.role === 'super_user')
       setAccess(res.access)
     })
+    getStoreSettings().then((res) => { if (res.shop_name) setShopName(res.shop_name) }).catch(() => {})
   }, [])
 
   // A tab is visible if it's super_user (always full access) or has any row (view/edit) - a
@@ -183,8 +187,8 @@ export default function AppShell({ children }) {
         }`}
       >
         <div className="flex items-center gap-2 px-4 py-4 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-extrabold text-lg">K</div>
-          <span className="font-extrabold text-gray-800 tracking-tight">{t('brand.name')}</span>
+          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-extrabold text-lg">{shopName.charAt(0).toUpperCase()}</div>
+          <span className="font-extrabold text-gray-800 tracking-tight">{shopName}</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">

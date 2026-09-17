@@ -8,7 +8,7 @@ import { listLiveSessions } from '../api/liveSessions'
 import { getShippingSettings } from '../api/settings'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
-import CustomerPicker from '../components/CustomerPicker'
+import CustomerPicker, { TW_PHONE_REGEX } from '../components/CustomerPicker'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 
@@ -27,6 +27,9 @@ const emptyBlock = (defaultHostId = '') => ({
   discountAmount: '',
   additionalAmount: '',
   keepDate: '',
+  internalNotes: '',
+  isUrgent: false,
+  notesDeadline: '',
   items: [],
 })
 
@@ -61,6 +64,14 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
   const subtotal = block.items.reduce((sum, it) => sum + it.price * it.qty, 0)
   const storeCodeValid = !isCvs || /^\d{6}$/.test(block.pickupStoreCode)
   const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, block.pickupStoreCode, isCvs)
+  // Mirrors defaultShippingFee's own threshold check - used only to show the "Gratis Ongkir"
+  // hint, so it stays true only for threshold-driven free shipping, not a manual override to 0.
+  const freeShippingEligible = Boolean(selectedChain && shippingSettings && (
+    selectedChain.chain_type === 'courier'
+      ? shippingSettings.free_shipping_threshold_pos > 0 && subtotal >= shippingSettings.free_shipping_threshold_pos
+      : shippingSettings.free_shipping_threshold_minimarket > 0 && subtotal >= shippingSettings.free_shipping_threshold_minimarket
+  ))
+  const showFreeShippingHint = freeShippingEligible && !block.shippingFeeDirty
 
   useEffect(() => {
     if (storeCodeCheck?.exists) onUpdate('pickupStoreName', storeCodeCheck.storeName)
@@ -171,6 +182,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
             <input type="number" min="0" value={block.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            {showFreeShippingHint && <p className="text-xs text-green-600 mt-1">🎉 {t('page_order_create.free_shipping_hint')}</p>}
           </div>
         </div>
       ) : (
@@ -182,6 +194,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
             <input type="number" min="0" value={block.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            {showFreeShippingHint && <p className="text-xs text-green-600 mt-1">🎉 {t('page_order_create.free_shipping_hint')}</p>}
           </div>
         </div>
       ))}
@@ -202,7 +215,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
                 <img src={resolveUrl(it.imageUrl)} className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{it.productName}</p>
-                  <p className="text-xs text-gray-500">{it.variantLabel} · {t('page_order_create.qty_label')}: {it.qty}</p>
+                  <p className="text-xs text-gray-500">{it.sku && <span className="font-mono text-brand-600">{it.sku}</span>} · {it.variantLabel} · {t('page_order_create.qty_label')}: {it.qty}</p>
                 </div>
                 <select
                   value={it.hostId ?? block.hostId}
@@ -238,6 +251,34 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
               <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.keep_date_label')}</label>
               <input type="date" value={block.keepDate} onChange={(e) => onUpdate('keepDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
               <p className="text-[10px] text-gray-400 mt-0.5">{t('page_order_create.keep_date_hint')}</p>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer bg-white">
+                <span className="text-xs font-medium text-gray-700">{t('page_order_detail.mark_urgent_label')}</span>
+                <input type="checkbox" checked={block.isUrgent} onChange={(e) => onUpdate('isUrgent', e.target.checked)} className="w-4 h-4" />
+              </label>
+            </div>
+            {block.isUrgent && (
+              <div className="col-span-2">
+                <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.deadline_label')}</label>
+                <input
+                  type="datetime-local"
+                  value={block.notesDeadline}
+                  onChange={(e) => onUpdate('notesDeadline', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                />
+              </div>
+            )}
+            <div className="col-span-2">
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.internal_notes_label')}</label>
+              <textarea
+                value={block.internalNotes}
+                onChange={(e) => onUpdate('internalNotes', e.target.value.slice(0, 2000))}
+                rows={3}
+                maxLength={2000}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm resize-y"
+              />
+              <p className="text-[10px] text-gray-400 text-right mt-0.5">{block.internalNotes.length} / 2000</p>
             </div>
           </div>
         )}
@@ -297,6 +338,7 @@ export default function OrderCreate() {
       const isCvs = chain?.chain_type === 'cvs_711' || chain?.chain_type === 'cvs_familymart'
       if (!b.hostId) return t('page_order_create.block_error_host', { index: i + 1 })
       if (!customerIsResolved(b.customer)) return t('page_order_create.block_error_customer', { index: i + 1 })
+      if (!b.customer.id && !TW_PHONE_REGEX.test(b.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: i + 1 })
       if (!b.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: i + 1 })
       if (isCvs && !/^\d{6}$/.test(b.pickupStoreCode)) return t('page_order_create.block_error_store_code', { index: i + 1 })
       if (!isCvs && !b.shippingAddress) return t('page_order_create.block_error_address', { index: i + 1 })
@@ -328,6 +370,9 @@ export default function OrderCreate() {
         additional_amount: Number(b.additionalAmount) || 0,
         keep_date: b.keepDate || null,
         shipping_fee_override: Number(b.shippingFee) || 0,
+        internal_notes: b.internalNotes,
+        is_urgent: b.isUrgent,
+        notes_deadline: b.isUrgent && b.notesDeadline ? new Date(b.notesDeadline).toISOString() : null,
       })))
 
       const succeeded = settled.filter((r) => r.status === 'fulfilled')

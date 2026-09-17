@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "KS Shop"
+    "name": "Ohlala Shop"
   },
   "common": {
     "add": "Tambah",
@@ -449,7 +449,9 @@
     "subtotal_label": "Subtotal",
     "total_label": "Total",
     "variant_label": "Varian / SKU",
-    "variant_option": "{{sku}} · {{color}}/{{size}} ({{stock}} tersedia)"
+    "variant_option": "{{sku}} · {{color}}/{{size}} ({{stock}} tersedia)",
+    "free_shipping_hint": "Gratis Ongkir",
+    "block_error_phone_format": "Order #{{index}}: Format nomor HP tidak valid (harus 09xxxxxxxx, 10 digit)"
   },
   "page_order_detail": {
     "additional_fee_label": "Biaya Tambahan",
@@ -533,7 +535,8 @@
     "update_status_failed_error": "Gagal update status",
     "upload_photo_button": "+ Unggah foto",
     "uploading_label": "Mengunggah...",
-    "urgent_badge": "Mendesak"
+    "urgent_badge": "Mendesak",
+    "start_picking_no_items_error": "Pilih dan ambil setidaknya satu produk sebelum memulai picking"
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -595,7 +598,7 @@
     "export_cvs_desc": "Periksa daftar pesanan CVS yang akan diekspor, lalu unduh berkasnya.",
     "export_cvs_title": "Ekspor CVS",
     "export_empty": "Tidak ada pesanan di tab ini",
-    "export_kurir_button": "Ekspor Kurir",
+    "export_kurir_button": "Ekspor Kurir (HCT Shinchu)",
     "export_kurir_desc": "Konfirmasi pesanan kurir untuk diekspor, lalu buat file untuk dikirim ke kurir. Pesanan dengan data alamat kurang akan otomatis dilewati.",
     "export_kurir_title": "Ekspor Pesanan Kurir",
     "export_merged_note": "+ {{count}} pesanan digabung",
@@ -646,7 +649,9 @@
     "tab_processing": "Diproses",
     "total_orders": "Total {{count}} pesanan",
     "total_qty_sublabel": "{{count}} item",
-    "view_tooltip": "Lihat"
+    "view_tooltip": "Lihat",
+    "urgent_badge": "Mendesak",
+    "merge_view_all": "Lihat Semua Gabungan"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",
@@ -1189,7 +1194,10 @@
     "label_store_name": "Nama Toko",
     "label_store_url": "URL Toko",
     "label_tiktok": "TikTok",
-    "toast_save_pending": "Fitur simpan profil toko akan segera hadir"
+    "toast_save_pending": "Fitur simpan profil toko akan segera hadir",
+    "shop_name_card_title": "Nama Toko",
+    "shop_name_card_hint": "Nama ini tampil di halaman login dan sidebar aplikasi.",
+    "shop_name_saved_toast": "Nama toko tersimpan."
   },
   "page_suppliers": {
     "action_activate": "Aktifkan",
@@ -1276,7 +1284,8 @@
     "title_print_order": "Cetak Order",
     "title_session_history": "Riwayat Sesi",
     "title_settings": "Pengaturan",
-    "title_shipping_export": "Ekspor Data Pengiriman"
+    "title_shipping_export": "Ekspor Data Pengiriman",
+    "customer_phone_format_error": "Nomor HP harus format Taiwan: 09xxxxxxxx (10 digit)"
   },
   "status": {
     "cancelled": "Dibatalkan",
@@ -1308,5 +1317,13 @@
   "page_host_category_leaderboard": {
     "subtitle": "Peringkat host berdasarkan jumlah unit terjual per kategori",
     "no_data": "Belum ada data"
+  },
+  "page_merge_orders": {
+    "heading": "Gabung Pesanan",
+    "subheading": "Order dari pelanggan yang sama dengan metode pengambilan yang sama bisa digabung pengirimannya",
+    "back_to_orders": "Kembali ke Pesanan",
+    "empty": "Belum ada order yang bisa digabung",
+    "merge_button": "Gabung",
+    "merged_label": "Tergabung"
   }
 }

@@ -14,14 +14,14 @@ function productMatches(product, q) {
     v.sku.toLowerCase().includes(q) || v.color.toLowerCase().includes(q) || v.size.toLowerCase().includes(q))
 }
 
-function PickerVariantRow({ variant, qty, onChangeQty }) {
+function PickerVariantRow({ product, variant, qty, onChangeQty }) {
   const { t } = useTranslation()
   const isOversell = variant.total_stock < 0
 
   return (
     <tr className={qty > 0 ? 'bg-brand-50/40' : 'hover:bg-gray-50'}>
       <td className="p-3">
-        <p className="text-sm text-gray-700">{variant.sku} · {variant.color}/{variant.size}</p>
+        <p className="text-sm text-gray-700">{product.sku} · {variant.color}/{variant.size}</p>
         <p className="text-xs text-gray-400">{formatCurrency(variant.price)}</p>
       </td>
       <td className="p-3 text-center">
@@ -67,6 +67,7 @@ function PickerProductCard({ product, forceOpen, pending, setQty }) {
             {product.variants.map((variant) => (
               <PickerVariantRow
                 key={variant.id}
+                product={product}
                 variant={variant}
                 qty={pending[variant.id] || 0}
                 onChangeQty={(qty) => setQty(product, variant, qty)}
@@ -122,7 +123,7 @@ export default function ProductPickerModal({ onClose, onAdd }) {
       return {
         variantId: Number(variantId), qty,
         productName: product.name, variantLabel: `${variant.color}/${variant.size}`,
-        imageUrl: product.images[0]?.url || '', price: variant.price,
+        imageUrl: product.images[0]?.url || '', price: variant.price, sku: product.sku,
       }
     })
     onAdd(items)

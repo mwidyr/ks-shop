@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { requestLoginOtp, verifyLoginOtp } from '../api/auth'
+import { getStoreSettings } from '../api/storeSettings'
 
 const sampleAccounts = [
   { roleKey: 'super_user', email: 'superuser@demo.com' },
@@ -159,8 +160,13 @@ export default function Login() {
   const [password, setPassword] = useState('password123')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [shopName, setShopName] = useState(t('brand.name'))
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    getStoreSettings().then((res) => { if (res.shop_name) setShopName(res.shop_name) }).catch(() => {})
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -180,8 +186,8 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 px-4">
       <div className="w-full max-w-4xl grid md:grid-cols-2 bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="hidden md:flex flex-col justify-center p-10 bg-brand-600 text-white">
-          <div className="w-12 h-12 rounded-xl bg-white text-brand-600 flex items-center justify-center font-extrabold text-2xl mb-6">K</div>
-          <h1 className="text-3xl font-extrabold mb-3">{t('brand.name')}</h1>
+          <div className="w-12 h-12 rounded-xl bg-white text-brand-600 flex items-center justify-center font-extrabold text-2xl mb-6">{shopName.charAt(0).toUpperCase()}</div>
+          <h1 className="text-3xl font-extrabold mb-3">{shopName}</h1>
           <p className="text-brand-100 text-sm leading-relaxed">
             {t('page_login.tagline')}
           </p>

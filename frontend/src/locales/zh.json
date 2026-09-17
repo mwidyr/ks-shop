@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "KS Shop"
+    "name": "Ohlala Shop"
   },
   "common": {
     "add": "新增",
@@ -449,7 +449,9 @@
     "subtotal_label": "小計",
     "total_label": "總計",
     "variant_label": "款式 / SKU",
-    "variant_option": "{{sku}} · {{color}}/{{size}}（庫存 {{stock}}）"
+    "variant_option": "{{sku}} · {{color}}/{{size}}（庫存 {{stock}}）",
+    "free_shipping_hint": "免運費",
+    "block_error_phone_format": "訂單 #{{index}}：手機號碼格式錯誤（必須是 09xxxxxxxx，共10碼）"
   },
   "page_order_detail": {
     "additional_fee_label": "額外費用",
@@ -533,7 +535,8 @@
     "update_status_failed_error": "更新狀態失敗",
     "upload_photo_button": "+ 上傳照片",
     "uploading_label": "上傳中...",
-    "urgent_badge": "緊急"
+    "urgent_badge": "緊急",
+    "start_picking_no_items_error": "開始揀貨前，請至少揀取一項商品"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -595,7 +598,7 @@
     "export_cvs_desc": "確認要匯出的超商訂單，然後下載檔案。",
     "export_cvs_title": "匯出超商",
     "export_empty": "此分頁沒有訂單",
-    "export_kurir_button": "匯出宅配",
+    "export_kurir_button": "匯出宅配 (HCT新竹物流)",
     "export_kurir_desc": "確認要匯出的宅配訂單，然後產生檔案傳送給宅配業者。地址資料缺失的訂單將自動略過。",
     "export_kurir_title": "匯出宅配訂單",
     "export_merged_note": "+ {{count}} 筆合併訂單",
@@ -646,7 +649,9 @@
     "tab_processing": "處理中",
     "total_orders": "共 {{count}} 筆訂單",
     "total_qty_sublabel": "{{count}} 件商品",
-    "view_tooltip": "檢視"
+    "view_tooltip": "檢視",
+    "urgent_badge": "緊急",
+    "merge_view_all": "查看所有合併"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",
@@ -1189,7 +1194,10 @@
     "label_store_name": "商店名稱",
     "label_store_url": "商店網址",
     "label_tiktok": "TikTok",
-    "toast_save_pending": "商店資料儲存功能即將推出"
+    "toast_save_pending": "商店資料儲存功能即將推出",
+    "shop_name_card_title": "商店名稱",
+    "shop_name_card_hint": "此名稱會顯示在登入頁面與側邊欄。",
+    "shop_name_saved_toast": "商店名稱已儲存。"
   },
   "page_suppliers": {
     "action_activate": "啟用",
@@ -1276,7 +1284,8 @@
     "title_print_order": "列印訂單",
     "title_session_history": "場次紀錄",
     "title_settings": "設定",
-    "title_shipping_export": "匯出物流資料"
+    "title_shipping_export": "匯出物流資料",
+    "customer_phone_format_error": "手機號碼必須為台灣格式：09xxxxxxxx（共10碼）"
   },
   "status": {
     "cancelled": "已取消",
@@ -1308,5 +1317,13 @@
   "page_host_category_leaderboard": {
     "subtitle": "依各分類的銷售數量排名主播",
     "no_data": "尚無資料"
+  },
+  "page_merge_orders": {
+    "heading": "合併訂單",
+    "subheading": "同一位客戶、相同取件方式的訂單可以合併成一次寄送",
+    "back_to_orders": "返回訂單",
+    "empty": "目前沒有可合併的訂單",
+    "merge_button": "合併",
+    "merged_label": "已合併"
   }
 }

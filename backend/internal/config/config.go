@@ -65,7 +65,7 @@ func Load() Config {
 		SMTPPort:            getEnv("SMTP_PORT", "587"),
 		SMTPUser:            getEnv("SMTP_USER", ""),
 		SMTPPass:            getEnv("SMTP_PASS", ""),
-		SMTPFrom:            getEnv("SMTP_FROM", "no-reply@ks-shop.local"),
+		SMTPFrom:            getEnv("SMTP_FROM", "no-reply@ohlala-shop.local"),
 		AppBaseURL:          getEnv("APP_BASE_URL", "http://localhost:5173"),
 
 		ECPayLogisticsEnv:        ecpayEnv,

@@ -83,6 +83,7 @@ func main() {
 	imageH := &handlers.ProductImageHandler{DB: pool}
 	feesH := &handlers.FeeSettingsHandler{DB: pool}
 	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
+	storeSettingsH := &handlers.StoreSettingsHandler{DB: pool}
 	pickingH := &handlers.PickingHandler{DB: pool}
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
@@ -106,6 +107,7 @@ func main() {
 
 	r.Route("/api", func(r chi.Router) {
 		// Public
+		r.Get("/store-settings", storeSettingsH.Get)
 		r.Post("/auth/login", authH.Login)
 		r.Post("/auth/otp/request", authH.RequestLoginOTP)
 		r.Post("/auth/otp/verify", authH.VerifyLoginOTP)
@@ -179,6 +181,7 @@ func main() {
 			r.With(edit("shipping_settings")).Delete("/pickup-chains/{id}", pickupChainH.Delete)
 			r.With(view("shipping_settings")).Get("/settings/shipping", shippingSettingsH.Get)
 			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
+			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)
 
 			r.With(view("suppliers")).Get("/suppliers", supplierH.List)
 			r.With(edit("suppliers")).Post("/suppliers", supplierH.Create)

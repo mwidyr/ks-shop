@@ -11,6 +11,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'))
 const Orders = lazy(() => import('./pages/Orders'))
 const OrderCreate = lazy(() => import('./pages/OrderCreate'))
+const MergeOrders = lazy(() => import('./pages/MergeOrders'))
 const OrderDetail = lazy(() => import('./pages/OrderDetail'))
 const OrderPrint = lazy(() => import('./pages/OrderPrint'))
 const Products = lazy(() => import('./pages/Products'))
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="/panel-siaran/:id" element={<ProtectedRoute><LiveSessionDetail /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
         <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
+        <Route path="/orders/merge" element={<ProtectedRoute><MergeOrders /></ProtectedRoute>} />
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />

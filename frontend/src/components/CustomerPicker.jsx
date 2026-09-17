@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import client from '../api/client'
 
+// Taiwan mobile format: "09" followed by 8 more digits (10 digits total).
+export const TW_PHONE_REGEX = /^09\d{8}$/
+
 // Single field: search by name or phone. No separate "search"/"new customer" toggle - if
 // nothing matches what's typed, small new-customer fields (name/phone/address) appear inline
 // automatically. Emits the resolved payload via onChange:
@@ -129,12 +132,21 @@ export default function CustomerPicker({ onChange }) {
             placeholder={t('shared.customer_name_placeholder')}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
-          <input
-            value={newCustomer.phone}
-            onChange={(e) => updateNew('phone', e.target.value)}
-            placeholder={t('shared.customer_phone_placeholder')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+          <div>
+            <input
+              value={newCustomer.phone}
+              onChange={(e) => updateNew('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder={t('shared.customer_phone_placeholder')}
+              inputMode="numeric"
+              maxLength={10}
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                newCustomer.phone && !TW_PHONE_REGEX.test(newCustomer.phone) ? 'border-red-400' : 'border-gray-300'
+              }`}
+            />
+            {newCustomer.phone && !TW_PHONE_REGEX.test(newCustomer.phone) && (
+              <p className="text-xs text-red-600 mt-1">{t('shared.customer_phone_format_error')}</p>
+            )}
+          </div>
           <input
             value={newCustomer.address}
             onChange={(e) => updateNew('address', e.target.value)}

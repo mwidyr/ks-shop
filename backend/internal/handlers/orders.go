@@ -50,6 +50,7 @@ type orderListItem struct {
 	Total           float64 `json:"total"`
 	CreatedAt       string  `json:"created_at"`
 	CustomerBlocked bool    `json:"customer_blacklisted"`
+	IsUrgent        bool    `json:"is_urgent"`
 }
 
 // List returns orders, filtered by role (sales sees only their own), plus optional
@@ -154,7 +155,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COALESCE((SELECT SUM(oi3.qty) FROM order_items oi3 WHERE oi3.order_id = o.id), 0),
 		       COALESCE((SELECT string_agg(DISTINCT h.name, ', ') FROM order_items oi2
 		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-'),
-		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist')
+		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist'),
+		       o.is_urgent
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
@@ -174,7 +176,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var o orderListItem
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked); err != nil {
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)
@@ -443,6 +445,9 @@ type createOrderRequest struct {
 	KeepDate             *string             `json:"keep_date"`
 	FreeShippingOverride bool                `json:"free_shipping_override"`
 	ShippingFeeOverride  *float64            `json:"shipping_fee_override"`
+	InternalNotes        string              `json:"internal_notes"`
+	IsUrgent             bool                `json:"is_urgent"`
+	NotesDeadline        *string             `json:"notes_deadline"`
 }
 
 var cvsStoreCodePattern = regexp.MustCompile(`^\d{6}$`)
@@ -539,10 +544,10 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
-		req.DiscountAmount, req.AdditionalAmount, req.KeepDate).Scan(&orderID); err != nil {
+		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.InternalNotes, req.IsUrgent, req.NotesDeadline).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}
@@ -670,6 +675,49 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		items = append(items, it)
 	}
 	rows.Close()
+
+	if req.Status == "picking" {
+		anyPicked := false
+		for _, it := range items {
+			if it.PickedQty > 0 {
+				anyPicked = true
+				break
+			}
+		}
+		if !anyPicked {
+			respondError(w, http.StatusBadRequest, "pilih dan ambil setidaknya satu produk sebelum memulai picking")
+			return
+		}
+	}
+
+	if req.Status == "shipped" {
+		var siblingOrderNos []string
+		sibRows, sibErr := tx.Query(ctx, `
+			SELECT o2.order_no
+			FROM orders o1
+			JOIN orders o2 ON o2.customer_id = o1.customer_id
+				AND o2.pickup_chain_id = o1.pickup_chain_id
+				AND COALESCE(o2.pickup_store_code,'') = COALESCE(o1.pickup_store_code,'')
+				AND o2.id <> o1.id
+			WHERE o1.id = $1 AND o2.status IN ('pending','ready_to_ship')
+				AND NOT EXISTS (
+					SELECT 1 FROM order_shipment_group_members m1
+					JOIN order_shipment_group_members m2 ON m2.group_id = m1.group_id
+					WHERE m1.order_id = o1.id AND m2.order_id = o2.id
+				)`, id)
+		if sibErr == nil {
+			for sibRows.Next() {
+				var no string
+				sibRows.Scan(&no)
+				siblingOrderNos = append(siblingOrderNos, no)
+			}
+			sibRows.Close()
+		}
+		if len(siblingOrderNos) > 0 {
+			respondError(w, http.StatusConflict, "pelanggan ini punya order lain yang bisa digabung sebelum dikirim: "+strings.Join(siblingOrderNos, ", "))
+			return
+		}
+	}
 
 	for _, it := range items {
 		switch req.Status {

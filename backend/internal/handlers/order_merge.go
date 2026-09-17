@@ -28,9 +28,14 @@ type mergeSuggestion struct {
 	OrderNos        []string `json:"order_nos"`
 }
 
-// Suggestions lists groups of ungrouped, eligible orders (status pending/ready_to_ship - not yet
-// shipped, and not currently being picked) sharing the same customer + pickup chain + pickup
-// store, 2 or more at a time.
+// Suggestions lists groups of ungrouped, eligible orders (status pending/ready_to_ship - not
+// currently mid-picking, and not yet shipped) sharing the same customer + pickup chain + pickup
+// store, 2 or more at a time. Deliberately NOT narrowed to pending-only: a merge combines the
+// SHIPMENT, not the picking process, so two orders that were picked independently can still be
+// shipped together once both are ready_to_ship. Excluding 'picking' (kept, unchanged from
+// before) plus keeping ready_to_ship eligible is also what keeps the hard ship-time block in
+// UpdateStatus (see orders.go, "shipped" case) always resolvable - that check uses this exact
+// same eligibility, so any sibling it flags can always actually be merged.
 func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
 	claims := appmw.GetClaims(r)
 	roleFilter := ""
