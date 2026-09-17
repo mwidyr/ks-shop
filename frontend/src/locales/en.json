@@ -644,14 +644,15 @@
     "status_no_tracking": "Exported, no tracking number",
     "status_problem": "Problem",
     "tab_all": "All",
-    "tab_cancelled_merged": "Cancelled/Merged",
+    "tab_cancelled_merged": "Cancelled/Return",
     "tab_new_orders": "New Orders",
     "tab_processing": "Processing",
     "total_orders": "Total {{count}} orders",
     "total_qty_sublabel": "{{count}} items",
     "view_tooltip": "View",
     "urgent_badge": "Urgent",
-    "merge_view_all": "View All Merges"
+    "merge_view_all": "View All Merges",
+    "merged_badge": "Merged"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",

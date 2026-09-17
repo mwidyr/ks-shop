@@ -51,6 +51,7 @@ type orderListItem struct {
 	CreatedAt       string  `json:"created_at"`
 	CustomerBlocked bool    `json:"customer_blacklisted"`
 	IsUrgent        bool    `json:"is_urgent"`
+	IsMerged        bool    `json:"is_merged"`
 }
 
 // List returns orders, filtered by role (sales sees only their own), plus optional
@@ -156,7 +157,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COALESCE((SELECT string_agg(DISTINCT h.name, ', ') FROM order_items oi2
 		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-'),
 		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist'),
-		       o.is_urgent
+		       o.is_urgent,
+		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id)
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
@@ -176,7 +178,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var o orderListItem
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent); err != nil {
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)

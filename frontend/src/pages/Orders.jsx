@@ -323,6 +323,9 @@ export default function Orders() {
                       {o.is_urgent && (
                         <p className="text-[9px] font-bold uppercase tracking-wide text-red-600 mb-0.5">⚠ {t('page_orders.urgent_badge')}</p>
                       )}
+                      {o.is_merged && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600 mb-0.5">🔗 {t('page_orders.merged_badge')}</p>
+                      )}
                       {o.order_no}
                     </td>
                     <td className="p-3">

@@ -644,14 +644,15 @@
     "status_no_tracking": "Diekspor belum ada nomor",
     "status_problem": "Masalah",
     "tab_all": "Semua",
-    "tab_cancelled_merged": "Dibatalkan/Digabung",
+    "tab_cancelled_merged": "Dibatalkan/Retur",
     "tab_new_orders": "Pesanan Baru",
     "tab_processing": "Diproses",
     "total_orders": "Total {{count}} pesanan",
     "total_qty_sublabel": "{{count}} item",
     "view_tooltip": "Lihat",
     "urgent_badge": "Mendesak",
-    "merge_view_all": "Lihat Semua Gabungan"
+    "merge_view_all": "Lihat Semua Gabungan",
+    "merged_badge": "Gabung"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",

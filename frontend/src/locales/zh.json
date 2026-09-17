@@ -644,14 +644,15 @@
     "status_no_tracking": "已匯出未有單號",
     "status_problem": "有問題",
     "tab_all": "全部",
-    "tab_cancelled_merged": "已取消/已合併",
+    "tab_cancelled_merged": "已取消/退貨",
     "tab_new_orders": "新訂單",
     "tab_processing": "處理中",
     "total_orders": "共 {{count}} 筆訂單",
     "total_qty_sublabel": "{{count}} 件商品",
     "view_tooltip": "檢視",
     "urgent_badge": "緊急",
-    "merge_view_all": "查看所有合併"
+    "merge_view_all": "查看所有合併",
+    "merged_badge": "合併"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",
