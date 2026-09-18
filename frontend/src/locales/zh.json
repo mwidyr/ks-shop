@@ -657,7 +657,9 @@
     "view_tooltip": "檢視",
     "urgent_badge": "緊急",
     "merge_view_all": "查看所有合併",
-    "merged_badge": "合併"
+    "merged_badge": "合併",
+    "phone_copied": "✓ 已複製",
+    "created_at_label": "建立於"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",
@@ -763,7 +765,8 @@
     "variant_no_color_label": "款式",
     "variant_required": "至少需要一個款式",
     "variants_heading": "商品款式",
-    "vendor_sku": "供應商貨號"
+    "vendor_sku": "供應商貨號",
+    "variant_is_active": "啟用此款式"
   },
   "page_products": {
     "activate": "上架",
@@ -1291,7 +1294,10 @@
     "title_session_history": "場次紀錄",
     "title_settings": "設定",
     "title_shipping_export": "匯出物流資料",
-    "customer_phone_format_error": "手機號碼必須為台灣格式：09xxxxxxxx（共10碼）"
+    "customer_phone_format_error": "手機號碼必須為台灣格式：09xxxxxxxx（共10碼）",
+    "date_yesterday": "昨天",
+    "date_14d": "14天",
+    "timezone_label": "JAKARTA GMT+7"
   },
   "status": {
     "cancelled": "已取消",

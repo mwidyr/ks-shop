@@ -476,7 +476,7 @@ export default function OrderDetail() {
             <p className="text-sm font-semibold text-gray-700 mb-1">{t('page_order_detail.customer_contact_label')}</p>
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600">{order.customer_name}</p>
-              <a href={`tel:${order.customer_phone}`} className="text-sm text-brand-600 font-medium hover:underline">☎ {order.customer_phone}</a>
+              <p className="text-sm text-brand-600 font-medium">☎ {order.customer_phone}</p>
             </div>
           </div>
 

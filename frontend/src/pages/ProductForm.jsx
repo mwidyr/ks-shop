@@ -20,7 +20,7 @@ function freshVariantRow(color, size, product) {
   return {
     sku: suggestSku(product.name || 'Produk', { color, size }), color, size,
     price: product.base_price || '', compare_at_price: 0, cost_price: 0,
-    allow_oversell: product.allow_oversell,
+    allow_oversell: product.allow_oversell, is_active: true,
     available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
     order_stock: 0,
   }
@@ -134,7 +134,7 @@ export default function ProductForm() {
     return {
       sku: v.sku, color: v.color, size: v.size, price: Number(v.price) || 0,
       compare_at_price: Number(v.compare_at_price) || 0, cost_price: Number(v.cost_price) || 0,
-      allow_oversell: Boolean(v.allow_oversell),
+      allow_oversell: Boolean(v.allow_oversell), is_active: v.is_active !== false,
       available_stock: Number(v.available_stock) || 0, broken_stock: Number(v.broken_stock) || 0,
       reserve_stock: Number(v.reserve_stock) || 0, incoming_stock: Number(v.incoming_stock) || 0,
       minimum_stock: Number(v.minimum_stock) || 0,
@@ -251,7 +251,6 @@ export default function ProductForm() {
             <input
               type="number" value={product.base_price} onChange={(e) => updateField('base_price', e.target.value)}
               placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              required
             />
             <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.base_price_hint')}</p>
           </div>
@@ -319,7 +318,7 @@ export default function ProductForm() {
                     </button>
                   )}
                 </div>
-                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-3`}>
+                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-3`}>
                   <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   <input placeholder={t('page_product_form.sell_price_placeholder')} type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   <div>
@@ -337,10 +336,18 @@ export default function ProductForm() {
                       className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.incoming_label')}</label>
+                    <input
+                      type="number" min="0" value={v.incoming_stock}
+                      onChange={(e) => updateVariantField(idx, 'incoming_stock', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
+                    />
+                  </div>
                   {isEdit && (
                     <div>
                       <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.total_stock_label')}</label>
-                      <input type="text" value={(Number(v.available_stock) || 0) - (v.order_stock || 0)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
+                      <input type="text" value={(Number(v.available_stock) || 0) + (Number(v.incoming_stock) || 0) - (v.order_stock || 0)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
                     </div>
                   )}
                 </div>
@@ -356,10 +363,16 @@ export default function ProductForm() {
                 {isEdit && (
                   <p className="text-[11px] text-gray-400">{t('page_product_form.order_stock_note', { order_stock: v.order_stock || 0 })}</p>
                 )}
-                <label className="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="checkbox" checked={v.allow_oversell} onChange={(e) => updateVariantField(idx, 'allow_oversell', e.target.checked)} />
-                  {t('page_product_form.variant_allow_oversell')}
-                </label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-xs text-gray-600">
+                    <input type="checkbox" checked={v.allow_oversell} onChange={(e) => updateVariantField(idx, 'allow_oversell', e.target.checked)} />
+                    {t('page_product_form.variant_allow_oversell')}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-gray-600">
+                    <input type="checkbox" checked={v.is_active !== false} onChange={(e) => updateVariantField(idx, 'is_active', e.target.checked)} />
+                    {t('page_product_form.variant_is_active')}
+                  </label>
+                </div>
               </div>
             ))}
           </div>

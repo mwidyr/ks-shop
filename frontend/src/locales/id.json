@@ -657,7 +657,9 @@
     "view_tooltip": "Lihat",
     "urgent_badge": "Mendesak",
     "merge_view_all": "Lihat Semua Gabungan",
-    "merged_badge": "Gabung"
+    "merged_badge": "Gabung",
+    "phone_copied": "✓ Disalin",
+    "created_at_label": "Dibuat"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",
@@ -763,7 +765,8 @@
     "variant_no_color_label": "Varian",
     "variant_required": "Minimal harus ada satu varian",
     "variants_heading": "Varian",
-    "vendor_sku": "Kode Barang Vendor"
+    "vendor_sku": "Kode Barang Vendor",
+    "variant_is_active": "Aktifkan varian ini"
   },
   "page_products": {
     "activate": "Aktifkan",
@@ -1291,7 +1294,10 @@
     "title_session_history": "Riwayat Sesi",
     "title_settings": "Pengaturan",
     "title_shipping_export": "Ekspor Data Pengiriman",
-    "customer_phone_format_error": "Nomor HP harus format Taiwan: 09xxxxxxxx (10 digit)"
+    "customer_phone_format_error": "Nomor HP harus format Taiwan: 09xxxxxxxx (10 digit)",
+    "date_yesterday": "Kemarin",
+    "date_14d": "14 Hari",
+    "timezone_label": "JAKARTA GMT+7"
   },
   "status": {
     "cancelled": "Dibatalkan",

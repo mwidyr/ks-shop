@@ -202,7 +202,7 @@ type orderItemView struct {
 	Price           float64 `json:"price"`
 	HostID          *int    `json:"host_id"`
 	HostName        string  `json:"host_name"`
-	AvailableToPick int     `json:"available_to_pick"` // total_stock = available_stock - order_stock: the actual pick-time gate value
+	AvailableToPick int     `json:"available_to_pick"` // total_stock = available_stock + incoming_stock - order_stock: the actual pick-time gate value
 	PhysicalStock   int     `json:"physical_stock"`    // raw available_stock, for staff reference
 	IsOversell      bool    `json:"is_oversell"`
 }
@@ -303,7 +303,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
-		       sb.available_stock - sb.order_stock, sb.available_stock
+		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -360,7 +360,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			SELECT oi.id, oi.variant_id, p.name,
 			       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 			       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
-			       sb.available_stock - sb.order_stock, sb.available_stock, o2.order_no
+			       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock, o2.order_no
 			FROM order_shipment_group_members m2
 			JOIN orders o2 ON o2.id = m2.order_id
 			JOIN order_items oi ON oi.order_id = o2.id
@@ -562,7 +562,8 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Order creation never validates or touches stock - the only enforcement point is
-	// PickItem, gated on total_stock (available_stock - order_stock) staying positive. This
+	// PickItem, gated on total_stock (available_stock + incoming_stock - order_stock) staying
+	// positive. This
 	// deliberately allows an order to be created even with zero/insufficient stock on hand.
 	var subtotal float64
 	for _, it := range req.Items {
@@ -984,19 +985,20 @@ func (h *OrderHandler) PickItem(w http.ResponseWriter, r *http.Request) {
 	delta := newPickedQty - oldPickedQty
 
 	// Stock is only ever touched here, not at order creation: picking is the sole enforcement
-	// point. total_stock = available_stock - order_stock must stay positive for a pick to add
-	// quantity; releasing quantity (delta < 0, picked_qty being lowered) never needs a gate.
+	// point. total_stock = available_stock + incoming_stock - order_stock must stay positive for
+	// a pick to add quantity; releasing quantity (delta < 0, picked_qty being lowered) never
+	// needs a gate.
 	if delta > 0 {
-		var available, orderStock int
+		var available, incoming, orderStock int
 		var allowOversell bool
 		if err := tx.QueryRow(ctx, `
-			SELECT sb.available_stock, sb.order_stock, pv.allow_oversell FROM stock_buckets sb
+			SELECT sb.available_stock, sb.incoming_stock, sb.order_stock, pv.allow_oversell FROM stock_buckets sb
 			JOIN product_variants pv ON pv.id = sb.variant_id
-			WHERE sb.variant_id=$1 FOR UPDATE`, variantID).Scan(&available, &orderStock, &allowOversell); err != nil {
+			WHERE sb.variant_id=$1 FOR UPDATE`, variantID).Scan(&available, &incoming, &orderStock, &allowOversell); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to load stock")
 			return
 		}
-		totalStock := available - orderStock
+		totalStock := available + incoming - orderStock
 		if totalStock <= 0 && !allowOversell {
 			respondError(w, http.StatusConflict, fmt.Sprintf("stok tidak mencukupi untuk picking (total_stock: %d)", totalStock))
 			return

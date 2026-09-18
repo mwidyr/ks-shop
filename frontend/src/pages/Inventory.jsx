@@ -9,11 +9,12 @@ function VariantRow({ product, variant, onSaved }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [availableStock, setAvailableStock] = useState(variant.available_stock)
+  const [incomingStock, setIncomingStock] = useState(variant.incoming_stock)
   const [saving, setSaving] = useState(false)
   const lowStock = variant.minimum_stock > 0 && variant.available_stock <= variant.minimum_stock
   const isOversell = variant.available_stock < 0
 
-  // Only available_stock is editable from this page - reserve/broken/incoming/minimum_stock
+  // Available and incoming stock are editable from this page - reserve/broken/minimum_stock
   // are set from the Product form instead, so they're sent through unchanged here.
   async function save() {
     setSaving(true)
@@ -22,7 +23,7 @@ function VariantRow({ product, variant, onSaved }) {
         sku: variant.sku, color: variant.color, size: variant.size, price: variant.price,
         compare_at_price: variant.compare_at_price, cost_price: variant.cost_price,
         available_stock: Number(availableStock), broken_stock: variant.broken_stock,
-        reserve_stock: variant.reserve_stock, incoming_stock: variant.incoming_stock,
+        reserve_stock: variant.reserve_stock, incoming_stock: Number(incomingStock),
         minimum_stock: variant.minimum_stock,
       })
       setEditing(false)
@@ -33,11 +34,12 @@ function VariantRow({ product, variant, onSaved }) {
   }
 
   return (
-    <tr className={`hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
-      <td className="p-3">
+    <tr className={`hover:bg-gray-50 align-middle ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+      <td className="p-3 align-middle">
         <p className="text-sm text-gray-700">{variant.sku} · {variant.color}/{variant.size}</p>
       </td>
-      <td className="p-3 text-center">
+      <td className="p-3 text-center font-semibold align-middle">{variant.total_stock}</td>
+      <td className="p-3 text-center align-middle">
         {editing ? (
           <input
             type="number" value={availableStock}
@@ -45,20 +47,30 @@ function VariantRow({ product, variant, onSaved }) {
             className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
           />
         ) : (
-          <span className={isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}>{variant.available_stock}</span>
+          <span className={`inline-block w-20 px-2 py-1 border border-transparent text-sm ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
         )}
       </td>
-      <td className="p-3 text-center">{variant.order_stock}</td>
-      <td className="p-3 text-center font-semibold">{variant.total_stock}</td>
-      <td className="p-3 text-center">
+      <td className="p-3 text-center align-middle">
+        {editing ? (
+          <input
+            type="number" min="0" value={incomingStock}
+            onChange={(e) => setIncomingStock(e.target.value)}
+            className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+          />
+        ) : (
+          <span className="inline-block w-20 px-2 py-1 border border-transparent text-sm">{variant.incoming_stock}</span>
+        )}
+      </td>
+      <td className="p-3 text-center align-middle">{variant.order_stock}</td>
+      <td className="p-3 text-center align-middle">
         {isOversell && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{t('page_inventory.oversell_badge')}</span>}
         {!isOversell && lowStock && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{t('page_inventory.low_stock_badge')}</span>}
       </td>
-      <td className="p-3 text-right">
+      <td className="p-3 text-right align-middle">
         {editing ? (
           <div className="flex gap-2 justify-end">
             <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
-            <button onClick={() => { setEditing(false); setAvailableStock(variant.available_stock) }} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
+            <button onClick={() => { setEditing(false); setAvailableStock(variant.available_stock); setIncomingStock(variant.incoming_stock) }} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
           </div>
         ) : (
           <button onClick={() => setEditing(true)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.edit')}</button>
@@ -75,9 +87,10 @@ function ProductCard({ product, forceOpen, onSaved }) {
 
   const totals = product.variants.reduce((acc, v) => ({
     available: acc.available + v.available_stock,
+    incoming: acc.incoming + v.incoming_stock,
     order: acc.order + v.order_stock,
     total: acc.total + v.total_stock,
-  }), { available: 0, order: 0, total: 0 })
+  }), { available: 0, incoming: 0, order: 0, total: 0 })
 
   return (
     <div className="bg-white rounded-2xl shadow-sm mb-4 overflow-hidden">
@@ -94,15 +107,17 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="grid grid-cols-[1fr,repeat(3,minmax(0,1fr))] gap-2 px-4 pb-3 text-xs">
+      <div className="grid grid-cols-[1fr,repeat(4,minmax(0,1fr))] gap-2 px-4 pb-3 text-xs">
         <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_available')}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_ordered')}</span>
         <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
+        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_available')}</span>
+        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_incoming')}</span>
+        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_ordered')}</span>
         <span></span>
-        <span className="text-center font-bold text-gray-800">{totals.available}</span>
-        <span className="text-center font-bold text-gray-800">{totals.order}</span>
         <span className="text-center font-bold text-gray-800">{totals.total}</span>
+        <span className="text-center font-bold text-gray-800">{totals.available}</span>
+        <span className="text-center font-bold text-gray-800">{totals.incoming}</span>
+        <span className="text-center font-bold text-gray-800">{totals.order}</span>
       </div>
 
       {isOpen && (

@@ -146,6 +146,7 @@ export default function AppShell({ children }) {
   const [access, setAccess] = useState(null) // null = still loading (show everything to avoid flicker)
   const [isSuperUser, setIsSuperUser] = useState(true)
   const [shopName, setShopName] = useState(t('brand.name'))
+  const [clock, setClock] = useState('')
 
   useEffect(() => {
     getMyAccess().then((res) => {
@@ -153,6 +154,17 @@ export default function AppShell({ children }) {
       setAccess(res.access)
     })
     getStoreSettings().then((res) => { if (res.shop_name) setShopName(res.shop_name) }).catch(() => {})
+  }, [])
+
+  // Always Jakarta time regardless of the viewer's own timezone/locale - operational fact for staff.
+  useEffect(() => {
+    const formatter = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    })
+    function tick() { setClock(formatter.format(new Date())) }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
   }, [])
 
   // A tab is visible if it's super_user (always full access) or has any row (view/edit) - a
@@ -278,6 +290,9 @@ export default function AppShell({ children }) {
             <h1 className="text-lg sm:text-xl font-extrabold text-gray-800 truncate">{pageTitle(location.pathname, t)}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-gray-500 tabular-nums">
+              <span className="font-semibold text-gray-600">{t('shared.timezone_label')}</span> · {clock}
+            </span>
             <button title={t('nav.items.notifications')} className="text-gray-400 hover:text-gray-600 relative">
               <IconBell />
             </button>

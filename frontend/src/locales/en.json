@@ -657,7 +657,9 @@
     "view_tooltip": "View",
     "urgent_badge": "Urgent",
     "merge_view_all": "View All Merges",
-    "merged_badge": "Merged"
+    "merged_badge": "Merged",
+    "phone_copied": "✓ Copied",
+    "created_at_label": "Created"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",
@@ -763,7 +765,8 @@
     "variant_no_color_label": "Variant",
     "variant_required": "At least one variant is required",
     "variants_heading": "Variants",
-    "vendor_sku": "Vendor Item Code"
+    "vendor_sku": "Vendor Item Code",
+    "variant_is_active": "Enable this variant"
   },
   "page_products": {
     "activate": "Activate",
@@ -1291,7 +1294,10 @@
     "title_session_history": "Session History",
     "title_settings": "Settings",
     "title_shipping_export": "Shipping Data Export",
-    "customer_phone_format_error": "Phone number must be Taiwan format: 09xxxxxxxx (10 digits)"
+    "customer_phone_format_error": "Phone number must be Taiwan format: 09xxxxxxxx (10 digits)",
+    "date_yesterday": "Yesterday",
+    "date_14d": "14 Days",
+    "timezone_label": "JAKARTA GMT+7"
   },
   "status": {
     "cancelled": "Cancelled",

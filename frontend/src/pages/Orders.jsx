@@ -8,9 +8,9 @@ import { listProducts } from '../api/products'
 import { listLiveSessions } from '../api/liveSessions'
 import { getSummary } from '../api/dashboard'
 import { formatCurrency } from '../utils/format'
+import { copyToClipboard } from '../utils/clipboard'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
-import BigStatCard from '../components/BigStatCard'
 import ExportCvsModal from '../components/ExportCvsModal'
 import ExportKurirModal from '../components/ExportKurirModal'
 const statusTabs = [
@@ -61,6 +61,15 @@ export default function Orders() {
   const [mergeAllBusy, setMergeAllBusy] = useState(false)
   const [mergeAllResult, setMergeAllResult] = useState('')
   const [exportModal, setExportModal] = useState(null)
+  const [copiedPhoneId, setCopiedPhoneId] = useState(null)
+
+  async function handleCopyPhone(e, orderId, phone) {
+    e.stopPropagation()
+    if (await copyToClipboard(phone)) {
+      setCopiedPhoneId(orderId)
+      setTimeout(() => setCopiedPhoneId((id) => (id === orderId ? null : id)), 1500)
+    }
+  }
 
   function fetchMergeSuggestions() {
     getMergeSuggestions().then(setMergeSuggestions)
@@ -143,9 +152,6 @@ export default function Orders() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size))
   const counts = summary?.order_status_counts || {}
-  const revenue = summary?.order_status_revenue || {}
-  const processing = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (counts[s] || 0), 0)
-  const processingRevenue = ['picking', 'ready_to_ship', 'shipped'].reduce((sum, s) => sum + (revenue[s] || 0), 0)
 
   const mergeTotalOrders = mergeSuggestions.reduce((sum, s) => sum + s.order_nos.length, 0)
 
@@ -186,22 +192,9 @@ export default function Orders() {
       )}
       {mergeAllResult && <p className="text-sm text-gray-600 mb-4">{mergeAllResult}</p>}
 
-      {summary && (
-        <div className="flex flex-wrap gap-4 mb-6">
-          <BigStatCard title={t('page_orders.stat_total_order')} value={Object.values(counts).reduce((a, b) => a + b, 0)} subLabel={t('page_orders.total_qty_sublabel', { count: summary.total_qty })} iconBg="bg-blue-50" iconColor="text-blue-600" icon="📦" />
-          <BigStatCard title={t('page_orders.stat_total_revenue')} value={formatCurrency(summary.total_revenue)} iconBg="bg-green-50" iconColor="text-green-600" icon="💰" />
-          <BigStatCard title={t('page_orders.stat_pending_confirmation')} value={formatCurrency(revenue.pending || 0)} subLabel={t('page_orders.order_count', { count: counts.pending || 0 })} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⏳" />
-          <BigStatCard title={t('page_orders.stat_processing')} value={formatCurrency(processingRevenue)} subLabel={t('page_orders.order_count', { count: processing })} iconBg="bg-indigo-50" iconColor="text-indigo-600" icon="🚚" />
-          <BigStatCard title={t('status.delivered')} value={formatCurrency(revenue.delivered || 0)} subLabel={t('page_orders.order_count', { count: counts.delivered || 0 })} iconBg="bg-green-50" iconColor="text-green-600" icon="✅" />
-        </div>
-      )}
-
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <DateRangePicker value={range} onChange={(r) => { setRange(r); setPage(1) }} />
-          <Link to="/orders/new" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-            {t('page_orders.create_order_button')}
-          </Link>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
@@ -327,6 +320,7 @@ export default function Orders() {
                         <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600 mb-0.5">🔗 {t('page_orders.merged_badge')}</p>
                       )}
                       {o.order_no}
+                      <p className="text-[10px] font-normal text-gray-400 mt-0.5">{t('page_orders.created_at_label')}: {new Date(o.created_at).toLocaleString('id-ID')}</p>
                     </td>
                     <td className="p-3">
                       <p className="text-gray-700 flex items-center gap-1.5">
@@ -335,7 +329,13 @@ export default function Orders() {
                           <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">{t('page_orders.blacklist_badge')}</span>
                         )}
                       </p>
-                      <p className="text-xs text-gray-400">{o.customer_phone}</p>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
+                        className="text-xs text-gray-400 hover:text-brand-600 hover:underline"
+                      >
+                        {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
+                      </button>
                     </td>
                     <td className="p-3 text-gray-700 font-medium">{o.host_names}</td>
                     <td className="p-3 text-gray-500">
@@ -371,6 +371,15 @@ export default function Orders() {
           </div>
         </>
       )}
+
+      <Link
+        to="/orders/new"
+        title={t('page_orders.create_order_button')}
+        aria-label={t('page_orders.create_order_button')}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-3xl font-light flex items-center justify-center shadow-lg"
+      >
+        +
+      </Link>
     </div>
   )
 }

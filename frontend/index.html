@@ -44,6 +44,17 @@
       html.dark .bg-gray-800:hover { background-color: #64748b; }
       html.dark .bg-black:hover { background-color: #1e293b; }
 
+      /* hover:bg-* generates its own distinct class (not affected by the .bg-gray-50 override
+         above), so without these, row/button hover states stayed at their bright light-mode
+         color in dark mode and made the (light-colored) dark-mode text unreadable on hover. */
+      html.dark .hover\:bg-gray-50:hover { background-color: #334155; }
+      html.dark .hover\:bg-gray-100:hover { background-color: #475569; }
+      html.dark .hover\:bg-brand-50:hover { background-color: rgba(37, 99, 235, 0.25); }
+      html.dark .hover\:bg-red-50:hover { background-color: rgba(220, 38, 38, 0.25); }
+      html.dark .hover\:bg-red-100:hover { background-color: rgba(220, 38, 38, 0.35); }
+      html.dark .hover\:bg-green-100:hover { background-color: rgba(22, 163, 74, 0.35); }
+      html.dark .hover\:bg-amber-100:hover { background-color: rgba(217, 119, 6, 0.35); }
+
       html.dark .text-gray-800 { color: #f1f5f9; }
       html.dark .text-gray-700 { color: #e2e8f0; }
       html.dark .text-gray-600 { color: #cbd5e1; }

@@ -6,8 +6,10 @@ function isoDate(d) {
 }
 
 const presets = [
+  { key: 'yesterday', labelKey: 'shared.date_yesterday', single: 1 },
   { key: 'today', labelKey: 'shared.date_today', days: 0 },
   { key: '7d', labelKey: 'shared.date_7d', days: 6 },
+  { key: '14d', labelKey: 'shared.date_14d', days: 13 },
   { key: '30d', labelKey: 'shared.date_30d', days: 29 },
   { key: 'custom', labelKey: 'shared.date_custom' },
 ]
@@ -17,6 +19,14 @@ export function presetRange(days) {
   const from = new Date()
   from.setDate(from.getDate() - days)
   return { from: isoDate(from), to: isoDate(to) }
+}
+
+// A single day N days back (e.g. "Kemarin" = singleDayRange(1)), as opposed to presetRange's
+// trailing window from N days back through today.
+export function singleDayRange(daysAgo) {
+  const d = new Date()
+  d.setDate(d.getDate() - daysAgo)
+  return { from: isoDate(d), to: isoDate(d) }
 }
 
 // Controlled date-range selector: emits {from, to} (ISO yyyy-mm-dd) via onChange.
@@ -34,7 +44,7 @@ export default function DateRangePicker({ value, onChange }) {
   function selectPreset(preset) {
     setActive(preset.key)
     if (preset.key === 'custom') return
-    const range = presetRange(preset.days)
+    const range = preset.single != null ? singleDayRange(preset.single) : presetRange(preset.days)
     setCustomFrom(range.from)
     setCustomTo(range.to)
     onChange(range)
