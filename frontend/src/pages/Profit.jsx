@@ -44,19 +44,32 @@ export default function Profit() {
             <Row label={t('page_profit.shipping_subsidy')} value={data.shipping_subsidy} isNegative />
             <Row label={t('page_profit.ad_cost')} value={data.ad_cost} isNegative />
             <Row label={t('page_profit.refund')} value={data.refund} isNegative />
-            <Row label={t('page_profit.cogs')} value={data.cogs} isNegative />
-            <Row label={t('page_profit.net_profit')} value={data.net_profit} bold />
+            {data.cogs != null && <Row label={t('page_profit.cogs')} value={data.cogs} isNegative />}
+            {data.net_profit != null ? (
+              <Row label={t('page_profit.net_profit')} value={data.net_profit} bold />
+            ) : (
+              <Row label={t('page_profit.net_sales')} value={data.net_sales} bold />
+            )}
             <p className="text-xs text-gray-400 mt-3">
               {t('page_profit.assumption_note')}
             </p>
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-              <p className="text-xs text-gray-400 uppercase font-semibold mb-1">{t('page_profit.profit_margin')}</p>
-              <p className="text-4xl font-extrabold text-brand-600">{data.margin_pct.toFixed(1)}%</p>
-              <p className="text-xs text-gray-400 mt-1">{t('page_profit.of_gross_sales')}</p>
-            </div>
+            {data.margin_pct != null && (
+              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
+                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">{t('page_profit.profit_margin')}</p>
+                <p className="text-4xl font-extrabold text-brand-600">{data.margin_pct.toFixed(1)}%</p>
+                <p className="text-xs text-gray-400 mt-1">{t('page_profit.of_gross_sales')}</p>
+              </div>
+            )}
+            {data.gross_profit != null && (
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">{t('page_profit.gross_profit')}</p>
+                <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.gross_profit)}</p>
+                <p className="text-xs text-gray-400 mt-1">{t('page_profit.gross_profit_formula')}</p>
+              </div>
+            )}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <p className="text-xs text-gray-400 uppercase font-semibold mb-2">{t('page_profit.net_sales')}</p>
               <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.net_sales)}</p>

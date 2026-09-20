@@ -235,10 +235,14 @@ type profitBreakdown struct {
 	ShippingSubsidy float64 `json:"shipping_subsidy"`
 	AdCost          float64 `json:"ad_cost"`
 	Refund          float64 `json:"refund"`
-	COGS            float64 `json:"cogs"`
 	NetSales        float64 `json:"net_sales"`
-	NetProfit       float64 `json:"net_profit"`
-	MarginPct       float64 `json:"margin_pct"`
+	// The four cost-derived figures below are admin-only (super_user) - omitted entirely for
+	// every other role, same redaction rule as Product.Cost (see isAdmin() in products.go).
+	// Everything above stays visible to any role with profit-tab access, unchanged from before.
+	COGS        *float64 `json:"cogs,omitempty"`
+	GrossProfit *float64 `json:"gross_profit,omitempty"` // gross revenue - Product Cost (products.cost), distinct from Net Profit below
+	NetProfit   *float64 `json:"net_profit,omitempty"`
+	MarginPct   *float64 `json:"margin_pct,omitempty"`
 }
 
 // Profit computes the Gross Sales -> Net Profit waterfall for the date range, using real
@@ -268,6 +272,16 @@ func (h *DashboardHandler) Profit(w http.ResponseWriter, r *http.Request) {
 		WHERE o.created_at >= $1 AND o.created_at < $2 AND o.status <> 'cancelled'`,
 		from, to).Scan(&gross, &cogs)
 
+	var productCost float64
+	h.DB.QueryRow(ctx, `
+		SELECT COALESCE(SUM(oi.qty * p.cost),0)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE o.created_at >= $1 AND o.created_at < $2 AND o.status <> 'cancelled'`,
+		from, to).Scan(&productCost)
+
 	var discount, additional float64
 	var orderCount int
 	h.DB.QueryRow(ctx, `
@@ -288,16 +302,24 @@ func (h *DashboardHandler) Profit(w http.ResponseWriter, r *http.Request) {
 	adCost := fees.AdCostFlat * float64(orderCount)
 	netSales := gross - discount + additional
 	netProfit := netSales - platformFee - paymentFee - shippingSubsidy - adCost - refund - cogs
+	grossProfit := gross - productCost
 	margin := 0.0
 	if gross > 0 {
 		margin = netProfit / gross * 100
 	}
 
-	respondJSON(w, http.StatusOK, profitBreakdown{
+	resp := profitBreakdown{
 		GrossSales: gross, Discount: discount, PlatformFee: platformFee, PaymentFee: paymentFee,
-		ShippingSubsidy: shippingSubsidy, AdCost: adCost, Refund: refund, COGS: cogs,
-		NetSales: netSales, NetProfit: netProfit, MarginPct: margin,
-	})
+		ShippingSubsidy: shippingSubsidy, AdCost: adCost, Refund: refund, NetSales: netSales,
+	}
+	if isAdmin(r) {
+		resp.COGS = &cogs
+		resp.GrossProfit = &grossProfit
+		resp.NetProfit = &netProfit
+		resp.MarginPct = &margin
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 type alertsResponse struct {

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import PhotoSlots from '../components/PhotoSlots'
 import CategorySelect from '../components/CategorySelect'
+import { useAuth } from '../context/AuthContext'
 
 function parseList(text) {
   return text.split(',').map((s) => s.trim()).filter(Boolean)
@@ -31,10 +32,15 @@ export default function ProductForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // Product Cost is admin-only: the field is only ever present in the API response for
+  // super_user, and the backend silently ignores it from anyone else's write - this check is
+  // just what decides whether to show the input at all.
+  const isAdmin = user?.role === 'super_user'
 
   const [product, setProduct] = useState({
     sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '',
-    base_price: '', is_active: true, allow_oversell: false,
+    base_price: '', cost: '', is_active: true, allow_oversell: false,
   })
   const [images, setImages] = useState([])
   const [colorsText, setColorsText] = useState('')
@@ -51,6 +57,7 @@ export default function ProductForm() {
       setProduct({
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description,
         category: p.category, brand: p.brand, base_price: p.base_price || '',
+        cost: p.cost ?? '', // absent entirely in the response for non-admins - stays '' for them
         is_active: p.is_active, allow_oversell: p.allow_oversell,
       })
       setImages(p.images)
@@ -162,7 +169,7 @@ export default function ProductForm() {
     }
     setSaving(true)
     try {
-      const productBody = { ...product, base_price: Number(product.base_price) || 0 }
+      const productBody = { ...product, base_price: Number(product.base_price) || 0, cost: Number(product.cost) || 0 }
       if (!isEdit) {
         await createProduct({
           ...productBody,
@@ -254,6 +261,16 @@ export default function ProductForm() {
             />
             <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.base_price_hint')}</p>
           </div>
+          {isAdmin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.cost_label')}</label>
+              <input
+                type="number" value={product.cost} onChange={(e) => updateField('cost', e.target.value)}
+                placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.cost_hint')}</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.description')}</label>
             <textarea

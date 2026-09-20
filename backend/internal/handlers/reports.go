@@ -110,6 +110,7 @@ type categoryAnalysisRow struct {
 
 type variantAnalysisRow struct {
 	SKU         string  `json:"sku"`
+	ProductSKU  string  `json:"product_sku"` // the product's own code (distinct from the variant SKU above) - links this row back to its by_product ranking row
 	Category    string  `json:"category"`
 	ProductName string  `json:"product_name"`
 	Color       string  `json:"color"`
@@ -200,18 +201,18 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 
 	varRows, err := h.DB.Query(r.Context(), `
-		SELECT pv.sku, COALESCE(p.category,'-'), p.name, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		SELECT pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), p.name, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id`+where+`
-		GROUP BY pv.id, pv.sku, p.category, p.name, pv.color ORDER BY 6 DESC LIMIT 100`, args...)
+		GROUP BY pv.id, pv.sku, p.sku, p.category, p.name, pv.color ORDER BY 7 DESC LIMIT 100`, args...)
 	byVariant := []variantAnalysisRow{}
 	if err == nil {
 		defer varRows.Close()
 		for varRows.Next() {
 			var v variantAnalysisRow
-			if err := varRows.Scan(&v.SKU, &v.Category, &v.ProductName, &v.Color, &v.Qty, &v.GMV); err != nil {
+			if err := varRows.Scan(&v.SKU, &v.ProductSKU, &v.Category, &v.ProductName, &v.Color, &v.Qty, &v.GMV); err != nil {
 				continue
 			}
 			if totalGMV > 0 {
@@ -447,7 +448,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id`+where+`
-		GROUP BY pv.color ORDER BY 3 DESC`, args...)
+		GROUP BY pv.color ORDER BY 2 DESC`, args...)
 	byColor := []productPerfColorRow{}
 	if err == nil {
 		defer colorRows.Close()
@@ -468,7 +469,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
 		LEFT JOIN hosts hst ON hst.id = oi.host_id`+where+`
-		GROUP BY hst.id, hst.name ORDER BY 3 DESC`, args...)
+		GROUP BY hst.id, hst.name ORDER BY 2 DESC`, args...)
 	byHost := []productPerfHostRow{}
 	if err == nil {
 		defer hostRows.Close()
@@ -559,5 +560,74 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 			"color_combos":       colorCombos,
 		},
 		"cross_sell": crossSell,
+	})
+}
+
+type colorPairRow struct {
+	ColorA     string  `json:"color_a"`
+	ColorB     string  `json:"color_b"`
+	OrderCount int     `json:"order_count"`
+	Pct        float64 `json:"pct"`
+}
+
+// ProductColorPair answers, for two user-picked products, which color-A x color-B combinations
+// were bought together in the same order - a two-product extension of the single-product
+// "color combo" analysis above, modeled on the same self-join-order_items-on-order_id shape as
+// colorCombos/crossSell, but with BOTH sides of the join constrained to specific products
+// instead of "any other product."
+func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	skuA, skuB := q.Get("sku_a"), q.Get("sku_b")
+	if skuA == "" || skuB == "" {
+		respondError(w, http.StatusBadRequest, "sku_a and sku_b are required")
+		return
+	}
+
+	from, to, filtered := dateRange(r)
+	if !filtered {
+		to = time.Now()
+		from = to.AddDate(0, 0, -30)
+	}
+
+	args := []interface{}{skuA, skuB, from, to}
+	joinWhere := `
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		JOIN order_items oi2 ON oi2.order_id = oi.order_id
+		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
+		JOIN products p2 ON p2.id = pv2.product_id
+		WHERE p.sku = $1 AND p2.sku = $2
+		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4`
+
+	var totalOrders int
+	h.DB.QueryRow(r.Context(), `SELECT COUNT(DISTINCT oi.order_id) `+joinWhere, args...).Scan(&totalOrders)
+
+	pairRows, err := h.DB.Query(r.Context(), `
+		SELECT pv.color, pv2.color, COUNT(DISTINCT oi.order_id) `+joinWhere+`
+		GROUP BY pv.color, pv2.color ORDER BY 3 DESC LIMIT 50`, args...)
+	pairs := []colorPairRow{}
+	if err == nil {
+		defer pairRows.Close()
+		for pairRows.Next() {
+			var cp colorPairRow
+			if err := pairRows.Scan(&cp.ColorA, &cp.ColorB, &cp.OrderCount); err != nil {
+				continue
+			}
+			cp.Pct = pctOf(float64(cp.OrderCount), float64(totalOrders))
+			pairs = append(pairs, cp)
+		}
+	}
+
+	var nameA, nameB string
+	h.DB.QueryRow(r.Context(), `SELECT name FROM products WHERE sku=$1`, skuA).Scan(&nameA)
+	h.DB.QueryRow(r.Context(), `SELECT name FROM products WHERE sku=$1`, skuB).Scan(&nameB)
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"product_a":    map[string]string{"sku": skuA, "name": nameA},
+		"product_b":    map[string]string{"sku": skuB, "name": nameB},
+		"total_orders": totalOrders,
+		"pairs":        pairs,
 	})
 }

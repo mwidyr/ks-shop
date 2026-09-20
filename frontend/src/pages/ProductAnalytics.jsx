@@ -1,9 +1,25 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductAnalysis } from '../api/reports'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import { IconChevronDown } from '../components/icons'
+
+// Color breakdown for one ranked product, derived client-side from the already-fetched
+// by_variant rows (no extra API call) - grouped by color, with % of that product's OWN qty
+// (not % of the whole period), matching "sales by color" rather than the page-wide GMV%.
+function colorBreakdownFor(byVariant, productSku, productQty) {
+  const rows = byVariant.filter((v) => v.product_sku === productSku)
+  const byColor = new Map()
+  for (const v of rows) {
+    const prev = byColor.get(v.color) || 0
+    byColor.set(v.color, prev + v.qty)
+  }
+  return [...byColor.entries()]
+    .map(([color, qty]) => ({ color, qty, pct: productQty > 0 ? (qty / productQty) * 100 : 0 }))
+    .sort((a, b) => b.qty - a.qty)
+}
 
 export default function ProductAnalytics() {
   const { t } = useTranslation()
@@ -13,6 +29,7 @@ export default function ProductAnalytics() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [productSort, setProductSort] = useState('gmv')
+  const [expandedSku, setExpandedSku] = useState(null)
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
 
@@ -103,16 +120,57 @@ export default function ProductAnalytics() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {[...data.by_product].sort((a, b) => (productSort === 'qty' ? b.qty - a.qty : b.gmv - a.gmv)).map((p) => (
-                  <tr key={p.sku}>
-                    <td className="p-2 font-mono text-xs text-brand-600">{p.sku}</td>
-                    <td className="p-2 text-gray-500">{p.category}</td>
-                    <td className="p-2 font-medium text-gray-700">{p.product_name}</td>
-                    <td className="p-2 text-gray-500">{p.qty}</td>
-                    <td className="p-2 text-gray-700 font-semibold">{formatCurrency(p.gmv)}</td>
-                    <td className="p-2 text-gray-500">{p.gmv_pct.toFixed(1)}%</td>
-                  </tr>
-                ))}
+                {[...data.by_product].sort((a, b) => (productSort === 'qty' ? b.qty - a.qty : b.gmv - a.gmv)).map((p) => {
+                  const isExpanded = expandedSku === p.sku
+                  const colors = isExpanded ? colorBreakdownFor(data.by_variant, p.sku, p.qty) : []
+                  return (
+                    <Fragment key={p.sku}>
+                      <tr
+                        onClick={() => setExpandedSku(isExpanded ? null : p.sku)}
+                        className="cursor-pointer hover:bg-gray-50"
+                      >
+                        <td className="p-2 font-mono text-xs text-brand-600">
+                          <span className="inline-flex items-center gap-1">
+                            <IconChevronDown width={12} height={12} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : '-rotate-90'}`} />
+                            {p.sku}
+                          </span>
+                        </td>
+                        <td className="p-2 text-gray-500">{p.category}</td>
+                        <td className="p-2 font-medium text-gray-700">{p.product_name}</td>
+                        <td className="p-2 text-gray-500">{p.qty}</td>
+                        <td className="p-2 text-gray-700 font-semibold">{formatCurrency(p.gmv)}</td>
+                        <td className="p-2 text-gray-500">{p.gmv_pct.toFixed(1)}%</td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={6} className="p-0 bg-gray-50">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-left text-gray-400 uppercase border-b border-gray-200">
+                                  <th className="py-1.5 pl-8">{t('page_product_analytics.col_color')}</th>
+                                  <th className="py-1.5">{t('page_product_analytics.col_qty')}</th>
+                                  <th className="py-1.5 pr-4">{t('page_product_analytics.col_qty_pct')}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {colors.map((c) => (
+                                  <tr key={c.color}>
+                                    <td className="py-1.5 pl-8 font-medium text-gray-700">{c.color}</td>
+                                    <td className="py-1.5 text-gray-500">{c.qty}</td>
+                                    <td className="py-1.5 pr-4 text-gray-500">{c.pct.toFixed(1)}%</td>
+                                  </tr>
+                                ))}
+                                {colors.length === 0 && (
+                                  <tr><td colSpan={3} className="py-3 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
                 {data.by_product.length === 0 && (
                   <tr><td colSpan={6} className="p-6 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}

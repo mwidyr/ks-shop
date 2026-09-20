@@ -52,7 +52,8 @@ type Product struct {
 	Description   string         `json:"description"`
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
-	BasePrice     float64        `json:"base_price"` // 0 = unset; frontend defaults new variant prices to this when > 0
+	BasePrice     float64        `json:"base_price"`     // 0 = unset; frontend defaults new variant prices to this when > 0
+	Cost          *float64       `json:"cost,omitempty"` // admin-only (super_user); nil/omitted entirely for every other role, both on read and on write - see isAdmin()
 	IsActive      bool           `json:"is_active"`
 	AllowOversell bool           `json:"allow_oversell"`
 	Images        []ProductImage `json:"images"`
@@ -66,9 +67,10 @@ type Product struct {
 // List returns all products with their images, variants, stock, units sold and a
 // computed status label (active / low_stock / out_of_stock / nonaktif).
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
+	admin := isAdmin(r)
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       base_price, is_active, allow_oversell, created_at
+		       base_price, cost, is_active, allow_oversell, created_at
 		FROM products ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
@@ -81,9 +83,13 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p Product
 		var createdAt time.Time
+		var cost float64
 		if err := rows.Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.BasePrice, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
+			&p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
 			continue
+		}
+		if admin {
+			p.Cost = &cost
 		}
 		p.CreatedAt = createdAt.Format(time.RFC3339)
 		p.Variants = []Variant{}
@@ -193,15 +199,19 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	var p Product
 	var createdAt time.Time
+	var cost float64
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       base_price, is_active, allow_oversell, created_at
+		       base_price, cost, is_active, allow_oversell, created_at
 		FROM products WHERE id=$1`, id).
 		Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.BasePrice, &p.IsActive, &p.AllowOversell, &createdAt)
+			&p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
+	}
+	if isAdmin(r) {
+		p.Cost = &cost
 	}
 	p.CreatedAt = createdAt.Format(time.RFC3339)
 
@@ -265,6 +275,7 @@ type createProductRequest struct {
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
 	BasePrice     float64        `json:"base_price"`
+	Cost          float64        `json:"cost"` // admin-only - silently ignored (kept at 0) unless the caller is super_user, see isAdmin()
 	IsActive      *bool          `json:"is_active"`
 	AllowOversell bool           `json:"allow_oversell"`
 	Images        []string       `json:"images"`
@@ -286,6 +297,10 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if req.IsActive != nil {
 		isActive = *req.IsActive
 	}
+	cost := 0.0
+	if isAdmin(r) {
+		cost = req.Cost
+	}
 
 	ctx := r.Context()
 	tx, err := h.DB.Begin(ctx)
@@ -297,9 +312,9 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, vendor_sku, name, description, category, brand, base_price, is_active, allow_oversell)
-		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, req.AllowOversell).Scan(&id)
+		INSERT INTO products (sku, vendor_sku, name, description, category, brand, base_price, cost, is_active, allow_oversell)
+		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, cost, isActive, req.AllowOversell).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to create product (kode produk mungkin sudah dipakai)")
 		return
@@ -333,15 +348,16 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProductRequest struct {
-	SKU           string  `json:"sku"`
-	VendorSKU     string  `json:"vendor_sku"`
-	Name          string  `json:"name"`
-	Description   string  `json:"description"`
-	Category      string  `json:"category"`
-	Brand         string  `json:"brand"`
-	BasePrice     float64 `json:"base_price"`
-	IsActive      *bool   `json:"is_active"`
-	AllowOversell *bool   `json:"allow_oversell"`
+	SKU           string   `json:"sku"`
+	VendorSKU     string   `json:"vendor_sku"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	Category      string   `json:"category"`
+	Brand         string   `json:"brand"`
+	BasePrice     float64  `json:"base_price"`
+	Cost          *float64 `json:"cost"` // admin-only - pointer so a non-admin's payload (which never includes it) leaves the stored value untouched rather than zeroing it
+	IsActive      *bool    `json:"is_active"`
+	AllowOversell *bool    `json:"allow_oversell"`
 }
 
 // Update edits a product's own fields (not variants/stock/photos).
@@ -386,6 +402,12 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
+	}
+
+	// Cost is updated separately, and only for super_user - a non-admin's request body never
+	// includes it, but even a crafted one is ignored rather than allowed to change the stored value.
+	if isAdmin(r) && req.Cost != nil {
+		h.DB.Exec(ctx, `UPDATE products SET cost=$1 WHERE id=$2`, *req.Cost, id)
 	}
 
 	var changes []string
@@ -602,6 +624,16 @@ func insertVariantReturningID(ctx context.Context, tx pgx.Tx, productID int, v v
 // getClaimsSafe returns claims from the request, or nil if this is called outside a JWTAuth-protected route.
 func getClaimsSafe(r *http.Request) *auth.Claims {
 	return appmw.GetClaims(r)
+}
+
+// isAdmin reports whether the caller is super_user - the only role allowed to see or edit
+// Product Cost and the cost-derived Profit figures (COGS/Gross Profit/Net Profit/Margin).
+// Applied both on read (redact the field/figures for anyone else) and on write (silently
+// ignore a non-admin's attempt to set them, rather than erroring - a crafted request from a
+// non-admin token must not be able to change the stored value).
+func isAdmin(r *http.Request) bool {
+	c := getClaimsSafe(r)
+	return c != nil && c.Role == "super_user"
 }
 
 // logAdjustment records a stock_movements row for a manual product-edit stock change, if the value actually changed.

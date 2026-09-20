@@ -209,6 +209,7 @@ func main() {
 			r.With(view("reports")).Get("/reports/orders", reportsH.Orders)
 			r.With(view("product_analytics")).Get("/reports/product-analysis", reportsH.ProductAnalysis)
 			r.With(view("product_performance")).Get("/reports/product-performance", reportsH.ProductPerformance)
+			r.With(view("product_color_pair")).Get("/reports/product-color-pair", reportsH.ProductColorPair)
 			r.With(view("host_category_leaderboard")).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)
 
 			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)

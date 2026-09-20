@@ -5,6 +5,11 @@ import BigStatCard from '../components/BigStatCard'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
 
+// Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
+// exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
+// then fixed-width status and actions columns matching the variant rows' extra content.
+const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,88px] gap-2'
+
 function VariantRow({ product, variant, onSaved }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
@@ -34,39 +39,37 @@ function VariantRow({ product, variant, onSaved }) {
   }
 
   return (
-    <tr className={`hover:bg-gray-50 align-middle ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
-      <td className="p-3 align-middle">
-        <p className="text-sm text-gray-700">{variant.sku} · {variant.color}/{variant.size}</p>
-      </td>
-      <td className="p-3 text-center font-semibold align-middle">{variant.total_stock}</td>
-      <td className="p-3 text-center align-middle">
+    <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+      <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {variant.color}/{variant.size}</p>
+      <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
+      <span className="text-center">
         {editing ? (
           <input
             type="number" value={availableStock}
             onChange={(e) => setAvailableStock(e.target.value)}
-            className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm text-center tabular-nums"
           />
         ) : (
-          <span className={`inline-block w-20 px-2 py-1 border border-transparent text-sm ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
+          <span className={`inline-block w-full px-2 py-1 border border-transparent text-sm tabular-nums ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
         )}
-      </td>
-      <td className="p-3 text-center align-middle">
+      </span>
+      <span className="text-center">
         {editing ? (
           <input
             type="number" min="0" value={incomingStock}
             onChange={(e) => setIncomingStock(e.target.value)}
-            className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm text-center tabular-nums"
           />
         ) : (
-          <span className="inline-block w-20 px-2 py-1 border border-transparent text-sm">{variant.incoming_stock}</span>
+          <span className="inline-block w-full px-2 py-1 border border-transparent text-sm tabular-nums">{variant.incoming_stock}</span>
         )}
-      </td>
-      <td className="p-3 text-center align-middle">{variant.order_stock}</td>
-      <td className="p-3 text-center align-middle">
+      </span>
+      <span className="text-center tabular-nums">{variant.order_stock}</span>
+      <span className="text-center">
         {isOversell && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{t('page_inventory.oversell_badge')}</span>}
         {!isOversell && lowStock && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{t('page_inventory.low_stock_badge')}</span>}
-      </td>
-      <td className="p-3 text-right align-middle">
+      </span>
+      <span className="text-right">
         {editing ? (
           <div className="flex gap-2 justify-end">
             <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
@@ -75,8 +78,8 @@ function VariantRow({ product, variant, onSaved }) {
         ) : (
           <button onClick={() => setEditing(true)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.edit')}</button>
         )}
-      </td>
-    </tr>
+      </span>
+    </div>
   )
 }
 
@@ -107,27 +110,29 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="grid grid-cols-[1fr,repeat(4,minmax(0,1fr))] gap-2 px-4 pb-3 text-xs">
+      <div className={`${INVENTORY_GRID_COLS} px-4 pb-3 text-xs`}>
         <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
         <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
         <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_available')}</span>
         <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_incoming')}</span>
         <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_ordered')}</span>
         <span></span>
-        <span className="text-center font-bold text-gray-800">{totals.total}</span>
-        <span className="text-center font-bold text-gray-800">{totals.available}</span>
-        <span className="text-center font-bold text-gray-800">{totals.incoming}</span>
-        <span className="text-center font-bold text-gray-800">{totals.order}</span>
+        <span></span>
+        <span></span>
+        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.total}</span>
+        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.available}</span>
+        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.incoming}</span>
+        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.order}</span>
+        <span></span>
+        <span></span>
       </div>
 
       {isOpen && (
-        <table className="w-full text-sm border-t">
-          <tbody className="divide-y">
-            {product.variants.map((variant) => (
-              <VariantRow key={variant.id} product={product} variant={variant} onSaved={onSaved} />
-            ))}
-          </tbody>
-        </table>
+        <div className="border-t divide-y">
+          {product.variants.map((variant) => (
+            <VariantRow key={variant.id} product={product} variant={variant} onSaved={onSaved} />
+          ))}
+        </div>
       )}
     </div>
   )
