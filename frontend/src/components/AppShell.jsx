@@ -97,7 +97,7 @@ const navGroups = [
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'hosts', 'returns',
-  'store_profile', 'shipping_settings', 'roles', 'audit_logs',
+  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
 ])
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
