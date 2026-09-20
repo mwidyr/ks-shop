@@ -65,6 +65,7 @@
       "transactions": "Transactions",
       "warehouses": "Warehouses",
       "product_performance": "Combo Analysis",
+      "product_color_pair": "Color Pair Analysis",
       "host_category_leaderboard": "Host Leaderboard"
     },
     "settings": "Settings"

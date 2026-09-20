@@ -65,6 +65,7 @@
       "transactions": "Transaksi",
       "warehouses": "Gudang",
       "product_performance": "Analisis Kombo",
+      "product_color_pair": "Analisis Pasangan Warna",
       "host_category_leaderboard": "Peringkat Host"
     },
     "settings": "Pengaturan"

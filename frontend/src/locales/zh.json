@@ -65,6 +65,7 @@
       "transactions": "交易紀錄",
       "warehouses": "倉庫",
       "product_performance": "組合分析",
+      "product_color_pair": "顏色配對分析",
       "host_category_leaderboard": "主播排行榜"
     },
     "settings": "設定"
