@@ -29,7 +29,18 @@ export default function ProductAnalytics() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [productSort, setProductSort] = useState('gmv')
-  const [expandedSku, setExpandedSku] = useState(null)
+  // A Set, not a single value - each ranking row expands/collapses independently instead of
+  // acting as an accordion (opening one used to close whichever other row was already open).
+  const [expandedSkus, setExpandedSkus] = useState(() => new Set())
+
+  function toggleExpanded(sku) {
+    setExpandedSkus((prev) => {
+      const next = new Set(prev)
+      if (next.has(sku)) next.delete(sku)
+      else next.add(sku)
+      return next
+    })
+  }
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
 
@@ -121,12 +132,12 @@ export default function ProductAnalytics() {
               </thead>
               <tbody className="divide-y">
                 {[...data.by_product].sort((a, b) => (productSort === 'qty' ? b.qty - a.qty : b.gmv - a.gmv)).map((p) => {
-                  const isExpanded = expandedSku === p.sku
+                  const isExpanded = expandedSkus.has(p.sku)
                   const colors = isExpanded ? colorBreakdownFor(data.by_variant, p.sku, p.qty) : []
                   return (
                     <Fragment key={p.sku}>
                       <tr
-                        onClick={() => setExpandedSku(isExpanded ? null : p.sku)}
+                        onClick={() => toggleExpanded(p.sku)}
                         className="cursor-pointer hover:bg-gray-50"
                       >
                         <td className="p-2 font-mono text-xs text-brand-600">
