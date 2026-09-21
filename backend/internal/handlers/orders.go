@@ -613,6 +613,11 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 type updateStatusRequest struct {
 	Status string `json:"status"`
 	Reason string `json:"reason"`
+	// Force skips the mergeable-sibling warning below for the "picking" transition only - the
+	// frontend sets this after the staff member confirms a "start picking without merging?"
+	// dialog. Has no effect on "shipped", which stays a hard, non-overridable block (the
+	// last-resort safety net right before an irreversible shipment).
+	Force bool `json:"force"`
 }
 
 // findMergeableSiblings returns the order_nos of other orders belonging to the same customer,
@@ -729,10 +734,20 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	// Merging only ever works pre-picking/pre-shipment (see order_merge.go's Suggestions/
 	// CreateGroup eligibility: pending or ready_to_ship, never mid-picking) - so the earliest
 	// useful place to warn staff about a mergeable sibling is right when picking is about to
-	// start, not just at the final shipped transition. Both checks stay in place: "picking"
-	// catches it as early as possible, "shipped" is the last-resort safety net in case a
-	// sibling order was only created after this one had already started picking.
-	if req.Status == "picking" || req.Status == "shipped" {
+	// start, not just at the final shipped transition. "picking" is a soft warning staff can
+	// dismiss (req.Force skips it, set by the frontend once they've confirmed a "start picking
+	// without merging?" dialog) - starting picking doesn't itself prevent merging later, so it
+	// shouldn't hard-block. "shipped" stays a hard, non-overridable block: it's the last-resort
+	// safety net right before an irreversible shipment, in case a sibling order only appeared
+	// after this one had already started picking.
+	if req.Status == "picking" && !req.Force {
+		siblingOrderNos, sibErr := h.findMergeableSiblings(ctx, tx, id)
+		if sibErr == nil && len(siblingOrderNos) > 0 {
+			respondError(w, http.StatusConflict, "pelanggan ini punya order lain yang bisa digabung sebelum dikirim: "+strings.Join(siblingOrderNos, ", "))
+			return
+		}
+	}
+	if req.Status == "shipped" {
 		siblingOrderNos, sibErr := h.findMergeableSiblings(ctx, tx, id)
 		if sibErr == nil && len(siblingOrderNos) > 0 {
 			respondError(w, http.StatusConflict, "pelanggan ini punya order lain yang bisa digabung sebelum dikirim: "+strings.Join(siblingOrderNos, ", "))

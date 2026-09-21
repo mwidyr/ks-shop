@@ -13,8 +13,8 @@ export function createOrder(payload) {
   return client.post('/orders', payload).then((res) => res.data)
 }
 
-export function updateOrderStatus(id, status, reason) {
-  return client.patch(`/orders/${id}/status`, { status, reason }).then((res) => res.data)
+export function updateOrderStatus(id, status, reason, force) {
+  return client.patch(`/orders/${id}/status`, { status, reason, force: Boolean(force) }).then((res) => res.data)
 }
 
 export function updateOrderNotes(id, payload) {

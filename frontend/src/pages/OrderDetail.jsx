@@ -290,6 +290,7 @@ export default function OrderDetail() {
   const [reason, setReason] = useState('')
   const [pendingAction, setPendingAction] = useState(null)
   const [error, setError] = useState('')
+  const [mergeWarning, setMergeWarning] = useState('') // set when starting picking hits a mergeable-sibling warning the staff can confirm past
   const [keepDateDraft, setKeepDateDraft] = useState('')
   const [keepDateSaving, setKeepDateSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -308,8 +309,9 @@ export default function OrderDetail() {
   useEffect(() => { load() }, [id])
   useEffect(() => { listPickupChains().then(setPickupChains) }, [])
 
-  async function handleUpdateStatus(status) {
+  async function handleUpdateStatus(status, force) {
     setError('')
+    setMergeWarning('')
     if ((status === 'cancelled' || status === 'return') && !reason) {
       setPendingAction(status)
       return
@@ -319,12 +321,19 @@ export default function OrderDetail() {
       return
     }
     try {
-      await updateOrderStatus(id, status, reason)
+      await updateOrderStatus(id, status, reason, force)
       setReason('')
       setPendingAction(null)
       load()
     } catch (err) {
-      setError(err.response?.data?.error || t('page_order_detail.update_status_failed_error'))
+      const message = err.response?.data?.error || ''
+      // Starting picking with a mergeable sibling order is a warning the staff can confirm
+      // past, not a hard block - shipping with one still is (see orders.go's UpdateStatus).
+      if (status === 'picking' && !force && err.response?.status === 409 && message.includes('digabung')) {
+        setMergeWarning(message)
+        return
+      }
+      setError(message || t('page_order_detail.update_status_failed_error'))
     }
   }
 
@@ -698,6 +707,24 @@ export default function OrderDetail() {
                       {t('common.confirm')}
                     </button>
                     <button onClick={() => { setPendingAction(null); setReason('') }} className="text-sm text-gray-500 px-4 py-2">
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {mergeWarning && (
+                <div className="mt-4 border-t pt-4">
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
+                    {mergeWarning}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => handleUpdateStatus('picking', true)} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                      {t('page_order_detail.start_picking_anyway')}
+                    </button>
+                    <Link to="/orders/merge" className="text-sm font-semibold text-brand-600 hover:underline px-2">
+                      {t('page_merge_orders.heading')} →
+                    </Link>
+                    <button onClick={() => setMergeWarning('')} className="text-sm text-gray-500 px-2">
                       {t('common.cancel')}
                     </button>
                   </div>

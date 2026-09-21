@@ -523,6 +523,7 @@
     "split_partial_selection_error": "Select some items (not all) to split into a new order",
     "stage_label": "Order Stage",
     "start_picking_action": "Start Picking",
+    "start_picking_anyway": "Start Picking Anyway",
     "status_history_label": "Status History",
     "subtotal_label": "Subtotal",
     "todo_in_transit": "In transit to pickup point",

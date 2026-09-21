@@ -523,6 +523,7 @@
     "split_partial_selection_error": "請選擇部分項目（非全部）以拆分為新訂單",
     "stage_label": "訂單階段",
     "start_picking_action": "開始揀貨",
+    "start_picking_anyway": "仍要開始揀貨",
     "status_history_label": "狀態歷程",
     "subtotal_label": "小計",
     "todo_in_transit": "運送至取貨點中",

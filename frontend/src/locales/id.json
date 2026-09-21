@@ -523,6 +523,7 @@
     "split_partial_selection_error": "Pilih sebagian item (bukan semua) untuk dipisah ke order baru",
     "stage_label": "Tahap Pesanan",
     "start_picking_action": "Mulai Picking",
+    "start_picking_anyway": "Tetap Mulai Picking",
     "status_history_label": "Riwayat Status",
     "subtotal_label": "Subtotal",
     "todo_in_transit": "Dalam pengiriman ke titik pengambilan",
