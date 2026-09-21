@@ -3,14 +3,45 @@ import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
 
-// Literal column headers required by the CVS partner's own import template - not run through
-// t(), since the receiving system parses these by exact Chinese text regardless of the app's UI
-// language. The last two columns are feedback the partner's system fills in after import - we
-// always leave them blank on export.
-const CVS_TEMPLATE_HEADERS = [
-  '取件人姓名', '取件人手機', '取件人 E-Mail', '取件門市', '商品', '訂單金額', '運費金額',
-  '買家下訂日期', '商品備註', '其他資訊（FB/LINE/IG）帳號', 'Excel 整理結果說明', '銷貨進入檢核結果說明',
+// Header text (including the '＊'/'*' required-field markers and the embedded newline in
+// 其他資訊) copied verbatim from the client's own 711.xlsx (sheet '訂單匯入') and FamilyMart.xls
+// (sheet '大量匯單') so this export is byte-for-byte the same header row as their real import
+// template - not our own paraphrase of it. Excludes each template's own trailing
+// result column ('excel驗證結果說明' on 711; FamilyMart has none), which the partner's system
+// fills in after import, not something we generate.
+const CVS_711_HEADERS = [
+  "＊取件人姓名",
+  "＊取件人手機",
+  "＊取件門市",
+  "* 溫層",
+  "＊商品",
+  "＊訂單金額",
+  "＊運費金額",
+  "買家下訂日期",
+  "商品備註",
+  "其他資訊\n(FB/LINE/IG帳號)",
 ]
+const CVS_FAMILYMART_HEADERS = [
+  "取件人姓名",
+  "取件人手機",
+  "取件門市",
+  "商品金額",
+  "運費金額",
+  "訂購日期",
+  "商品",
+]
+
+// Sheet tab names, matched to the real templates (711's '訂單匯入', FamilyMart's '大量匯單')
+// rather than a generic 'Export' tab.
+const SHEET_NAME_711 = "訂單匯入"
+const SHEET_NAME_FAMILYMART = "大量匯單"
+
+// Both templates require the phone in bare 10-digit-starting-with-09 form ("勿使用「-」符號" -
+// no dashes) - strip everything else so a phone number saved with spaces/dashes/+886 doesn't
+// fail the carrier's own import validation.
+function normalizePhone(phone) {
+  return (phone || '').replace(/\D/g, '')
+}
 
 // A row is "problem" if it's missing data the CVS export needs (store code to route the
 // package, phone for the courier to contact the buyer) - not yet a formal validation, just
@@ -82,25 +113,100 @@ export default function ExportCvsModal({ onClose, onExported }) {
     if (picked.length === 0) return
     setBusy(true)
     try {
-      const XLSX = await import('xlsx')
-      const dataRows = picked.map((r) => [
-        r.customer_name,
-        r.customer_phone,
-        '', // 取件人 E-Mail - no email field exists in this system
-        r.pickup_store_code,
-        r.items_summary,
-        r.item_value,
-        r.shipping_fee,
-        r.order_date,
-        r.internal_notes_combined,
-        '', // 其他資訊（FB/LINE/IG）帳號 - no social-account field exists
-        '', // Excel 整理結果說明 - filled in by the partner's system after import
-        '', // 銷貨進入檢核結果說明 - filled in by the partner's system after import
-      ])
-      const ws = XLSX.utils.aoa_to_sheet([CVS_TEMPLATE_HEADERS, ...dataRows])
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Export')
-      XLSX.writeFile(wb, `ekspor-cvs-${chainTab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      // exceljs (not xlsx/SheetJS Community Edition) - the latter silently drops cell styling
+      // and frozen panes on write, which can't reproduce 711's real bold white-on-blue header
+      // with borders. exceljs supports both, so the export is a genuine visual match, not just
+      // a data match.
+      const mod = await import('exceljs')
+      const ExcelJS = mod.default || mod
+      const is711 = chainTab === 'cvs_711'
+
+      // Both templates: Order/Product Amount = item value + shipping fee (the total the buyer
+      // actually pays, e.g. 380+60=440 per the spec's own example), and Shipping Fee itself is
+      // always exported as 0 - both explicit rules in the spec, not our interpretation.
+      const totalAmount = (r) => r.item_value + r.shipping_fee
+
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet(is711 ? SHEET_NAME_711 : SHEET_NAME_FAMILYMART)
+
+      // Column widths copied from 711.xlsx's own '訂單匯入' sheet (character-width units).
+      // FamilyMart's real template has no custom column widths of its own.
+      worksheet.columns = (is711
+        ? [18.29, 15.57, 12.14, 8.71, 13.43, 13.0, 13.71, 14.14, 19.29, 8.71]
+        : new Array(CVS_FAMILYMART_HEADERS.length).fill(19.4)
+      ).map((width) => ({ width }))
+
+      const headerRow = worksheet.addRow(is711 ? CVS_711_HEADERS : CVS_FAMILYMART_HEADERS)
+      if (is711) {
+        // Bold white text on blue fill with thin borders, centered, wrapping where the real
+        // template wraps (買家下訂日期/其他資訊) - copied cell-for-cell from 711.xlsx's own
+        // header row styling.
+        headerRow.height = 27
+        headerRow.eachCell((cell, colNumber) => {
+          cell.font = { name: '微軟正黑體', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } }
+          cell.border = {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' },
+          }
+          cell.alignment = {
+            horizontal: 'center', vertical: 'middle',
+            wrapText: colNumber === 8 || colNumber === 10, // 買家下訂日期, 其他資訊
+          }
+        })
+        worksheet.views = [{ state: 'frozen', ySplit: 1 }] // keep header visible while scrolling
+      } else {
+        // FamilyMart's real template has no fill/border/bold on its header, just this specific
+        // font - matching it exactly rather than leaving ExcelJS's default (Calibri).
+        headerRow.font = { name: '新細明體', size: 10 }
+      }
+
+      for (const r of picked) {
+        const phone = normalizePhone(r.customer_phone)
+        const row = is711
+          ? [
+              r.customer_name,
+              phone,
+              r.pickup_store_code,
+              '常溫', // Temperature Type - always Room Temperature per spec
+              r.items_summary,
+              totalAmount(r),
+              0, // Shipping Fee - always 0 per spec
+              r.order_date,
+              phone, // Product Note - the buyer's phone, same as Recipient Phone, per spec
+              '', // Other Info (FB/LINE/IG) - no such field exists in this system
+            ]
+          : [
+              r.customer_name,
+              phone,
+              r.pickup_store_code,
+              // FamilyMart.xls's own instructions say every field's cell format must be Text
+              // ("請將每個欄位的儲存格格式設為 文字 ※重要") - unlike 711, which specifies a
+              // numeric type per amount field - so these are stringified, and given the '@'
+              // (text) number format below, not left as real numeric cells.
+              String(totalAmount(r)),
+              '0', // Shipping Fee - always 0 per spec
+              r.order_date,
+              phone, // Product - FamilyMart has no separate note field, so the buyer's phone
+                     // goes in Product itself here, per spec
+            ]
+        const dataRow = worksheet.addRow(row)
+        // Phone and store code must stay bare text (leading zeros in store codes like "023060"
+        // must survive) on both templates; FamilyMart additionally requires every column as
+        // text per its own instructions above.
+        const textCols = is711 ? [2, 3] : [2, 3, 4, 5]
+        for (const col of textCols) dataRow.getCell(col).numFmt = '@'
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ekspor-cvs-${chainTab}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+
       await markExported(picked.flatMap((r) => r.order_ids))
       reload()
       onExported?.()
