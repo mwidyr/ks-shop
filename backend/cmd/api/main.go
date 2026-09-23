@@ -73,6 +73,8 @@ func main() {
 	purchaseH := &handlers.PurchaseHandler{DB: pool}
 	purchaseAlertH := &handlers.PurchaseAlertHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
+	hostLocationH := &handlers.HostLocationHandler{DB: pool}
+	returnH := &handlers.ReturnHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
@@ -175,6 +177,13 @@ func main() {
 			r.With(edit("hosts")).Patch("/hosts/{id}", hostH.Update)
 			r.With(edit("hosts")).Delete("/hosts/{id}", hostH.Delete)
 
+			// Location Tags (item 021) - managed from within the Host Management page,
+			// so reuse the same "hosts" tab permission rather than a new tab.
+			r.With(view("hosts")).Get("/host-locations", hostLocationH.List)
+			r.With(edit("hosts")).Post("/host-locations", hostLocationH.Create)
+			r.With(edit("hosts")).Patch("/host-locations/{id}", hostLocationH.Update)
+			r.With(edit("hosts")).Delete("/host-locations/{id}", hostLocationH.Delete)
+
 			r.With(view("shipping_settings")).Get("/pickup-chains", pickupChainH.List)
 			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
 			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
@@ -220,6 +229,12 @@ func main() {
 			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/end", liveSessionH.End)
 			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/products", liveSessionH.AddProduct)
 			r.With(edit("panel_siaran")).Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
+			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/live-data", liveSessionH.SubmitLiveData)
+
+			r.With(view("returns")).Get("/returns", returnH.List)
+			r.With(edit("returns")).Post("/returns", returnH.Create)
+			r.With(edit("returns")).Patch("/returns/{id}/approve", returnH.Approve)
+			r.With(edit("returns")).Patch("/returns/{id}/reject", returnH.Reject)
 
 			// Staff & permission management: no configurable role is seeded with edit access to
 			// the "roles" tab (see 036_role_tab_access.sql), so only super_user's bypass reaches

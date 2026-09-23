@@ -33,6 +33,10 @@ export function removeLiveSessionProduct(id, cartItemId) {
   return client.delete(`/live-sessions/${id}/products/${cartItemId}`).then((res) => res.data)
 }
 
+export function submitLiveSessionData(id, payload) {
+  return client.patch(`/live-sessions/${id}/live-data`, payload).then((res) => res.data)
+}
+
 // Deprecated alias kept for backward compatibility with the old start-session flow.
 export function startLiveSession(hostId, label) {
   return createLiveSession(label, hostId)

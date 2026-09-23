@@ -29,6 +29,21 @@ type liveSessionView struct {
 	PeakViewers int     `json:"peak_viewers"`
 	CartCount   int     `json:"cart_count"`
 	OrderCount  int     `json:"order_count"`
+
+	// LIVE Data (item #007 prerequisite): manually entered by staff once the session ends. All
+	// nullable - LiveDataRecordedAt is what marks this session "valid" per the dashboard specs,
+	// distinguishing "not filled in yet" from real zeros.
+	Views              *int     `json:"views"`
+	UV                 *int     `json:"uv"`
+	ActiveViewers      *int     `json:"active_viewers"`
+	AWTSeconds         *int     `json:"awt_seconds"`
+	PCU                *int     `json:"pcu"`
+	ACU                *float64 `json:"acu"`
+	Follows            *int     `json:"follows"`
+	Chats              *int     `json:"chats"`
+	Shares             *int     `json:"shares"`
+	Likes              *int     `json:"likes"`
+	LiveDataRecordedAt *string  `json:"live_data_recorded_at"`
 }
 
 func scanLiveSession(rows interface {
@@ -36,9 +51,11 @@ func scanLiveSession(rows interface {
 }) (liveSessionView, error) {
 	var s liveSessionView
 	var createdAt time.Time
-	var startedAt, endedAt *time.Time
+	var startedAt, endedAt, liveDataRecordedAt *time.Time
 	err := rows.Scan(&s.ID, &s.HostID, &s.HostName, &s.Label, &s.Status, &startedAt, &endedAt, &createdAt,
-		&s.PeakViewers, &s.CartCount, &s.OrderCount)
+		&s.PeakViewers, &s.CartCount, &s.OrderCount,
+		&s.Views, &s.UV, &s.ActiveViewers, &s.AWTSeconds, &s.PCU, &s.ACU, &s.Follows, &s.Chats, &s.Shares, &s.Likes,
+		&liveDataRecordedAt)
 	if err != nil {
 		return s, err
 	}
@@ -51,6 +68,10 @@ func scanLiveSession(rows interface {
 		v := endedAt.Format(time.RFC3339)
 		s.EndedAt = &v
 	}
+	if liveDataRecordedAt != nil {
+		v := liveDataRecordedAt.Format(time.RFC3339)
+		s.LiveDataRecordedAt = &v
+	}
 	return s, nil
 }
 
@@ -58,7 +79,9 @@ const liveSessionSelect = `
 	SELECT ls.id, ls.host_id, COALESCE(h.name,'-'), ls.label, ls.status, ls.started_at, ls.ended_at, ls.created_at,
 	       ls.peak_viewers,
 	       COALESCE((SELECT COUNT(*) FROM live_session_products lsp WHERE lsp.live_session_id = ls.id), 0),
-	       COALESCE((SELECT COUNT(DISTINCT oi.order_id) FROM order_items oi WHERE oi.live_session_id = ls.id), 0)
+	       COALESCE((SELECT COUNT(DISTINCT oi.order_id) FROM order_items oi WHERE oi.live_session_id = ls.id), 0),
+	       ls.views, ls.uv, ls.active_viewers, ls.awt_seconds, ls.pcu, ls.acu, ls.follows, ls.chats, ls.shares, ls.likes,
+	       ls.live_data_recorded_at
 	FROM live_sessions ls LEFT JOIN hosts h ON h.id = ls.host_id`
 
 // List returns sessions (newest first), optionally filtered by ?host_id= and ?status=.
@@ -235,6 +258,53 @@ func (h *LiveSessionHandler) End(w http.ResponseWriter, r *http.Request) {
 	}
 	if ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "live session not found or already ended")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type submitLiveDataRequest struct {
+	Views         int     `json:"views"`
+	UV            int     `json:"uv"`
+	ActiveViewers int     `json:"active_viewers"`
+	AWTSeconds    int     `json:"awt_seconds"`
+	PCU           int     `json:"pcu"`
+	ACU           float64 `json:"acu"`
+	Follows       int     `json:"follows"`
+	Chats         int     `json:"chats"`
+	Shares        int     `json:"shares"`
+	Likes         int     `json:"likes"`
+}
+
+// SubmitLiveData records the 10 LIVE metrics for a session (item #007 prerequisite) - staff
+// fill this in manually once a session has actually gone live (draft sessions never broadcast,
+// so there's nothing to record). Setting live_data_recorded_at is what makes this a "valid LIVE
+// Session" for every downstream dashboard; submitting again just overwrites the numbers and
+// bumps that timestamp, so corrections are as simple as resubmitting the form.
+func (h *LiveSessionHandler) SubmitLiveData(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	var req submitLiveDataRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `
+		UPDATE live_sessions SET
+			views=$1, uv=$2, active_viewers=$3, awt_seconds=$4, pcu=$5, acu=$6,
+			follows=$7, chats=$8, shares=$9, likes=$10, live_data_recorded_at=now()
+		WHERE id=$11 AND status <> 'draft'`,
+		req.Views, req.UV, req.ActiveViewers, req.AWTSeconds, req.PCU, req.ACU,
+		req.Follows, req.Chats, req.Shares, req.Likes, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save LIVE data")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "session not found or still a draft")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})

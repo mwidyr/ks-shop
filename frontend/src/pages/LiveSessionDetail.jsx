@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   getLiveSession, updateLiveSession, goLiveSession, endLiveSession,
-  addLiveSessionProduct, removeLiveSessionProduct,
+  addLiveSessionProduct, removeLiveSessionProduct, submitLiveSessionData,
 } from '../api/liveSessions'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
@@ -68,6 +68,119 @@ function AddProductModal({ variants, onAdd, onClose }) {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+const liveDataNumberFields = ['views', 'uv', 'active_viewers', 'pcu', 'follows', 'chats', 'shares', 'likes']
+
+function emptyLiveDataForm(session) {
+  const awtTotal = session.awt_seconds ?? 0
+  return {
+    views: session.views ?? '',
+    uv: session.uv ?? '',
+    active_viewers: session.active_viewers ?? '',
+    awt_min: Math.floor(awtTotal / 60) || '',
+    awt_sec: awtTotal % 60 || '',
+    pcu: session.pcu ?? '',
+    acu: session.acu ?? '',
+    follows: session.follows ?? '',
+    chats: session.chats ?? '',
+    shares: session.shares ?? '',
+    likes: session.likes ?? '',
+  }
+}
+
+function LiveDataCard({ session, onSave }) {
+  const { t } = useTranslation()
+  const [form, setForm] = useState(() => emptyLiveDataForm(session))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => setForm(emptyLiveDataForm(session)), [session.id, session.live_data_recorded_at])
+
+  function setField(key, value) {
+    setForm((s) => ({ ...s, [key]: value }))
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setError('')
+    setSaving(true)
+    try {
+      await onSave({
+        views: Number(form.views) || 0,
+        uv: Number(form.uv) || 0,
+        active_viewers: Number(form.active_viewers) || 0,
+        awt_seconds: (Number(form.awt_min) || 0) * 60 + (Number(form.awt_sec) || 0),
+        pcu: Number(form.pcu) || 0,
+        acu: Number(form.acu) || 0,
+        follows: Number(form.follows) || 0,
+        chats: Number(form.chats) || 0,
+        shares: Number(form.shares) || 0,
+        likes: Number(form.likes) || 0,
+      })
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_live_session_detail.live_data_save_error'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+      <div className="flex items-center justify-between mb-1">
+        <p className="font-bold text-gray-800">{t('page_live_session_detail.live_data_title')}</p>
+        {session.live_data_recorded_at ? (
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+            {t('page_live_session_detail.live_data_recorded')}
+          </span>
+        ) : (
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+            {t('page_live_session_detail.live_data_not_recorded')}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mb-4">{t('page_live_session_detail.live_data_hint')}</p>
+
+      <form onSubmit={handleSave}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {liveDataNumberFields.map((key) => (
+            <div key={key}>
+              <label className="block text-[11px] text-gray-500 mb-1">{t(`page_live_session_detail.live_data_field_${key}`)}</label>
+              <input
+                type="number" min="0"
+                value={form[key]}
+                onChange={(e) => setField(key, e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+              />
+            </div>
+          ))}
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">{t('page_live_session_detail.live_data_field_awt')}</label>
+            <div className="flex items-center gap-1">
+              <input type="number" min="0" value={form.awt_min} onChange={(e) => setField('awt_min', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="m" />
+              <span className="text-gray-400">:</span>
+              <input type="number" min="0" max="59" value={form.awt_sec} onChange={(e) => setField('awt_sec', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="s" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">{t('page_live_session_detail.live_data_field_acu')}</label>
+            <input
+              type="number" min="0" step="0.01"
+              value={form.acu}
+              onChange={(e) => setField('acu', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+            />
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+        <button type="submit" disabled={saving} className="bg-gray-800 hover:bg-black disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+          {saving ? t('page_live_session_detail.saving') : t('page_live_session_detail.live_data_save_button')}
+        </button>
+      </form>
     </div>
   )
 }
@@ -145,6 +258,11 @@ export default function LiveSessionDetail() {
 
   async function handleRemoveProduct(cartItemId) {
     await removeLiveSessionProduct(id, cartItemId)
+    reload()
+  }
+
+  async function handleSaveLiveData(payload) {
+    await submitLiveSessionData(id, payload)
     reload()
   }
 
@@ -251,6 +369,8 @@ export default function LiveSessionDetail() {
           ))}
         </div>
       )}
+
+      {session.status !== 'draft' && <LiveDataCard session={session} onSave={handleSaveLiveData} />}
 
       {modalOpen && <AddProductModal variants={variants} onAdd={handleAddProduct} onClose={() => setModalOpen(false)} />}
     </div>

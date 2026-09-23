@@ -68,7 +68,7 @@ const navGroups = [
   {
     title: 'fulfillment', icon: IconTruck, items: [
       { to: '/returns', key: 'returns', icon: IconUndo },
-      { to: '/refunds', key: 'refunds', icon: IconWallet, upcoming: true },
+      { to: '/refunds', key: 'refunds', icon: IconWallet },
     ],
   },
   {
@@ -96,7 +96,7 @@ const navGroups = [
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
-  'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'hosts', 'returns',
+  'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'hosts', 'returns', 'refunds',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
 ])
 

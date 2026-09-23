@@ -257,12 +257,21 @@
     "delete_selected": "Delete Selected",
     "deleting": "Deleting...",
     "empty_state": "No data yet.",
+    "field_location": "Location Tag",
     "field_name": "Host Name",
     "field_platform": "Platform",
+    "field_shift": "Shift Tag",
+    "filter_all_locations": "All locations",
+    "filter_location": "Filter by Location",
     "inactive": "Inactive",
+    "locations_title": "Location Tags",
     "save_error": "Failed to save",
     "select_all": "Select all",
     "selected_count": "{{count}} selected",
+    "shift_evening": "Evening",
+    "shift_middle": "Middle",
+    "shift_morning": "Morning",
+    "shift_none": "No shift",
     "title": "Live Hosts"
   },
   "page_integrations": {
@@ -320,9 +329,26 @@
     "label_peak_viewers": "Peak Viewers",
     "label_session_info": "Session Info",
     "label_session_name": "Session Name",
+    "live_data_field_active_viewers": "Active Viewers",
+    "live_data_field_acu": "Avg Concurrent",
+    "live_data_field_awt": "Avg Watch Time (m:s)",
+    "live_data_field_chats": "Chats",
+    "live_data_field_follows": "Follows",
+    "live_data_field_likes": "Likes",
+    "live_data_field_pcu": "Peak Concurrent",
+    "live_data_field_shares": "Shares",
+    "live_data_field_uv": "Unique Viewers",
+    "live_data_field_views": "Views",
+    "live_data_hint": "Enter the final LIVE stats once the broadcast has ended.",
+    "live_data_not_recorded": "Not recorded yet",
+    "live_data_recorded": "Recorded",
+    "live_data_save_button": "Save LIVE Data",
+    "live_data_save_error": "Failed to save LIVE data",
+    "live_data_title": "LIVE Data",
     "modal_add_product_title": "Add Product to Live Cart",
     "option_choose_host": "Choose host...",
     "option_choose_product": "Choose product...",
+    "saving": "Saving...",
     "start_broadcast_button": "📡 Start Broadcast"
   },
   "page_live_session_history": {
@@ -913,15 +939,13 @@
   },
   "page_refunds": {
     "description": "Refund transactions issued back to customers.",
+    "empty_state": "No refunds yet.",
     "status": {
       "completed": "Completed",
-      "processing": "Processing"
+      "processing": "Processing",
+      "rejected": "Rejected"
     },
-    "title": "Refunds",
-    "type": {
-      "full": "Full",
-      "partial": "Partial"
-    }
+    "title": "Refunds"
   },
   "page_reports": {
     "all_hosts": "All Hosts",
@@ -976,6 +1000,19 @@
   },
   "page_returns": {
     "approve": "Approve",
+    "create_button": "Submit",
+    "create_title": "File a Return",
+    "empty_state": "No return requests yet.",
+    "error_action_failed": "Action failed",
+    "error_create_failed": "Failed to file return",
+    "field_amount": "Amount",
+    "field_note": "Note (optional)",
+    "field_order_no": "Order No",
+    "field_qty": "Qty",
+    "field_reason": "Reason",
+    "field_refund_type": "Refund Type",
+    "new_return_button": "+ New Return",
+    "option_choose_reason": "Choose reason...",
     "reason": {
       "change_of_mind": "Change of mind",
       "damaged": "Item damaged",
@@ -991,6 +1028,7 @@
     },
     "refund_type_label": "Refund Type:",
     "reject": "Reject",
+    "saving": "Submitting...",
     "stages": {
       "approved": "Approved",
       "inspection": "Inspection",
@@ -998,7 +1036,9 @@
       "refund": "Refund",
       "reviewed": "Reviewed",
       "submitted": "Submitted"
-    }
+    },
+    "status_completed": "Completed",
+    "status_rejected": "Rejected"
   },
   "page_reviews": {
     "description": "Customer reviews for each product.",

@@ -257,12 +257,21 @@
     "delete_selected": "Hapus Terpilih",
     "deleting": "Menghapus...",
     "empty_state": "Belum ada data.",
+    "field_location": "Tag Lokasi",
     "field_name": "Nama Host",
     "field_platform": "Platform",
+    "field_shift": "Tag Shift",
+    "filter_all_locations": "Semua lokasi",
+    "filter_location": "Filter berdasarkan Lokasi",
     "inactive": "Nonaktif",
+    "locations_title": "Tag Lokasi",
     "save_error": "Gagal menyimpan",
     "select_all": "Pilih semua",
     "selected_count": "{{count}} dipilih",
+    "shift_evening": "Malam",
+    "shift_middle": "Siang",
+    "shift_morning": "Pagi",
+    "shift_none": "Tanpa shift",
     "title": "Host Live"
   },
   "page_integrations": {
@@ -320,9 +329,26 @@
     "label_peak_viewers": "Puncak Penonton",
     "label_session_info": "Info Sesi",
     "label_session_name": "Nama Sesi",
+    "live_data_field_active_viewers": "Penonton Aktif",
+    "live_data_field_acu": "Rata-rata Serentak",
+    "live_data_field_awt": "Rata-rata Durasi (m:d)",
+    "live_data_field_chats": "Komentar",
+    "live_data_field_follows": "Pengikut Baru",
+    "live_data_field_likes": "Suka",
+    "live_data_field_pcu": "Puncak Serentak",
+    "live_data_field_shares": "Berbagi",
+    "live_data_field_uv": "Penonton Unik",
+    "live_data_field_views": "Tayangan",
+    "live_data_hint": "Masukkan statistik akhir LIVE setelah siaran selesai.",
+    "live_data_not_recorded": "Belum dicatat",
+    "live_data_recorded": "Sudah dicatat",
+    "live_data_save_button": "Simpan Data LIVE",
+    "live_data_save_error": "Gagal menyimpan data LIVE",
+    "live_data_title": "Data LIVE",
     "modal_add_product_title": "Tambah Produk ke Keranjang Live",
     "option_choose_host": "Pilih host...",
     "option_choose_product": "Pilih produk...",
+    "saving": "Menyimpan...",
     "start_broadcast_button": "📡 Mulai Siaran"
   },
   "page_live_session_history": {
@@ -913,15 +939,13 @@
   },
   "page_refunds": {
     "description": "Transaksi pengembalian dana ke pelanggan.",
+    "empty_state": "Belum ada refund.",
     "status": {
       "completed": "Selesai",
-      "processing": "Diproses"
+      "processing": "Diproses",
+      "rejected": "Ditolak"
     },
-    "title": "Refunds",
-    "type": {
-      "full": "Full",
-      "partial": "Partial"
-    }
+    "title": "Refunds"
   },
   "page_reports": {
     "all_hosts": "Semua Host",
@@ -976,6 +1000,19 @@
   },
   "page_returns": {
     "approve": "Setujui",
+    "create_button": "Kirim",
+    "create_title": "Ajukan Retur",
+    "empty_state": "Belum ada pengajuan retur.",
+    "error_action_failed": "Aksi gagal",
+    "error_create_failed": "Gagal mengajukan retur",
+    "field_amount": "Nominal",
+    "field_note": "Catatan (opsional)",
+    "field_order_no": "No. Order",
+    "field_qty": "Jumlah",
+    "field_reason": "Alasan",
+    "field_refund_type": "Jenis Refund",
+    "new_return_button": "+ Retur Baru",
+    "option_choose_reason": "Pilih alasan...",
     "reason": {
       "change_of_mind": "Berubah pikiran",
       "damaged": "Barang rusak",
@@ -991,6 +1028,7 @@
     },
     "refund_type_label": "Jenis Refund:",
     "reject": "Tolak",
+    "saving": "Mengirim...",
     "stages": {
       "approved": "Disetujui",
       "inspection": "Inspeksi",
@@ -998,7 +1036,9 @@
       "refund": "Refund",
       "reviewed": "Ditinjau",
       "submitted": "Diajukan"
-    }
+    },
+    "status_completed": "Selesai",
+    "status_rejected": "Ditolak"
   },
   "page_reviews": {
     "description": "Ulasan pelanggan untuk setiap produk.",

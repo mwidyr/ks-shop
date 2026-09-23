@@ -257,12 +257,21 @@
     "delete_selected": "刪除已選項目",
     "deleting": "刪除中...",
     "empty_state": "尚無資料。",
+    "field_location": "位置标签",
     "field_name": "主持人名稱",
     "field_platform": "平台",
+    "field_shift": "班次标签",
+    "filter_all_locations": "所有位置",
+    "filter_location": "按位置筛选",
     "inactive": "已停用",
+    "locations_title": "位置标签",
     "save_error": "儲存失敗",
     "select_all": "全選",
     "selected_count": "已選擇 {{count}} 項",
+    "shift_evening": "晚班",
+    "shift_middle": "中班",
+    "shift_morning": "早班",
+    "shift_none": "无班次",
     "title": "直播主持人"
   },
   "page_integrations": {
@@ -320,9 +329,26 @@
     "label_peak_viewers": "尖峰觀看人數",
     "label_session_info": "場次資訊",
     "label_session_name": "場次名稱",
+    "live_data_field_active_viewers": "活躍觀眾數",
+    "live_data_field_acu": "平均在線人數",
+    "live_data_field_awt": "平均觀看時長 (分:秒)",
+    "live_data_field_chats": "評論數",
+    "live_data_field_follows": "新增關注數",
+    "live_data_field_likes": "點讚次數",
+    "live_data_field_pcu": "最高在線人數",
+    "live_data_field_shares": "分享次數",
+    "live_data_field_uv": "不重複觀看人數",
+    "live_data_field_views": "總觀看人次",
+    "live_data_hint": "直播結束後請輸入最終的 LIVE 統計數據。",
+    "live_data_not_recorded": "尚未記錄",
+    "live_data_recorded": "已記錄",
+    "live_data_save_button": "儲存 LIVE 數據",
+    "live_data_save_error": "儲存 LIVE 數據失敗",
+    "live_data_title": "LIVE 數據",
     "modal_add_product_title": "新增商品至直播購物車",
     "option_choose_host": "選擇主播...",
     "option_choose_product": "選擇商品...",
+    "saving": "儲存中...",
     "start_broadcast_button": "📡 開始直播"
   },
   "page_live_session_history": {
@@ -913,15 +939,13 @@
   },
   "page_refunds": {
     "description": "退還款項給客戶的交易紀錄。",
+    "empty_state": "尚無退款。",
     "status": {
       "completed": "已完成",
-      "processing": "處理中"
+      "processing": "處理中",
+      "rejected": "已拒絕"
     },
-    "title": "退款",
-    "type": {
-      "full": "全額",
-      "partial": "部分"
-    }
+    "title": "退款"
   },
   "page_reports": {
     "all_hosts": "全部主播",
@@ -976,6 +1000,19 @@
   },
   "page_returns": {
     "approve": "核准",
+    "create_button": "送出",
+    "create_title": "申請退貨",
+    "empty_state": "尚無退貨申請。",
+    "error_action_failed": "操作失敗",
+    "error_create_failed": "申請退貨失敗",
+    "field_amount": "金額",
+    "field_note": "備註（選填）",
+    "field_order_no": "訂單編號",
+    "field_qty": "數量",
+    "field_reason": "原因",
+    "field_refund_type": "退款類型",
+    "new_return_button": "+ 新增退貨",
+    "option_choose_reason": "選擇原因...",
     "reason": {
       "change_of_mind": "改變心意",
       "damaged": "商品損壞",
@@ -991,6 +1028,7 @@
     },
     "refund_type_label": "退款類型：",
     "reject": "拒絕",
+    "saving": "送出中...",
     "stages": {
       "approved": "已核准",
       "inspection": "驗貨中",
@@ -998,7 +1036,9 @@
       "refund": "退款",
       "reviewed": "審核中",
       "submitted": "已提交"
-    }
+    },
+    "status_completed": "已完成",
+    "status_rejected": "已拒絕"
   },
   "page_reviews": {
     "description": "各商品的顧客評價。",
