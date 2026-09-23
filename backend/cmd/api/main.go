@@ -75,6 +75,9 @@ func main() {
 	hostH := &handlers.HostHandler{DB: pool}
 	hostLocationH := &handlers.HostLocationHandler{DB: pool}
 	returnH := &handlers.ReturnHandler{DB: pool}
+	perfDashboardH := &handlers.PerformanceDashboardHandler{DB: pool}
+	hostAnalyticsH := &handlers.HostAnalyticsHandler{DB: pool}
+	heatmapH := &handlers.HeatmapHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
@@ -235,6 +238,19 @@ func main() {
 			r.With(edit("returns")).Post("/returns", returnH.Create)
 			r.With(edit("returns")).Patch("/returns/{id}/approve", returnH.Approve)
 			r.With(edit("returns")).Patch("/returns/{id}/reject", returnH.Reject)
+
+			r.With(view("performance_dashboard")).Get("/performance-dashboard/summary", perfDashboardH.Summary)
+			r.With(view("performance_dashboard")).Get("/performance-dashboard/host-ranking", perfDashboardH.HostRanking)
+			r.With(view("performance_dashboard")).Get("/performance-dashboard/performance-data", perfDashboardH.PerformanceData)
+
+			r.With(view("host_performance_analytics")).Get("/host-analytics/lifetime", hostAnalyticsH.Lifetime)
+			r.With(view("host_performance_analytics")).Get("/host-analytics/summary", hostAnalyticsH.Summary)
+			r.With(view("host_performance_analytics")).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
+			r.With(view("host_performance_analytics")).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
+
+			r.With(view("heatmap")).Get("/heatmap/summary", heatmapH.Summary)
+			r.With(view("heatmap")).Get("/heatmap/grid", heatmapH.Grid)
+			r.With(view("heatmap")).Get("/heatmap/cell-detail", heatmapH.CellDetail)
 
 			// Staff & permission management: no configurable role is seeded with edit access to
 			// the "roles" tab (see 036_role_tab_access.sql), so only super_user's bypass reaches

@@ -46,6 +46,9 @@ const ProductAnalytics = lazy(() => import('./pages/ProductAnalytics'))
 const ProductPerformance = lazy(() => import('./pages/ProductPerformance'))
 const ProductColorPair = lazy(() => import('./pages/ProductColorPair'))
 const HostCategoryLeaderboard = lazy(() => import('./pages/HostCategoryLeaderboard'))
+const PerformanceDashboard = lazy(() => import('./pages/PerformanceDashboard'))
+const HostPerformanceAnalytics = lazy(() => import('./pages/HostPerformanceAnalytics'))
+const Heatmap = lazy(() => import('./pages/Heatmap'))
 const Transactions = lazy(() => import('./pages/Transactions'))
 const Payouts = lazy(() => import('./pages/Payouts'))
 const Fees = lazy(() => import('./pages/Fees'))
@@ -140,6 +143,9 @@ export default function App() {
         <Route path="/analytics/product-performance" element={<ProtectedRoute><ProductPerformance /></ProtectedRoute>} />
         <Route path="/analytics/product-color-pair" element={<ProtectedRoute><ProductColorPair /></ProtectedRoute>} />
         <Route path="/analytics/host-category-leaderboard" element={<ProtectedRoute><HostCategoryLeaderboard /></ProtectedRoute>} />
+        <Route path="/analytics/performance-dashboard" element={<ProtectedRoute><PerformanceDashboard /></ProtectedRoute>} />
+        <Route path="/analytics/host-performance" element={<ProtectedRoute><HostPerformanceAnalytics /></ProtectedRoute>} />
+        <Route path="/analytics/heatmap" element={<ProtectedRoute><Heatmap /></ProtectedRoute>} />
         <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
 
         {/* Finance */}

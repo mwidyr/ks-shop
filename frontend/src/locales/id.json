@@ -12,6 +12,8 @@
     "edit": "Edit",
     "loading": "Memuat...",
     "logout": "Keluar",
+    "next": "Berikutnya",
+    "previous": "Sebelumnya",
     "save": "Simpan",
     "search": "Cari",
     "upcoming": "Upcoming"
@@ -1397,5 +1399,41 @@
     "empty": "Belum ada order yang bisa digabung",
     "merge_button": "Gabung",
     "merged_label": "Tergabung"
+  },
+  "page_performance_dashboard": {
+    "all_locations": "Semua lokasi",
+    "col_host": "Host",
+    "col_location": "Lokasi",
+    "host_ranking_title": "Peringkat Host",
+    "no_hosts_in_range": "Tidak ada host dengan data LIVE valid pada periode ini.",
+    "performance_data_title": "Data Performa",
+    "period_last_month": "Bulan Lalu",
+    "period_last_week": "Minggu Lalu",
+    "period_this_month": "Bulan Ini",
+    "period_this_week": "Minggu Ini"
+  },
+  "page_host_analytics": {
+    "all_hosts": "Semua host",
+    "col_date": "Tanggal",
+    "efficiency_title": "Efisiensi",
+    "gmv_per_uv": "GMV per UV",
+    "historical_best_title": "Rekor Terbaik",
+    "items_per_order": "Barang per Pesanan",
+    "key_performance_title": "Performa Utama",
+    "lifetime_avg_live": "RATA-RATA / LIVE",
+    "lifetime_title": "Performa Sepanjang Waktu",
+    "lifetime_total": "Total Sepanjang Waktu",
+    "no_data_in_range": "Tidak ada data LIVE pada periode ini.",
+    "performance_data_title": "Data Performa",
+    "period_all_time": "Sepanjang Waktu"
+  },
+  "page_heatmap": {
+    "average_row": "RATA-RATA",
+    "col_host": "Host",
+    "date_breakdown": "Rincian per Tanggal",
+    "time_block_total": "Total per Blok Waktu",
+    "total_gmv": "Total GMV",
+    "total_ord": "Total ORD",
+    "total_qty": "Total QTY"
   }
 }

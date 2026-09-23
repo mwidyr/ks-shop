@@ -54,6 +54,9 @@ const navGroups = [
       { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
       { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
       { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
+      { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconTrendUp },
+      { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
+      { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
       { to: '/profit', key: 'profit', icon: IconWallet },
     ],
   },
@@ -96,7 +99,8 @@ const navGroups = [
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
-  'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'hosts', 'returns', 'refunds',
+  'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
+  'host_performance_analytics', 'heatmap', 'hosts', 'returns', 'refunds',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
 ])
 

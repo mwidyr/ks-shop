@@ -12,6 +12,8 @@
     "edit": "Edit",
     "loading": "Loading...",
     "logout": "Log out",
+    "next": "Next",
+    "previous": "Previous",
     "save": "Save",
     "search": "Search",
     "upcoming": "Upcoming"
@@ -1397,5 +1399,41 @@
     "empty": "No mergeable orders yet",
     "merge_button": "Merge",
     "merged_label": "Merged"
+  },
+  "page_performance_dashboard": {
+    "all_locations": "All locations",
+    "col_host": "Host",
+    "col_location": "Location",
+    "host_ranking_title": "Host Ranking",
+    "no_hosts_in_range": "No hosts with valid LIVE data in this period.",
+    "performance_data_title": "Performance Data",
+    "period_last_month": "Last Month",
+    "period_last_week": "Last Week",
+    "period_this_month": "This Month",
+    "period_this_week": "This Week"
+  },
+  "page_host_analytics": {
+    "all_hosts": "All hosts",
+    "col_date": "Date",
+    "efficiency_title": "Efficiency",
+    "gmv_per_uv": "GMV per UV",
+    "historical_best_title": "Historical Best",
+    "items_per_order": "Items per Order",
+    "key_performance_title": "Key Performance",
+    "lifetime_avg_live": "AVG / LIVE",
+    "lifetime_title": "Lifetime Performance",
+    "lifetime_total": "Lifetime Total",
+    "no_data_in_range": "No LIVE data in this period.",
+    "performance_data_title": "Performance Data",
+    "period_all_time": "All Time"
+  },
+  "page_heatmap": {
+    "average_row": "AVERAGE",
+    "col_host": "Host",
+    "date_breakdown": "Date Breakdown",
+    "time_block_total": "Time Block Total",
+    "total_gmv": "Total GMV",
+    "total_ord": "Total ORD",
+    "total_qty": "Total QTY"
   }
 }

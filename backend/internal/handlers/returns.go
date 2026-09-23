@@ -30,6 +30,8 @@ type returnView struct {
 	OrderID      int     `json:"order_id"`
 	OrderNo      string  `json:"order_no"`
 	CustomerName string  `json:"customer_name"`
+	HostID       *int    `json:"host_id"`
+	HostName     string  `json:"host_name"`
 	Reason       string  `json:"reason"`
 	RefundType   string  `json:"refund_type"`
 	Stage        int     `json:"stage"`
@@ -41,17 +43,18 @@ type returnView struct {
 }
 
 const returnSelect = `
-	SELECT ret.id, ret.order_id, o.order_no, c.name, ret.reason, ret.refund_type, ret.stage, ret.status,
-	       ret.qty, ret.amount, COALESCE(ret.note,''), ret.created_at
+	SELECT ret.id, ret.order_id, o.order_no, c.name, ret.host_id, COALESCE(h.name,'-'), ret.reason, ret.refund_type,
+	       ret.stage, ret.status, ret.qty, ret.amount, COALESCE(ret.note,''), ret.created_at
 	FROM returns ret
 	JOIN orders o ON o.id = ret.order_id
-	JOIN customers c ON c.id = o.customer_id`
+	JOIN customers c ON c.id = o.customer_id
+	LEFT JOIN hosts h ON h.id = ret.host_id`
 
 func scanReturn(row interface{ Scan(...interface{}) error }) (returnView, error) {
 	var v returnView
 	var createdAt time.Time
-	err := row.Scan(&v.ID, &v.OrderID, &v.OrderNo, &v.CustomerName, &v.Reason, &v.RefundType, &v.Stage, &v.Status,
-		&v.Qty, &v.Amount, &v.Note, &createdAt)
+	err := row.Scan(&v.ID, &v.OrderID, &v.OrderNo, &v.CustomerName, &v.HostID, &v.HostName, &v.Reason, &v.RefundType,
+		&v.Stage, &v.Status, &v.Qty, &v.Amount, &v.Note, &createdAt)
 	if err != nil {
 		return v, err
 	}
@@ -127,6 +130,13 @@ func (h *ReturnHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the order's host for Performance Dashboard attribution (item #007) - one dominant
+	// host per order in this live-selling model, same assumption order_items.host_id already
+	// makes elsewhere. Left null if the order has no host-attributed items.
+	var hostID *int
+	h.DB.QueryRow(r.Context(), `
+		SELECT host_id FROM order_items WHERE order_id=$1 AND host_id IS NOT NULL LIMIT 1`, orderID).Scan(&hostID)
+
 	var createdBy *int
 	if claims != nil {
 		createdBy = &claims.UserID
@@ -134,9 +144,9 @@ func (h *ReturnHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO returns (order_id, reason, refund_type, qty, amount, note, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		orderID, req.Reason, req.RefundType, req.Qty, req.Amount, req.Note, createdBy).Scan(&id)
+		INSERT INTO returns (order_id, host_id, reason, refund_type, qty, amount, note, created_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		orderID, hostID, req.Reason, req.RefundType, req.Qty, req.Amount, req.Note, createdBy).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create return")
 		return
