@@ -36,6 +36,7 @@ type shippingExportRow struct {
 	PickupStoreCode       string   `json:"pickup_store_code"`
 	IsHomeDelivery        bool     `json:"is_home_delivery"`
 	ItemsSummary          string   `json:"items_summary"`
+	PackingProducts       string   `json:"packing_products"`
 	TotalQty              int      `json:"total_qty"`
 	ItemValue             float64  `json:"item_value"`
 	ShippingFee           float64  `json:"shipping_fee"`
@@ -112,7 +113,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i, o := range orders {
 		orderIDs[i] = o.ID
 	}
-	itemsByOrder, qtyByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
+	itemsByOrder, packingByOrder, qtyByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
 
 	groups := map[string][]exportOrderRow{}
 	var groupKeys []string
@@ -151,7 +152,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 
 		allExported := true
 		var earliestExported *time.Time
-		var itemFragments, notes []string
+		var itemFragments, packingFragments, notes []string
 		for _, m := range members {
 			row.OrderIDs = append(row.OrderIDs, m.ID)
 			if m.ID != primary.ID {
@@ -161,6 +162,9 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 			row.TotalQty += qtyByOrder[m.ID]
 			if frag := itemsByOrder[m.ID]; frag != "" {
 				itemFragments = append(itemFragments, frag)
+			}
+			if frag := packingByOrder[m.ID]; frag != "" {
+				packingFragments = append(packingFragments, frag)
 			}
 			if m.InternalNotes != "" {
 				notes = append(notes, m.InternalNotes)
@@ -179,6 +183,9 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		row.ItemsSummary = strings.Join(itemFragments, ", ")
+		// Packing Label File requirement: one line per product per order, newline-joined so it
+		// renders as a multi-line cell in the exported .xlsx (see ExportCvsModal.jsx).
+		row.PackingProducts = strings.Join(packingFragments, "\n")
 		row.InternalNotesCombined = strings.Join(notes, "; ")
 		row.TotalToPay = row.ItemValue + row.ShippingFee
 		if allExported && earliestExported != nil {
@@ -192,39 +199,48 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, list)
 }
 
-// fetchExportItemSummaries builds a "ProductName*qty" text fragment and a total qty per order,
-// for the given set of order IDs.
-func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]int) {
+// fetchExportItemSummaries builds, per order ID: a "ProductName*qty" text fragment (used
+// verbatim in the real CVS carrier template - do not reformat) and a "SKU - Name（Color /
+// Size） xQty" fragment for the Packing Label File, plus a total qty. All three are keyed by
+// order ID; the caller joins fragments across a shipment group's member orders itself.
+func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]string, map[int]int) {
 	fragments := map[int][]string{}
+	packingFragments := map[int][]string{}
 	qty := map[int]int{}
 	if len(orderIDs) == 0 {
-		return map[int]string{}, qty
+		return map[int]string{}, map[int]string{}, qty
 	}
 	rows, err := db.Query(r.Context(), `
-		SELECT oi.order_id, p.name, oi.qty
+		SELECT oi.order_id, p.name, oi.qty, pv.sku, pv.color, pv.size
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
 		WHERE oi.order_id = ANY($1)
 		ORDER BY oi.order_id, oi.id`, orderIDs)
 	if err != nil {
-		return map[int]string{}, qty
+		return map[int]string{}, map[int]string{}, qty
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var orderID, itemQty int
-		var name string
-		if err := rows.Scan(&orderID, &name, &itemQty); err != nil {
+		var name, sku, color, size string
+		if err := rows.Scan(&orderID, &name, &itemQty, &sku, &color, &size); err != nil {
 			continue
 		}
 		fragments[orderID] = append(fragments[orderID], fmt.Sprintf("%s*%d", name, itemQty))
+		packingFragments[orderID] = append(packingFragments[orderID],
+			fmt.Sprintf("%s - %s（%s / %s） x%d", sku, name, color, size, itemQty))
 		qty[orderID] += itemQty
 	}
 	summary := map[int]string{}
 	for orderID, frags := range fragments {
 		summary[orderID] = strings.Join(frags, ", ")
 	}
-	return summary, qty
+	packingSummary := map[int]string{}
+	for orderID, frags := range packingFragments {
+		packingSummary[orderID] = strings.Join(frags, "\n")
+	}
+	return summary, packingSummary, qty
 }
 
 type markExportedRequest struct {

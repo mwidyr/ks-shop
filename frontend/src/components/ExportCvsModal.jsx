@@ -180,6 +180,27 @@ export default function ExportCvsModal({ onClose, onExported }) {
       a.click()
       URL.revokeObjectURL(url)
 
+      // Packing Label File (separate ask, same click): the picking/packing staff's own app
+      // import format - Order No / Customer / Phone / Pickup Store / Store Code / one
+      // multi-line "Ordered Products" cell (packing_products, built server-side per item as
+      // "SKU - Name（Color / Size） xQty", newline-joined). Deliberately a plain xlsx/SheetJS
+      // sheet (json_to_sheet), not the exceljs template above - there's no real template to
+      // preserve here, and a `\n` in a string cell renders as a wrapped multi-line cell the
+      // same way ExportKurirModal.jsx's literal-newline header cells already do.
+      const XLSX = await import('xlsx')
+      const packingRows = picked.map((r) => ({
+        '訂單編號': r.group_order_nos?.length ? [r.order_no, ...r.group_order_nos].join(' + ') : r.order_no,
+        '客戶': r.customer_name,
+        '電話': r.customer_phone,
+        '取貨門市': r.pickup_store_name,
+        '店號': r.pickup_store_code,
+        '訂購商品': r.packing_products,
+      }))
+      const packingWb = XLSX.utils.book_new()
+      const packingWs = XLSX.utils.json_to_sheet(packingRows)
+      XLSX.utils.book_append_sheet(packingWb, packingWs, 'Packing Label')
+      XLSX.writeFile(packingWb, `packing-label-${chainTab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+
       await markExported(picked.flatMap((r) => r.order_ids))
       reload()
       onExported?.()

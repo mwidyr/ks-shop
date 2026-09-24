@@ -14,6 +14,12 @@ import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
 import { IconClose } from '../components/icons'
 
+// Only for the copy-to-clipboard text sent to customers ("NT$ 1,234" with a space) - the
+// on-screen formatCurrency() has its own tighter Intl-driven style and stays unchanged.
+function fmtNT(n) {
+  return `NT$ ${Math.round(n).toLocaleString('en-US')}`
+}
+
 function isoToLocalInput(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -400,26 +406,34 @@ export default function OrderDetail() {
   async function copyOrderInfo() {
     const isGrouped = order.shipment_group_id && order.shipment_group_items?.length > 0
     const orderNos = order.shipment_group_id ? [order.order_no, ...order.shipment_group_order_nos] : [order.order_no]
-    const pickupInfo = `${order.pickup_chain_name}${order.pickup_store_name ? ' - ' + order.pickup_store_name : ''}${order.pickup_store_code ? ' #' + order.pickup_store_code : ''}`
+    // A store name/code means this order is picked up at a CVS/chain store, so the address
+    // shown is that store's, not a home-delivery address - label it accordingly.
+    const isStorePickup = !!(order.pickup_store_name || order.pickup_store_code)
     // When merged, the fee/total/items must reflect the whole group (one shipping charge,
     // every product across all merged orders) - never just this order's own slice of it.
     const items = isGrouped ? order.shipment_group_items : order.items
     const total = isGrouped ? order.shipment_group_total : order.total
     const shippingFee = isGrouped ? order.shipment_group_shipping_fee : order.shipping_fee
+    const productSubtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0)
     const shippingInfo = shippingFee > 0
-      ? formatCurrency(shippingFee)
+      ? fmtNT(shippingFee)
       : t('page_order_detail.free_label') + (order.shipment_group_id ? t('page_order_detail.copy_combined_shipment_note') : '')
     const lines = [
       t('page_order_detail.copy_order_label', { orderNos: orderNos.join(' + ') }),
-      t('page_order_detail.copy_customer_label', { name: order.customer_name, phone: order.customer_phone }),
-      t('page_order_detail.copy_address_label', { address: order.shipping_address }),
-      t('page_order_detail.copy_pickup_label', { pickup: pickupInfo }),
+      '',
+      t('page_order_detail.copy_customer_label', { name: order.customer_name }),
+      t('page_order_detail.copy_phone_label', { phone: order.customer_phone }),
+      t(isStorePickup ? 'page_order_detail.copy_address_store_label' : 'page_order_detail.copy_address_label', { address: order.shipping_address }),
       '',
       t('page_order_detail.copy_products_header'),
-      ...items.map((it) => t('page_order_detail.copy_item_line', { name: it.product_name, variant: `${it.color}/${it.size}`, qty: it.qty, subtotal: formatCurrency(it.price * it.qty) })),
+      ...items.map((it) => t('page_order_detail.copy_item_line', {
+        sku: it.sku, name: it.product_name, color: it.color, size: it.size, qty: it.qty,
+        price: fmtNT(it.price), subtotal: fmtNT(it.price * it.qty),
+      })),
       '',
+      t('page_order_detail.copy_subtotal_label', { subtotal: fmtNT(productSubtotal) }),
       t('page_order_detail.copy_shipping_label', { fee: shippingInfo }),
-      t('page_order_detail.copy_total_label', { total: formatCurrency(total) }),
+      t('page_order_detail.copy_total_label', { total: fmtNT(total) }),
     ]
     const text = lines.join('\n')
     const ok = await copyToClipboard(text)

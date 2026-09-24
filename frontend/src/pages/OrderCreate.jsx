@@ -12,10 +12,8 @@ import CustomerPicker, { TW_PHONE_REGEX } from '../components/CustomerPicker'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 
-let blockKeySeq = 0
-const emptyBlock = (defaultHostId = '') => ({
-  key: ++blockKeySeq,
-  hostId: defaultHostId,
+const emptyOrder = () => ({
+  hostId: '',
   liveSessionId: '',
   customer: null,
   pickupChainId: '',
@@ -54,16 +52,16 @@ function customerIsResolved(customer) {
   return Boolean(customer.name && customer.phone)
 }
 
-function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSessions, shippingSettings, onUpdate, onRemove }) {
+function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings, onUpdate }) {
   const { t } = useTranslation()
   const [showPicker, setShowPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const selectedChain = pickupChains.find((c) => String(c.id) === String(block.pickupChainId))
+  const selectedChain = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
-  const subtotal = block.items.reduce((sum, it) => sum + it.price * it.qty, 0)
-  const storeCodeValid = !isCvs || /^\d{6}$/.test(block.pickupStoreCode)
-  const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, block.pickupStoreCode, isCvs)
+  const subtotal = order.items.reduce((sum, it) => sum + it.price * it.qty, 0)
+  const storeCodeValid = !isCvs || /^\d{6}$/.test(order.pickupStoreCode)
+  const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, order.pickupStoreCode, isCvs)
   // Mirrors defaultShippingFee's own threshold check - used only to show the "Gratis Ongkir"
   // hint, so it stays true only for threshold-driven free shipping, not a manual override to 0.
   const freeShippingEligible = Boolean(selectedChain && shippingSettings && (
@@ -71,7 +69,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
       ? shippingSettings.free_shipping_threshold_pos > 0 && subtotal >= shippingSettings.free_shipping_threshold_pos
       : shippingSettings.free_shipping_threshold_minimarket > 0 && subtotal >= shippingSettings.free_shipping_threshold_minimarket
   ))
-  const showFreeShippingHint = freeShippingEligible && !block.shippingFeeDirty
+  const showFreeShippingHint = freeShippingEligible && !order.shippingFeeDirty
 
   useEffect(() => {
     if (storeCodeCheck?.exists) onUpdate('pickupStoreName', storeCodeCheck.storeName)
@@ -79,10 +77,10 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
   }, [storeCodeCheck])
 
   useEffect(() => {
-    if (block.shippingFeeDirty) return
+    if (order.shippingFeeDirty) return
     onUpdate('shippingFee', defaultShippingFee(selectedChain, shippingSettings, subtotal))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChain?.id, shippingSettings, subtotal, block.shippingFeeDirty])
+  }, [selectedChain?.id, shippingSettings, subtotal, order.shippingFeeDirty])
 
   function handleCustomerChange(customer) {
     onUpdate('customer', customer)
@@ -95,35 +93,30 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
   }
 
   function handleAddItems(newItems) {
-    const byVariant = new Map(block.items.map((it) => [it.variantId, it]))
-    for (const it of newItems) byVariant.set(it.variantId, { hostId: block.hostId, ...it })
+    const byVariant = new Map(order.items.map((it) => [it.variantId, it]))
+    for (const it of newItems) byVariant.set(it.variantId, { hostId: order.hostId, ...it })
     onUpdate('items', [...byVariant.values()])
   }
 
   function removeItem(variantId) {
-    onUpdate('items', block.items.filter((it) => it.variantId !== variantId))
+    onUpdate('items', order.items.filter((it) => it.variantId !== variantId))
   }
 
-  // Default: every item in an order goes to the block's host. If products came from different
+  // Default: every item in an order goes to the order's host. If products came from different
   // hosts, this lets each line item's host be overridden individually.
   function updateItem(variantId, field, value) {
-    onUpdate('items', block.items.map((it) => (it.variantId === variantId ? { ...it, [field]: value } : it)))
+    onUpdate('items', order.items.map((it) => (it.variantId === variantId ? { ...it, [field]: value } : it)))
   }
 
-  const total = Math.max(0, subtotal - (Number(block.discountAmount) || 0) + (Number(block.additionalAmount) || 0) + (Number(block.shippingFee) || 0))
+  const total = Math.max(0, subtotal - (Number(order.discountAmount) || 0) + (Number(order.additionalAmount) || 0) + (Number(order.shippingFee) || 0))
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-gray-800">{t('page_order_create.order_block_title', { index: index + 1 })}</h2>
-        {showRemove && (
-          <button type="button" onClick={onRemove} className="text-xs text-red-600 hover:underline">{t('page_order_create.remove_order_button')}</button>
-        )}
-      </div>
+      <h2 className="font-bold text-gray-800">{t('page_order_create.order_block_title', { index: 1 })}</h2>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
-        <select value={block.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+        <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
           <option value="">{t('page_order_create.select_host_option')}</option>
           {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
         </select>
@@ -131,7 +124,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.live_session_label')}</label>
-        <select value={block.liveSessionId} onChange={(e) => onUpdate('liveSessionId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <select value={order.liveSessionId} onChange={(e) => onUpdate('liveSessionId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
           <option value="">{t('page_order_create.no_session_option')}</option>
           {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.host_name})</option>)}
         </select>
@@ -151,7 +144,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
               type="button"
               onClick={() => { onUpdate('pickupChainId', String(c.id)); onUpdate('shippingFeeDirty', false) }}
               className={`text-sm font-semibold px-4 py-2 rounded-lg border ${
-                String(block.pickupChainId) === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                String(order.pickupChainId) === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
               }`}
             >
               {c.name}
@@ -165,7 +158,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.store_code_label')}</label>
             <input
-              value={block.pickupStoreCode}
+              value={order.pickupStoreCode}
               onChange={(e) => onUpdate('pickupStoreCode', e.target.value)}
               placeholder={t('page_order_create.store_code_placeholder')}
               className={`w-full border rounded-lg px-3 py-2 text-sm ${storeCodeValid && storeCodeCheck?.exists !== false ? 'border-gray-300' : 'border-red-400'}`}
@@ -177,11 +170,11 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.store_name_label')}</label>
-            <input value={block.pickupStoreName} onChange={(e) => onUpdate('pickupStoreName', e.target.value)} placeholder={t('page_order_create.store_name_placeholder')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input value={order.pickupStoreName} onChange={(e) => onUpdate('pickupStoreName', e.target.value)} placeholder={t('page_order_create.store_name_placeholder')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
-            <input type="number" min="0" value={block.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="number" min="0" value={order.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             {showFreeShippingHint && <p className="text-xs text-green-600 mt-1">🎉 {t('page_order_create.free_shipping_hint')}</p>}
           </div>
         </div>
@@ -189,28 +182,77 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_address_label')}</label>
-            <textarea value={block.shippingAddress} onChange={(e) => onUpdate('shippingAddress', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
+            <textarea value={order.shippingAddress} onChange={(e) => onUpdate('shippingAddress', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
-            <input type="number" min="0" value={block.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="number" min="0" value={order.shippingFee} onChange={(e) => { onUpdate('shippingFee', Number(e.target.value) || 0); onUpdate('shippingFeeDirty', true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             {showFreeShippingHint && <p className="text-xs text-green-600 mt-1">🎉 {t('page_order_create.free_shipping_hint')}</p>}
           </div>
         </div>
       ))}
 
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700">{t('page_order_create.section_products')}</label>
-          <button type="button" onClick={() => setShowPicker(true)} className="text-sm font-semibold text-brand-600 hover:underline">
-            {t('page_order_create.add_product_button')}
-          </button>
-        </div>
-        {block.items.length === 0 ? (
-          <p className="text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg p-4 text-center">{t('page_order_create.no_products_yet')}</p>
+        <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs text-gray-500 hover:underline">
+          {showAdvanced ? t('page_order_create.hide_advanced') : t('page_order_create.show_advanced')}
+        </button>
+        {showAdvanced && (
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.discount_label')}</label>
+              <input type="number" min="0" value={order.discountAmount} onChange={(e) => onUpdate('discountAmount', e.target.value)} placeholder="0" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.additional_fee_label')}</label>
+              <input type="number" min="0" value={order.additionalAmount} onChange={(e) => onUpdate('additionalAmount', e.target.value)} placeholder="0" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.keep_date_label')}</label>
+              <input type="date" value={order.keepDate} onChange={(e) => onUpdate('keepDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              <p className="text-[10px] text-gray-400 mt-0.5">{t('page_order_create.keep_date_hint')}</p>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer bg-white">
+                <span className="text-xs font-medium text-gray-700">{t('page_order_detail.mark_urgent_label')}</span>
+                <input type="checkbox" checked={order.isUrgent} onChange={(e) => onUpdate('isUrgent', e.target.checked)} className="w-4 h-4" />
+              </label>
+            </div>
+            {order.isUrgent && (
+              <div className="col-span-2">
+                <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.deadline_label')}</label>
+                <input
+                  type="datetime-local"
+                  value={order.notesDeadline}
+                  onChange={(e) => onUpdate('notesDeadline', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                />
+              </div>
+            )}
+            <div className="col-span-2">
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.internal_notes_label')}</label>
+              <textarea
+                value={order.internalNotes}
+                onChange={(e) => onUpdate('internalNotes', e.target.value.slice(0, 2000))}
+                rows={3}
+                maxLength={2000}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm resize-y"
+              />
+              <p className="text-[10px] text-gray-400 text-right mt-0.5">{order.internalNotes.length} / 2000</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Produk: moved to the bottom of the form, in the same full-width spot the old
+          "+ Tambah Order" button used to occupy (now removed - this app only ever submits one
+          order at a time), right above the Subtotal/Total footer. */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">{t('page_order_create.section_products')}</label>
+        {order.items.length === 0 ? (
+          <p className="text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg p-4 text-center mb-2">{t('page_order_create.no_products_yet')}</p>
         ) : (
-          <div className="space-y-2">
-            {block.items.map((it) => (
+          <div className="space-y-2 mb-2">
+            {order.items.map((it) => (
               <div key={it.variantId} className="flex items-center gap-3 border border-gray-200 rounded-lg p-2">
                 <img src={resolveUrl(it.imageUrl)} className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -218,7 +260,7 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
                   <p className="text-xs text-gray-500">{it.sku && <span className="font-mono text-brand-600">{it.sku}</span>} · {it.variantLabel} · {t('page_order_create.qty_label')}: {it.qty}</p>
                 </div>
                 <select
-                  value={it.hostId ?? block.hostId}
+                  value={it.hostId ?? order.hostId}
                   onChange={(e) => updateItem(it.variantId, 'hostId', e.target.value)}
                   title={t('page_order_create.host_label')}
                   className="text-xs border border-gray-300 rounded-lg px-2 py-1 shrink-0"
@@ -231,57 +273,13 @@ function OrderBlock({ block, index, showRemove, hosts, pickupChains, liveSession
             ))}
           </div>
         )}
-      </div>
-
-      <div>
-        <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs text-gray-500 hover:underline">
-          {showAdvanced ? t('page_order_create.hide_advanced') : t('page_order_create.show_advanced')}
+        <button
+          type="button"
+          onClick={() => setShowPicker(true)}
+          className="w-full border border-dashed border-gray-300 rounded-2xl py-3 text-sm font-semibold text-brand-600 hover:bg-brand-50"
+        >
+          {t('page_order_create.add_product_button')}
         </button>
-        {showAdvanced && (
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.discount_label')}</label>
-              <input type="number" min="0" value={block.discountAmount} onChange={(e) => onUpdate('discountAmount', e.target.value)} placeholder="0" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.additional_fee_label')}</label>
-              <input type="number" min="0" value={block.additionalAmount} onChange={(e) => onUpdate('additionalAmount', e.target.value)} placeholder="0" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.keep_date_label')}</label>
-              <input type="date" value={block.keepDate} onChange={(e) => onUpdate('keepDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              <p className="text-[10px] text-gray-400 mt-0.5">{t('page_order_create.keep_date_hint')}</p>
-            </div>
-            <div className="col-span-2">
-              <label className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer bg-white">
-                <span className="text-xs font-medium text-gray-700">{t('page_order_detail.mark_urgent_label')}</span>
-                <input type="checkbox" checked={block.isUrgent} onChange={(e) => onUpdate('isUrgent', e.target.checked)} className="w-4 h-4" />
-              </label>
-            </div>
-            {block.isUrgent && (
-              <div className="col-span-2">
-                <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.deadline_label')}</label>
-                <input
-                  type="datetime-local"
-                  value={block.notesDeadline}
-                  onChange={(e) => onUpdate('notesDeadline', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                />
-              </div>
-            )}
-            <div className="col-span-2">
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_detail.internal_notes_label')}</label>
-              <textarea
-                value={block.internalNotes}
-                onChange={(e) => onUpdate('internalNotes', e.target.value.slice(0, 2000))}
-                rows={3}
-                maxLength={2000}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm resize-y"
-              />
-              <p className="text-[10px] text-gray-400 text-right mt-0.5">{block.internalNotes.length} / 2000</p>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="border-t pt-3 space-y-1 text-sm">
@@ -307,10 +305,9 @@ export default function OrderCreate() {
   const [pickupChains, setPickupChains] = useState([])
   const [liveSessions, setLiveSessions] = useState([])
   const [shippingSettings, setShippingSettings] = useState(null)
-  const [blocks, setBlocks] = useState([emptyBlock()])
+  const [order, setOrder] = useState(emptyOrder())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [result, setResult] = useState(null)
 
   useEffect(() => {
     listHosts().then(setHosts)
@@ -319,38 +316,26 @@ export default function OrderCreate() {
     getShippingSettings().then(setShippingSettings)
   }, [])
 
-  function updateBlock(key, field, value) {
-    setBlocks((bs) => bs.map((b) => (b.key === key ? { ...b, [field]: value } : b)))
-  }
-
-  function addBlock() {
-    setBlocks((bs) => [...bs, emptyBlock(bs[bs.length - 1]?.hostId ?? '')])
-  }
-
-  function removeBlock(key) {
-    setBlocks((bs) => bs.filter((b) => b.key !== key))
+  function updateOrder(field, value) {
+    setOrder((o) => ({ ...o, [field]: value }))
   }
 
   function validate() {
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i]
-      const chain = pickupChains.find((c) => String(c.id) === String(b.pickupChainId))
-      const isCvs = chain?.chain_type === 'cvs_711' || chain?.chain_type === 'cvs_familymart'
-      if (!b.hostId) return t('page_order_create.block_error_host', { index: i + 1 })
-      if (!customerIsResolved(b.customer)) return t('page_order_create.block_error_customer', { index: i + 1 })
-      if (!b.customer.id && !TW_PHONE_REGEX.test(b.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: i + 1 })
-      if (!b.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: i + 1 })
-      if (isCvs && !/^\d{6}$/.test(b.pickupStoreCode)) return t('page_order_create.block_error_store_code', { index: i + 1 })
-      if (!isCvs && !b.shippingAddress) return t('page_order_create.block_error_address', { index: i + 1 })
-      if (b.items.length === 0) return t('page_order_create.block_error_no_products', { index: i + 1 })
-    }
+    const isCvs = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))?.chain_type
+    const cvs = isCvs === 'cvs_711' || isCvs === 'cvs_familymart'
+    if (!order.hostId) return t('page_order_create.block_error_host', { index: 1 })
+    if (!customerIsResolved(order.customer)) return t('page_order_create.block_error_customer', { index: 1 })
+    if (!order.customer.id && !TW_PHONE_REGEX.test(order.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: 1 })
+    if (!order.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: 1 })
+    if (cvs && !/^\d{6}$/.test(order.pickupStoreCode)) return t('page_order_create.block_error_store_code', { index: 1 })
+    if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
+    if (order.items.length === 0) return t('page_order_create.block_error_no_products', { index: 1 })
     return ''
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    setResult(null)
     const validationError = validate()
     if (validationError) {
       setError(validationError)
@@ -359,78 +344,40 @@ export default function OrderCreate() {
 
     setSaving(true)
     try {
-      const settled = await Promise.allSettled(blocks.map((b) => createOrder({
-        customer: b.customer.id ? { id: b.customer.id } : { name: b.customer.name, phone: b.customer.phone, address: b.customer.address },
-        shipping_address: b.shippingAddress,
-        pickup_chain_id: Number(b.pickupChainId),
-        pickup_store_name: b.pickupStoreName,
-        pickup_store_code: b.pickupStoreCode,
-        items: b.items.map((it) => ({ host_id: Number(it.hostId ?? b.hostId), variant_id: it.variantId, qty: it.qty, live_session_id: b.liveSessionId ? Number(b.liveSessionId) : null })),
-        discount_amount: Number(b.discountAmount) || 0,
-        additional_amount: Number(b.additionalAmount) || 0,
-        keep_date: b.keepDate || null,
-        shipping_fee_override: Number(b.shippingFee) || 0,
-        internal_notes: b.internalNotes,
-        is_urgent: b.isUrgent,
-        notes_deadline: b.isUrgent && b.notesDeadline ? new Date(b.notesDeadline).toISOString() : null,
-      })))
-
-      const succeeded = settled.filter((r) => r.status === 'fulfilled')
-      const failed = settled.filter((r) => r.status === 'rejected')
-
-      if (failed.length === 0 && succeeded.length === 1) {
-        navigate(`/orders/${succeeded[0].value.order_id}`)
-        return
-      }
-      setResult({
-        orderNos: succeeded.map((r) => r.value.order_no),
-        failCount: failed.length,
+      const res = await createOrder({
+        customer: order.customer.id ? { id: order.customer.id } : { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+        shipping_address: order.shippingAddress,
+        pickup_chain_id: Number(order.pickupChainId),
+        pickup_store_name: order.pickupStoreName,
+        pickup_store_code: order.pickupStoreCode,
+        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId), variant_id: it.variantId, qty: it.qty, live_session_id: order.liveSessionId ? Number(order.liveSessionId) : null })),
+        discount_amount: Number(order.discountAmount) || 0,
+        additional_amount: Number(order.additionalAmount) || 0,
+        keep_date: order.keepDate || null,
+        shipping_fee_override: Number(order.shippingFee) || 0,
+        internal_notes: order.internalNotes,
+        is_urgent: order.isUrgent,
+        notes_deadline: order.isUrgent && order.notesDeadline ? new Date(order.notesDeadline).toISOString() : null,
       })
+      navigate(`/orders/${res.order_id}`)
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_order_create.result_failed', { count: 1 }))
     } finally {
       setSaving(false)
     }
   }
 
-  if (result) {
-    return (
-      <div className="px-4 sm:px-6 py-6 max-w-3xl">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="font-bold text-gray-800 mb-2">{t('page_order_create.result_title')}</h2>
-          {result.orderNos.length > 0 && (
-            <p className="text-sm text-green-700 mb-2">{t('page_order_create.result_success', { count: result.orderNos.length, orderNos: result.orderNos.join(', ') })}</p>
-          )}
-          {result.failCount > 0 && (
-            <p className="text-sm text-red-600 mb-2">{t('page_order_create.result_failed', { count: result.failCount })}</p>
-          )}
-          <button onClick={() => navigate('/orders')} className="mt-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-lg">
-            {t('page_order_create.back_to_orders')}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {blocks.map((block, index) => (
-          <OrderBlock
-            key={block.key}
-            block={block}
-            index={index}
-            showRemove={blocks.length > 1}
-            hosts={hosts}
-            pickupChains={pickupChains}
-            liveSessions={liveSessions}
-            shippingSettings={shippingSettings}
-            onUpdate={(field, value) => updateBlock(block.key, field, value)}
-            onRemove={() => removeBlock(block.key)}
-          />
-        ))}
-
-        <button type="button" onClick={addBlock} className="w-full border border-dashed border-gray-300 rounded-2xl py-3 text-sm font-semibold text-brand-600 hover:bg-brand-50">
-          {t('page_order_create.add_order_button')}
-        </button>
+        <OrderForm
+          order={order}
+          hosts={hosts}
+          pickupChains={pickupChains}
+          liveSessions={liveSessions}
+          shippingSettings={shippingSettings}
+          onUpdate={updateOrder}
+        />
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 

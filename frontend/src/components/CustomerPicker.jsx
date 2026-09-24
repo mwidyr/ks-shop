@@ -5,97 +5,57 @@ import client from '../api/client'
 // Taiwan mobile format: "09" followed by 8 more digits (10 digits total).
 export const TW_PHONE_REGEX = /^09\d{8}$/
 
-// Single field: search by name or phone. No separate "search"/"new customer" toggle - if
-// nothing matches what's typed, small new-customer fields (name/phone/address) appear inline
-// automatically. Emits the resolved payload via onChange:
+// Two always-visible fields (Nama Pelanggan / Telepon Pelanggan), matching the reference design
+// - not a single combined search box with new-customer fields only appearing after a failed
+// search. Typing in the name field searches existing customers by name or phone (same backend
+// behavior as before); picking a suggestion fills both fields and remembers the match's id.
+// Editing either field afterward drops that id - it's manual entry again from that point, auto-
+// created as a new customer on submit if nothing was (re-)selected. Emits via onChange:
 //   existing: the full customer row from the search API (id, name, phone, address, plus
-//             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code, so the
-//             parent can auto-fill pickup method - only `id` is actually sent on order create)
-//   new:      { name, phone, address }
+//             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code)
+//   new/manual: { name, phone, address: '' }
 export default function CustomerPicker({ onChange }) {
   const { t } = useTranslation()
-  const [query, setQuery] = useState('')
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [results, setResults] = useState([])
-  const [searched, setSearched] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '' })
 
-  async function search(q) {
-    setQuery(q)
+  async function handleNameChange(v) {
+    setName(v)
     setSelected(null)
-    if (q.length < 2) {
+    if (v.length < 2) {
       setResults([])
-      setSearched(false)
-      onChange(null)
+      onChange({ name: v, phone, address: '' })
       return
     }
-    const res = await client.get(`/customers?q=${encodeURIComponent(q)}`)
+    const res = await client.get(`/customers?q=${encodeURIComponent(v)}`)
     setResults(res.data)
-    setSearched(true)
-    if (res.data.length === 0) {
-      const next = { ...newCustomer, name: q }
-      setNewCustomer(next)
-      onChange(next)
-    } else {
-      onChange(null)
-    }
+    onChange({ name: v, phone, address: '' })
+  }
+
+  function handlePhoneChange(v) {
+    const digits = v.replace(/\D/g, '').slice(0, 10)
+    setPhone(digits)
+    setSelected(null)
+    onChange({ name, phone: digits, address: '' })
   }
 
   function pick(customer) {
     setSelected(customer)
+    setName(customer.name)
+    setPhone(customer.phone)
     setResults([])
-    setQuery(customer.name)
     onChange(customer)
   }
 
-  function changeCustomer() {
-    setSelected(null)
-    setQuery('')
-    setResults([])
-    setSearched(false)
-    onChange(null)
-  }
-
-  function updateNew(field, val) {
-    const next = { ...newCustomer, [field]: val }
-    setNewCustomer(next)
-    onChange(next)
-  }
-
-  if (selected) {
-    return (
-      <div>
-        <div className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2">
-          <div>
-            <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
-              {selected.name}
-              {selected.is_blacklisted && (
-                <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">
-                  {t('shared.customer_blacklist_badge')}
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-gray-500">{selected.phone}</p>
-          </div>
-          <button type="button" onClick={changeCustomer} className="text-xs font-semibold text-brand-600 hover:underline shrink-0">
-            {t('shared.customer_change')}
-          </button>
-        </div>
-        {selected.is_blacklisted && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 mt-2">
-            {t('shared.customer_blacklist_warning')}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
-    <div>
+    <div className="space-y-2">
       <div className="relative">
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_name_label')}</label>
         <input
-          value={query}
-          onChange={(e) => search(e.target.value)}
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
           placeholder={t('shared.customer_search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -123,38 +83,31 @@ export default function CustomerPicker({ onChange }) {
         )}
       </div>
 
-      {searched && results.length === 0 && (
-        <div className="space-y-2 mt-2">
-          <p className="text-xs text-gray-500">{t('shared.customer_new_hint')}</p>
-          <input
-            value={newCustomer.name}
-            onChange={(e) => updateNew('name', e.target.value)}
-            placeholder={t('shared.customer_name_placeholder')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          <div>
-            <input
-              value={newCustomer.phone}
-              onChange={(e) => updateNew('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder={t('shared.customer_phone_placeholder')}
-              inputMode="numeric"
-              maxLength={10}
-              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                newCustomer.phone && !TW_PHONE_REGEX.test(newCustomer.phone) ? 'border-red-400' : 'border-gray-300'
-              }`}
-            />
-            {newCustomer.phone && !TW_PHONE_REGEX.test(newCustomer.phone) && (
-              <p className="text-xs text-red-600 mt-1">{t('shared.customer_phone_format_error')}</p>
-            )}
-          </div>
-          <input
-            value={newCustomer.address}
-            onChange={(e) => updateNew('address', e.target.value)}
-            placeholder={t('shared.customer_address_placeholder')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_phone_label')}</label>
+        <input
+          value={phone}
+          onChange={(e) => handlePhoneChange(e.target.value)}
+          placeholder={t('shared.customer_phone_placeholder')}
+          inputMode="numeric"
+          maxLength={10}
+          disabled={!!selected}
+          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-500 ${
+            phone && !TW_PHONE_REGEX.test(phone) ? 'border-red-400' : 'border-gray-300'
+          }`}
+        />
+        {phone && !TW_PHONE_REGEX.test(phone) && (
+          <p className="text-xs text-red-600 mt-1">{t('shared.customer_phone_format_error')}</p>
+        )}
+      </div>
+
+      {selected?.is_blacklisted && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3">
+          {t('shared.customer_blacklist_warning')}
         </div>
       )}
+
+      <p className="text-xs text-gray-500">{t('shared.customer_new_auto_hint')}</p>
     </div>
   )
 }
