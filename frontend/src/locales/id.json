@@ -38,6 +38,9 @@
       "chat": "Pesan",
       "customers": "Manajemen Pelanggan",
       "fees": "Biaya",
+      "heatmap": "Heatmap",
+      "host_category_leaderboard": "Peringkat Host",
+      "host_performance_analytics": "Analitik Host",
       "hosts": "Manajemen Penyiar",
       "integrations": "Integrasi",
       "inventory": "Manajemen Stok",
@@ -45,8 +48,11 @@
       "orders": "Manajemen Pesanan",
       "panel_siaran": "Panel Siaran",
       "payouts": "Pencairan Dana",
+      "performance_dashboard": "Dashboard Performa",
       "picking": "Daftar Pengambilan",
       "product_analytics": "Produk",
+      "product_color_pair": "Analisis Pasangan Warna",
+      "product_performance": "Analisis Kombo",
       "products": "Manajemen Produk",
       "profit": "Profit",
       "promotions": "Promosi",
@@ -65,10 +71,7 @@
       "suppliers": "Supplier",
       "team": "Tim",
       "transactions": "Transaksi",
-      "warehouses": "Gudang",
-      "product_performance": "Analisis Kombo",
-      "product_color_pair": "Analisis Pasangan Warna",
-      "host_category_leaderboard": "Peringkat Host"
+      "warehouses": "Gudang"
     },
     "settings": "Pengaturan"
   },

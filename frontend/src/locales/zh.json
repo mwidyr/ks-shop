@@ -38,6 +38,9 @@
       "chat": "訊息",
       "customers": "顧客管理",
       "fees": "費用",
+      "heatmap": "熱力圖",
+      "host_category_leaderboard": "主播排行榜",
+      "host_performance_analytics": "主播分析",
       "hosts": "主播管理",
       "integrations": "整合",
       "inventory": "庫存管理",
@@ -45,8 +48,11 @@
       "orders": "訂單管理",
       "panel_siaran": "直播面板",
       "payouts": "撥款",
+      "performance_dashboard": "績效儀表板",
       "picking": "揀貨清單",
       "product_analytics": "商品",
+      "product_color_pair": "顏色配對分析",
+      "product_performance": "組合分析",
       "products": "商品管理",
       "profit": "利潤",
       "promotions": "促銷",
@@ -65,10 +71,7 @@
       "suppliers": "供應商",
       "team": "團隊",
       "transactions": "交易紀錄",
-      "warehouses": "倉庫",
-      "product_performance": "組合分析",
-      "product_color_pair": "顏色配對分析",
-      "host_category_leaderboard": "主播排行榜"
+      "warehouses": "倉庫"
     },
     "settings": "設定"
   },

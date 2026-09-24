@@ -38,6 +38,9 @@
       "chat": "Messages",
       "customers": "Customer Management",
       "fees": "Fees",
+      "heatmap": "Heatmap",
+      "host_category_leaderboard": "Host Leaderboard",
+      "host_performance_analytics": "Host Analytics",
       "hosts": "Host Management",
       "integrations": "Integrations",
       "inventory": "Stock Management",
@@ -45,8 +48,11 @@
       "orders": "Order Management",
       "panel_siaran": "Live Panel",
       "payouts": "Payouts",
+      "performance_dashboard": "Performance Dashboard",
       "picking": "Picking List",
       "product_analytics": "Products",
+      "product_color_pair": "Color Pair Analysis",
+      "product_performance": "Combo Analysis",
       "products": "Product Management",
       "profit": "Profit",
       "promotions": "Promotions",
@@ -65,10 +71,7 @@
       "suppliers": "Suppliers",
       "team": "Team",
       "transactions": "Transactions",
-      "warehouses": "Warehouses",
-      "product_performance": "Combo Analysis",
-      "product_color_pair": "Color Pair Analysis",
-      "host_category_leaderboard": "Host Leaderboard"
+      "warehouses": "Warehouses"
     },
     "settings": "Settings"
   },
