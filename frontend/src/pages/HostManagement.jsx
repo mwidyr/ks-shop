@@ -230,7 +230,7 @@ export default function HostManagement() {
   ]
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-2xl space-y-6">
+    <div className="px-4 sm:px-6 py-6 space-y-6">
       <div className="bg-white rounded-2xl shadow-sm p-5">
         <h2 className="font-bold text-gray-800 mb-3">{t('page_hosts.locations_title')}</h2>
         <ReferenceTable
