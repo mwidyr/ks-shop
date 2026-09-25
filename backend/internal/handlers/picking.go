@@ -22,6 +22,7 @@ type pickingRow struct {
 	ProductName     string `json:"product_name"`
 	ImageURL        string `json:"image_url"`
 	SKU             string `json:"sku"`
+	ProductSKU      string `json:"product_sku"` // the parent/master product code (products.sku) - staff use this one, not each variant's own per-color/size sku
 	Color           string `json:"color"`
 	Size            string `json:"size"`
 	Qty             int    `json:"qty"`
@@ -53,7 +54,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 
 	if search := q.Get("q"); search != "" {
 		like := "%" + search + "%"
-		baseWhere += ` AND (pv.sku ILIKE ` + addArg(like) + ` OR p.name ILIKE ` + addArg(like) +
+		baseWhere += ` AND (p.sku ILIKE ` + addArg(like) + ` OR pv.sku ILIKE ` + addArg(like) + ` OR p.name ILIKE ` + addArg(like) +
 			` OR c.name ILIKE ` + addArg(like) + ` OR o.order_no ILIKE ` + addArg(like) + `)`
 	}
 	if color := q.Get("color"); color != "" {
@@ -97,7 +98,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT o.id, o.order_no, oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
-		       pv.sku, pv.color, pv.size, oi.qty, oi.picked_qty, c.name, COALESCE(h.name,'-'), o.status,
+		       pv.sku, COALESCE(p.sku,''), pv.color, pv.size, oi.qty, oi.picked_qty, c.name, COALESCE(h.name,'-'), o.status,
 		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
@@ -120,7 +121,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var row pickingRow
 		if err := rows.Scan(&row.OrderID, &row.OrderNo, &row.ItemID, &row.VariantID, &row.ProductName, &row.ImageURL,
-			&row.SKU, &row.Color, &row.Size, &row.Qty, &row.PickedQty, &row.CustomerName, &row.HostName, &row.Status,
+			&row.SKU, &row.ProductSKU, &row.Color, &row.Size, &row.Qty, &row.PickedQty, &row.CustomerName, &row.HostName, &row.Status,
 			&row.AvailableToPick, &row.PhysicalStock); err != nil {
 			continue
 		}

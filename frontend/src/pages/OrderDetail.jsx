@@ -549,7 +549,7 @@ export default function OrderDetail() {
               <div key={item.id} className="p-3">
                 <PickingLineItem
                   itemId={item.id}
-                  sku={item.sku}
+                  sku={item.product_sku}
                   productName={item.product_name}
                   imageUrl={item.image_url}
                   color={item.color}

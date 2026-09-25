@@ -70,7 +70,7 @@ export default function DaftarPengambilan() {
                   <PickingLineItem
                     key={it.item_id}
                     itemId={it.item_id}
-                    sku={it.sku}
+                    sku={it.product_sku}
                     productName={it.product_name}
                     imageUrl={it.image_url}
                     color={it.color}
