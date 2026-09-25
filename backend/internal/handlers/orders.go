@@ -197,6 +197,7 @@ type orderItemView struct {
 	Color           string  `json:"color"`
 	Size            string  `json:"size"`
 	SKU             string  `json:"sku"`
+	ProductSKU      string  `json:"product_sku"` // the parent/master product code (products.sku) - distinct from the per-variant SKU above; staff only use this one, e.g. for Copy Order Information
 	Qty             int     `json:"qty"`
 	PickedQty       int     `json:"picked_qty"`
 	Price           float64 `json:"price"`
@@ -302,7 +303,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(ctx, `
 		SELECT oi.id, oi.variant_id, p.name,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
-		       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
+		       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
 		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
@@ -315,7 +316,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		o.Items = []orderItemView{}
 		for rows.Next() {
 			var it orderItemView
-			rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.PickedQty,
+			rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.PickedQty,
 				&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock)
 			it.IsOversell = it.AvailableToPick < 0
 			o.Subtotal += it.Price * float64(it.Qty)
@@ -359,7 +360,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		itemRows, err := h.DB.Query(ctx, `
 			SELECT oi.id, oi.variant_id, p.name,
 			       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
-			       pv.color, pv.size, pv.sku, oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
+			       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
 			       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock, o2.order_no
 			FROM order_shipment_group_members m2
 			JOIN orders o2 ON o2.id = m2.order_id
@@ -375,7 +376,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			o.ShipmentGroupItems = []groupItemView{}
 			for itemRows.Next() {
 				var it groupItemView
-				itemRows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.PickedQty,
+				itemRows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.PickedQty,
 					&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock, &it.OrderNo)
 				it.IsOversell = it.AvailableToPick < 0
 				o.ShipmentGroupTotal += it.Price * float64(it.Qty)

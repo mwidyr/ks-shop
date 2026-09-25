@@ -211,7 +211,7 @@ func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int)
 		return map[int]string{}, map[int]string{}, qty
 	}
 	rows, err := db.Query(r.Context(), `
-		SELECT oi.order_id, p.name, oi.qty, pv.sku, pv.color, pv.size
+		SELECT oi.order_id, p.name, oi.qty, COALESCE(p.sku,''), pv.color, pv.size
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -223,13 +223,15 @@ func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int)
 	defer rows.Close()
 	for rows.Next() {
 		var orderID, itemQty int
-		var name, sku, color, size string
-		if err := rows.Scan(&orderID, &name, &itemQty, &sku, &color, &size); err != nil {
+		// productSKU is the parent/master product code (products.sku) - staff only use this
+		// one, not each variant's own per-color/size sku, so that's what goes on the label.
+		var name, productSKU, color, size string
+		if err := rows.Scan(&orderID, &name, &itemQty, &productSKU, &color, &size); err != nil {
 			continue
 		}
 		fragments[orderID] = append(fragments[orderID], fmt.Sprintf("%s*%d", name, itemQty))
 		packingFragments[orderID] = append(packingFragments[orderID],
-			fmt.Sprintf("%s - %s（%s / %s） x%d", sku, name, color, size, itemQty))
+			fmt.Sprintf("%s - %s（%s / %s） x%d", productSKU, name, color, size, itemQty))
 		qty[orderID] += itemQty
 	}
 	summary := map[int]string{}

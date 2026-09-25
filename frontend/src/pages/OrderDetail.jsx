@@ -427,7 +427,7 @@ export default function OrderDetail() {
       '',
       t('page_order_detail.copy_products_header'),
       ...items.map((it) => t('page_order_detail.copy_item_line', {
-        sku: it.sku, name: it.product_name, color: it.color, size: it.size, qty: it.qty,
+        sku: it.product_sku, name: it.product_name, color: it.color, size: it.size, qty: it.qty,
         price: fmtNT(it.price), subtotal: fmtNT(it.price * it.qty),
       })),
       '',
