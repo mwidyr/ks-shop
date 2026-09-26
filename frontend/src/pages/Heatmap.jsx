@@ -92,7 +92,12 @@ function slotLabel(i) {
 
 // Fixed QTY thresholds per level, keyed by how many days are in the selected range - client spec
 // (item 029-033): the busier the period, the higher the bar for each color level has to be.
-const LEVEL_COLORS = ['#E8F3E9', '#C5E3C8', '#81C784', '#43A047', '#196B24']
+// Three separate 5-step palettes so the main grid, ALL row, and AVERAGE row read as visually
+// distinct at a glance: green (main grid), pink -> dark red (ALL), light yellow -> dark orange
+// (AVERAGE) - same 5 threshold levels underneath, just a different ramp per row.
+const MAIN_COLORS = ['#E8F3E9', '#C5E3C8', '#81C784', '#43A047', '#196B24']
+const ALL_COLORS = ['#FCE4E9', '#F5B8C4', '#E8748C', '#C62E45', '#7A0F1F']
+const AVG_COLORS = ['#FFF6DA', '#FFE29A', '#FFC14D', '#F57C1F', '#B84A00']
 const THRESHOLD_TABLES = [
   { maxDays: 1, levels: [2, 5, 8, 12] },
   { maxDays: 7, levels: [3, 8, 15, 25] },
@@ -105,11 +110,11 @@ function getThresholdTable(rangeDays) {
   return table ? table.levels : THRESHOLD_TABLES[THRESHOLD_TABLES.length - 1].levels
 }
 
-function cellColor(qty, rangeDays) {
+function cellColor(qty, rangeDays, colors = MAIN_COLORS) {
   if (!qty) return { className: 'bg-gray-50 text-gray-300' }
   const levels = getThresholdTable(rangeDays)
   const level = levels.filter((max) => qty > max).length
-  return { style: { background: LEVEL_COLORS[level], color: level >= 3 ? '#fff' : '#1f2937' } }
+  return { style: { background: colors[level], color: level >= 3 ? '#fff' : '#1f2937' } }
 }
 
 function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString() }
@@ -264,7 +269,7 @@ export default function Heatmap() {
                   <td className="p-1 font-bold text-gray-800 sticky left-0 bg-white">ALL</td>
                   <td className="p-1 text-right font-bold text-gray-800">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
-                    const color = cellColor(qty, rangeDays)
+                    const color = cellColor(qty, rangeDays, ALL_COLORS)
                     return <td key={i} className={`p-1 text-center font-semibold rounded ${color.className || ''}`} style={color.style}>{qty || ''}</td>
                   })}
                 </tr>
@@ -272,7 +277,7 @@ export default function Heatmap() {
                   <td className="p-1 font-bold text-gray-500 sticky left-0 bg-white">{t('page_heatmap.average_row')}</td>
                   <td className="p-1"></td>
                   {grid.avg_row.map((v, i) => {
-                    const color = cellColor(v == null ? 0 : Math.round(v), rangeDays)
+                    const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
                     return <td key={i} className={`p-1 text-center rounded ${color.className || ''}`} style={color.style}>{v == null ? '—' : v.toFixed(1)}</td>
                   })}
                 </tr>
