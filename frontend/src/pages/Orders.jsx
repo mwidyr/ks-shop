@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup } from '../api/orders'
 import { listHosts } from '../api/hosts'
@@ -33,16 +33,21 @@ const sortOptions = [
 export default function Orders() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [hostId, setHostId] = useState('')
+  const [hostId, setHostId] = useState(() => searchParams.get('host_id') || '')
   const [category, setCategory] = useState('')
   const [pickupChainId, setPickupChainId] = useState('')
   const [blacklistOnly, setBlacklistOnly] = useState(false)
-  const [range, setRange] = useState(null)
+  const [range, setRange] = useState(() => {
+    const from = searchParams.get('date_from')
+    const to = searchParams.get('date_to')
+    return from && to ? { from, to } : null
+  })
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState('')
   const [sessionId, setSessionId] = useState('')

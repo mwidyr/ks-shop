@@ -71,7 +71,7 @@ func main() {
 	activityLogH := &handlers.ActivityLogHandler{DB: pool}
 	supplierH := &handlers.SupplierHandler{DB: pool}
 	purchaseH := &handlers.PurchaseHandler{DB: pool}
-	purchaseAlertH := &handlers.PurchaseAlertHandler{DB: pool}
+	replenishmentH := &handlers.ReplenishmentHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
 	hostLocationH := &handlers.HostLocationHandler{DB: pool}
 	returnH := &handlers.ReturnHandler{DB: pool}
@@ -135,6 +135,8 @@ func main() {
 			r.With(edit("products")).Patch("/products/{id}/variants/{variantId}", productH.UpdateVariant)
 			r.With(edit("products")).Delete("/products/{id}/variants/{variantId}", productH.DeleteVariant)
 			r.With(edit("products")).Delete("/products/{id}", productH.Delete)
+			r.With(view("products")).Get("/products/{id}/purchase-rules", productH.GetPurchaseRules)
+			r.With(edit("products")).Patch("/products/{id}/purchase-rules", productH.UpdatePurchaseRules)
 			r.With(edit("products")).Post("/products/{id}/images", imageH.AddImage)
 			r.With(edit("products")).Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
 			r.With(edit("products")).Post("/uploads/image", uploadH.UploadImage)
@@ -196,17 +198,26 @@ func main() {
 			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)
 
 			r.With(view("suppliers")).Get("/suppliers", supplierH.List)
+			r.With(view("suppliers")).Get("/suppliers/{id}", supplierH.Detail)
 			r.With(edit("suppliers")).Post("/suppliers", supplierH.Create)
 			r.With(edit("suppliers")).Patch("/suppliers/{id}", supplierH.Update)
 			r.With(edit("suppliers")).Delete("/suppliers/{id}", supplierH.Delete)
+			r.With(edit("suppliers")).Post("/suppliers/{id}/contacts", supplierH.CreateContact)
+			r.With(edit("suppliers")).Delete("/suppliers/{id}/contacts/{contactId}", supplierH.DeleteContact)
+			r.With(edit("suppliers")).Post("/suppliers/{id}/notes", supplierH.CreateNote)
+			r.With(edit("suppliers")).Post("/suppliers/{id}/price-references", supplierH.CreatePriceReference)
+			r.With(edit("suppliers")).Delete("/suppliers/{id}/price-references/{priceRefId}", supplierH.DeletePriceReference)
 
+			r.With(view("purchases")).Get("/purchases/history", purchaseH.History)
 			r.With(view("purchases")).Get("/purchases", purchaseH.List)
 			r.With(view("purchases")).Get("/purchases/{id}", purchaseH.Detail)
 			r.With(edit("purchases")).Post("/purchases", purchaseH.Create)
+			r.With(edit("purchases")).Patch("/purchases/{id}", purchaseH.Update)
+			r.With(edit("purchases")).Patch("/purchases/{id}/status", purchaseH.UpdateStatus)
 			r.With(edit("purchases")).Patch("/purchases/{id}/receive", purchaseH.Receive)
 			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
-			r.With(view("purchase_alert")).Get("/purchase-alert", purchaseAlertH.List)
+			r.With(view("replenishment_planning")).Get("/replenishment", replenishmentH.List)
 
 			r.With(view("customers")).Get("/customers", customerH.Search)
 			r.With(edit("customers")).Post("/customers", customerH.Create)

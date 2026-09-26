@@ -368,7 +368,7 @@ export default function OrderCreate() {
   }
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-3xl">
+    <div className="px-4 sm:px-6 py-6 max-w-3xl pb-28">
       <form onSubmit={handleSubmit} className="space-y-6">
         <OrderForm
           order={order}
@@ -381,13 +381,15 @@ export default function OrderCreate() {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-lg disabled:opacity-60">
-            {saving ? t('page_order_create.saving') : t('page_order_create.submit_button')}
-          </button>
-          <button type="button" onClick={() => navigate('/orders')} className="text-gray-500 px-5 py-2.5">
-            {t('common.cancel')}
-          </button>
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex gap-3">
+            <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white font-bold px-8 py-4 text-lg rounded-lg disabled:opacity-60">
+              {saving ? t('page_order_create.saving') : t('page_order_create.submit_button')}
+            </button>
+            <button type="button" onClick={() => navigate('/orders')} className="text-gray-500 px-5 py-4">
+              {t('common.cancel')}
+            </button>
+          </div>
         </div>
       </form>
     </div>

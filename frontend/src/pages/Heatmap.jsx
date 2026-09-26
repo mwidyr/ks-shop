@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getHeatmapSummary, getHeatmapGrid, getHeatmapCellDetail } from '../api/heatmap'
 import { listLocations } from '../api/hostLocations'
@@ -89,15 +90,26 @@ function slotLabel(i) {
   return `${hour}:${String(minute).padStart(2, '0')}`
 }
 
-// Color scale for a QTY cell, relative to the grid's own max - a simple 5-step green ramp
-// (0 = white) that reads clearly in both the grid and stays consistent regardless of dataset size.
-function cellColor(qty, max) {
-  if (!qty || max <= 0) return 'bg-gray-50 text-gray-300'
-  const ratio = qty / max
-  if (ratio > 0.75) return 'bg-brand-600 text-white font-semibold'
-  if (ratio > 0.5) return 'bg-brand-400 text-white font-semibold'
-  if (ratio > 0.25) return 'bg-brand-200 text-brand-900'
-  return 'bg-brand-50 text-brand-700'
+// Fixed QTY thresholds per level, keyed by how many days are in the selected range - client spec
+// (item 029-033): the busier the period, the higher the bar for each color level has to be.
+const LEVEL_COLORS = ['#E8F3E9', '#C5E3C8', '#81C784', '#43A047', '#196B24']
+const THRESHOLD_TABLES = [
+  { maxDays: 1, levels: [2, 5, 8, 12] },
+  { maxDays: 7, levels: [3, 8, 15, 25] },
+  { maxDays: 14, levels: [4, 10, 20, 35] },
+  { maxDays: 31, levels: [5, 15, 30, 50] },
+]
+
+function getThresholdTable(rangeDays) {
+  const table = THRESHOLD_TABLES.find((t) => rangeDays <= t.maxDays)
+  return table ? table.levels : THRESHOLD_TABLES[THRESHOLD_TABLES.length - 1].levels
+}
+
+function cellColor(qty, rangeDays) {
+  if (!qty) return { className: 'bg-gray-50 text-gray-300' }
+  const levels = getThresholdTable(rangeDays)
+  const level = levels.filter((max) => qty > max).length
+  return { style: { background: LEVEL_COLORS[level], color: level >= 3 ? '#fff' : '#1f2937' } }
 }
 
 function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString() }
@@ -105,6 +117,7 @@ function fmtMoney(n) { return n == null ? '—' : formatCurrency(n) }
 
 function CellDetailModal({ cell, onClose }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [detail, setDetail] = useState(null)
 
   useEffect(() => {
@@ -144,8 +157,13 @@ function CellDetailModal({ cell, onClose }) {
                   </thead>
                   <tbody className="divide-y">
                     {detail.dates.map((d) => (
-                      <tr key={d.date}>
-                        <td className="py-1 font-medium text-gray-700">{d.date}</td>
+                      <tr
+                        key={d.date}
+                        onClick={() => navigate(`/orders?host_id=${cell.hostId}&date_from=${d.date}&date_to=${d.date}`)}
+                        className="cursor-pointer hover:bg-gray-50"
+                        title={t('page_heatmap.view_orders')}
+                      >
+                        <td className="py-1 font-medium text-brand-700 underline decoration-dotted">{d.date}</td>
                         <td className="py-1 text-gray-500">{fmtNum(d.qty)}</td>
                         <td className="py-1 text-gray-500">{fmtNum(d.ord)}</td>
                         <td className="py-1 text-gray-500">{fmtMoney(d.gmv)}</td>
@@ -182,10 +200,9 @@ export default function Heatmap() {
     })
   }, [locationId, range])
 
-  const maxCellQty = useMemo(() => {
-    if (!grid) return 0
-    return grid.hosts.reduce((max, h) => Math.max(max, ...h.slots), 0)
-  }, [grid])
+  const rangeDays = useMemo(() => {
+    return Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1
+  }, [range])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -226,15 +243,19 @@ export default function Heatmap() {
                       {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
                     </td>
                     <td className="p-1 text-right font-semibold text-gray-700">{fmtNum(host.total_qty)}</td>
-                    {host.slots.map((qty, i) => (
-                      <td
-                        key={i}
-                        onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
-                        className={`p-1 text-center rounded cursor-pointer ${cellColor(qty, maxCellQty)}`}
-                      >
-                        {qty || ''}
-                      </td>
-                    ))}
+                    {host.slots.map((qty, i) => {
+                      const color = cellColor(qty, rangeDays)
+                      return (
+                        <td
+                          key={i}
+                          onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
+                          className={`p-1 text-center rounded cursor-pointer ${color.className || ''}`}
+                          style={color.style}
+                        >
+                          {qty || ''}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">

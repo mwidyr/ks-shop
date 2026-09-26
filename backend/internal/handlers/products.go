@@ -52,6 +52,7 @@ type Product struct {
 	Description   string         `json:"description"`
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
+	SupplierID    *int           `json:"supplier_id"`    // set once at creation - "change supplier" is done by creating a new product record, not editing this
 	BasePrice     float64        `json:"base_price"`     // 0 = unset; frontend defaults new variant prices to this when > 0
 	Cost          *float64       `json:"cost,omitempty"` // admin-only (super_user); nil/omitted entirely for every other role, both on read and on write - see isAdmin()
 	IsActive      bool           `json:"is_active"`
@@ -70,7 +71,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	admin := isAdmin(r)
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       base_price, cost, is_active, allow_oversell, created_at
+		       supplier_id, base_price, cost, is_active, allow_oversell, created_at
 		FROM products ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
@@ -85,7 +86,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		var cost float64
 		if err := rows.Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
+			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
 			continue
 		}
 		if admin {
@@ -202,10 +203,10 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var cost float64
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       base_price, cost, is_active, allow_oversell, created_at
+		       supplier_id, base_price, cost, is_active, allow_oversell, created_at
 		FROM products WHERE id=$1`, id).
 		Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt)
+			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
@@ -274,6 +275,7 @@ type createProductRequest struct {
 	Description   string         `json:"description"`
 	Category      string         `json:"category"`
 	Brand         string         `json:"brand"`
+	SupplierID    *int           `json:"supplier_id"`
 	BasePrice     float64        `json:"base_price"`
 	Cost          float64        `json:"cost"` // admin-only - silently ignored (kept at 0) unless the caller is super_user, see isAdmin()
 	IsActive      *bool          `json:"is_active"`
@@ -312,9 +314,9 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, vendor_sku, name, description, category, brand, base_price, cost, is_active, allow_oversell)
-		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, cost, isActive, req.AllowOversell).Scan(&id)
+		INSERT INTO products (sku, vendor_sku, name, description, category, brand, supplier_id, base_price, cost, is_active, allow_oversell)
+		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.SupplierID, req.BasePrice, cost, isActive, req.AllowOversell).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to create product (kode produk mungkin sudah dipakai)")
 		return
@@ -725,4 +727,67 @@ func (h *ProductHandler) StockHistory(w http.ResponseWriter, r *http.Request) {
 		list = append(list, row)
 	}
 	respondJSON(w, http.StatusOK, list)
+}
+
+// --- Purchase Rules (product-level override of the supplier's own defaults) ---
+
+type purchaseRulesView struct {
+	MinOrderQty       *int     `json:"min_order_qty"`
+	MinColorQty       *int     `json:"min_color_qty"`
+	MinOrderAmount    *float64 `json:"min_order_amount"`
+	OrderMultiple     *int     `json:"order_multiple"`
+	MixedColorAllowed *bool    `json:"mixed_color_allowed"`
+	PackSetQty        *int     `json:"pack_set_qty"`
+}
+
+// GetPurchaseRules returns a product's own purchase rule overrides, if any (nil fields mean
+// "fall back to the supplier's default" - see UpdatePurchaseRules and the shared validation
+// used by Create Purchase Order / Replenishment Planning).
+func (h *ProductHandler) GetPurchaseRules(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid product id")
+		return
+	}
+	var v purchaseRulesView
+	err = h.DB.QueryRow(r.Context(), `
+		SELECT min_order_qty, min_color_qty, min_order_amount, order_multiple, mixed_color_allowed, pack_set_qty
+		FROM product_purchase_rules WHERE product_id=$1`, id).
+		Scan(&v.MinOrderQty, &v.MinColorQty, &v.MinOrderAmount, &v.OrderMultiple, &v.MixedColorAllowed, &v.PackSetQty)
+	if err != nil {
+		respondJSON(w, http.StatusOK, purchaseRulesView{}) // no override row yet - all nil, falls back to supplier defaults
+		return
+	}
+	respondJSON(w, http.StatusOK, v)
+}
+
+// UpdatePurchaseRules upserts a product's purchase rule overrides.
+func (h *ProductHandler) UpdatePurchaseRules(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid product id")
+		return
+	}
+	var req purchaseRulesView
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	mixedColor := true
+	if req.MixedColorAllowed != nil {
+		mixedColor = *req.MixedColorAllowed
+	}
+	_, err = h.DB.Exec(r.Context(), `
+		INSERT INTO product_purchase_rules (product_id, min_order_qty, min_color_qty, min_order_amount, order_multiple, mixed_color_allowed, pack_set_qty)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (product_id) DO UPDATE SET
+			min_order_qty=EXCLUDED.min_order_qty, min_color_qty=EXCLUDED.min_color_qty,
+			min_order_amount=EXCLUDED.min_order_amount, order_multiple=EXCLUDED.order_multiple,
+			mixed_color_allowed=EXCLUDED.mixed_color_allowed, pack_set_qty=EXCLUDED.pack_set_qty`,
+		id, req.MinOrderQty, req.MinColorQty, req.MinOrderAmount, req.OrderMultiple, mixedColor, req.PackSetQty)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save purchase rules")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

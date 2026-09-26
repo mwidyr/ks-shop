@@ -44,3 +44,11 @@ export function getStockHistory(params) {
   const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
   return client.get(`/inventory/history?${q.toString()}`).then((res) => res.data)
 }
+
+export function getProductPurchaseRules(productId) {
+  return client.get(`/products/${productId}/purchase-rules`).then((res) => res.data)
+}
+
+export function updateProductPurchaseRules(productId, payload) {
+  return client.patch(`/products/${productId}/purchase-rules`, payload).then((res) => res.data)
+}

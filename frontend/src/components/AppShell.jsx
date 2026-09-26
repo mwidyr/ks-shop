@@ -37,7 +37,7 @@ const navGroups = [
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
       { to: '/suppliers', key: 'suppliers', icon: IconTruck },
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
-      { to: '/purchase-alert', key: 'purchase_alert', icon: IconChecklist },
+      { to: '/replenishment-planning', key: 'replenishment_planning', icon: IconChecklist },
     ],
   },
   {
@@ -101,6 +101,7 @@ const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'hosts', 'returns', 'refunds',
+  'suppliers', 'purchases', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
 ])
 
@@ -119,6 +120,8 @@ const titleOverrides = [
   { prefix: '/panel-siaran/new', titleKey: 'shared.title_new_session' },
   { prefix: '/panel-siaran/', titleKey: 'shared.title_manage_session' },
   { prefix: '/shipping/export', titleKey: 'shared.title_shipping_export' },
+  { prefix: '/purchases/history', titleKey: 'page_purchase_history.title' },
+  { prefix: '/suppliers/', titleKey: 'page_suppliers.profile_title' },
 ]
 
 function buildTitleMap(t) {

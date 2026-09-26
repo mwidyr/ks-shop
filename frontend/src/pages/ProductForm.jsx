@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
+import { listSuppliers } from '../api/suppliers'
 import PhotoSlots from '../components/PhotoSlots'
 import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
@@ -39,9 +40,10 @@ export default function ProductForm() {
   const isAdmin = user?.role === 'super_user'
 
   const [product, setProduct] = useState({
-    sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '',
+    sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '', supplier_id: '',
     base_price: '', cost: '', is_active: true, allow_oversell: false,
   })
+  const [suppliers, setSuppliers] = useState([])
   const [images, setImages] = useState([])
   const [colorsText, setColorsText] = useState('')
   const [sizesText, setSizesText] = useState('')
@@ -56,7 +58,7 @@ export default function ProductForm() {
     getProduct(id).then((p) => {
       setProduct({
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description,
-        category: p.category, brand: p.brand, base_price: p.base_price || '',
+        category: p.category, brand: p.brand, supplier_id: p.supplier_id ?? '', base_price: p.base_price || '',
         cost: p.cost ?? '', // absent entirely in the response for non-admins - stays '' for them
         is_active: p.is_active, allow_oversell: p.allow_oversell,
       })
@@ -78,6 +80,8 @@ export default function ProductForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, variants.length, product.name, product.sku, product.base_price])
+
+  useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
 
   async function handleAddImage(url) {
     if (!isEdit) {
@@ -169,7 +173,12 @@ export default function ProductForm() {
     }
     setSaving(true)
     try {
-      const productBody = { ...product, base_price: Number(product.base_price) || 0, cost: Number(product.cost) || 0 }
+      const productBody = {
+        ...product,
+        base_price: Number(product.base_price) || 0,
+        cost: Number(product.cost) || 0,
+        supplier_id: product.supplier_id === '' ? null : Number(product.supplier_id),
+      }
       if (!isEdit) {
         await createProduct({
           ...productBody,
@@ -252,6 +261,24 @@ export default function ProductForm() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.supplier_label')}</label>
+            {isEdit ? (
+              <p className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+                {suppliers.find((s) => s.id === product.supplier_id)?.name || t('page_product_form.supplier_none')}
+              </p>
+            ) : (
+              <select
+                value={product.supplier_id}
+                onChange={(e) => updateField('supplier_id', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">{t('page_product_form.supplier_none')}</option>
+                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+            <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.supplier_hint')}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.base_price_label')}</label>

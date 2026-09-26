@@ -26,8 +26,10 @@ const Chat = lazy(() => import('./pages/Chat'))
 const Reviews = lazy(() => import('./pages/Reviews'))
 const Warehouses = lazy(() => import('./pages/Warehouses'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
+const SupplierDetail = lazy(() => import('./pages/SupplierDetail'))
 const Purchases = lazy(() => import('./pages/Purchases'))
-const PurchaseAlert = lazy(() => import('./pages/PurchaseAlert'))
+const PurchaseHistory = lazy(() => import('./pages/PurchaseHistory'))
+const ReplenishmentPlanning = lazy(() => import('./pages/ReplenishmentPlanning'))
 const Shipping = lazy(() => import('./pages/Shipping'))
 const ShippingExport = lazy(() => import('./pages/ShippingExport'))
 const DaftarPengambilan = lazy(() => import('./pages/DaftarPengambilan'))
@@ -122,8 +124,10 @@ export default function App() {
         <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
         <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
         <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+        <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
-        <Route path="/purchase-alert" element={<ProtectedRoute><PurchaseAlert /></ProtectedRoute>} />
+        <Route path="/purchases/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
+        <Route path="/replenishment-planning" element={<ProtectedRoute><ReplenishmentPlanning /></ProtectedRoute>} />
 
         {/* Fulfillment */}
         <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
