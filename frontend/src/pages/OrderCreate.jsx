@@ -52,7 +52,7 @@ function customerIsResolved(customer) {
   return Boolean(customer.name && customer.phone)
 }
 
-function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings, onUpdate }) {
+function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings, onUpdate, saving, onCancel }) {
   const { t } = useTranslation()
   const [showPicker, setShowPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -293,6 +293,15 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings,
         </div>
       </div>
 
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onCancel} className="text-gray-500 px-5 py-4">
+          {t('common.cancel')}
+        </button>
+        <button type="submit" disabled={saving} className="w-1/2 bg-brand-600 hover:bg-brand-700 text-white font-bold px-8 py-4 text-lg rounded-lg disabled:opacity-60">
+          {saving ? t('page_order_create.saving') : t('page_order_create.submit_button')}
+        </button>
+      </div>
+
       {showPicker && <ProductPickerModal onClose={() => setShowPicker(false)} onAdd={handleAddItems} />}
     </div>
   )
@@ -368,7 +377,7 @@ export default function OrderCreate() {
   }
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-3xl pb-28">
+    <div className="px-4 sm:px-6 py-6 max-w-3xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         <OrderForm
           order={order}
@@ -377,20 +386,11 @@ export default function OrderCreate() {
           liveSessions={liveSessions}
           shippingSettings={shippingSettings}
           onUpdate={updateOrder}
+          saving={saving}
+          onCancel={() => navigate('/orders')}
         />
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
-
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex gap-3">
-            <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white font-bold px-8 py-4 text-lg rounded-lg disabled:opacity-60">
-              {saving ? t('page_order_create.saving') : t('page_order_create.submit_button')}
-            </button>
-            <button type="button" onClick={() => navigate('/orders')} className="text-gray-500 px-5 py-4">
-              {t('common.cancel')}
-            </button>
-          </div>
-        </div>
       </form>
     </div>
   )

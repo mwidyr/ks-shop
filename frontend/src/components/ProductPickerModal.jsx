@@ -10,6 +10,7 @@ import { IconChevronDown } from './icons'
 function productMatches(product, q) {
   if (product.name.toLowerCase().includes(q)) return true
   if (product.sku && product.sku.toLowerCase().includes(q)) return true
+  if (product.vendor_sku && product.vendor_sku.toLowerCase().includes(q)) return true
   return product.variants.some((v) =>
     v.sku.toLowerCase().includes(q) || v.color.toLowerCase().includes(q) || v.size.toLowerCase().includes(q))
 }
@@ -84,7 +85,7 @@ function PickerProductCard({ product, forceOpen, pending, setQty }) {
 // real available stock, set quantities across as many products as needed, then commit them all
 // at once with "Simpan" - mirrors Inventory.jsx's card/row pattern but with qty inputs instead
 // of stock-editing controls.
-export default function ProductPickerModal({ onClose, onAdd }) {
+export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
   const { t } = useTranslation()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -108,7 +109,11 @@ export default function ProductPickerModal({ onClose, onAdd }) {
   }
 
   const q = search.trim().toLowerCase()
-  const filtered = q ? products.filter((p) => productMatches(p, q)) : products
+  const filtered = q
+    ? products.filter((p) => productMatches(p, q))
+    : supplierId
+      ? products.filter((p) => String(p.supplier_id) === String(supplierId))
+      : products
   const selectedCount = Object.keys(pending).length
 
   const variantIndex = useMemo(() => {
@@ -145,6 +150,9 @@ export default function ProductPickerModal({ onClose, onAdd }) {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
             autoFocus
           />
+          {supplierId && !q && (
+            <p className="text-[11px] text-gray-400 mt-1.5">{t('page_purchases.picker_supplier_scoped_hint')}</p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">

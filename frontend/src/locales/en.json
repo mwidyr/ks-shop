@@ -917,7 +917,9 @@
     "th_sku": "SKU"
   },
   "page_purchases": {
-    "add_line_button": "+ Add Line",
+    "add_line_button": "+ Add Product",
+    "no_products_yet": "No products added yet. Choose a supplier, then add products.",
+    "picker_supplier_scoped_hint": "Showing this supplier's products. Type to search all products.",
     "change_history_title": "Change History",
     "confirm_received_button": "Confirm Received",
     "create_button": "+ Create Purchase",
@@ -1487,12 +1489,12 @@
   "page_heatmap": {
     "average_row": "AVERAGE",
     "col_host": "Host",
-    "date_breakdown": "Date Breakdown",
+    "order_breakdown": "Orders",
     "time_block_total": "Time Block Total",
     "total_gmv": "Total GMV",
     "total_ord": "Total ORD",
     "total_qty": "Total QTY",
-    "view_orders": "Click to view orders for this date"
+    "view_order_detail": "Click to open this order"
   },
   "page_purchase_history": {
     "all_suppliers": "All suppliers",
@@ -1532,7 +1534,8 @@
     "critical_stock": "Products at Critical Stock",
     "empty_state": "No products found.",
     "no_sales_yet": "no sales yet",
-    "planned_hint": "Planned Order QTY is a working value only - use it to build a Purchase Order from the Purchases page.",
+    "create_po_from_plan": "Create Purchase from Plan",
+    "planned_hint": "Planned Order QTY is a working value only, not saved - it doesn't affect Inventory/stock. Pick a supplier and use \"Create Purchase from Plan\" above to turn it into a real Purchase Order.",
     "requires_replenishment": "Products Requiring Replenishment",
     "status_critical": "Critical",
     "status_ok": "OK",

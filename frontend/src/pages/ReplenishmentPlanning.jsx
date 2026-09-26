@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listReplenishment } from '../api/replenishment'
 import { listSuppliers } from '../api/suppliers'
@@ -17,6 +18,7 @@ const statusColors = {
 
 export default function ReplenishmentPlanning() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [basis, setBasis] = useState(30)
@@ -38,6 +40,27 @@ export default function ReplenishmentPlanning() {
     requiresReplenishment: rows.filter((r) => r.stock_status === 'requires_replenishment').length,
     critical: rows.filter((r) => r.stock_status === 'critical').length,
     totalIncoming: rows.reduce((s, r) => s + r.incoming_stock, 0),
+  }
+
+  // Only meaningful once a single supplier is selected - a PO belongs to one supplier.
+  const plannedRows = rows.filter((r) => (planned[r.variant_id] ?? r.suggested_reorder_qty) > 0)
+
+  function handleCreatePO() {
+    navigate('/purchases', {
+      state: {
+        prefillPurchase: {
+          supplierId,
+          lines: plannedRows.map((r) => ({
+            variantId: r.variant_id,
+            qty: planned[r.variant_id] ?? r.suggested_reorder_qty,
+            productName: r.product_name,
+            variantLabel: `${r.color}/${r.size}`,
+            sku: r.product_sku,
+            unitCost: '',
+          })),
+        },
+      },
+    })
   }
 
   return (
@@ -64,6 +87,11 @@ export default function ReplenishmentPlanning() {
           {t('page_replenishment.target_stock_days')}
           <input type="number" min="1" value={targetStockDays} onChange={(e) => setTargetStockDays(Number(e.target.value) || 30)} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
         </label>
+        {supplierId && plannedRows.length > 0 && (
+          <button onClick={handleCreatePO} className="ml-auto bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            {t('page_replenishment.create_po_from_plan')}
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

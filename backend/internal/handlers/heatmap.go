@@ -220,11 +220,12 @@ func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 }
 
 type heatmapCellDetail struct {
-	Qty   int               `json:"qty"`
-	Ord   int               `json:"ord"`
-	GMV   float64           `json:"gmv"`
-	AOV   *float64          `json:"aov"`
-	Dates []heatmapCellDate `json:"dates"`
+	Qty    int                `json:"qty"`
+	Ord    int                `json:"ord"`
+	GMV    float64            `json:"gmv"`
+	AOV    *float64           `json:"aov"`
+	Dates  []heatmapCellDate  `json:"dates"`
+	Orders []heatmapCellOrder `json:"orders"`
 }
 
 type heatmapCellDate struct {
@@ -232,6 +233,14 @@ type heatmapCellDate struct {
 	Qty  int     `json:"qty"`
 	Ord  int     `json:"ord"`
 	GMV  float64 `json:"gmv"`
+}
+
+type heatmapCellOrder struct {
+	ID        int       `json:"id"`
+	OrderNo   string    `json:"order_no"`
+	CreatedAt time.Time `json:"created_at"`
+	Qty       int       `json:"qty"`
+	GMV       float64   `json:"gmv"`
 }
 
 // CellDetail returns QTY/ORD/GMV/AOV for one host x slot within the selected Period, plus a
@@ -289,5 +298,27 @@ func (h *HeatmapHandler) CellDetail(w http.ResponseWriter, r *http.Request) {
 			res.Dates = append(res.Dates, dr)
 		}
 	}
+
+	orderQuery := `
+		SELECT o.id, o.order_no, o.created_at, COALESCE(SUM(oi.qty),0), COALESCE(SUM(oi.qty*oi.price_at_order),0)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		WHERE oi.host_id = $1 AND o.status NOT IN ('cancelled','return')
+		  AND o.created_at >= $2 AND o.created_at < $3
+		  AND ` + slotIndexExpr + ` = $4
+		GROUP BY o.id, o.order_no, o.created_at
+		ORDER BY o.created_at DESC`
+	orderRows, err := h.DB.Query(r.Context(), orderQuery, hostID, from, to, slot)
+	if err == nil {
+		defer orderRows.Close()
+		for orderRows.Next() {
+			var or heatmapCellOrder
+			if err := orderRows.Scan(&or.ID, &or.OrderNo, &or.CreatedAt, &or.Qty, &or.GMV); err != nil {
+				continue
+			}
+			res.Orders = append(res.Orders, or)
+		}
+	}
+
 	respondJSON(w, http.StatusOK, res)
 }

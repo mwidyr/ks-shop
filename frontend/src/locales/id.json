@@ -917,7 +917,9 @@
     "th_sku": "SKU"
   },
   "page_purchases": {
-    "add_line_button": "+ Tambah Baris",
+    "add_line_button": "+ Tambah Produk",
+    "no_products_yet": "Belum ada produk ditambahkan. Pilih supplier, lalu tambah produk.",
+    "picker_supplier_scoped_hint": "Menampilkan produk supplier ini. Ketik untuk mencari semua produk.",
     "change_history_title": "Riwayat Perubahan",
     "confirm_received_button": "Konfirmasi Diterima",
     "create_button": "+ Buat Pembelian",
@@ -1487,12 +1489,12 @@
   "page_heatmap": {
     "average_row": "RATA-RATA",
     "col_host": "Host",
-    "date_breakdown": "Rincian per Tanggal",
+    "order_breakdown": "Daftar Order",
     "time_block_total": "Total per Blok Waktu",
     "total_gmv": "Total GMV",
     "total_ord": "Total ORD",
     "total_qty": "Total QTY",
-    "view_orders": "Klik untuk melihat pesanan pada tanggal ini"
+    "view_order_detail": "Klik untuk membuka order ini"
   },
   "page_purchase_history": {
     "all_suppliers": "Semua supplier",
@@ -1532,7 +1534,8 @@
     "critical_stock": "Produk Stok Kritis",
     "empty_state": "Tidak ada produk ditemukan.",
     "no_sales_yet": "belum ada penjualan",
-    "planned_hint": "Rencana QTY Order hanya nilai kerja - gunakan untuk membuat Purchase Order di halaman Pembelian.",
+    "create_po_from_plan": "Buat Pembelian dari Rencana",
+    "planned_hint": "Rencana QTY Order hanya nilai kerja sementara, tidak tersimpan - tidak mempengaruhi Inventory/stok. Pilih supplier lalu gunakan tombol \"Buat Pembelian dari Rencana\" di atas untuk menjadikannya Purchase Order sungguhan.",
     "requires_replenishment": "Produk Perlu Replenishment",
     "status_critical": "Kritis",
     "status_ok": "Aman",

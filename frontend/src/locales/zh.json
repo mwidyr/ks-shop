@@ -917,7 +917,9 @@
     "th_sku": "SKU"
   },
   "page_purchases": {
-    "add_line_button": "+ 新增項目",
+    "add_line_button": "+ 新增產品",
+    "no_products_yet": "尚未新增產品。請先選擇供應商，再新增產品。",
+    "picker_supplier_scoped_hint": "顯示此供應商的產品。輸入文字可搜尋所有產品。",
     "change_history_title": "變更紀錄",
     "confirm_received_button": "確認收貨",
     "create_button": "+ 建立採購單",
@@ -1487,12 +1489,12 @@
   "page_heatmap": {
     "average_row": "平均",
     "col_host": "主播",
-    "date_breakdown": "日期明細",
+    "order_breakdown": "訂單列表",
     "time_block_total": "時段總計",
     "total_gmv": "總流水",
     "total_ord": "總訂單數",
     "total_qty": "總銷量",
-    "view_orders": "點擊查看當天訂單"
+    "view_order_detail": "點擊開啟此訂單"
   },
   "page_purchase_history": {
     "all_suppliers": "所有供應商",
@@ -1532,7 +1534,8 @@
     "critical_stock": "庫存緊急的商品",
     "empty_state": "找不到商品。",
     "no_sales_yet": "尚無銷售",
-    "planned_hint": "計畫訂購量僅為工作數值 - 可用於在採購頁面建立採購單。",
+    "create_po_from_plan": "依計畫建立採購單",
+    "planned_hint": "計畫訂購量僅為暫存的工作數值，不會儲存，也不會影響庫存資料。選擇供應商後，可使用上方「依計畫建立採購單」按鈕，將其轉換為真正的採購單。",
     "requires_replenishment": "需要補貨的商品",
     "status_critical": "緊急",
     "status_ok": "正常",

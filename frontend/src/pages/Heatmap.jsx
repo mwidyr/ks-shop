@@ -146,27 +146,29 @@ function CellDetailModal({ cell, onClose }) {
               <div><p className="text-[11px] uppercase text-gray-400">GMV</p><p className="font-bold text-gray-800">{fmtMoney(detail.gmv)}</p></div>
               <div><p className="text-[11px] uppercase text-gray-400">AOV</p><p className="font-bold text-gray-800">{fmtMoney(detail.aov)}</p></div>
             </div>
-            {multiDay && detail.dates?.length > 0 && (
+            {detail.orders?.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 mb-2">{t('page_heatmap.date_breakdown')}</p>
+                <p className="text-xs font-semibold text-gray-500 mb-2">{t('page_heatmap.order_breakdown')}</p>
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-left text-gray-400 uppercase border-b">
-                      <th className="py-1">{t('page_host_analytics.col_date')}</th><th className="py-1">QTY</th><th className="py-1">ORD</th><th className="py-1">GMV</th>
+                      <th className="py-1">{t('page_purchases.th_po_number')}</th>
+                      {multiDay && <th className="py-1">{t('page_host_analytics.col_date')}</th>}
+                      <th className="py-1">QTY</th><th className="py-1">GMV</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {detail.dates.map((d) => (
+                    {detail.orders.map((o) => (
                       <tr
-                        key={d.date}
-                        onClick={() => navigate(`/orders?host_id=${cell.hostId}&date_from=${d.date}&date_to=${d.date}`)}
+                        key={o.id}
+                        onClick={() => navigate(`/orders/${o.id}`)}
                         className="cursor-pointer hover:bg-gray-50"
-                        title={t('page_heatmap.view_orders')}
+                        title={t('page_heatmap.view_order_detail')}
                       >
-                        <td className="py-1 font-medium text-brand-700 underline decoration-dotted">{d.date}</td>
-                        <td className="py-1 text-gray-500">{fmtNum(d.qty)}</td>
-                        <td className="py-1 text-gray-500">{fmtNum(d.ord)}</td>
-                        <td className="py-1 text-gray-500">{fmtMoney(d.gmv)}</td>
+                        <td className="py-1 font-medium text-brand-700 underline decoration-dotted font-mono">{o.order_no}</td>
+                        {multiDay && <td className="py-1 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>}
+                        <td className="py-1 text-gray-500">{fmtNum(o.qty)}</td>
+                        <td className="py-1 text-gray-500">{fmtMoney(o.gmv)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -261,12 +263,18 @@ export default function Heatmap() {
                 <tr className="border-t-2 border-gray-200">
                   <td className="p-1 font-bold text-gray-800 sticky left-0 bg-white">ALL</td>
                   <td className="p-1 text-right font-bold text-gray-800">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
-                  {grid.all_row.map((qty, i) => <td key={i} className="p-1 text-center font-semibold text-gray-700 bg-gray-50">{qty || ''}</td>)}
+                  {grid.all_row.map((qty, i) => {
+                    const color = cellColor(qty, rangeDays)
+                    return <td key={i} className={`p-1 text-center font-semibold rounded ${color.className || ''}`} style={color.style}>{qty || ''}</td>
+                  })}
                 </tr>
                 <tr>
                   <td className="p-1 font-bold text-gray-500 sticky left-0 bg-white">{t('page_heatmap.average_row')}</td>
                   <td className="p-1"></td>
-                  {grid.avg_row.map((v, i) => <td key={i} className="p-1 text-center text-gray-400">{v == null ? '—' : v.toFixed(1)}</td>)}
+                  {grid.avg_row.map((v, i) => {
+                    const color = cellColor(v == null ? 0 : Math.round(v), rangeDays)
+                    return <td key={i} className={`p-1 text-center rounded ${color.className || ''}`} style={color.style}>{v == null ? '—' : v.toFixed(1)}</td>
+                  })}
                 </tr>
               </tbody>
             </table>
