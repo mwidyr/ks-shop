@@ -451,6 +451,8 @@ type createOrderRequest struct {
 	InternalNotes        string              `json:"internal_notes"`
 	IsUrgent             bool                `json:"is_urgent"`
 	NotesDeadline        *string             `json:"notes_deadline"`
+	SalesChannel         string              `json:"sales_channel"` // "live" (default) | "website" - item 040-045
+	AffiliateID          *int                `json:"affiliate_id"`  // website only, optional ("No Affiliate" when nil)
 }
 
 var cvsStoreCodePattern = regexp.MustCompile(`^\d{6}$`)
@@ -500,9 +502,20 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "at least one item is required")
 		return
 	}
+	if req.SalesChannel == "" {
+		req.SalesChannel = "live"
+	}
+	if req.SalesChannel != "live" && req.SalesChannel != "website" {
+		respondError(w, http.StatusBadRequest, "sales_channel must be 'live' or 'website'")
+		return
+	}
 	for _, it := range req.Items {
-		if it.Qty <= 0 || it.VariantID == 0 || it.HostID == 0 {
-			respondError(w, http.StatusBadRequest, "each item requires host_id, variant_id and a positive qty")
+		if it.Qty <= 0 || it.VariantID == 0 {
+			respondError(w, http.StatusBadRequest, "each item requires variant_id and a positive qty")
+			return
+		}
+		if req.SalesChannel == "live" && it.HostID == 0 {
+			respondError(w, http.StatusBadRequest, "each item requires host_id for a LIVE order")
 			return
 		}
 	}
@@ -547,10 +560,11 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
-		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.InternalNotes, req.IsUrgent, req.NotesDeadline).Scan(&orderID); err != nil {
+		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
+		req.SalesChannel, req.AffiliateID).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}
@@ -574,9 +588,13 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		subtotal += price * float64(it.Qty)
+		var hostID interface{}
+		if it.HostID > 0 {
+			hostID = it.HostID
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id, live_session_id)
-			VALUES ($1,$2,$3,$4,$5,$6)`, orderID, it.VariantID, it.Qty, price, it.HostID, it.LiveSessionID); err != nil {
+			VALUES ($1,$2,$3,$4,$5,$6)`, orderID, it.VariantID, it.Qty, price, hostID, it.LiveSessionID); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to create order item")
 			return
 		}

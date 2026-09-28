@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getHostCategoryLeaderboard } from '../api/reports'
+import { listAffiliates } from '../api/affiliates'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import SalesChannelFilter from '../components/SalesChannelFilter'
 
 function CategoryCard({ category }) {
   const { t } = useTranslation()
@@ -33,22 +35,36 @@ function CategoryCard({ category }) {
 export default function HostCategoryLeaderboard() {
   const { t } = useTranslation()
   const [range, setRange] = useState(presetRange(29))
+  const [channel, setChannel] = useState('all')
+  const [affiliateId, setAffiliateId] = useState('')
+  const [affiliates, setAffiliates] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
+
   useEffect(() => {
     setLoading(true)
-    getHostCategoryLeaderboard({ date_from: range.from, date_to: range.to }).then((res) => {
+    getHostCategoryLeaderboard({
+      date_from: range.from, date_to: range.to,
+      channel, affiliate_id: channel === 'website' ? affiliateId : '',
+    }).then((res) => {
       setData(res)
       setLoading(false)
     })
-  }, [range])
+  }, [range, channel, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-gray-500">{t('page_host_category_leaderboard.subtitle')}</p>
-        <DateRangePicker value={range} onChange={setRange} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <DateRangePicker value={range} onChange={setRange} />
+          <SalesChannelFilter
+            channel={channel} onChannelChange={setChannel}
+            affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+          />
+        </div>
       </div>
 
       {loading || !data ? (

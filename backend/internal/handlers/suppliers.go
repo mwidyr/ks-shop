@@ -59,15 +59,32 @@ func scanSupplier(row interface{ Scan(...interface{}) error }) (supplierView, er
 }
 
 // List returns active+paused suppliers by default; pass ?include_inactive=true to also see
-// inactive ones (e.g. for the Supplier Profile management page).
+// inactive ones (e.g. for the Supplier Profile management page). ?q= searches (partial,
+// case-insensitive) across the supplier's own fields plus its Contacts/Notes sub-resources
+// (item 035) - a match on a child row still returns the parent supplier once, via EXISTS.
 func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 	query := supplierSelect
+	where := []string{}
+	args := []interface{}{}
 	if r.URL.Query().Get("include_inactive") != "true" {
-		query += ` WHERE status <> 'inactive'`
+		where = append(where, `status <> 'inactive'`)
+	}
+	if q := r.URL.Query().Get("q"); q != "" {
+		args = append(args, "%"+q+"%")
+		where = append(where, `(
+			name ILIKE $1 OR COALESCE(contact_name,'') ILIKE $1 OR COALESCE(phone,'') ILIKE $1
+			OR COALESCE(source,'') ILIKE $1 OR COALESCE(category,'') ILIKE $1
+			OR EXISTS (SELECT 1 FROM supplier_contacts sc WHERE sc.supplier_id = suppliers.id
+			           AND (COALESCE(sc.contact_name,'') ILIKE $1 OR sc.value ILIKE $1))
+			OR EXISTS (SELECT 1 FROM supplier_notes sn WHERE sn.supplier_id = suppliers.id AND sn.note ILIKE $1)
+		)`)
+	}
+	if len(where) > 0 {
+		query += ` WHERE ` + strings.Join(where, " AND ")
 	}
 	query += ` ORDER BY name`
 
-	rows, err := h.DB.Query(r.Context(), query)
+	rows, err := h.DB.Query(r.Context(), query, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch suppliers")
 		return
@@ -106,11 +123,19 @@ type supplierPriceRefView struct {
 	PriceMax *float64 `json:"price_max"`
 }
 
+type supplierProductView struct {
+	ID       int    `json:"id"`
+	SKU      string `json:"sku"`
+	Name     string `json:"name"`
+	ImageURL string `json:"image_url"`
+}
+
 type supplierDetailView struct {
 	supplierView
 	Contacts        []supplierContactView  `json:"contacts"`
 	Notes           []supplierNoteView     `json:"notes"`
 	PriceReferences []supplierPriceRefView `json:"price_references"`
+	Products        []supplierProductView  `json:"products"`
 }
 
 // Detail returns one supplier's full profile: core fields plus its Contacts/Notes/Price
@@ -127,7 +152,7 @@ func (h *SupplierHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "supplier not found")
 		return
 	}
-	detail := supplierDetailView{supplierView: base, Contacts: []supplierContactView{}, Notes: []supplierNoteView{}, PriceReferences: []supplierPriceRefView{}}
+	detail := supplierDetailView{supplierView: base, Contacts: []supplierContactView{}, Notes: []supplierNoteView{}, PriceReferences: []supplierPriceRefView{}, Products: []supplierProductView{}}
 
 	if rows, err := h.DB.Query(r.Context(), `
 		SELECT id, COALESCE(contact_name,''), method, value FROM supplier_contacts WHERE supplier_id=$1 ORDER BY id`, id); err == nil {
@@ -160,6 +185,18 @@ func (h *SupplierHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			var p supplierPriceRefView
 			if rows.Scan(&p.ID, &p.Category, &p.PriceMin, &p.PriceMax) == nil {
 				detail.PriceReferences = append(detail.PriceReferences, p)
+			}
+		}
+	}
+	if rows, err := h.DB.Query(r.Context(), `
+		SELECT p.id, COALESCE(p.sku,''), p.name,
+		       COALESCE((SELECT url FROM product_images WHERE product_id = p.id ORDER BY sort_order LIMIT 1), '')
+		FROM products p WHERE p.supplier_id=$1 ORDER BY p.name`, id); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var pr supplierProductView
+			if rows.Scan(&pr.ID, &pr.SKU, &pr.Name, &pr.ImageURL) == nil {
+				detail.Products = append(detail.Products, pr)
 			}
 		}
 	}

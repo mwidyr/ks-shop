@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	appmw "ordermgmt/internal/middleware"
@@ -174,6 +176,44 @@ type createPurchaseRequest struct {
 	Items               []createPurchaseItem `json:"items"`
 }
 
+// createPurchaseTx inserts one purchases row + its purchase_items + reserves incoming_stock per
+// item, within a caller-managed transaction. Shared by PurchaseHandler.Create (direct quick
+// create) and the Purchase Requisition Submit flow (one call per confirmed supplier group) -
+// the only two places a real Purchase Order is ever created, so both funnel through here to
+// keep the "PO number assignment + incoming_stock reservation" logic in exactly one place.
+func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate string, expectedArrivalDate string, notes string, createdBy int, items []createPurchaseItem) (int, error) {
+	var expectedArrival interface{}
+	if expectedArrivalDate != "" {
+		expectedArrival = expectedArrivalDate
+	}
+
+	// po_number is NOT NULL + UNIQUE (migration 063) but derived from the row's own id, which
+	// isn't known until after INSERT - seed it with a throwaway-but-unique placeholder (fits
+	// VARCHAR(30): 'P' + 20 hex chars) so the INSERT itself satisfies both constraints, then
+	// overwrite it with the real PO-#### value right below.
+	var purchaseID int
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO purchases (po_number, supplier_id, order_date, expected_arrival_date, notes, created_by)
+		VALUES ('P' || substr(md5(clock_timestamp()::text || random()::text), 1, 20), $1,$2,$3,$4,$5) RETURNING id`,
+		supplierID, orderDate, expectedArrival, notes, createdBy).Scan(&purchaseID); err != nil {
+		return 0, fmt.Errorf("failed to create purchase: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE purchases SET po_number = 'PO-' || LPAD($1::text, 5, '0') WHERE id=$1`, purchaseID); err != nil {
+		return 0, fmt.Errorf("failed to assign PO number: %w", err)
+	}
+	for _, it := range items {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost) VALUES ($1,$2,$3,$4)`,
+			purchaseID, it.VariantID, it.Qty, it.UnitCost); err != nil {
+			return 0, fmt.Errorf("failed to add purchase item: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID); err != nil {
+			return 0, fmt.Errorf("failed to reserve incoming stock: %w", err)
+		}
+	}
+	return purchaseID, nil
+}
+
 // Create records a new purchase in 'ordered' status and immediately reserves the ordered
 // quantities in incoming_stock, so Replenishment Planning's Sellable Stock reflects it right
 // away (previously, creating a purchase had no stock effect at all until receipt).
@@ -199,34 +239,10 @@ func (h *PurchaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	var expectedArrival interface{}
-	if req.ExpectedArrivalDate != "" {
-		expectedArrival = req.ExpectedArrivalDate
-	}
-
-	var purchaseID int
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO purchases (supplier_id, order_date, expected_arrival_date, notes, created_by)
-		VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-		req.SupplierID, req.OrderDate, expectedArrival, req.Notes, claims.UserID).Scan(&purchaseID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create purchase")
+	purchaseID, err := createPurchaseTx(ctx, tx, req.SupplierID, req.OrderDate, req.ExpectedArrivalDate, req.Notes, claims.UserID, req.Items)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-	if _, err := tx.Exec(ctx, `UPDATE purchases SET po_number = 'PO-' || LPAD($1::text, 5, '0') WHERE id=$1`, purchaseID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to assign PO number")
-		return
-	}
-	for _, it := range req.Items {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost) VALUES ($1,$2,$3,$4)`,
-			purchaseID, it.VariantID, it.Qty, it.UnitCost); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to add purchase item")
-			return
-		}
-		if _, err := tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to reserve incoming stock")
-			return
-		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")

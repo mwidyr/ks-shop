@@ -1,8 +1,11 @@
 import client from './client'
 
-export function listSuppliers(includeInactive) {
-  const q = includeInactive ? '?include_inactive=true' : ''
-  return client.get(`/suppliers${q}`).then((res) => res.data)
+export function listSuppliers(includeInactive, search) {
+  const params = new URLSearchParams()
+  if (includeInactive) params.set('include_inactive', 'true')
+  if (search) params.set('q', search)
+  const qs = params.toString()
+  return client.get(`/suppliers${qs ? `?${qs}` : ''}`).then((res) => res.data)
 }
 
 export function getSupplier(id) {

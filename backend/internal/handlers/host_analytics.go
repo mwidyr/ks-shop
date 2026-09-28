@@ -87,6 +87,13 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 	liveWhere, locArgs := hostFilter(r, "ls", 3)
 	salesWhere, _ := hostFilter(r, "oi", 3)
 	retWhere, _ := hostFilter(r, "ret", 3)
+	// Sales Channel Attribution (items 040-045): sales_agg/return_agg additionally scope by
+	// ?channel=. live_agg (broadcast metrics) is deliberately never touched by this - a
+	// session's Views/PCU/etc are only ever meaningful once live_data_recorded_at is set,
+	// regardless of which channel is selected.
+	nextArg := 3 + len(locArgs)
+	salesChanWhere, salesChanArgs := salesChannelWhere(r, "o", nextArg)
+	retChanWhere, retChanArgs := salesChannelWhere(r, "ro", nextArg+len(salesChanArgs))
 	query := `
 		WITH live_agg AS (
 			SELECT COUNT(*) AS session_count,
@@ -108,13 +115,14 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 			JOIN orders o ON o.id = oi.order_id
 			JOIN hosts h ON h.id = oi.host_id
 			WHERE o.status NOT IN ('cancelled','return')
-			  AND o.created_at >= $1 AND o.created_at < $2` + salesWhere + `
+			  AND o.created_at >= $1 AND o.created_at < $2` + salesWhere + salesChanWhere + `
 		),
 		return_agg AS (
 			SELECT COALESCE(SUM(ret.qty),0) ret_qty, COALESCE(SUM(ret.amount),0) ret_amount
 			FROM returns ret
+			JOIN orders ro ON ro.id = ret.order_id
 			JOIN hosts h ON h.id = ret.host_id
-			WHERE ret.created_at >= $1 AND ret.created_at < $2` + retWhere + `
+			WHERE ret.created_at >= $1 AND ret.created_at < $2` + retWhere + retChanWhere + `
 		)
 		SELECT live_agg.session_count, live_agg.views, live_agg.uv, live_agg.active, live_agg.awt_seconds,
 		       live_agg.pcu, live_agg.acu, live_agg.follows, live_agg.chats, live_agg.shares, live_agg.likes,
@@ -122,6 +130,8 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 		FROM live_agg, sales_agg, return_agg`
 
 	args := append([]interface{}{from, to}, locArgs...)
+	args = append(args, salesChanArgs...)
+	args = append(args, retChanArgs...)
 	var row aggregateRow
 	var sessionCount int
 	err := h.DB.QueryRow(r.Context(), query, args...).Scan(&sessionCount, &row.Views, &row.UV, &row.Active, &row.AWTSeconds,
@@ -298,6 +308,11 @@ type dailyRow struct {
 // PerformanceData returns one row per calendar date (Asia/Jakarta) with valid LIVE Data, newest
 // first, paginated at 50 rows/page. Host=ALL (no ?host_id=) aggregates every host in the
 // selected Location into one row per date.
+//
+// Deliberately stays LIVE-only (not Sales Channel Attribution-aware, unlike Lifetime/Summary
+// above): it's anchored on live_daily (LEFT JOIN sales/return onto it), so a day only appears
+// here if it has valid LIVE Data - restructuring that to also carry Website-only days is a
+// separate follow-up, not part of this round.
 func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Request) {
 	from, to, filtered := dateRange(r)
 	if !filtered {

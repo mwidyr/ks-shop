@@ -71,6 +71,7 @@ func main() {
 	activityLogH := &handlers.ActivityLogHandler{DB: pool}
 	supplierH := &handlers.SupplierHandler{DB: pool}
 	purchaseH := &handlers.PurchaseHandler{DB: pool}
+	purchaseRequisitionH := &handlers.PurchaseRequisitionHandler{DB: pool}
 	replenishmentH := &handlers.ReplenishmentHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
 	hostLocationH := &handlers.HostLocationHandler{DB: pool}
@@ -95,6 +96,7 @@ func main() {
 	reportsH := &handlers.ReportsHandler{DB: pool}
 	userH := &handlers.UserHandler{DB: pool, Cfg: cfg}
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
+	affiliateH := &handlers.AffiliateHandler{DB: pool}
 
 	// Any authenticated staff role may reach this outer gate; the real per-section
 	// restriction happens per-route below via view()/edit() (backed by role_tab_access -
@@ -189,6 +191,13 @@ func main() {
 			r.With(edit("hosts")).Patch("/host-locations/{id}", hostLocationH.Update)
 			r.With(edit("hosts")).Delete("/host-locations/{id}", hostLocationH.Delete)
 
+			// Affiliates (Sales Channel Attribution, items 040-045) - same minimal reference-list
+			// pattern as Location Tags above, own tab_key (migration 069).
+			r.With(view("affiliates")).Get("/affiliates", affiliateH.List)
+			r.With(edit("affiliates")).Post("/affiliates", affiliateH.Create)
+			r.With(edit("affiliates")).Patch("/affiliates/{id}", affiliateH.Update)
+			r.With(edit("affiliates")).Delete("/affiliates/{id}", affiliateH.Delete)
+
 			r.With(view("shipping_settings")).Get("/pickup-chains", pickupChainH.List)
 			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
 			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
@@ -218,6 +227,17 @@ func main() {
 			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
 			r.With(view("replenishment_planning")).Get("/replenishment", replenishmentH.List)
+
+			// Purchase Requisition (Purchase Requisition & Procurement Workflow PDF) - reuses the
+			// 'purchases' tab_key, same domain/permission scope as Purchase Orders.
+			r.With(view("purchase_requisitions")).Get("/purchase-requisitions", purchaseRequisitionH.List)
+			r.With(view("purchase_requisitions")).Get("/purchase-requisitions/{id}", purchaseRequisitionH.Detail)
+			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions", purchaseRequisitionH.Create)
+			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/{id}", purchaseRequisitionH.Delete)
+			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/items", purchaseRequisitionH.AddItem)
+			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/items/{itemId}", purchaseRequisitionH.RemoveItem)
+			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/supplier-groups/{supplierGroupId}", purchaseRequisitionH.UpdateSupplierGroup)
+			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/submit", purchaseRequisitionH.Submit)
 
 			r.With(view("customers")).Get("/customers", customerH.Search)
 			r.With(edit("customers")).Post("/customers", customerH.Create)

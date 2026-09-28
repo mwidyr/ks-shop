@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductColorPair } from '../api/reports'
 import { listProducts } from '../api/products'
+import { listAffiliates } from '../api/affiliates'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 
 // Cross-product color pair analysis: pick two products, see which color combinations across
@@ -16,20 +18,27 @@ export default function ProductColorPair() {
   const [products, setProducts] = useState([])
   const [skuA, setSkuA] = useState('')
   const [skuB, setSkuB] = useState('')
+  const [channel, setChannel] = useState('all')
+  const [affiliateId, setAffiliateId] = useState('')
+  const [affiliates, setAffiliates] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { listProducts().then(setProducts) }, [])
+  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
   const sameProduct = Boolean(skuA) && skuA === skuB
 
   useEffect(() => {
     if (!skuA || !skuB || sameProduct) { setData(null); return }
     setLoading(true)
-    getProductColorPair({ sku_a: skuA, sku_b: skuB, date_from: range.from, date_to: range.to })
+    getProductColorPair({
+      sku_a: skuA, sku_b: skuB, date_from: range.from, date_to: range.to,
+      channel, affiliate_id: channel === 'website' ? affiliateId : '',
+    })
       .then((res) => { setData(res); setLoading(false) })
       .catch(() => { setData(null); setLoading(false) })
-  }, [skuA, skuB, range, sameProduct])
+  }, [skuA, skuB, range, sameProduct, channel, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -39,7 +48,13 @@ export default function ProductColorPair() {
           <span className="text-gray-400 text-sm">×</span>
           <ProductSearchBox products={products} sku={skuB} onPick={setSkuB} placeholder={t('page_product_color_pair.pick_product_b')} />
         </div>
-        <DateRangePicker value={range} onChange={setRange} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <DateRangePicker value={range} onChange={setRange} />
+          <SalesChannelFilter
+            channel={channel} onChannelChange={setChannel}
+            affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+          />
+        </div>
       </div>
 
       {sameProduct ? (

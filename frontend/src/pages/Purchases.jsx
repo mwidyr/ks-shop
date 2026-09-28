@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
-  listPurchases, getPurchase, createPurchase, updatePurchase, updatePurchaseStatus,
+  listPurchases, getPurchase, updatePurchase, updatePurchaseStatus,
   receivePurchase, deletePurchase,
 } from '../api/purchases'
-import { listSuppliers } from '../api/suppliers'
 import { formatCurrency } from '../utils/format'
-import ProductPickerModal from '../components/ProductPickerModal'
 
 const statusColors = {
   ordered: 'bg-yellow-100 text-yellow-700',
@@ -16,126 +14,6 @@ const statusColors = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 const statuses = ['ordered', 'pending_arrival', 'received', 'cancelled']
-
-function CreatePurchaseModal({ suppliers, onClose, onCreated, initialSupplierId, initialLines }) {
-  const { t } = useTranslation()
-  const [supplierId, setSupplierId] = useState(() => initialSupplierId || '')
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10))
-  const [expectedArrivalDate, setExpectedArrivalDate] = useState('')
-  const [notes, setNotes] = useState('')
-  const [lines, setLines] = useState(() => initialLines || [])
-  const [showPicker, setShowPicker] = useState(false)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  function updateLine(variantId, field, value) {
-    setLines((ls) => ls.map((l) => (l.variantId === variantId ? { ...l, [field]: value } : l)))
-  }
-
-  function removeLine(variantId) {
-    setLines((ls) => ls.filter((l) => l.variantId !== variantId))
-  }
-
-  function handlePickerAdd(items) {
-    setLines((ls) => {
-      const byVariant = new Map(ls.map((l) => [l.variantId, l]))
-      for (const it of items) {
-        const existing = byVariant.get(it.variantId)
-        byVariant.set(it.variantId, { ...it, unitCost: existing?.unitCost ?? '' })
-      }
-      return [...byVariant.values()]
-    })
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    if (!supplierId || lines.length === 0 || lines.some((l) => !l.qty || l.unitCost === '')) {
-      setError(t('page_purchases.error_incomplete_form'))
-      return
-    }
-    setSaving(true)
-    try {
-      await createPurchase({
-        supplier_id: Number(supplierId),
-        order_date: orderDate,
-        expected_arrival_date: expectedArrivalDate,
-        notes,
-        items: lines.map((l) => ({ variant_id: Number(l.variantId), qty: Number(l.qty), unit_cost: Number(l.unitCost) })),
-      })
-      onCreated()
-    } catch (err) {
-      setError(err.response?.data?.error || t('page_purchases.error_create_failed'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-bold text-gray-800 mb-4">{t('page_purchases.modal_create_title')}</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchases.label_supplier')}</label>
-              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required>
-                <option value="">{t('page_purchases.option_choose_supplier')}</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchases.label_order_date')}</label>
-              <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchases.label_expected_arrival')}</label>
-              <input type="date" value={expectedArrivalDate} onChange={(e) => setExpectedArrivalDate(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-[11px] text-gray-500">{t('page_purchases.label_products')}</label>
-              <button type="button" disabled={!supplierId} onClick={() => setShowPicker(true)} className="text-xs font-semibold text-brand-600 hover:underline disabled:opacity-40 disabled:no-underline">{t('page_purchases.add_line_button')}</button>
-            </div>
-            {lines.length === 0 && (
-              <p className="text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg p-3 text-center">{t('page_purchases.no_products_yet')}</p>
-            )}
-            {lines.map((l) => (
-              <div key={l.variantId} className="grid grid-cols-6 gap-2 items-end border border-gray-200 rounded-lg p-2">
-                <div className="col-span-3">
-                  <p className="text-sm text-gray-700 truncate">{l.productName}</p>
-                  <p className="text-xs text-gray-400">{l.sku && <span className="font-mono">{l.sku}</span>} · {l.variantLabel}</p>
-                </div>
-                <input type="number" min="1" placeholder={t('page_purchases.placeholder_qty')} value={l.qty} onChange={(e) => updateLine(l.variantId, 'qty', Number(e.target.value) || 1)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                <input type="number" min="0" placeholder={t('page_purchases.placeholder_unit_cost')} value={l.unitCost} onChange={(e) => updateLine(l.variantId, 'unitCost', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                <button type="button" onClick={() => removeLine(l.variantId)} className="text-xs text-red-600 hover:underline">{t('common.delete')}</button>
-              </div>
-            ))}
-          </div>
-
-          {showPicker && (
-            <ProductPickerModal supplierId={supplierId} onClose={() => setShowPicker(false)} onAdd={handlePickerAdd} />
-          )}
-
-          <div>
-            <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchases.label_notes')}</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
-          </div>
-
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={saving} className="bg-gray-800 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
-              {saving ? t('page_purchases.saving') : t('page_purchases.submit_create')}
-            </button>
-            <button type="button" onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">{t('common.cancel')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
 
 function DetailModal({ purchaseId, onClose, onChanged }) {
   const { t } = useTranslation()
@@ -342,29 +220,15 @@ function DetailModal({ purchaseId, onClose, onChanged }) {
 
 export default function Purchases() {
   const { t } = useTranslation()
-  const location = useLocation()
-  const navigate = useNavigate()
   const [purchases, setPurchases] = useState([])
-  const [suppliers, setSuppliers] = useState([])
   const [statusFilter, setStatusFilter] = useState('')
-  // Arrived here from Replenishment Planning's "Buat Pembelian dari Rencana" - captured once on
-  // mount (not re-derived from location.state) so clearing the nav state below can't race it out
-  // from under the modal before it renders.
-  const [pendingPrefill] = useState(() => location.state?.prefillPurchase || null)
-  const [createOpen, setCreateOpen] = useState(() => Boolean(pendingPrefill))
   const [detailId, setDetailId] = useState(null)
 
   function reload() {
     listPurchases(statusFilter).then(setPurchases)
   }
 
-  useEffect(() => {
-    if (pendingPrefill) navigate(location.pathname, { replace: true, state: {} })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   useEffect(reload, [statusFilter])
-  useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
 
   return (
     <div className="px-4 sm:px-6 py-6">
@@ -384,9 +248,9 @@ export default function Purchases() {
           <Link to="/purchases/history" className="border border-gray-300 text-gray-600 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50">
             {t('page_purchases.history_link')}
           </Link>
-          <button onClick={() => setCreateOpen(true)} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+          <Link to="/purchase-requisitions" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
             {t('page_purchases.create_button')}
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -426,15 +290,6 @@ export default function Purchases() {
         </table>
       </div>
 
-      {createOpen && (
-        <CreatePurchaseModal
-          suppliers={suppliers}
-          initialSupplierId={pendingPrefill?.supplierId}
-          initialLines={pendingPrefill?.lines}
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => { setCreateOpen(false); reload() }}
-        />
-      )}
       {detailId && (
         <DetailModal purchaseId={detailId} onClose={() => setDetailId(null)} onChanged={reload} />
       )}

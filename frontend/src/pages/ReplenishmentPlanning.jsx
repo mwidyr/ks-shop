@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listReplenishment } from '../api/replenishment'
 import { listSuppliers } from '../api/suppliers'
+import { createPurchaseRequisition, addRequisitionItem } from '../api/purchaseRequisitions'
 import { formatCurrency } from '../utils/format'
 
 const basisOptions = [7, 14, 30]
@@ -27,6 +28,7 @@ export default function ReplenishmentPlanning() {
   const [stockStatus, setStockStatus] = useState('')
   const [planned, setPlanned] = useState({}) // variantId -> qty, local working values only
   const [loading, setLoading] = useState(true)
+  const [creatingPO, setCreatingPO] = useState(false)
 
   useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
 
@@ -42,25 +44,25 @@ export default function ReplenishmentPlanning() {
     totalIncoming: rows.reduce((s, r) => s + r.incoming_stock, 0),
   }
 
-  // Only meaningful once a single supplier is selected - a PO belongs to one supplier.
+  // Only meaningful once a single supplier is selected - a Purchase Requisition groups by
+  // supplier automatically, but starting from one supplier's planned rows here keeps this
+  // action predictable (one supplier's worth of items pre-added, ready to confirm).
   const plannedRows = rows.filter((r) => (planned[r.variant_id] ?? r.suggested_reorder_qty) > 0)
 
-  function handleCreatePO() {
-    navigate('/purchases', {
-      state: {
-        prefillPurchase: {
-          supplierId,
-          lines: plannedRows.map((r) => ({
-            variantId: r.variant_id,
-            qty: planned[r.variant_id] ?? r.suggested_reorder_qty,
-            productName: r.product_name,
-            variantLabel: `${r.color}/${r.size}`,
-            sku: r.product_sku,
-            unitCost: '',
-          })),
-        },
-      },
-    })
+  async function handleCreatePO() {
+    setCreatingPO(true)
+    try {
+      const { id } = await createPurchaseRequisition()
+      for (const r of plannedRows) {
+        await addRequisitionItem(id, {
+          variant_id: r.variant_id,
+          planned_qty: planned[r.variant_id] ?? r.suggested_reorder_qty,
+        })
+      }
+      navigate(`/purchase-requisitions/${id}`)
+    } finally {
+      setCreatingPO(false)
+    }
   }
 
   return (
@@ -88,8 +90,8 @@ export default function ReplenishmentPlanning() {
           <input type="number" min="1" value={targetStockDays} onChange={(e) => setTargetStockDays(Number(e.target.value) || 30)} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
         </label>
         {supplierId && plannedRows.length > 0 && (
-          <button onClick={handleCreatePO} className="ml-auto bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-            {t('page_replenishment.create_po_from_plan')}
+          <button onClick={handleCreatePO} disabled={creatingPO} className="ml-auto bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            {creatingPO ? t('page_purchase_requisitions.creating') : t('page_replenishment.create_po_from_plan')}
           </button>
         )}
       </div>

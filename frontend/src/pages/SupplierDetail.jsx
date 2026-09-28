@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   getSupplier, updateSupplier, createSupplierContact, deleteSupplierContact,
   createSupplierNote, createSupplierPriceReference, deleteSupplierPriceReference,
 } from '../api/suppliers'
+import TagsInput from '../components/TagsInput'
+import { resolveUrl } from '../utils/image'
 
 const statuses = ['active', 'paused', 'inactive']
 const contactMethods = ['wechat', 'phone', 'whatsapp', 'other']
@@ -102,7 +104,7 @@ export default function SupplierDetail() {
             <input value={form.source} onChange={(e) => setForm((s) => ({ ...s, source: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
           </Field>
           <Field label={t('page_suppliers.field_category')}>
-            <input value={form.category} onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            <TagsInput value={form.category} onChange={(v) => setForm((s) => ({ ...s, category: v }))} placeholder={t('page_suppliers.placeholder_category')} />
           </Field>
           <Field label={t('page_suppliers.field_payment_method')}>
             <input value={form.payment_method} onChange={(e) => setForm((s) => ({ ...s, payment_method: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
@@ -190,6 +192,22 @@ export default function SupplierDetail() {
             <input type="number" placeholder={t('page_suppliers.price_max_placeholder')} value={priceForm.price_max} onChange={(e) => setPriceForm((s) => ({ ...s, price_max: e.target.value }))} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-24" />
             <button type="submit" className="bg-gray-800 hover:bg-black text-white text-xs font-semibold px-3 py-1.5 rounded-lg">{t('common.add')}</button>
           </form>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <h3 className="font-bold text-gray-800 mb-3">{t('page_suppliers.products_title')}</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {supplier.products.map((p) => (
+            <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-2 border border-gray-200 rounded-lg p-2 hover:bg-gray-50">
+              <img src={resolveUrl(p.image_url)} className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0" />
+              <div className="min-w-0">
+                {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
+                <p className="text-xs font-medium text-gray-700 truncate">{p.name}</p>
+              </div>
+            </Link>
+          ))}
+          {supplier.products.length === 0 && <p className="text-xs text-gray-400 py-2 col-span-full">{t('page_suppliers.empty_state')}</p>}
         </div>
       </div>
 

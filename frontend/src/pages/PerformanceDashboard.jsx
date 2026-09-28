@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPerformanceSummary, getHostRanking, getPerformanceData } from '../api/performanceDashboard'
 import { listLocations } from '../api/hostLocations'
+import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
+import SalesChannelFilter from '../components/SalesChannelFilter'
 
 // Business Timezone is Asia/Jakarta (confirmed by the client's own HeatMap tab) - day-boundary
 // math here follows the same plain-local-date convention every other date picker in this app
@@ -155,6 +157,9 @@ export default function PerformanceDashboard() {
   const { t } = useTranslation()
   const [locations, setLocations] = useState([])
   const [locationId, setLocationId] = useState('')
+  const [channel, setChannel] = useState('all')
+  const [affiliateId, setAffiliateId] = useState('')
+  const [affiliates, setAffiliates] = useState([])
   const [range, setRange] = useState(daysAgoRange(6))
   const [summary, setSummary] = useState(null)
   const [ranking, setRanking] = useState([])
@@ -163,10 +168,15 @@ export default function PerformanceDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { listLocations().then(setLocations) }, [])
+  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
   useEffect(() => {
     setLoading(true)
-    const filters = { locationId: locationId || undefined, from: range.from, to: range.to }
+    const filters = {
+      locationId: channel === 'live' ? (locationId || undefined) : undefined,
+      from: range.from, to: range.to, channel,
+      affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
+    }
     Promise.all([
       getPerformanceSummary(filters),
       getHostRanking(filters),
@@ -177,7 +187,7 @@ export default function PerformanceDashboard() {
       setPerfData(p)
       setLoading(false)
     })
-  }, [locationId, range, sort])
+  }, [locationId, range, sort, channel, affiliateId])
 
   function toggleSort(key) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }))
@@ -188,12 +198,11 @@ export default function PerformanceDashboard() {
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">{t('page_performance_dashboard.all_locations')}</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-        </div>
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          locationId={locationId} onLocationChange={setLocationId} locations={locations}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
         <PeriodPicker value={range} onChange={setRange} />
       </div>
 

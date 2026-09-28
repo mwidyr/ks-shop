@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -147,6 +148,9 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		args = append(args, hostID)
 		h.DB.QueryRow(r.Context(), `SELECT name FROM hosts WHERE id=$1`, hostID).Scan(&hostName)
 	}
+	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
+	where += channelWhere
+	args = append(args, channelArgs...)
 
 	var totalQty int
 	var totalGMV float64
@@ -250,6 +254,8 @@ func (h *ReportsHandler) HostCategoryLeaderboard(w http.ResponseWriter, r *http.
 		from = to.AddDate(0, 0, -30)
 	}
 
+	channelWhere, channelArgs := salesChannelWhere(r, "o", 3)
+	args := append([]interface{}{from, to}, channelArgs...)
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT COALESCE(p.category,'-'), COALESCE(hst.name,'-'), SUM(oi.qty)
 		FROM order_items oi
@@ -257,9 +263,9 @@ func (h *ReportsHandler) HostCategoryLeaderboard(w http.ResponseWriter, r *http.
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
 		LEFT JOIN hosts hst ON hst.id = oi.host_id
-		WHERE o.status <> 'cancelled' AND o.created_at >= $1 AND o.created_at < $2
+		WHERE o.status <> 'cancelled' AND o.created_at >= $1 AND o.created_at < $2`+channelWhere+`
 		GROUP BY p.category, hst.id, hst.name
-		ORDER BY p.category, 3 DESC`, from, to)
+		ORDER BY p.category, 3 DESC`, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch host-category leaderboard")
 		return
@@ -425,6 +431,9 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		where += " AND oi.host_id = $4 "
 		args = append(args, hostID)
 	}
+	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
+	where += channelWhere
+	args = append(args, channelArgs...)
 
 	var productName, category string
 	if err := h.DB.QueryRow(r.Context(), `SELECT name, COALESCE(category,'-') FROM products WHERE sku=$1`, sku).
@@ -441,6 +450,37 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id`+where, args...).Scan(&totalQty, &totalGMV)
+
+	// Item 040: Today/7D/14D/30D/Custom Avg Daily Sales - plain calendar-day sales, explicitly
+	// independent of LIVE Data/Valid LIVE Days/LIVE sessions (spec), so these fixed lookback
+	// windows are computed fresh here rather than reusing the page's own from/to period filter
+	// (which only drives "Custom"). Same host_id/channel scoping as everything else on this page.
+	basisWhere := " WHERE p.sku = $1 AND o.status <> 'cancelled' "
+	basisArgs := []interface{}{sku}
+	if hostID := q.Get("host_id"); hostID != "" {
+		basisArgs = append(basisArgs, hostID)
+		basisWhere += " AND oi.host_id = $" + strconv.Itoa(len(basisArgs))
+	}
+	basisChannelWhere, basisChannelArgs := salesChannelWhere(r, "o", len(basisArgs)+1)
+	basisWhere += basisChannelWhere
+	basisArgs = append(basisArgs, basisChannelArgs...)
+
+	var todayQty, d7Qty, d14Qty, d30Qty int
+	h.DB.QueryRow(r.Context(), `
+		SELECT
+			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= date_trunc('day', now())),0),
+			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '7 days'),0),
+			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '14 days'),0),
+			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '30 days'),0)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id`+basisWhere, basisArgs...).Scan(&todayQty, &d7Qty, &d14Qty, &d30Qty)
+
+	customDays := math.Round(to.Sub(from).Hours() / 24)
+	if customDays < 1 {
+		customDays = 1
+	}
 
 	colorRows, err := h.DB.Query(r.Context(), `
 		SELECT pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
@@ -551,6 +591,12 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		"summary": map[string]interface{}{
 			"sku": sku, "product_name": productName, "category": category,
 			"qty": totalQty, "gmv": totalGMV,
+			"today_sales":        todayQty,
+			"avg_daily_7d":       float64(d7Qty) / 7,
+			"avg_daily_14d":      float64(d14Qty) / 14,
+			"avg_daily_30d":      float64(d30Qty) / 30,
+			"avg_daily_custom":   float64(totalQty) / customDays,
+			"custom_period_days": customDays,
 		},
 		"by_color": byColor,
 		"by_host":  byHost,
@@ -589,7 +635,8 @@ func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request
 		from = to.AddDate(0, 0, -30)
 	}
 
-	args := []interface{}{skuA, skuB, from, to}
+	channelWhere, channelArgs := salesChannelWhere(r, "o", 5)
+	args := append([]interface{}{skuA, skuB, from, to}, channelArgs...)
 	joinWhere := `
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
@@ -599,7 +646,7 @@ func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
 		JOIN products p2 ON p2.id = pv2.product_id
 		WHERE p.sku = $1 AND p2.sku = $2
-		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4`
+		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4` + channelWhere
 
 	var totalOrders int
 	h.DB.QueryRow(r.Context(), `SELECT COUNT(DISTINCT oi.order_id) `+joinWhere, args...).Scan(&totalOrders)

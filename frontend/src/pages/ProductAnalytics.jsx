@@ -2,8 +2,10 @@ import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductAnalysis } from '../api/reports'
 import { listHosts } from '../api/hosts'
+import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
 
 // Color breakdown for one ranked product, derived client-side from the already-fetched
@@ -26,6 +28,9 @@ export default function ProductAnalytics() {
   const [range, setRange] = useState(presetRange(29))
   const [hostId, setHostId] = useState('')
   const [hosts, setHosts] = useState([])
+  const [channel, setChannel] = useState('all')
+  const [affiliateId, setAffiliateId] = useState('')
+  const [affiliates, setAffiliates] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [productSort, setProductSort] = useState('gmv')
@@ -43,23 +48,28 @@ export default function ProductAnalytics() {
   }
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
+  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
   useEffect(() => {
     setLoading(true)
-    getProductAnalysis({ date_from: range.from, date_to: range.to, host_id: hostId }).then((res) => {
+    getProductAnalysis({
+      date_from: range.from, date_to: range.to, host_id: channel === 'live' ? hostId : '',
+      channel, affiliate_id: channel === 'website' ? affiliateId : '',
+    }).then((res) => {
       setData(res)
       setLoading(false)
     })
-  }, [range, hostId])
+  }, [range, hostId, channel, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
         <DateRangePicker value={range} onChange={setRange} />
-        <select value={hostId} onChange={(e) => setHostId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-          <option value="">{t('page_product_analytics.all_hosts')}</option>
-          {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-        </select>
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          hostId={hostId} onHostChange={setHostId} hosts={hosts}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
       </div>
 
       {loading || !data ? (

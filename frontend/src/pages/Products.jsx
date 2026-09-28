@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
 import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct } from '../api/products'
@@ -16,6 +16,7 @@ const statusColors = {
 
 function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
@@ -56,12 +57,12 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
       <td className="p-3">
         <input type="checkbox" checked={selected} onChange={() => onToggleSelect(p.id)} />
       </td>
-      <td className="p-3">
+      <td className="p-3 cursor-pointer" onClick={() => navigate(`/products/${p.id}/edit`)}>
         <div className="flex items-center gap-3">
           <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
           <div className="min-w-0">
             {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-            <p className="font-semibold text-gray-800 text-sm truncate">{p.name}</p>
+            <p className="font-semibold text-gray-800 text-sm truncate hover:underline">{p.name}</p>
             {p.category && <p className="text-xs text-gray-500">{p.category}</p>}
             <p className="text-xs text-gray-500">{colorsLabel}</p>
             <p className="text-xs text-gray-500">{sizesLabel}</p>

@@ -42,6 +42,8 @@ export default function ProductForm() {
   const [product, setProduct] = useState({
     sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '', supplier_id: '',
     base_price: '', cost: '', is_active: true, allow_oversell: false,
+    measurement_bust: '', measurement_waist: '', measurement_length: '', measurement_bottom_length: '',
+    measurement_elasticity: '', measurement_note: '',
   })
   const [suppliers, setSuppliers] = useState([])
   const [images, setImages] = useState([])
@@ -61,6 +63,9 @@ export default function ProductForm() {
         category: p.category, brand: p.brand, supplier_id: p.supplier_id ?? '', base_price: p.base_price || '',
         cost: p.cost ?? '', // absent entirely in the response for non-admins - stays '' for them
         is_active: p.is_active, allow_oversell: p.allow_oversell,
+        measurement_bust: p.measurement_bust || '', measurement_waist: p.measurement_waist || '',
+        measurement_length: p.measurement_length || '', measurement_bottom_length: p.measurement_bottom_length || '',
+        measurement_elasticity: p.measurement_elasticity || '', measurement_note: p.measurement_note || '',
       })
       setImages(p.images)
       setVariants(p.variants.map((v) => ({ ...v })))
@@ -321,6 +326,36 @@ export default function ProductForm() {
               <span className="block text-xs text-gray-500">{t('page_product_form.allow_oversell_hint')}</span>
             </span>
           </label>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+          <h2 className="font-bold text-gray-800">{t('page_product_form.measurements_heading')}</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_bust')}</label>
+              <input value={product.measurement_bust} onChange={(e) => updateField('measurement_bust', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_waist')}</label>
+              <input value={product.measurement_waist} onChange={(e) => updateField('measurement_waist', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_length')}</label>
+              <input value={product.measurement_length} onChange={(e) => updateField('measurement_length', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_bottom_length')}</label>
+              <input value={product.measurement_bottom_length} onChange={(e) => updateField('measurement_bottom_length', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_elasticity')}</label>
+              <input value={product.measurement_elasticity} onChange={(e) => updateField('measurement_elasticity', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_note')}</label>
+            <textarea value={product.measurement_note} onChange={(e) => updateField('measurement_note', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">

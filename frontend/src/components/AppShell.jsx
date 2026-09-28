@@ -37,6 +37,7 @@ const navGroups = [
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
       { to: '/suppliers', key: 'suppliers', icon: IconTruck },
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
+      { to: '/purchase-requisitions', key: 'purchase_requisitions', icon: IconClipboard },
       { to: '/replenishment-planning', key: 'replenishment_planning', icon: IconChecklist },
     ],
   },
@@ -79,6 +80,7 @@ const navGroups = [
       { to: '/store/profile', key: 'store_profile', icon: IconStore },
       { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
       { to: '/hosts', key: 'hosts', icon: IconUser },
+      { to: '/affiliates', key: 'affiliates', icon: IconUser },
       { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
       { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
     ],
@@ -100,8 +102,8 @@ const navGroups = [
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
-  'host_performance_analytics', 'heatmap', 'hosts', 'returns', 'refunds',
-  'suppliers', 'purchases', 'replenishment_planning',
+  'host_performance_analytics', 'heatmap', 'hosts', 'affiliates', 'returns', 'refunds',
+  'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
 ])
 

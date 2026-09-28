@@ -40,6 +40,38 @@ func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
 	return sql, args
 }
 
+// allHostsCTE is validHostsCTE's Sales Channel Attribution (items 040-045) counterpart for
+// ?channel=all|website: every active host in the Location, with NO live_data_recorded_at gate
+// at all - "ALL/Website... should not depend on LIVE Data, Valid LIVE Days, or LIVE sessions"
+// per spec. Same "valid_hosts" CTE name/column shape as validHostsCTE so every query below can
+// reuse the exact same SELECT/JOIN template regardless of which one is picked.
+func allHostsCTE(r *http.Request) (sql string, args []interface{}) {
+	args = []interface{}{}
+	where := ""
+	if locID := r.URL.Query().Get("location_id"); locID != "" {
+		if id, err := strconv.Atoi(locID); err == nil {
+			args = append(args, id)
+			where = " AND h.location_id = $3"
+		}
+	}
+	sql = `valid_hosts AS (
+		SELECT h.id AS host_id, h.name AS host_name, h.location_id, hl.name AS location_name
+		FROM hosts h
+		JOIN host_locations hl ON hl.id = h.location_id
+		WHERE h.is_active = true` + where + `
+	)`
+	return sql, args
+}
+
+// hostsCTE picks validHostsCTE (LIVE, gated) or allHostsCTE (ALL/Website, ungated) based on
+// ?channel=. Default (no channel param, or "all") is ALL per spec.
+func hostsCTE(r *http.Request) (sql string, args []interface{}) {
+	if r.URL.Query().Get("channel") == "live" {
+		return validHostsCTE(r)
+	}
+	return allHostsCTE(r)
+}
+
 // resolveRange defaults to the last 30 days when no ?from=/?to= is given, matching the
 // convention already used by dashboard.go/reports.go.
 func resolveRange(r *http.Request) (time.Time, time.Time) {
@@ -64,8 +96,10 @@ type performanceSummary struct {
 // and Period.
 func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
-	cte, extraArgs := validHostsCTE(r)
+	cte, extraArgs := hostsCTE(r)
 	args := append([]interface{}{from, to}, extraArgs...)
+	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
+	args = append(args, channelArgs...)
 
 	query := `WITH ` + cte + `,
 		sales AS (
@@ -75,7 +109,7 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 			JOIN orders o ON o.id = oi.order_id
 			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
 			  AND o.created_at >= $1 AND o.created_at < $2
-			  AND o.status NOT IN ('cancelled','return')
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
 		),
 		sessions AS (
 			SELECT COUNT(*) AS session_count FROM live_sessions ls
@@ -120,8 +154,10 @@ type hostRankRow struct {
 // HostRanking returns every valid host sorted GMV desc, with GMV% of the ranked total.
 func (h *PerformanceDashboardHandler) HostRanking(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
-	cte, extraArgs := validHostsCTE(r)
+	cte, extraArgs := hostsCTE(r)
 	args := append([]interface{}{from, to}, extraArgs...)
+	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
+	args = append(args, channelArgs...)
 
 	query := `WITH ` + cte + `
 		SELECT vh.host_id, vh.host_name, vh.location_name,
@@ -131,7 +167,7 @@ func (h *PerformanceDashboardHandler) HostRanking(w http.ResponseWriter, r *http
 		FROM valid_hosts vh
 		LEFT JOIN order_items oi ON oi.host_id = vh.host_id
 		LEFT JOIN orders o ON o.id = oi.order_id AND o.created_at >= $1 AND o.created_at < $2
-		     AND o.status NOT IN ('cancelled','return')
+		     AND o.status NOT IN ('cancelled','return')` + channelWhere + `
 		GROUP BY vh.host_id, vh.host_name, vh.location_name
 		ORDER BY gmv DESC`
 
@@ -198,8 +234,10 @@ var performanceDataSortColumns = map[string]string{
 // AWT/ACU, calculated-from-totals for AOV/NGR/RET%/GPM - never averaged per session).
 func (h *PerformanceDashboardHandler) PerformanceData(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
-	cte, extraArgs := validHostsCTE(r)
+	cte, extraArgs := hostsCTE(r)
 	args := append([]interface{}{from, to}, extraArgs...)
+	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
+	args = append(args, channelArgs...)
 
 	orderBy := "gmv DESC"
 	if sort := performanceDataSortColumns[r.URL.Query().Get("sort")]; sort != "" {
@@ -233,7 +271,7 @@ func (h *PerformanceDashboardHandler) PerformanceData(w http.ResponseWriter, r *
 			JOIN orders o ON o.id = oi.order_id
 			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
 			  AND o.created_at >= $1 AND o.created_at < $2
-			  AND o.status NOT IN ('cancelled','return')
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
 			GROUP BY oi.host_id
 		),
 		return_agg AS (

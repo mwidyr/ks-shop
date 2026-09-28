@@ -5,6 +5,7 @@ import { createOrder } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
+import { listAffiliates } from '../api/affiliates'
 import { getShippingSettings } from '../api/settings'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
@@ -13,6 +14,8 @@ import ProductPickerModal from '../components/ProductPickerModal'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 
 const emptyOrder = () => ({
+  salesChannel: 'live',
+  affiliateId: '',
   hostId: '',
   liveSessionId: '',
   customer: null,
@@ -52,7 +55,7 @@ function customerIsResolved(customer) {
   return Boolean(customer.name && customer.phone)
 }
 
-function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings, onUpdate, saving, onCancel }) {
+function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shippingSettings, onUpdate, saving, onCancel }) {
   const { t } = useTranslation()
   const [showPicker, setShowPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -115,20 +118,48 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings,
       <h2 className="font-bold text-gray-800">{t('page_order_create.order_block_title', { index: 1 })}</h2>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
-        <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
-          <option value="">{t('page_order_create.select_host_option')}</option>
-          {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-        </select>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.sales_channel_label')}</label>
+        <div className="flex gap-2">
+          {['live', 'website'].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onUpdate('salesChannel', c)}
+              className={`text-sm font-semibold px-4 py-2 rounded-lg border ${order.salesChannel === c ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+            >
+              {t(`shared.sales_channel_${c}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.live_session_label')}</label>
-        <select value={order.liveSessionId} onChange={(e) => onUpdate('liveSessionId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-          <option value="">{t('page_order_create.no_session_option')}</option>
-          {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.host_name})</option>)}
-        </select>
-      </div>
+      {order.salesChannel === 'live' ? (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
+            <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+              <option value="">{t('page_order_create.select_host_option')}</option>
+              {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.live_session_label')}</label>
+            <select value={order.liveSessionId} onChange={(e) => onUpdate('liveSessionId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="">{t('page_order_create.no_session_option')}</option>
+              {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.host_name})</option>)}
+            </select>
+          </div>
+        </>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.affiliate_label')}</label>
+          <select value={order.affiliateId} onChange={(e) => onUpdate('affiliateId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">{t('shared.no_affiliate')}</option>
+            {affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.section_customer')}</label>
@@ -259,14 +290,14 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, shippingSettings,
                   <p className="text-sm font-medium text-gray-800 truncate">{it.productName}</p>
                   <p className="text-xs text-gray-500">{it.sku && <span className="font-mono text-brand-600">{it.sku}</span>} · {it.variantLabel} · {t('page_order_create.qty_label')}: {it.qty}</p>
                 </div>
-                <select
+                {order.salesChannel === 'live' && <select
                   value={it.hostId ?? order.hostId}
                   onChange={(e) => updateItem(it.variantId, 'hostId', e.target.value)}
                   title={t('page_order_create.host_label')}
                   className="text-xs border border-gray-300 rounded-lg px-2 py-1 shrink-0"
                 >
                   {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-                </select>
+                </select>}
                 <span className="text-sm font-semibold text-gray-700 shrink-0">{formatCurrency(it.price * it.qty)}</span>
                 <button type="button" onClick={() => removeItem(it.variantId)} className="text-xs text-red-600 hover:underline shrink-0">{t('common.delete')}</button>
               </div>
@@ -313,6 +344,7 @@ export default function OrderCreate() {
   const [hosts, setHosts] = useState([])
   const [pickupChains, setPickupChains] = useState([])
   const [liveSessions, setLiveSessions] = useState([])
+  const [affiliates, setAffiliates] = useState([])
   const [shippingSettings, setShippingSettings] = useState(null)
   const [order, setOrder] = useState(emptyOrder())
   const [error, setError] = useState('')
@@ -322,6 +354,7 @@ export default function OrderCreate() {
     listHosts().then(setHosts)
     listPickupChains().then(setPickupChains)
     listLiveSessions({ status: 'live' }).then(setLiveSessions)
+    listAffiliates().then(setAffiliates)
     getShippingSettings().then(setShippingSettings)
   }, [])
 
@@ -332,7 +365,7 @@ export default function OrderCreate() {
   function validate() {
     const isCvs = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))?.chain_type
     const cvs = isCvs === 'cvs_711' || isCvs === 'cvs_familymart'
-    if (!order.hostId) return t('page_order_create.block_error_host', { index: 1 })
+    if (order.salesChannel === 'live' && !order.hostId) return t('page_order_create.block_error_host', { index: 1 })
     if (!customerIsResolved(order.customer)) return t('page_order_create.block_error_customer', { index: 1 })
     if (!order.customer.id && !TW_PHONE_REGEX.test(order.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: 1 })
     if (!order.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: 1 })
@@ -359,7 +392,9 @@ export default function OrderCreate() {
         pickup_chain_id: Number(order.pickupChainId),
         pickup_store_name: order.pickupStoreName,
         pickup_store_code: order.pickupStoreCode,
-        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId), variant_id: it.variantId, qty: it.qty, live_session_id: order.liveSessionId ? Number(order.liveSessionId) : null })),
+        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId) || 0, variant_id: it.variantId, qty: it.qty, live_session_id: order.liveSessionId ? Number(order.liveSessionId) : null })),
+        sales_channel: order.salesChannel,
+        affiliate_id: order.salesChannel === 'website' && order.affiliateId ? Number(order.affiliateId) : null,
         discount_amount: Number(order.discountAmount) || 0,
         additional_amount: Number(order.additionalAmount) || 0,
         keep_date: order.keepDate || null,
@@ -384,6 +419,7 @@ export default function OrderCreate() {
           hosts={hosts}
           pickupChains={pickupChains}
           liveSessions={liveSessions}
+          affiliates={affiliates}
           shippingSettings={shippingSettings}
           onUpdate={updateOrder}
           saving={saving}

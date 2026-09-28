@@ -45,24 +45,30 @@ type ProductImage struct {
 }
 
 type Product struct {
-	ID            int            `json:"id"`
-	SKU           string         `json:"sku"` // master product code, distinct from each variant's own sku
-	VendorSKU     string         `json:"vendor_sku"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	Category      string         `json:"category"`
-	Brand         string         `json:"brand"`
-	SupplierID    *int           `json:"supplier_id"`    // set once at creation - "change supplier" is done by creating a new product record, not editing this
-	BasePrice     float64        `json:"base_price"`     // 0 = unset; frontend defaults new variant prices to this when > 0
-	Cost          *float64       `json:"cost,omitempty"` // admin-only (super_user); nil/omitted entirely for every other role, both on read and on write - see isAdmin()
-	IsActive      bool           `json:"is_active"`
-	AllowOversell bool           `json:"allow_oversell"`
-	Images        []ProductImage `json:"images"`
-	Variants      []Variant      `json:"variants"`
-	UnitsSold     int            `json:"units_sold"`
-	StatusLabel   string         `json:"status_label"`
-	IsOversell    bool           `json:"is_oversell"`
-	CreatedAt     string         `json:"created_at"`
+	ID                      int            `json:"id"`
+	SKU                     string         `json:"sku"` // master product code, distinct from each variant's own sku
+	VendorSKU               string         `json:"vendor_sku"`
+	Name                    string         `json:"name"`
+	Description             string         `json:"description"`
+	Category                string         `json:"category"`
+	Brand                   string         `json:"brand"`
+	SupplierID              *int           `json:"supplier_id"`    // set once at creation - "change supplier" is done by creating a new product record, not editing this
+	BasePrice               float64        `json:"base_price"`     // 0 = unset; frontend defaults new variant prices to this when > 0
+	Cost                    *float64       `json:"cost,omitempty"` // admin-only (super_user); nil/omitted entirely for every other role, both on read and on write - see isAdmin()
+	IsActive                bool           `json:"is_active"`
+	AllowOversell           bool           `json:"allow_oversell"`
+	MeasurementBust         string         `json:"measurement_bust"`
+	MeasurementWaist        string         `json:"measurement_waist"`
+	MeasurementLength       string         `json:"measurement_length"`
+	MeasurementBottomLength string         `json:"measurement_bottom_length"`
+	MeasurementElasticity   string         `json:"measurement_elasticity"`
+	MeasurementNote         string         `json:"measurement_note"`
+	Images                  []ProductImage `json:"images"`
+	Variants                []Variant      `json:"variants"`
+	UnitsSold               int            `json:"units_sold"`
+	StatusLabel             string         `json:"status_label"`
+	IsOversell              bool           `json:"is_oversell"`
+	CreatedAt               string         `json:"created_at"`
 }
 
 // List returns all products with their images, variants, stock, units sold and a
@@ -71,7 +77,10 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	admin := isAdmin(r)
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       supplier_id, base_price, cost, is_active, allow_oversell, created_at
+		       supplier_id, base_price, cost, is_active, allow_oversell,
+		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
+		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
+		       created_at
 		FROM products ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
@@ -86,7 +95,9 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		var cost float64
 		if err := rows.Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt); err != nil {
+			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell,
+			&p.MeasurementBust, &p.MeasurementWaist, &p.MeasurementLength, &p.MeasurementBottomLength, &p.MeasurementElasticity, &p.MeasurementNote,
+			&createdAt); err != nil {
 			continue
 		}
 		if admin {
@@ -203,10 +214,15 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var cost float64
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, description, category, COALESCE(brand,''),
-		       supplier_id, base_price, cost, is_active, allow_oversell, created_at
+		       supplier_id, base_price, cost, is_active, allow_oversell,
+		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
+		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
+		       created_at
 		FROM products WHERE id=$1`, id).
 		Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
-			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell, &createdAt)
+			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell,
+			&p.MeasurementBust, &p.MeasurementWaist, &p.MeasurementLength, &p.MeasurementBottomLength, &p.MeasurementElasticity, &p.MeasurementNote,
+			&createdAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
@@ -269,19 +285,25 @@ type variantInput struct {
 const maxProductImages = 5
 
 type createProductRequest struct {
-	SKU           string         `json:"sku"`
-	VendorSKU     string         `json:"vendor_sku"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	Category      string         `json:"category"`
-	Brand         string         `json:"brand"`
-	SupplierID    *int           `json:"supplier_id"`
-	BasePrice     float64        `json:"base_price"`
-	Cost          float64        `json:"cost"` // admin-only - silently ignored (kept at 0) unless the caller is super_user, see isAdmin()
-	IsActive      *bool          `json:"is_active"`
-	AllowOversell bool           `json:"allow_oversell"`
-	Images        []string       `json:"images"`
-	Variants      []variantInput `json:"variants"`
+	SKU                     string         `json:"sku"`
+	VendorSKU               string         `json:"vendor_sku"`
+	Name                    string         `json:"name"`
+	Description             string         `json:"description"`
+	Category                string         `json:"category"`
+	Brand                   string         `json:"brand"`
+	SupplierID              *int           `json:"supplier_id"`
+	BasePrice               float64        `json:"base_price"`
+	Cost                    float64        `json:"cost"` // admin-only - silently ignored (kept at 0) unless the caller is super_user, see isAdmin()
+	IsActive                *bool          `json:"is_active"`
+	AllowOversell           bool           `json:"allow_oversell"`
+	MeasurementBust         string         `json:"measurement_bust"`
+	MeasurementWaist        string         `json:"measurement_waist"`
+	MeasurementLength       string         `json:"measurement_length"`
+	MeasurementBottomLength string         `json:"measurement_bottom_length"`
+	MeasurementElasticity   string         `json:"measurement_elasticity"`
+	MeasurementNote         string         `json:"measurement_note"`
+	Images                  []string       `json:"images"`
+	Variants                []variantInput `json:"variants"`
 }
 
 // Create allows super_user/management to add a new product with its photos and initial variants.
@@ -314,9 +336,11 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, vendor_sku, name, description, category, brand, supplier_id, base_price, cost, is_active, allow_oversell)
-		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.SupplierID, req.BasePrice, cost, isActive, req.AllowOversell).Scan(&id)
+		INSERT INTO products (sku, vendor_sku, name, description, category, brand, supplier_id, base_price, cost, is_active, allow_oversell,
+		                       measurement_bust, measurement_waist, measurement_length, measurement_bottom_length, measurement_elasticity, measurement_note)
+		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11,NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),NULLIF($15,''),NULLIF($16,''),NULLIF($17,'')) RETURNING id`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.SupplierID, req.BasePrice, cost, isActive, req.AllowOversell,
+		req.MeasurementBust, req.MeasurementWaist, req.MeasurementLength, req.MeasurementBottomLength, req.MeasurementElasticity, req.MeasurementNote).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to create product (kode produk mungkin sudah dipakai)")
 		return
@@ -350,16 +374,22 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProductRequest struct {
-	SKU           string   `json:"sku"`
-	VendorSKU     string   `json:"vendor_sku"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	Category      string   `json:"category"`
-	Brand         string   `json:"brand"`
-	BasePrice     float64  `json:"base_price"`
-	Cost          *float64 `json:"cost"` // admin-only - pointer so a non-admin's payload (which never includes it) leaves the stored value untouched rather than zeroing it
-	IsActive      *bool    `json:"is_active"`
-	AllowOversell *bool    `json:"allow_oversell"`
+	SKU                     string   `json:"sku"`
+	VendorSKU               string   `json:"vendor_sku"`
+	Name                    string   `json:"name"`
+	Description             string   `json:"description"`
+	Category                string   `json:"category"`
+	Brand                   string   `json:"brand"`
+	BasePrice               float64  `json:"base_price"`
+	Cost                    *float64 `json:"cost"` // admin-only - pointer so a non-admin's payload (which never includes it) leaves the stored value untouched rather than zeroing it
+	IsActive                *bool    `json:"is_active"`
+	AllowOversell           *bool    `json:"allow_oversell"`
+	MeasurementBust         string   `json:"measurement_bust"`
+	MeasurementWaist        string   `json:"measurement_waist"`
+	MeasurementLength       string   `json:"measurement_length"`
+	MeasurementBottomLength string   `json:"measurement_bottom_length"`
+	MeasurementElasticity   string   `json:"measurement_elasticity"`
+	MeasurementNote         string   `json:"measurement_note"`
 }
 
 // Update edits a product's own fields (not variants/stock/photos).
@@ -395,8 +425,12 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ct, err := h.DB.Exec(ctx, `
 		UPDATE products SET sku=NULLIF($1,''), vendor_sku=NULLIF($2,''), name=$3, description=$4, category=$5,
-		                     brand=$6, base_price=$7, is_active=$8, allow_oversell=$9 WHERE id=$10`,
-		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, allowOversell, id)
+		                     brand=$6, base_price=$7, is_active=$8, allow_oversell=$9,
+		                     measurement_bust=NULLIF($10,''), measurement_waist=NULLIF($11,''), measurement_length=NULLIF($12,''),
+		                     measurement_bottom_length=NULLIF($13,''), measurement_elasticity=NULLIF($14,''), measurement_note=NULLIF($15,'')
+		                 WHERE id=$16`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, allowOversell,
+		req.MeasurementBust, req.MeasurementWaist, req.MeasurementLength, req.MeasurementBottomLength, req.MeasurementElasticity, req.MeasurementNote, id)
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to update product (kode produk mungkin sudah dipakai)")
 		return

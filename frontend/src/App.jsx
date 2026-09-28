@@ -30,6 +30,8 @@ const SupplierDetail = lazy(() => import('./pages/SupplierDetail'))
 const Purchases = lazy(() => import('./pages/Purchases'))
 const PurchaseHistory = lazy(() => import('./pages/PurchaseHistory'))
 const ReplenishmentPlanning = lazy(() => import('./pages/ReplenishmentPlanning'))
+const PurchaseRequisitions = lazy(() => import('./pages/PurchaseRequisitions'))
+const PurchaseRequisitionDetail = lazy(() => import('./pages/PurchaseRequisitionDetail'))
 const Shipping = lazy(() => import('./pages/Shipping'))
 const ShippingExport = lazy(() => import('./pages/ShippingExport'))
 const DaftarPengambilan = lazy(() => import('./pages/DaftarPengambilan'))
@@ -62,6 +64,7 @@ const Notifications = lazy(() => import('./pages/Notifications'))
 const Integrations = lazy(() => import('./pages/Integrations'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
 const HostManagement = lazy(() => import('./pages/HostManagement'))
+const Affiliates = lazy(() => import('./pages/Affiliates'))
 const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
 
 function ProtectedRoute({ children }) {
@@ -128,6 +131,8 @@ export default function App() {
         <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
         <Route path="/purchases/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
         <Route path="/replenishment-planning" element={<ProtectedRoute><ReplenishmentPlanning /></ProtectedRoute>} />
+        <Route path="/purchase-requisitions" element={<ProtectedRoute><PurchaseRequisitions /></ProtectedRoute>} />
+        <Route path="/purchase-requisitions/:id" element={<ProtectedRoute><PurchaseRequisitionDetail /></ProtectedRoute>} />
 
         {/* Fulfillment */}
         <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
@@ -170,6 +175,7 @@ export default function App() {
         <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
 
         <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
+        <Route path="/affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />
         <Route path="/settings/shipping" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       </Routes>

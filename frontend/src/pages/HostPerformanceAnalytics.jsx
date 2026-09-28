@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { getLifetime, getHostAnalyticsSummary, getHistoricalBest, getHostAnalyticsPerformanceData } from '../api/hostAnalytics'
 import { listLocations } from '../api/hostLocations'
 import { listHosts } from '../api/hosts'
+import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
+import SalesChannelFilter from '../components/SalesChannelFilter'
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -145,6 +147,9 @@ export default function HostPerformanceAnalytics() {
   const [hosts, setHosts] = useState([])
   const [locationId, setLocationId] = useState('')
   const [hostId, setHostId] = useState('')
+  const [channel, setChannel] = useState('all')
+  const [affiliateId, setAffiliateId] = useState('')
+  const [affiliates, setAffiliates] = useState([])
   const [range, setRange] = useState(daysAgoRange(6))
   const [page, setPage] = useState(1)
 
@@ -155,16 +160,21 @@ export default function HostPerformanceAnalytics() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { listLocations().then(setLocations) }, [])
+  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
   useEffect(() => {
     listHosts(false, locationId || undefined).then(setHosts)
     setHostId('')
   }, [locationId])
 
-  useEffect(() => { setPage(1) }, [locationId, hostId, range])
+  useEffect(() => { setPage(1) }, [locationId, hostId, range, channel, affiliateId])
 
   useEffect(() => {
     setLoading(true)
-    const baseFilters = { locationId: locationId || undefined, hostId: hostId || undefined }
+    const baseFilters = {
+      locationId: channel === 'live' ? (locationId || undefined) : undefined,
+      hostId: channel === 'live' ? (hostId || undefined) : undefined,
+      channel, affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
+    }
     Promise.all([
       getLifetime(baseFilters),
       getHostAnalyticsSummary({ ...baseFilters, from: range.from, to: range.to }),
@@ -174,21 +184,17 @@ export default function HostPerformanceAnalytics() {
       setLifetime(lt); setSummary(sm); setBest(hb); setDaily(pd)
       setLoading(false)
     })
-  }, [locationId, hostId, range, page])
+  }, [locationId, hostId, range, page, channel, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">{t('page_performance_dashboard.all_locations')}</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-          <select value={hostId} onChange={(e) => setHostId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-            <option value="">{t('page_host_analytics.all_hosts')}</option>
-            {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-          </select>
-        </div>
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          locationId={locationId} onLocationChange={setLocationId} locations={locations}
+          hostId={hostId} onHostChange={setHostId} hosts={hosts}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
         <PeriodPicker value={range} onChange={setRange} />
       </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { listSuppliers, createSupplier } from '../api/suppliers'
+import TagsInput from '../components/TagsInput'
 
 const emptyForm = { name: '', category: '', source: '' }
 const statusColors = { active: 'bg-green-100 text-green-700', paused: 'bg-amber-100 text-amber-700', inactive: 'bg-gray-100 text-gray-500' }
@@ -10,15 +11,16 @@ export default function Suppliers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState([])
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   function reload() {
-    listSuppliers(true).then(setSuppliers)
+    listSuppliers(true, search).then(setSuppliers)
   }
 
-  useEffect(reload, [])
+  useEffect(reload, [search])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -39,6 +41,13 @@ export default function Suppliers() {
       <div className="bg-white rounded-2xl shadow-sm p-5">
         <h2 className="font-bold text-gray-800 mb-4">{t('page_suppliers.title')}</h2>
 
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('page_suppliers.search_placeholder')}
+          className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
+        />
+
         <div className="divide-y mb-4">
           {suppliers.map((s) => (
             <Link key={s.id} to={`/suppliers/${s.id}`} className="flex items-center justify-between py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg">
@@ -54,9 +63,9 @@ export default function Suppliers() {
           {suppliers.length === 0 && <p className="text-sm text-gray-400 py-4">{t('page_suppliers.empty_state')}</p>}
         </div>
 
-        <form onSubmit={handleCreate} className="grid grid-cols-3 gap-2">
+        <form onSubmit={handleCreate} className="grid grid-cols-3 gap-2 items-start">
           <input placeholder={t('page_suppliers.placeholder_name')} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} required className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm col-span-3 sm:col-span-1" />
-          <input placeholder={t('page_suppliers.placeholder_category')} value={form.category} onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <TagsInput value={form.category} onChange={(v) => setForm((s) => ({ ...s, category: v }))} placeholder={t('page_suppliers.placeholder_category')} />
           <input placeholder={t('page_suppliers.placeholder_source')} value={form.source} onChange={(e) => setForm((s) => ({ ...s, source: e.target.value }))} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
           <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg col-span-3 sm:col-span-1">
             {saving ? t('page_suppliers.saving') : t('page_suppliers.add_button')}
