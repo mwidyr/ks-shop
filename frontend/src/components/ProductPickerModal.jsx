@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listProducts } from '../api/products'
+import { listCategories } from '../api/categories'
 import { resolveUrl } from '../utils/image'
 import { formatCurrency } from '../utils/format'
 import { IconChevronDown } from './icons'
 
 // Same product-search predicate as Inventory.jsx, so "find a product" behaves identically
-// everywhere in the app.
-function productMatches(product, q) {
+// everywhere in the app. Exported for reuse by PurchaseRequisitionDetail.jsx's inline picker.
+export function productMatches(product, q) {
   if (product.name.toLowerCase().includes(q)) return true
   if (product.sku && product.sku.toLowerCase().includes(q)) return true
   if (product.vendor_sku && product.vendor_sku.toLowerCase().includes(q)) return true
@@ -88,8 +89,10 @@ function PickerProductCard({ product, forceOpen, pending, setQty }) {
 export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
   const { t } = useTranslation()
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [pending, setPending] = useState({}) // variantId -> qty
 
   useEffect(() => {
@@ -97,6 +100,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
       setProducts(data.filter((p) => p.is_active))
       setLoading(false)
     })
+    listCategories().then(setCategories)
   }, [])
 
   function setQty(product, variant, qty) {
@@ -109,11 +113,11 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
   }
 
   const q = search.trim().toLowerCase()
-  const filtered = q
-    ? products.filter((p) => productMatches(p, q))
-    : supplierId
-      ? products.filter((p) => String(p.supplier_id) === String(supplierId))
-      : products
+  const filtered = products.filter((p) => {
+    if (categoryFilter && p.category !== categoryFilter) return false
+    if (q) return productMatches(p, q)
+    return supplierId ? String(p.supplier_id) === String(supplierId) : true
+  })
   const selectedCount = Object.keys(pending).length
 
   const variantIndex = useMemo(() => {
@@ -143,13 +147,19 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
             <h2 className="font-bold text-lg text-gray-800">{t('page_order_create.picker_title')}</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
           </div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('page_order_create.picker_search_placeholder')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            autoFocus
-          />
+          <div className="flex gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('page_order_create.picker_search_placeholder')}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              autoFocus
+            />
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
+              <option value="">{t('page_products.category_filter_all')}</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
           {supplierId && !q && (
             <p className="text-[11px] text-gray-400 mt-1.5">{t('page_purchases.picker_supplier_scoped_hint')}</p>
           )}

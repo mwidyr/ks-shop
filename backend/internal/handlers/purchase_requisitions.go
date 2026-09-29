@@ -16,6 +16,14 @@ import (
 // submitting the whole requisition creates one real Purchase Order per confirmed group via the
 // existing purchases.go machinery (createPurchaseTx) - this handler never touches stock or
 // purchase_items itself outside of that shared call.
+//
+// A requisition's status is a 3-state lifecycle: draft -> submitted -> completed (the
+// purchase_requisitions.status column stays a plain VARCHAR, matching orders.status/
+// purchases.status's existing convention - no CHECK constraint). Submit moves draft ->
+// submitted; Detail auto-completes submitted -> completed once every linked Purchase Order is
+// fully received (see the UPDATE at the top of Detail). REQ Detail remains the operational
+// workspace after submission too - PO status changes and receiving are driven from the same
+// page via the existing purchases.go endpoints, not a separate "go manage it in Purchases" step.
 type PurchaseRequisitionHandler struct {
 	DB *pgxpool.Pool
 }
@@ -106,6 +114,18 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	ctx := r.Context()
+
+	// A submitted requisition completes itself the moment every linked Purchase Order (one per
+	// confirmed supplier group) has been fully received - no manual "mark complete" step. Running
+	// this check on every fetch keeps the completion rule in exactly one place. Groups with no
+	// linked purchase_id (an empty group with zero items) are skipped rather than blocking.
+	h.DB.Exec(ctx, `
+		UPDATE purchase_requisitions SET status='completed', completed_at=now()
+		WHERE id=$1 AND status='submitted' AND NOT EXISTS (
+			SELECT 1 FROM purchase_requisition_suppliers prs
+			JOIN purchases p ON p.id = prs.purchase_id
+			WHERE prs.requisition_id=$1 AND p.status <> 'received'
+		)`, id)
 
 	var d requisitionDetailView
 	if err := h.DB.QueryRow(ctx, `
@@ -346,7 +366,10 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 
 // Submit creates one real Purchase Order per confirmed Supplier group (via the same
 // createPurchaseTx used by the quick-create Purchase Order flow) and marks the requisition
-// completed. Blocked until every Supplier group is confirmed (PDF point 09).
+// submitted (not completed - see Detail's auto-completion check: the requisition only becomes
+// Completed once every linked Purchase Order is fully received, and REQ Detail stays the
+// workspace for managing those POs after submission). Blocked until every Supplier group is
+// confirmed (PDF point 09).
 func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -369,7 +392,7 @@ func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if status != "draft" {
-		respondError(w, http.StatusBadRequest, "requisition already completed")
+		respondError(w, http.StatusBadRequest, "requisition is no longer a draft")
 		return
 	}
 
@@ -437,15 +460,15 @@ func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE purchase_requisitions SET status='completed', completed_at=now() WHERE id=$1`, id); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to complete requisition")
+	if _, err := tx.Exec(ctx, `UPDATE purchase_requisitions SET status='submitted' WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to submit requisition")
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]string{"status": "completed"})
+	respondJSON(w, http.StatusOK, map[string]string{"status": "submitted"})
 }
 
 // Delete removes a still-draft requisition entirely (cascades its supplier groups/items). A
