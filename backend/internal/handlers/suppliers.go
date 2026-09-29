@@ -40,6 +40,11 @@ type supplierView struct {
 	OrderMultiple       *int     `json:"order_multiple"`
 	MixedColorAllowed   bool     `json:"mixed_color_allowed"`
 	PackSetQty          *int     `json:"pack_set_qty"`
+	// Included on both List and Detail (not just Detail) so the list page can show exactly
+	// which field a text search matched (item 035's search already covers these sub-tables,
+	// but the UI had no way to show the hit) - see List below.
+	Contacts []supplierContactView `json:"contacts"`
+	Notes    []supplierNoteView    `json:"notes"`
 }
 
 const supplierSelect = `
@@ -92,13 +97,54 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	list := []supplierView{}
+	idIndex := map[int]int{}
 	for rows.Next() {
 		s, err := scanSupplier(rows)
 		if err != nil {
 			continue
 		}
+		s.Contacts = []supplierContactView{}
+		s.Notes = []supplierNoteView{}
+		idIndex[s.ID] = len(list)
 		list = append(list, s)
 	}
+
+	// Bulk-fetch every listed supplier's Contacts/Notes in two queries (not one per supplier) so
+	// the list page can show which field a text search matched (item 035) - contacts/notes live
+	// in child tables the base supplierSelect above never touches.
+	if crows, err := h.DB.Query(r.Context(), `
+		SELECT supplier_id, id, COALESCE(contact_name,''), method, value FROM supplier_contacts ORDER BY id`); err == nil {
+		defer crows.Close()
+		for crows.Next() {
+			var supplierID int
+			var c supplierContactView
+			if crows.Scan(&supplierID, &c.ID, &c.ContactName, &c.Method, &c.Value) != nil {
+				continue
+			}
+			if idx, ok := idIndex[supplierID]; ok {
+				list[idx].Contacts = append(list[idx].Contacts, c)
+			}
+		}
+	}
+	if nrows, err := h.DB.Query(r.Context(), `
+		SELECT sn.supplier_id, sn.id, sn.note, COALESCE(u.name,'-'), sn.created_at
+		FROM supplier_notes sn LEFT JOIN users u ON u.id = sn.created_by
+		ORDER BY sn.created_at DESC`); err == nil {
+		defer nrows.Close()
+		for nrows.Next() {
+			var supplierID int
+			var n supplierNoteView
+			var createdAt time.Time
+			if nrows.Scan(&supplierID, &n.ID, &n.Note, &n.CreatedBy, &createdAt) != nil {
+				continue
+			}
+			n.CreatedAt = createdAt.Format(time.RFC3339)
+			if idx, ok := idIndex[supplierID]; ok {
+				list[idx].Notes = append(list[idx].Notes, n)
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, list)
 }
 
@@ -132,8 +178,6 @@ type supplierProductView struct {
 
 type supplierDetailView struct {
 	supplierView
-	Contacts        []supplierContactView  `json:"contacts"`
-	Notes           []supplierNoteView     `json:"notes"`
 	PriceReferences []supplierPriceRefView `json:"price_references"`
 	Products        []supplierProductView  `json:"products"`
 }
@@ -152,7 +196,9 @@ func (h *SupplierHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "supplier not found")
 		return
 	}
-	detail := supplierDetailView{supplierView: base, Contacts: []supplierContactView{}, Notes: []supplierNoteView{}, PriceReferences: []supplierPriceRefView{}, Products: []supplierProductView{}}
+	base.Contacts = []supplierContactView{}
+	base.Notes = []supplierNoteView{}
+	detail := supplierDetailView{supplierView: base, PriceReferences: []supplierPriceRefView{}, Products: []supplierProductView{}}
 
 	if rows, err := h.DB.Query(r.Context(), `
 		SELECT id, COALESCE(contact_name,''), method, value FROM supplier_contacts WHERE supplier_id=$1 ORDER BY id`, id); err == nil {

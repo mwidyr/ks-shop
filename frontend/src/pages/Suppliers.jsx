@@ -49,17 +49,40 @@ export default function Suppliers() {
         />
 
         <div className="divide-y mb-4">
-          {suppliers.map((s) => (
-            <Link key={s.id} to={`/suppliers/${s.id}`} className="flex items-center justify-between py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{s.name}</p>
-                <p className="text-xs text-gray-500">{[s.category, s.contact_name, s.phone].filter(Boolean).join(' · ')}</p>
-              </div>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[s.status] || statusColors.active}`}>
-                {t(`page_suppliers.status_${s.status}`)}
+          {suppliers.map((s) => {
+            const q = search.trim().toLowerCase()
+            const hit = (text) => Boolean(q && text && text.toLowerCase().includes(q))
+            const chip = (label, text, key) => text && (
+              <span key={key} className={`px-1.5 py-0.5 rounded ${hit(text) ? 'bg-yellow-200 text-yellow-900 font-semibold' : 'text-gray-500'}`}>
+                {label}: {text}
               </span>
-            </Link>
-          ))}
+            )
+            return (
+              <Link key={s.id} to={`/suppliers/${s.id}`} className="block py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className={`text-sm font-medium ${hit(s.name) ? 'bg-yellow-200 text-yellow-900 px-1 rounded' : 'text-gray-800'}`}>{s.name}</p>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[s.status] || statusColors.active}`}>
+                    {t(`page_suppliers.status_${s.status}`)}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1 text-xs">
+                  {chip(t('page_suppliers.field_category'), s.category, 'category')}
+                  {chip(t('page_suppliers.field_source'), s.source, 'source')}
+                  {chip(t('page_suppliers.field_name'), s.contact_name, 'contact_name')}
+                  {chip(t('page_suppliers.contact_method_phone'), s.phone, 'phone')}
+                  {(s.contacts || []).map((c) => chip(
+                    [c.contact_name, t(`page_suppliers.contact_method_${c.method}`)].filter(Boolean).join(' · '),
+                    c.value, `contact-${c.id}`,
+                  ))}
+                </div>
+                {(s.notes || []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1 text-xs">
+                    {s.notes.map((n) => chip(t('page_suppliers.notes_title'), n.note, `note-${n.id}`))}
+                  </div>
+                )}
+              </Link>
+            )
+          })}
           {suppliers.length === 0 && <p className="text-sm text-gray-400 py-4">{t('page_suppliers.empty_state')}</p>}
         </div>
 

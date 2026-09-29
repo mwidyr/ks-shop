@@ -11,11 +11,22 @@ type DashboardHandler struct {
 	DB *pgxpool.Pool
 }
 
-// dateRange resolves the from/to query params to a [from, to) window.
+// dateRange resolves the from/to query params to a [from, to) window. Accepts both `from`/`to`
+// (Dashboard.jsx, Reports.jsx, performance-dashboard/host-analytics) and `date_from`/`date_to`
+// (Orders.jsx and the reports.go-backed pages: Products/Product Analysis/Color Pair
+// Analysis/Host Leaderboard) - two naming conventions grew up independently across this app's
+// API surface; reading either here means every caller works regardless of which one it sends,
+// rather than requiring every caller to agree on one name.
 // Defaults to "all time" (zero time -> now) when not provided.
 func dateRange(r *http.Request) (time.Time, time.Time, bool) {
 	q := r.URL.Query()
 	fromStr, toStr := q.Get("from"), q.Get("to")
+	if fromStr == "" {
+		fromStr = q.Get("date_from")
+	}
+	if toStr == "" {
+		toStr = q.Get("date_to")
+	}
 	if fromStr == "" && toStr == "" {
 		return time.Time{}, time.Time{}, false
 	}
