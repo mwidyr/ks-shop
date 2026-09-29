@@ -44,7 +44,7 @@ function RequisitionProductPicker({ requisitionId, onAdded }) {
 
   useEffect(() => {
     listProducts().then((data) => { setProducts(data.filter((p) => p.is_active)); setLoading(false) })
-    listCategories().then(setCategories)
+    listCategories().then((cats) => setCategories(cats.map((c) => c.name).sort()))
   }, [])
 
   const q = search.trim().toLowerCase()

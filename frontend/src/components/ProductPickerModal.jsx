@@ -100,7 +100,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
       setProducts(data.filter((p) => p.is_active))
       setLoading(false)
     })
-    listCategories().then(setCategories)
+    listCategories().then((cats) => setCategories(cats.map((c) => c.name).sort()))
   }, [])
 
   function setQty(product, variant, qty) {
