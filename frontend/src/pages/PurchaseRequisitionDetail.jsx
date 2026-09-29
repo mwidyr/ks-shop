@@ -96,7 +96,7 @@ function RequisitionProductPicker({ requisitionId, onAdded }) {
 
       {warning && <p className="text-xs text-amber-600">{warning}</p>}
 
-      <div className="max-h-96 overflow-y-auto -mx-1 px-1">
+      <div className="max-h-[32rem] overflow-y-auto -mx-1 px-1">
         {loading ? (
           <p className="text-center text-gray-400 py-6 text-sm">{t('common.loading')}</p>
         ) : filtered.length === 0 ? (
@@ -125,25 +125,31 @@ function RequisitionProductPicker({ requisitionId, onAdded }) {
                   <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isOpen && (
-                  <div className="border-t border-gray-100 p-3 space-y-2">
-                    {product.variants.filter((v) => v.is_active !== false).map((v) => (
-                      <div key={v.id} className="flex items-center gap-3 text-sm">
-                        <span className="flex-1 text-gray-700">{v.color}/{v.size} · <span className="font-mono text-xs text-gray-400">{v.sku}</span></span>
-                        <input
-                          type="number" min="0" value={qtyMap[v.id] || ''}
-                          onChange={(e) => setQty(product.id, v.id, e.target.value)}
-                          placeholder="0"
-                          className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                        />
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => handleAdd(product)}
-                      disabled={addingId === product.id || selectedCount === 0}
-                      className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg"
-                    >
-                      {addingId === product.id ? t('page_purchase_requisitions.adding') : t('page_purchase_requisitions.add_to_requisition')}
-                    </button>
+                  <div className="border-t border-gray-100">
+                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 max-h-56 overflow-y-auto">
+                      {product.variants.filter((v) => v.is_active !== false).map((v) => (
+                        <div key={v.id} className="flex items-center gap-3 text-sm">
+                          <span className="flex-1 text-gray-700">{v.color}/{v.size} · <span className="font-mono text-xs text-gray-400">{v.sku}</span></span>
+                          <input
+                            type="number" min="0" value={qtyMap[v.id] || ''}
+                            onChange={(e) => setQty(product.id, v.id, e.target.value)}
+                            placeholder="0"
+                            className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {/* Static footer (not part of the scroll area above) so Add stays visible
+                        for this product regardless of how many variants it has. */}
+                    <div className="border-t border-gray-100 p-3">
+                      <button
+                        onClick={() => handleAdd(product)}
+                        disabled={addingId === product.id || selectedCount === 0}
+                        className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg"
+                      >
+                        {addingId === product.id ? t('page_purchase_requisitions.adding') : t('page_purchase_requisitions.add_to_requisition')}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -447,7 +453,7 @@ export default function PurchaseRequisitionDetail() {
   const allConfirmed = detail.suppliers.length > 0 && detail.suppliers.every((g) => g.status === 'confirmed')
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-4xl space-y-4">
+    <div className="px-4 sm:px-6 py-6 max-w-6xl space-y-4">
       <button onClick={() => navigate('/purchase-requisitions')} className="text-sm text-gray-500 hover:text-gray-800">
         ← {t('page_purchase_requisitions.back_button')}
       </button>
