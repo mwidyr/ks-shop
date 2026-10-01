@@ -33,7 +33,11 @@ function PickerVariantRow({ product, variant, qty, onChangeQty }) {
       <td className="p-3">
         <div className="flex items-center justify-end gap-1.5">
           <button type="button" onClick={() => onChangeQty(Math.max(0, qty - 1))} disabled={qty <= 0} className="w-7 h-7 rounded-lg border border-gray-300 text-gray-600 disabled:opacity-40">−</button>
-          <span className="w-8 text-center text-sm font-mono">{qty}</span>
+          <input
+            type="number" min="0" value={qty}
+            onChange={(e) => onChangeQty(Math.max(0, Number(e.target.value) || 0))}
+            className="w-14 text-center text-sm font-mono border border-gray-300 rounded-lg py-1"
+          />
           <button type="button" onClick={() => onChangeQty(qty + 1)} className="w-7 h-7 rounded-lg bg-brand-600 text-white hover:bg-brand-700">+</button>
         </div>
       </td>

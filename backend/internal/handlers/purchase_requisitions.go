@@ -10,24 +10,34 @@ import (
 	appmw "ordermgmt/internal/middleware"
 )
 
-// PurchaseRequisitionHandler implements the "Purchase Requisition & Procurement Workflow" PDF:
-// pick Products first (not Suppliers), the system auto-groups the picked items by their
-// product's Supplier, each Supplier group is confirmed independently (qty/cost/dates), and
-// submitting the whole requisition creates one real Purchase Order per confirmed group via the
-// existing purchases.go machinery (createPurchaseTx) - this handler never touches stock or
-// purchase_items itself outside of that shared call.
+// PurchaseRequisitionHandler implements the "Purchase Requisition & Procurement Workflow" PDF
+// and its follow-up "Purchase Requisitions - Adjustments" PDF: pick Products first (not
+// Suppliers), the system auto-groups the picked items by their product's Supplier, each Supplier
+// group is confirmed independently (qty/cost), and confirming the order creates one real
+// Purchase Order per confirmed group via the existing purchases.go machinery (createPurchaseTx)
+// - this handler never touches stock or purchase_items itself outside of that shared call.
 //
-// A requisition's status is a 3-state lifecycle: draft -> submitted -> completed (the
-// purchase_requisitions.status column stays a plain VARCHAR, matching orders.status/
-// purchases.status's existing convention - no CHECK constraint). Submit moves draft ->
-// submitted; Detail auto-completes submitted -> completed once every linked Purchase Order is
-// fully received (see the UPDATE at the top of Detail). REQ Detail remains the operational
-// workspace after submission too - PO status changes and receiving are driven from the same
-// page via the existing purchases.go endpoints, not a separate "go manage it in Purchases" step.
+// A requisition's status is a 4-state lifecycle: draft -> pending_contact -> ordered -> completed
+// (the purchase_requisitions.status column stays a plain VARCHAR, matching orders.status/
+// purchases.status's existing convention - no CHECK constraint).
+//   - SubmitForConfirmation moves draft -> pending_contact (no side effects, just opens the
+//     requisition up for per-supplier confirmation).
+//   - ConfirmOrder moves pending_contact -> ordered, and is the moment real Purchase Orders are
+//     created (one per confirmed Supplier group) - blocked until every group is confirmed.
+//   - Detail auto-completes ordered -> completed once every linked Purchase Order is fully
+//     received (see the UPDATE at the top of Detail).
+//
+// REQ Detail remains the operational workspace throughout - PO status changes and receiving are
+// driven from the same page via the existing purchases.go endpoints, not a separate "go manage
+// it in Purchases" step.
 type PurchaseRequisitionHandler struct {
 	DB *pgxpool.Pool
 }
 
+// validRequisitionSupplierStatuses are the per-Supplier-group confirmation values (unchanged
+// data values from the original build - only the UI label for "pending_contact" changed, from
+// "Pending Contact" to "Waiting", to avoid colliding with the new requisition-level
+// "Pending Contact" status introduced by the Adjustments PDF).
 var validRequisitionSupplierStatuses = map[string]bool{"pending_contact": true, "confirmed": true}
 
 type requisitionListItem struct {
@@ -35,7 +45,7 @@ type requisitionListItem struct {
 	RequisitionNo string  `json:"requisition_no"`
 	Status        string  `json:"status"`
 	SupplierCount int     `json:"supplier_count"`
-	TotalPlanned  float64 `json:"total_planned_amount"`
+	TotalAmount   float64 `json:"total_amount"`
 	CreatedAt     string  `json:"created_at"`
 	CompletedAt   *string `json:"completed_at"`
 }
@@ -45,7 +55,7 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 		SELECT pr.id, pr.requisition_no, pr.status, pr.created_at::text, pr.completed_at::text,
 		       COALESCE((SELECT COUNT(*) FROM purchase_requisition_suppliers prs WHERE prs.requisition_id = pr.id), 0),
 		       COALESCE((
-		           SELECT SUM(pri.planned_qty * COALESCE(pri.unit_cost, pv.cost_price, 0))
+		           SELECT SUM(COALESCE(pri.confirmed_qty, pri.planned_qty) * COALESCE(pri.unit_cost, pv.cost_price, 0))
 		           FROM purchase_requisition_suppliers prs
 		           JOIN purchase_requisition_items pri ON pri.requisition_supplier_id = prs.id
 		           JOIN product_variants pv ON pv.id = pri.variant_id
@@ -62,7 +72,7 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 	list := []requisitionListItem{}
 	for rows.Next() {
 		var it requisitionListItem
-		if err := rows.Scan(&it.ID, &it.RequisitionNo, &it.Status, &it.CreatedAt, &it.CompletedAt, &it.SupplierCount, &it.TotalPlanned); err != nil {
+		if err := rows.Scan(&it.ID, &it.RequisitionNo, &it.Status, &it.CreatedAt, &it.CompletedAt, &it.SupplierCount, &it.TotalAmount); err != nil {
 			continue
 		}
 		list = append(list, it)
@@ -85,26 +95,26 @@ type requisitionItemView struct {
 }
 
 type requisitionSupplierView struct {
-	ID                  int                   `json:"id"`
-	SupplierID          int                   `json:"supplier_id"`
-	SupplierName        string                `json:"supplier_name"`
-	Status              string                `json:"status"`
-	ExpectedShipDate    *string               `json:"expected_ship_date"`
-	ActualShipDate      *string               `json:"actual_ship_date"`
-	ExpectedArrivalDate *string               `json:"expected_arrival_date"`
-	Notes               string                `json:"notes"`
-	PurchaseID          *int                  `json:"purchase_id"`
-	PONumber            *string               `json:"po_number"`
-	Items               []requisitionItemView `json:"items"`
+	ID           int                   `json:"id"`
+	SupplierID   int                   `json:"supplier_id"`
+	SupplierName string                `json:"supplier_name"`
+	Status       string                `json:"status"`
+	Notes        string                `json:"notes"`
+	PurchaseID   *int                  `json:"purchase_id"`
+	PONumber     *string               `json:"po_number"`
+	Items        []requisitionItemView `json:"items"`
 }
 
 type requisitionDetailView struct {
-	ID            int                       `json:"id"`
-	RequisitionNo string                    `json:"requisition_no"`
-	Status        string                    `json:"status"`
-	CreatedAt     string                    `json:"created_at"`
-	CompletedAt   *string                   `json:"completed_at"`
-	Suppliers     []requisitionSupplierView `json:"suppliers"`
+	ID              int                       `json:"id"`
+	RequisitionNo   string                    `json:"requisition_no"`
+	Status          string                    `json:"status"`
+	CreatedAt       string                    `json:"created_at"`
+	UpdatedAt       string                    `json:"updated_at"`
+	CompletedAt     *string                   `json:"completed_at"`
+	CreatedByName   string                    `json:"created_by_name"`
+	Note            string                    `json:"note"`
+	Suppliers       []requisitionSupplierView `json:"suppliers"`
 }
 
 func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Request) {
@@ -115,13 +125,13 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	}
 	ctx := r.Context()
 
-	// A submitted requisition completes itself the moment every linked Purchase Order (one per
+	// An Ordered requisition completes itself the moment every linked Purchase Order (one per
 	// confirmed supplier group) has been fully received - no manual "mark complete" step. Running
 	// this check on every fetch keeps the completion rule in exactly one place. Groups with no
 	// linked purchase_id (an empty group with zero items) are skipped rather than blocking.
 	h.DB.Exec(ctx, `
 		UPDATE purchase_requisitions SET status='completed', completed_at=now()
-		WHERE id=$1 AND status='submitted' AND NOT EXISTS (
+		WHERE id=$1 AND status='ordered' AND NOT EXISTS (
 			SELECT 1 FROM purchase_requisition_suppliers prs
 			JOIN purchases p ON p.id = prs.purchase_id
 			WHERE prs.requisition_id=$1 AND p.status <> 'received'
@@ -129,16 +139,18 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 
 	var d requisitionDetailView
 	if err := h.DB.QueryRow(ctx, `
-		SELECT id, requisition_no, status, created_at::text, completed_at::text
-		FROM purchase_requisitions WHERE id=$1`, id).
-		Scan(&d.ID, &d.RequisitionNo, &d.Status, &d.CreatedAt, &d.CompletedAt); err != nil {
+		SELECT pr.id, pr.requisition_no, pr.status, pr.created_at::text, pr.updated_at::text, pr.completed_at::text,
+		       COALESCE(u.name, ''), COALESCE(pr.note, '')
+		FROM purchase_requisitions pr
+		LEFT JOIN users u ON u.id = pr.created_by
+		WHERE pr.id=$1`, id).
+		Scan(&d.ID, &d.RequisitionNo, &d.Status, &d.CreatedAt, &d.UpdatedAt, &d.CompletedAt, &d.CreatedByName, &d.Note); err != nil {
 		respondError(w, http.StatusNotFound, "requisition not found")
 		return
 	}
 
 	supRows, err := h.DB.Query(ctx, `
-		SELECT prs.id, prs.supplier_id, s.name, prs.status, prs.expected_ship_date::text, prs.actual_ship_date::text,
-		       prs.expected_arrival_date::text, COALESCE(prs.notes,''), prs.purchase_id, p.po_number
+		SELECT prs.id, prs.supplier_id, s.name, prs.status, COALESCE(prs.notes,''), prs.purchase_id, p.po_number
 		FROM purchase_requisition_suppliers prs
 		JOIN suppliers s ON s.id = prs.supplier_id
 		LEFT JOIN purchases p ON p.id = prs.purchase_id
@@ -150,8 +162,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	d.Suppliers = []requisitionSupplierView{}
 	for supRows.Next() {
 		var sv requisitionSupplierView
-		if err := supRows.Scan(&sv.ID, &sv.SupplierID, &sv.SupplierName, &sv.Status, &sv.ExpectedShipDate, &sv.ActualShipDate,
-			&sv.ExpectedArrivalDate, &sv.Notes, &sv.PurchaseID, &sv.PONumber); err != nil {
+		if err := supRows.Scan(&sv.ID, &sv.SupplierID, &sv.SupplierName, &sv.Status, &sv.Notes, &sv.PurchaseID, &sv.PONumber); err != nil {
 			continue
 		}
 		sv.Items = []requisitionItemView{}
@@ -204,16 +215,43 @@ func (h *PurchaseRequisitionHandler) Create(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
 
+type updateRequisitionRequest struct {
+	Note *string `json:"note"`
+}
+
+// UpdateRequisition sets the requisition-level Note (distinct from each Supplier group's own
+// note) from the header's "Edit" action.
+func (h *PurchaseRequisitionHandler) UpdateRequisition(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid requisition id")
+		return
+	}
+	var req updateRequisitionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Note != nil {
+		if _, err := h.DB.Exec(r.Context(), `UPDATE purchase_requisitions SET note=$1, updated_at=now() WHERE id=$2`, *req.Note, id); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update requisition")
+			return
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 type addRequisitionItemRequest struct {
 	VariantID  int `json:"variant_id"`
 	PlannedQty int `json:"planned_qty"`
 }
 
-// AddItem adds one product's variant + Planned QTY to the requisition (PDF point 02: products
-// are added one at a time). The Supplier is auto-detected from the variant's product and the
-// item is grouped into (or merged with) that Supplier's group automatically - the caller never
-// picks a supplier. Adding the same variant again updates its planned_qty rather than erroring,
-// so re-opening a product and changing the qty just works.
+// AddItem adds one product's variant + Planned QTY to the requisition. The Supplier is
+// auto-detected from the variant's product and the item is grouped into (or merged with) that
+// Supplier's group automatically - the caller never picks a supplier. Adding the same variant
+// again updates its planned_qty rather than erroring, so re-opening a product and changing the
+// qty just works. Allowed in both Draft and Pending Contact (Planned QTY stays editable through
+// Pending Contact per the Adjustments PDF), locked once Ordered.
 func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 	requisitionID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -232,8 +270,8 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		respondError(w, http.StatusNotFound, "requisition not found")
 		return
 	}
-	if status != "draft" {
-		respondError(w, http.StatusBadRequest, "requisition is no longer a draft")
+	if status != "draft" && status != "pending_contact" {
+		respondError(w, http.StatusBadRequest, "requisition is no longer open for product changes")
 		return
 	}
 
@@ -267,6 +305,7 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		respondError(w, http.StatusInternalServerError, "failed to add item")
 		return
 	}
+	h.DB.Exec(ctx, `UPDATE purchase_requisitions SET updated_at=now() WHERE id=$1`, requisitionID)
 
 	rules := resolvePurchaseRules(ctx, h.DB, productID)
 	var unitPrice float64
@@ -286,6 +325,12 @@ func (h *PurchaseRequisitionHandler) RemoveItem(w http.ResponseWriter, r *http.R
 		respondError(w, http.StatusInternalServerError, "failed to remove item")
 		return
 	}
+	h.DB.Exec(r.Context(), `
+		UPDATE purchase_requisitions SET updated_at=now() WHERE id=(
+			SELECT prs.requisition_id FROM purchase_requisition_suppliers prs
+			JOIN purchase_requisition_items pri ON pri.requisition_supplier_id = prs.id
+			WHERE pri.id=$1
+		)`, itemID)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -296,18 +341,16 @@ type confirmItemUpdate struct {
 }
 
 type updateSupplierGroupRequest struct {
-	Status              *string             `json:"status"`
-	ExpectedShipDate    *string             `json:"expected_ship_date"`
-	ActualShipDate      *string             `json:"actual_ship_date"`
-	ExpectedArrivalDate *string             `json:"expected_arrival_date"`
-	Notes               *string             `json:"notes"`
-	Items               []confirmItemUpdate `json:"items"`
+	Status *string             `json:"status"`
+	Notes  *string             `json:"notes"`
+	Items  []confirmItemUpdate `json:"items"`
 }
 
-// UpdateSupplierGroup is the Supplier Confirmation step (PDF point 06-08): per-item Confirmed
-// QTY/Unit Cost, plus the group's dates/notes/status. Setting status='confirmed' without an
-// explicit confirmed_qty/unit_cost for an item defaults it to planned_qty / the product's
-// current cost_price, per spec point 08 ("default Unit Cost taken from existing Product data").
+// UpdateSupplierGroup is the Supplier Confirmation step: per-item Confirmed QTY/Unit Cost, plus
+// the group's note/status. Setting status='confirmed' without an explicit confirmed_qty/unit_cost
+// for an item defaults it to planned_qty / the product's current cost_price. The frontend only
+// exposes this while the requisition is Pending Contact (per the Adjustments PDF), but the
+// backend doesn't need its own extra gate beyond the existing status enum check.
 func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, r *http.Request) {
 	groupID, err := strconv.Atoi(chi.URLParam(r, "supplierGroupId"))
 	if err != nil {
@@ -334,15 +377,6 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 		}
 	}
 
-	if req.ExpectedShipDate != nil {
-		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET expected_ship_date=NULLIF($1,'')::date WHERE id=$2`, *req.ExpectedShipDate, groupID)
-	}
-	if req.ActualShipDate != nil {
-		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET actual_ship_date=NULLIF($1,'')::date WHERE id=$2`, *req.ActualShipDate, groupID)
-	}
-	if req.ExpectedArrivalDate != nil {
-		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET expected_arrival_date=NULLIF($1,'')::date WHERE id=$2`, *req.ExpectedArrivalDate, groupID)
-	}
 	if req.Notes != nil {
 		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET notes=$1 WHERE id=$2`, *req.Notes, groupID)
 	}
@@ -360,17 +394,53 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 	if req.Status != nil {
 		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET status=$1 WHERE id=$2`, *req.Status, groupID)
 	}
+	h.DB.Exec(ctx, `
+		UPDATE purchase_requisitions SET updated_at=now()
+		WHERE id=(SELECT requisition_id FROM purchase_requisition_suppliers WHERE id=$1)`, groupID)
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Submit creates one real Purchase Order per confirmed Supplier group (via the same
+// SubmitForConfirmation moves Draft -> Pending Contact: no side effects besides the status flip -
+// it just opens the requisition up for per-Supplier confirmation. Requires at least one item.
+func (h *PurchaseRequisitionHandler) SubmitForConfirmation(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid requisition id")
+		return
+	}
+	ctx := r.Context()
+
+	var status string
+	if err := h.DB.QueryRow(ctx, `SELECT status FROM purchase_requisitions WHERE id=$1`, id).Scan(&status); err != nil {
+		respondError(w, http.StatusNotFound, "requisition not found")
+		return
+	}
+	if status != "draft" {
+		respondError(w, http.StatusBadRequest, "requisition is no longer a draft")
+		return
+	}
+	var groupCount int
+	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM purchase_requisition_suppliers WHERE requisition_id=$1`, id).Scan(&groupCount)
+	if groupCount == 0 {
+		respondError(w, http.StatusBadRequest, "requisition has no items")
+		return
+	}
+
+	if _, err := h.DB.Exec(ctx, `UPDATE purchase_requisitions SET status='pending_contact', updated_at=now() WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to submit requisition")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "pending_contact"})
+}
+
+// ConfirmOrder creates one real Purchase Order per confirmed Supplier group (via the same
 // createPurchaseTx used by the quick-create Purchase Order flow) and marks the requisition
-// submitted (not completed - see Detail's auto-completion check: the requisition only becomes
+// Ordered (not Completed - see Detail's auto-completion check: the requisition only becomes
 // Completed once every linked Purchase Order is fully received, and REQ Detail stays the
-// workspace for managing those POs after submission). Blocked until every Supplier group is
-// confirmed (PDF point 09).
-func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Request) {
+// workspace for managing those POs after confirming). Blocked until every Supplier group is
+// confirmed.
+func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid requisition id")
@@ -391,8 +461,8 @@ func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Reque
 		respondError(w, http.StatusNotFound, "requisition not found")
 		return
 	}
-	if status != "draft" {
-		respondError(w, http.StatusBadRequest, "requisition is no longer a draft")
+	if status != "pending_contact" {
+		respondError(w, http.StatusBadRequest, "requisition must be Pending Contact to confirm the order")
 		return
 	}
 
@@ -421,7 +491,7 @@ func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Reque
 	}
 	for _, g := range groups {
 		if g.Status != "confirmed" {
-			respondError(w, http.StatusBadRequest, "every supplier group must be confirmed before submitting")
+			respondError(w, http.StatusBadRequest, "every supplier group must be confirmed before confirming the order")
 			return
 		}
 	}
@@ -460,20 +530,21 @@ func (h *PurchaseRequisitionHandler) Submit(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE purchase_requisitions SET status='submitted' WHERE id=$1`, id); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to submit requisition")
+	if _, err := tx.Exec(ctx, `UPDATE purchase_requisitions SET status='ordered', updated_at=now() WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to confirm order")
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]string{"status": "submitted"})
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ordered"})
 }
 
-// Delete removes a still-draft requisition entirely (cascades its supplier groups/items). A
-// completed requisition's real Purchase Orders are managed from Purchases as usual - this
-// never deletes those.
+// Delete removes a requisition that hasn't produced any real Purchase Orders yet (Draft or
+// Pending Contact - POs are only created at ConfirmOrder). Cascades its supplier groups/items. A
+// requisition past that point has real linked Purchase Orders managed from Purchases as usual -
+// this never deletes those.
 func (h *PurchaseRequisitionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -485,8 +556,8 @@ func (h *PurchaseRequisitionHandler) Delete(w http.ResponseWriter, r *http.Reque
 		respondError(w, http.StatusNotFound, "requisition not found")
 		return
 	}
-	if status != "draft" {
-		respondError(w, http.StatusBadRequest, "only a draft requisition can be deleted")
+	if status != "draft" && status != "pending_contact" {
+		respondError(w, http.StatusBadRequest, "only a Draft or Pending Contact requisition can be deleted")
 		return
 	}
 	if _, err := h.DB.Exec(r.Context(), `DELETE FROM purchase_requisitions WHERE id=$1`, id); err != nil {

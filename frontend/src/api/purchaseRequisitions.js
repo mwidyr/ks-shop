@@ -12,6 +12,10 @@ export function createPurchaseRequisition() {
   return client.post('/purchase-requisitions', {}).then((res) => res.data)
 }
 
+export function updatePurchaseRequisition(id, payload) {
+  return client.patch(`/purchase-requisitions/${id}`, payload).then((res) => res.data)
+}
+
 export function deletePurchaseRequisition(id) {
   return client.delete(`/purchase-requisitions/${id}`).then((res) => res.data)
 }
@@ -28,6 +32,10 @@ export function updateRequisitionSupplierGroup(groupId, payload) {
   return client.patch(`/purchase-requisitions/supplier-groups/${groupId}`, payload).then((res) => res.data)
 }
 
-export function submitPurchaseRequisition(id) {
-  return client.post(`/purchase-requisitions/${id}/submit`).then((res) => res.data)
+export function submitForConfirmation(id) {
+  return client.post(`/purchase-requisitions/${id}/submit-for-confirmation`).then((res) => res.data)
+}
+
+export function confirmOrder(id) {
+  return client.post(`/purchase-requisitions/${id}/confirm-order`).then((res) => res.data)
 }
