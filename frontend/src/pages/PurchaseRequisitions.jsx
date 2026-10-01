@@ -110,7 +110,7 @@ export default function PurchaseRequisitions() {
       </div>
 
       <p className="text-xs text-gray-400 mt-3">
-        {t('page_purchase_requisitions.legacy_hint')} <Link to="/purchases" className="text-brand-600 hover:underline">{t('page_purchases.title')}</Link>
+        {t('page_purchase_requisitions.legacy_hint')} <Link to="/purchases" className="text-brand-600 hover:underline">{t('nav.items.purchases')}</Link>
       </p>
     </div>
   )
