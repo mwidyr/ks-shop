@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listActivityLog } from '../api/activityLog'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 export default function AuditLog() {
   const { t } = useTranslation()
@@ -48,36 +49,36 @@ export default function AuditLog() {
 
   return (
     <div className="px-4 sm:px-6 py-6">
-      <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className={`${cardClasses} overflow-x-auto`}>
+        <table className={tableClasses}>
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-3">{t('page_audit_log.col_time')}</th>
-              <th className="p-3">{t('page_audit_log.col_actor')}</th>
-              <th className="p-3">{t('page_audit_log.col_entity')}</th>
-              <th className="p-3">{t('page_audit_log.col_action')}</th>
-              <th className="p-3">{t('page_audit_log.col_detail')}</th>
+            <tr className={theadRowClasses}>
+              <th className="p-3.5">{t('page_audit_log.col_time')}</th>
+              <th className="p-3.5">{t('page_audit_log.col_actor')}</th>
+              <th className="p-3.5">{t('page_audit_log.col_entity')}</th>
+              <th className="p-3.5">{t('page_audit_log.col_action')}</th>
+              <th className="p-3.5">{t('page_audit_log.col_detail')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className={tbodyClasses}>
             {!loading && items.length === 0 && (
-              <tr><td colSpan={5} className="p-6 text-center text-gray-400">{t('page_audit_log.empty_state')}</td></tr>
+              <tr><td colSpan={5} className="p-6 text-center text-[var(--text-secondary)]">{t('page_audit_log.empty_state')}</td></tr>
             )}
             {items.map((e, i) => (
-              <tr key={i}>
-                <td className="p-3 text-gray-500 whitespace-nowrap">{new Date(e.created_at).toLocaleString('en-US')}</td>
-                <td className="p-3 font-medium text-gray-800">{e.actor_name}</td>
-                <td className="p-3 font-mono text-xs text-gray-600">{entityLabels[e.entity_type] || e.entity_type} #{e.entity_id}</td>
-                <td className="p-3 text-gray-700">{actionLabel(e.action)}</td>
-                <td className="p-3 text-gray-500">{e.detail}</td>
+              <tr key={i} className={rowClasses}>
+                <td className="p-3.5 text-[var(--text-secondary)] whitespace-nowrap">{new Date(e.created_at).toLocaleString('en-US')}</td>
+                <td className="p-3.5 font-medium text-[var(--text-primary)]">{e.actor_name}</td>
+                <td className="p-3.5 font-mono text-xs text-[var(--text-secondary)]">{entityLabels[e.entity_type] || e.entity_type} #{e.entity_id}</td>
+                <td className="p-3.5 text-[var(--text-primary)]">{actionLabel(e.action)}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{e.detail}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <div className="flex justify-end gap-2 mt-3">
-        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 disabled:opacity-40">{t('page_audit_log.prev')}</button>
-        <button onClick={() => setPage((p) => p + 1)} disabled={items.length < 50} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 disabled:opacity-40">{t('page_audit_log.next')}</button>
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="text-sm px-3 py-1.5 rounded-lg border border-[var(--table-divider)] text-[var(--text-secondary)] disabled:opacity-40">{t('page_audit_log.prev')}</button>
+        <button onClick={() => setPage((p) => p + 1)} disabled={items.length < 50} className="text-sm px-3 py-1.5 rounded-lg border border-[var(--table-divider)] text-[var(--text-secondary)] disabled:opacity-40">{t('page_audit_log.next')}</button>
       </div>
     </div>
   )

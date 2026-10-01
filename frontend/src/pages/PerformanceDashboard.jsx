@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPerformanceSummary, getHostRanking, getPerformanceData } from '../api/performanceDashboard'
 import { listLocations } from '../api/hostLocations'
+import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import SalesChannelFilter from '../components/SalesChannelFilter'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
 // Business Timezone is Asia/Jakarta (confirmed by the client's own HeatMap tab) - day-boundary
 // math here follows the same plain-local-date convention every other date picker in this app
@@ -107,11 +109,14 @@ function PeriodPicker({ value, onChange }) {
   )
 }
 
+const statMetricType = { QTY: 'qty', ORD: 'ord', GMV: 'gmv' }
+
 function StatCard({ label, value }) {
+  const type = statMetricType[label]
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4">
-      <p className="text-[11px] uppercase text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-800">{value}</p>
+    <div className={`${cardClasses} p-4`}>
+      <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{label}</p>
+      {type ? <Metric type={type} className="text-lg">{value}</Metric> : <p className="text-lg font-bold text-[var(--text-primary)]">{value}</p>}
     </div>
   )
 }
@@ -157,6 +162,8 @@ export default function PerformanceDashboard() {
   const { t } = useTranslation()
   const [locations, setLocations] = useState([])
   const [locationId, setLocationId] = useState('')
+  const [hosts, setHosts] = useState([])
+  const [hostId, setHostId] = useState('')
   const [channel, setChannel] = useState('all')
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
@@ -169,11 +176,13 @@ export default function PerformanceDashboard() {
 
   useEffect(() => { listLocations().then(setLocations) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
+  useEffect(() => { listHosts(false, locationId || undefined).then(setHosts) }, [locationId])
 
   useEffect(() => {
     setLoading(true)
     const filters = {
       locationId: channel === 'live' ? (locationId || undefined) : undefined,
+      hostId: channel === 'live' ? (hostId || undefined) : undefined,
       from: range.from, to: range.to, channel,
       affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
     }
@@ -187,7 +196,14 @@ export default function PerformanceDashboard() {
       setPerfData(p)
       setLoading(false)
     })
-  }, [locationId, range, sort, channel, affiliateId])
+  }, [locationId, hostId, range, sort, channel, affiliateId])
+
+  const selectedLocationName = locationId ? locations.find((l) => String(l.id) === String(locationId))?.name : null
+  const selectedHostName = hostId ? hosts.find((h) => String(h.id) === String(hostId))?.name : null
+  const titleParts = [selectedLocationName, selectedHostName].filter(Boolean)
+  const dashboardTitle = channel === 'live'
+    ? (titleParts.length ? titleParts.join(' — ') : t('page_performance_dashboard.all_locations_agents'))
+    : null
 
   function toggleSort(key) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }))
@@ -197,20 +213,25 @@ export default function PerformanceDashboard() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+      <div className={`${cardClasses} p-4 space-y-3`}>
         <SalesChannelFilter
           channel={channel} onChannelChange={setChannel}
           locationId={locationId} onLocationChange={setLocationId} locations={locations}
+          hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
         <PeriodPicker value={range} onChange={setRange} />
       </div>
 
+      {dashboardTitle && (
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{dashboardTitle}</h1>
+      )}
+
       {loading || !summary ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">{t('common.loading')}</div>
+        <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard label="QTY" value={fmtNum(summary.qty)} />
             <StatCard label="ORD" value={fmtNum(summary.ord)} />
             <StatCard label="GMV" value={fmtMoney(summary.gmv)} />
@@ -219,42 +240,42 @@ export default function PerformanceDashboard() {
             <StatCard label="AOV" value={fmtMoney(summary.aov)} />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-            <h2 className="font-bold text-gray-800 mb-4">{t('page_performance_dashboard.host_ranking_title')}</h2>
-            <table className="w-full text-sm">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_performance_dashboard.host_ranking_title')}</h2>
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="p-2">#</th>
                   <th className="p-2">{t('page_performance_dashboard.col_host')}</th>
                   {showLocationColumn && <th className="p-2">{t('page_performance_dashboard.col_location')}</th>}
                   <th className="p-2">GMV</th><th className="p-2">ORD</th><th className="p-2">QTY</th><th className="p-2">AOV</th><th className="p-2">GMV%</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {ranking.map((row, i) => (
-                  <tr key={row.host_id}>
-                    <td className="p-2 text-gray-400">{i + 1}</td>
-                    <td className="p-2 font-medium text-gray-700">{row.host}</td>
-                    {showLocationColumn && <td className="p-2 text-gray-500">{row.location_name}</td>}
-                    <td className="p-2 font-semibold text-gray-700">{fmtMoney(row.gmv)}</td>
-                    <td className="p-2 text-gray-500">{fmtNum(row.ord)}</td>
-                    <td className="p-2 text-gray-500">{fmtNum(row.qty)}</td>
-                    <td className="p-2 text-gray-500">{fmtMoney(row.aov)}</td>
-                    <td className="p-2 text-gray-500">{fmtPct(row.gmv_pct)}</td>
+                  <tr key={row.host_id} className={rowClasses}>
+                    <td className="p-2 text-[var(--text-secondary)]">{i + 1}</td>
+                    <td className="p-2 font-medium text-[var(--text-primary)]">{row.host}</td>
+                    {showLocationColumn && <td className="p-2 text-[var(--text-secondary)]">{row.location_name}</td>}
+                    <td className="p-2"><Metric type="gmv">{fmtMoney(row.gmv)}</Metric></td>
+                    <td className="p-2"><Metric type="ord">{fmtNum(row.ord)}</Metric></td>
+                    <td className="p-2"><Metric type="qty">{fmtNum(row.qty)}</Metric></td>
+                    <td className="p-2 text-[var(--text-secondary)]">{fmtMoney(row.aov)}</td>
+                    <td className="p-2 text-[var(--text-secondary)]">{fmtPct(row.gmv_pct)}</td>
                   </tr>
                 ))}
                 {ranking.length === 0 && (
-                  <tr><td colSpan={showLocationColumn ? 8 : 7} className="p-6 text-center text-gray-400">{t('page_performance_dashboard.no_hosts_in_range')}</td></tr>
+                  <tr><td colSpan={showLocationColumn ? 8 : 7} className="p-6 text-center text-[var(--text-secondary)]">{t('page_performance_dashboard.no_hosts_in_range')}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-            <h2 className="font-bold text-gray-800 mb-4">{t('page_performance_dashboard.performance_data_title')}</h2>
-            <table className="w-full text-sm">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_performance_dashboard.performance_data_title')}</h2>
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="p-2">{t('page_performance_dashboard.col_host')}</th>
                   {showLocationColumn && <th className="p-2">{t('page_performance_dashboard.col_location')}</th>}
                   {perfDataColumns.map((c) => (
@@ -264,18 +285,23 @@ export default function PerformanceDashboard() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {perfData.map((row) => (
-                  <tr key={row.host_id}>
-                    <td className="p-2 font-medium text-gray-700 whitespace-nowrap">{row.host}</td>
-                    {showLocationColumn && <td className="p-2 text-gray-500 whitespace-nowrap">{row.location_name}</td>}
-                    {perfDataColumns.map((c) => (
-                      <td key={c.key} className="p-2 text-gray-600 whitespace-nowrap">{c.fmt(row[c.key])}</td>
-                    ))}
+                  <tr key={row.host_id} className={rowClasses}>
+                    <td className="p-2 font-medium text-[var(--text-primary)] whitespace-nowrap">{row.host}</td>
+                    {showLocationColumn && <td className="p-2 text-[var(--text-secondary)] whitespace-nowrap">{row.location_name}</td>}
+                    {perfDataColumns.map((c) => {
+                      const metricType = c.key === 'qty' ? 'qty' : c.key === 'ord' ? 'ord' : c.key === 'gmv' ? 'gmv' : null
+                      return (
+                        <td key={c.key} className="p-2 text-[var(--text-secondary)] whitespace-nowrap">
+                          {metricType ? <Metric type={metricType}>{c.fmt(row[c.key])}</Metric> : c.fmt(row[c.key])}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
                 {perfData.length === 0 && (
-                  <tr><td colSpan={perfDataColumns.length + (showLocationColumn ? 2 : 1)} className="p-6 text-center text-gray-400">{t('page_performance_dashboard.no_hosts_in_range')}</td></tr>
+                  <tr><td colSpan={perfDataColumns.length + (showLocationColumn ? 2 : 1)} className="p-6 text-center text-[var(--text-secondary)]">{t('page_performance_dashboard.no_hosts_in_range')}</td></tr>
                 )}
               </tbody>
             </table>

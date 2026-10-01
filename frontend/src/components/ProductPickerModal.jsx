@@ -21,14 +21,14 @@ function PickerVariantRow({ product, variant, qty, onChangeQty }) {
   const isOversell = variant.total_stock < 0
 
   return (
-    <tr className={qty > 0 ? 'bg-brand-50/40' : 'hover:bg-gray-50'}>
+    <tr className={qty > 0 ? 'bg-brand-50/40' : 'hover:bg-[var(--table-row-hover)]'}>
       <td className="p-3">
-        <p className="text-sm text-gray-700">{product.sku} · {variant.color}/{variant.size}</p>
-        <p className="text-xs text-gray-400">{formatCurrency(variant.price)}</p>
+        <p className="text-sm text-[var(--text-primary)]">{product.sku} · {variant.color}/{variant.size}</p>
+        <p className="text-xs text-[var(--text-secondary)]">{formatCurrency(variant.price)}</p>
       </td>
       <td className="p-3 text-center">
-        <span className={isOversell ? 'text-red-600 font-bold' : 'text-gray-600'}>{variant.total_stock}</span>
-        <p className="text-[10px] text-gray-400">{t('page_order_create.picker_available_stock')}</p>
+        <span className={isOversell ? 'text-red-600 font-bold' : 'text-[var(--text-secondary)]'}>{variant.total_stock}</span>
+        <p className="text-[10px] text-[var(--text-secondary)]">{t('page_order_create.picker_available_stock')}</p>
       </td>
       <td className="p-3">
         <div className="flex items-center justify-end gap-1.5">

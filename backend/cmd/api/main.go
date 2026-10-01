@@ -96,6 +96,7 @@ func main() {
 	reportsH := &handlers.ReportsHandler{DB: pool}
 	userH := &handlers.UserHandler{DB: pool, Cfg: cfg}
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
+	liveSessionScreenshotH := &handlers.LiveSessionScreenshotHandler{DB: pool}
 	affiliateH := &handlers.AffiliateHandler{DB: pool}
 
 	// Any authenticated staff role may reach this outer gate; the real per-section
@@ -264,6 +265,8 @@ func main() {
 			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/products", liveSessionH.AddProduct)
 			r.With(edit("panel_siaran")).Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
 			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/live-data", liveSessionH.SubmitLiveData)
+			r.With(view("panel_siaran")).Get("/live-sessions/{id}/screenshots", liveSessionScreenshotH.List)
+			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/screenshots", liveSessionScreenshotH.Create)
 
 			r.With(view("returns")).Get("/returns", returnH.List)
 			r.With(edit("returns")).Post("/returns", returnH.Create)

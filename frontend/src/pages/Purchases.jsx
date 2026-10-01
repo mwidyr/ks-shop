@@ -6,6 +6,7 @@ import {
   receivePurchase, deletePurchase,
 } from '../api/purchases'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const statusColors = {
   ordered: 'bg-yellow-100 text-yellow-700',
@@ -254,37 +255,37 @@ export default function Purchases() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className={`${cardClasses} overflow-x-auto`}>
+        <table className={tableClasses}>
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-3">{t('page_purchases.th_po_number')}</th>
-              <th className="p-3">{t('page_purchases.th_supplier')}</th>
-              <th className="p-3">{t('page_purchases.th_date')}</th>
-              <th className="p-3">{t('page_purchases.th_expected_arrival')}</th>
-              <th className="p-3">{t('page_purchases.th_items')}</th>
-              <th className="p-3">{t('page_purchases.th_total_cost')}</th>
-              <th className="p-3">{t('page_purchases.th_status')}</th>
-              <th className="p-3"></th>
+            <tr className={theadRowClasses}>
+              <th className="p-3.5">{t('page_purchases.th_po_number')}</th>
+              <th className="p-3.5">{t('page_purchases.th_supplier')}</th>
+              <th className="p-3.5">{t('page_purchases.th_date')}</th>
+              <th className="p-3.5">{t('page_purchases.th_expected_arrival')}</th>
+              <th className="p-3.5">{t('page_purchases.th_items')}</th>
+              <th className="p-3.5">{t('page_purchases.th_total_cost')}</th>
+              <th className="p-3.5">{t('page_purchases.th_status')}</th>
+              <th className="p-3.5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className={tbodyClasses}>
             {purchases.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setDetailId(p.id)}>
-                <td className="p-3 font-mono text-xs text-brand-600">{p.po_number}</td>
-                <td className="p-3 font-medium text-gray-800">{p.supplier_name}</td>
-                <td className="p-3 text-gray-500">{p.order_date}</td>
-                <td className="p-3 text-gray-500">{p.expected_arrival_date || '-'}</td>
-                <td className="p-3 text-gray-600">{t('page_purchases.item_count_summary', { count: p.item_count, qty: p.total_qty })}</td>
-                <td className="p-3 text-gray-700 font-semibold">{formatCurrency(p.total_cost)}</td>
-                <td className="p-3">
+              <tr key={p.id} className={`${rowClasses} cursor-pointer`} onClick={() => setDetailId(p.id)}>
+                <td className="p-3.5 font-mono text-xs text-brand-600">{p.po_number}</td>
+                <td className="p-3.5 font-medium text-[var(--text-primary)]">{p.supplier_name}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{p.order_date}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{p.expected_arrival_date || '-'}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{t('page_purchases.item_count_summary', { count: p.item_count, qty: p.total_qty })}</td>
+                <td className="p-3.5 text-[var(--text-primary)] font-semibold">{formatCurrency(p.total_cost)}</td>
+                <td className="p-3.5">
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[p.status]}`}>{t(`page_purchases.status_${p.status}`)}</span>
                 </td>
-                <td className="p-3 text-brand-600 text-xs font-semibold">{t('page_purchases.detail_link')}</td>
+                <td className="p-3.5 text-brand-600 text-xs font-semibold">{t('page_purchases.detail_link')}</td>
               </tr>
             ))}
             {purchases.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-gray-400">{t('page_purchases.empty_state')}</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-[var(--text-secondary)]">{t('page_purchases.empty_state')}</td></tr>
             )}
           </tbody>
         </table>

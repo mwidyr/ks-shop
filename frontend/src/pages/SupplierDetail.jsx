@@ -196,22 +196,6 @@ export default function SupplierDetail() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h3 className="font-bold text-gray-800 mb-3">{t('page_suppliers.products_title')}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {supplier.products.map((p) => (
-            <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-2 border border-gray-200 rounded-lg p-2 hover:bg-gray-50">
-              <img src={resolveUrl(p.image_url)} className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0" />
-              <div className="min-w-0">
-                {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-                <p className="text-xs font-medium text-gray-700 truncate">{p.name}</p>
-              </div>
-            </Link>
-          ))}
-          {supplier.products.length === 0 && <p className="text-xs text-gray-400 py-2 col-span-full">{t('page_suppliers.empty_state')}</p>}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm p-5">
         <h3 className="font-bold text-gray-800 mb-3">{t('page_suppliers.notes_title')}</h3>
         <form onSubmit={addNote} className="flex gap-2 mb-3">
           <input value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder={t('page_suppliers.note_placeholder')} className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
@@ -225,6 +209,22 @@ export default function SupplierDetail() {
             </div>
           ))}
           {supplier.notes.length === 0 && <p className="text-xs text-gray-400 py-2">{t('page_suppliers.empty_state')}</p>}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <h3 className="font-bold text-gray-800 mb-3">{t('page_suppliers.products_title')}</h3>
+        <div className="divide-y">
+          {supplier.products.map((p) => (
+            <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-3 py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded-lg">
+              <img src={resolveUrl(p.image_url)} className="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0" />
+              <div className="min-w-0 flex-1">
+                {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
+                <p className="text-sm font-medium text-gray-700 truncate">{p.name}</p>
+              </div>
+            </Link>
+          ))}
+          {supplier.products.length === 0 && <p className="text-xs text-gray-400 py-2">{t('page_suppliers.empty_state')}</p>}
         </div>
       </div>
     </div>

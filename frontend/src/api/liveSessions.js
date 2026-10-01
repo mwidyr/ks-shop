@@ -41,3 +41,11 @@ export function submitLiveSessionData(id, payload) {
 export function startLiveSession(hostId, label) {
   return createLiveSession(label, hostId)
 }
+
+export function listLiveSessionScreenshots(id) {
+  return client.get(`/live-sessions/${id}/screenshots`).then((res) => res.data)
+}
+
+export function addLiveSessionScreenshot(id, imageUrl) {
+  return client.post(`/live-sessions/${id}/screenshots`, { image_url: imageUrl }).then((res) => res.data)
+}

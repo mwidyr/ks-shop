@@ -5,6 +5,7 @@ import { listOrders } from '../api/orders'
 import { formatCurrency } from '../utils/format'
 import BigStatCard from '../components/BigStatCard'
 import StatusPill from '../components/StatusPill'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const availableLabels = [
   { key: 'vip', labelKey: 'vip' },
@@ -197,27 +198,27 @@ export default function Customers() {
       {loading ? (
         <p className="text-gray-500 py-10 text-center">{t('page_customers.loading_customers')}</p>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className={`${cardClasses} overflow-x-auto`}>
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">{t('page_customers.table.name')}</th>
-                <th className="p-3">{t('page_customers.table.phone')}</th>
-                <th className="p-3">{t('page_customers.table.orders')}</th>
-                <th className="p-3">{t('page_customers.table.total_spending')}</th>
-                <th className="p-3">{t('page_customers.table.last_order')}</th>
-                <th className="p-3">{t('page_customers.table.segment')}</th>
+              <tr className={theadRowClasses}>
+                <th className="p-3.5">{t('page_customers.table.name')}</th>
+                <th className="p-3.5">{t('page_customers.table.phone')}</th>
+                <th className="p-3.5">{t('page_customers.table.orders')}</th>
+                <th className="p-3.5">{t('page_customers.table.total_spending')}</th>
+                <th className="p-3.5">{t('page_customers.table.last_order')}</th>
+                <th className="p-3.5">{t('page_customers.table.segment')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(c)}>
-                  <td className="p-3 font-medium text-gray-800">{c.name}</td>
-                  <td className="p-3 text-gray-500">{c.phone}</td>
-                  <td className="p-3 text-gray-500">{c.order_count}</td>
-                  <td className="p-3 font-semibold text-brand-600">{formatCurrency(c.total_spend)}</td>
-                  <td className="p-3 text-gray-500">{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('id-ID') : '-'}</td>
-                  <td className="p-3">
+                <tr key={c.id} className={`${rowClasses} cursor-pointer`} onClick={() => setSelected(c)}>
+                  <td className="p-3.5 font-medium text-[var(--text-primary)]">{c.name}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{c.phone}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{c.order_count}</td>
+                  <td className="p-3.5 font-semibold text-brand-600">{formatCurrency(c.total_spend)}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className="p-3.5">
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${segmentColors[c.segment]}`}>
                       {t(`page_customers.segment.${segmentKeys[c.segment]}`)}
                     </span>

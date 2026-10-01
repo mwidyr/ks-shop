@@ -42,9 +42,13 @@ type pickingRow struct {
 func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	baseWhere := " WHERE o.status = 'picking' AND (o.keep_date IS NULL OR o.keep_date <= CURRENT_DATE + 1) "
-	args := []interface{}{}
-	argN := 1
+	status := q.Get("status")
+	if status == "" {
+		status = "picking"
+	}
+	baseWhere := " WHERE o.status = $1 AND (o.keep_date IS NULL OR o.keep_date <= CURRENT_DATE + 1) "
+	args := []interface{}{status}
+	argN := 2
 	addArg := func(a interface{}) string {
 		args = append(args, a)
 		p := "$" + strconv.Itoa(argN)
@@ -57,6 +61,12 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		baseWhere += ` AND (p.sku ILIKE ` + addArg(like) + ` OR pv.sku ILIKE ` + addArg(like) + ` OR p.name ILIKE ` + addArg(like) +
 			` OR c.name ILIKE ` + addArg(like) + ` OR o.order_no ILIKE ` + addArg(like) + `)`
 	}
+	if productCode := q.Get("product_code"); productCode != "" {
+		baseWhere += ` AND p.sku ILIKE ` + addArg("%"+productCode+"%")
+	}
+	if customer := q.Get("customer"); customer != "" {
+		baseWhere += ` AND c.name ILIKE ` + addArg("%"+customer+"%")
+	}
 	if color := q.Get("color"); color != "" {
 		baseWhere += ` AND pv.color = ` + addArg(color)
 	}
@@ -67,6 +77,16 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		baseWhere += ` AND sb.available_stock >= oi.qty`
 	} else if q.Get("ready") == "false" {
 		baseWhere += ` AND sb.available_stock < oi.qty`
+	}
+
+	orderBy := "o.created_at ASC"
+	switch q.Get("sort") {
+	case "newest":
+		orderBy = "o.created_at DESC"
+	case "product_code":
+		orderBy = "p.sku ASC, o.created_at ASC"
+	case "customer":
+		orderBy = "c.name ASC, o.created_at ASC"
 	}
 
 	page := 1
@@ -108,7 +128,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
 		LEFT JOIN hosts h ON h.id = oi.host_id` +
 		baseWhere +
-		" ORDER BY o.created_at LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		" ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {

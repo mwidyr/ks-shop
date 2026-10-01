@@ -5,6 +5,7 @@ import { getPurchaseHistory } from '../api/purchases'
 import { listSuppliers } from '../api/suppliers'
 import DateRangePicker from '../components/DateRangePicker'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 function fmtPct(n) { return n == null ? '—' : `${n.toFixed(1)}%` }
 
@@ -52,13 +53,13 @@ export default function PurchaseHistory() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
+      <div className={`${cardClasses} p-5 overflow-x-auto`}>
         {loading ? (
-          <p className="text-center text-gray-400 py-8">{t('common.loading')}</p>
+          <p className="text-center text-[var(--text-secondary)] py-8">{t('common.loading')}</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
+              <tr className={theadRowClasses}>
                 <th className="p-2">{t('page_purchase_history.col_po_number')}</th>
                 <th className="p-2">{t('page_purchase_history.col_supplier')}</th>
                 <th className="p-2">{t('page_purchase_history.col_date')}</th>
@@ -69,21 +70,21 @@ export default function PurchaseHistory() {
                 <th className="p-2">{t('page_purchase_history.col_received_date')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {rows.map((row, i) => (
-                <tr key={i}>
+                <tr key={i} className={rowClasses}>
                   <td className="p-2 font-mono text-xs text-brand-600">{row.po_number}</td>
-                  <td className="p-2 text-gray-700">{row.supplier_name}</td>
-                  <td className="p-2 text-gray-500">{row.purchase_date}</td>
-                  <td className="p-2 text-gray-700">{row.product_sku} · {row.product_name}</td>
-                  <td className="p-2 text-gray-600">{row.qty}</td>
-                  <td className="p-2 text-gray-600">{formatCurrency(row.unit_cost)}</td>
-                  <td className="p-2 font-semibold text-gray-700">{formatCurrency(row.total_cost)}</td>
-                  <td className="p-2 text-gray-500">{row.received_date ? row.received_date.slice(0, 10) : '-'}</td>
+                  <td className="p-2 text-[var(--text-primary)]">{row.supplier_name}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{row.purchase_date}</td>
+                  <td className="p-2 text-[var(--text-primary)]">{row.product_sku} · {row.product_name}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{row.qty}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{formatCurrency(row.unit_cost)}</td>
+                  <td className="p-2 font-semibold text-[var(--text-primary)]">{formatCurrency(row.total_cost)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{row.received_date ? row.received_date.slice(0, 10) : '-'}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="p-6 text-center text-gray-400">{t('page_purchase_history.empty_state')}</td></tr>
+                <tr><td colSpan={8} className="p-6 text-center text-[var(--text-secondary)]">{t('page_purchase_history.empty_state')}</td></tr>
               )}
             </tbody>
           </table>

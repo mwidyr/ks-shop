@@ -5,6 +5,7 @@ import { getHeatmapSummary, getHeatmapGrid, getHeatmapCellDetail } from '../api/
 import { listLocations } from '../api/hostLocations'
 import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -133,47 +134,47 @@ function CellDetailModal({ cell, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className={`${cardClasses} p-6 w-full max-w-md`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="font-bold text-gray-800">{cell.hostName}</h2>
-            <p className="text-xs text-gray-500">{slotLabel(cell.slot)} · {cell.from}{multiDay ? ` – ${cell.to}` : ''}</p>
+            <h2 className="font-bold text-[var(--text-primary)]">{cell.hostName}</h2>
+            <p className="text-xs text-[var(--text-secondary)]">{slotLabel(cell.slot)} · {cell.from}{multiDay ? ` – ${cell.to}` : ''}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IconClose /></button>
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><IconClose /></button>
         </div>
         {!detail ? (
-          <p className="text-sm text-gray-400 py-6 text-center">{t('common.loading')}</p>
+          <p className="text-sm text-[var(--text-secondary)] py-6 text-center">{t('common.loading')}</p>
         ) : (
           <>
             <div className="grid grid-cols-4 gap-3 mb-4">
-              <div><p className="text-[11px] uppercase text-gray-400">QTY</p><p className="font-bold text-gray-800">{fmtNum(detail.qty)}</p></div>
-              <div><p className="text-[11px] uppercase text-gray-400">ORD</p><p className="font-bold text-gray-800">{fmtNum(detail.ord)}</p></div>
-              <div><p className="text-[11px] uppercase text-gray-400">GMV</p><p className="font-bold text-gray-800">{fmtMoney(detail.gmv)}</p></div>
-              <div><p className="text-[11px] uppercase text-gray-400">AOV</p><p className="font-bold text-gray-800">{fmtMoney(detail.aov)}</p></div>
+              <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">QTY</p><Metric type="qty">{fmtNum(detail.qty)}</Metric></div>
+              <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">ORD</p><Metric type="ord">{fmtNum(detail.ord)}</Metric></div>
+              <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">GMV</p><Metric type="gmv">{fmtMoney(detail.gmv)}</Metric></div>
+              <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">AOV</p><p className="font-bold text-[var(--text-primary)]">{fmtMoney(detail.aov)}</p></div>
             </div>
             {detail.orders?.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 mb-2">{t('page_heatmap.order_breakdown')}</p>
-                <table className="w-full text-xs">
+                <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">{t('page_heatmap.order_breakdown')}</p>
+                <table className={`${tableClasses} text-xs`}>
                   <thead>
-                    <tr className="text-left text-gray-400 uppercase border-b">
+                    <tr className={theadRowClasses}>
                       <th className="py-1">{t('page_purchases.th_po_number')}</th>
                       {multiDay && <th className="py-1">{t('page_host_analytics.col_date')}</th>}
                       <th className="py-1">QTY</th><th className="py-1">GMV</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className={tbodyClasses}>
                     {detail.orders.map((o) => (
                       <tr
                         key={o.id}
                         onClick={() => navigate(`/orders/${o.id}`)}
-                        className="cursor-pointer hover:bg-gray-50"
+                        className={`cursor-pointer ${rowClasses}`}
                         title={t('page_heatmap.view_order_detail')}
                       >
                         <td className="py-1 font-medium text-brand-700 underline decoration-dotted font-mono">{o.order_no}</td>
-                        {multiDay && <td className="py-1 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>}
-                        <td className="py-1 text-gray-500">{fmtNum(o.qty)}</td>
-                        <td className="py-1 text-gray-500">{fmtMoney(o.gmv)}</td>
+                        {multiDay && <td className="py-1 text-[var(--text-secondary)]">{new Date(o.created_at).toLocaleDateString()}</td>}
+                        <td className="py-1"><Metric type="qty">{fmtNum(o.qty)}</Metric></td>
+                        <td className="py-1"><Metric type="gmv">{fmtMoney(o.gmv)}</Metric></td>
                       </tr>
                     ))}
                   </tbody>
@@ -213,26 +214,26 @@ export default function Heatmap() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+      <div className={`${cardClasses} p-4 space-y-3`}>
         <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">{t('page_performance_dashboard.all_locations')}</option>
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
         <PeriodPicker value={range} onChange={setRange} />
-        <p className="text-sm font-semibold text-gray-700">{range.from === range.to ? range.from : `${range.from} – ${range.to}`}</p>
+        <p className="text-sm font-semibold text-[var(--text-primary)]">{range.from === range.to ? range.from : `${range.from} – ${range.to}`}</p>
       </div>
 
       {loading || !grid ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">{t('common.loading')}</div>
+        <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_heatmap.total_qty')}</p><p className="text-lg font-bold text-gray-800">{fmtNum(summary.qty)}</p></div>
-            <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_heatmap.total_ord')}</p><p className="text-lg font-bold text-gray-800">{fmtNum(summary.ord)}</p></div>
-            <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_heatmap.total_gmv')}</p><p className="text-lg font-bold text-gray-800">{fmtMoney(summary.gmv)}</p></div>
+            <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_qty')}</p><Metric type="qty" className="text-lg">{fmtNum(summary.qty)}</Metric></div>
+            <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_ord')}</p><Metric type="ord" className="text-lg">{fmtNum(summary.ord)}</Metric></div>
+            <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_gmv')}</p><Metric type="gmv" className="text-lg">{fmtMoney(summary.gmv)}</Metric></div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
             <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
               <thead>
                 <tr>
@@ -285,13 +286,13 @@ export default function Heatmap() {
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5">
-            <h2 className="font-bold text-gray-800 mb-4">{t('page_heatmap.time_block_total')}</h2>
+          <div className={`${cardClasses} p-5`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_heatmap.time_block_total')}</h2>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
               {['06:00-08:30', '09:00-11:30', '12:00-14:30', '15:00-17:30', '18:00-20:30', '21:00-23:30'].map((label, i) => (
                 <div key={label}>
-                  <p className="text-[11px] uppercase text-gray-400 mb-1">{label}</p>
-                  <p className="text-lg font-bold text-gray-800">{fmtNum(grid.time_blocks[i])}</p>
+                  <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{label}</p>
+                  <Metric type="qty" className="text-lg">{fmtNum(grid.time_blocks[i])}</Metric>
                 </div>
               ))}
             </div>

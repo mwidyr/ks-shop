@@ -22,7 +22,38 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-      :root { --font-scale: 1; }
+      :root {
+        --font-scale: 1;
+        /* Data Table design tokens (client-specified Apple-inspired palette). Scoped to table
+           markup only via arbitrary-value Tailwind classes like bg-[var(--table-card-bg)] -
+           deliberately NOT merged into the broader html.dark overrides below, which already
+           drive every other bg-white/bg-gray-* surface in the app (modals, forms, etc.) and
+           must stay untouched by this table-specific redesign. */
+        --table-page-bg: #F5F5F7;
+        --table-card-bg: #FFFFFF;
+        --table-header-bg: #F5F5F7;
+        --table-row-hover: #F2F7FF;
+        --table-divider: #D2D2D7;
+        --text-primary: #1D1D1F;
+        --text-secondary: #6E6E73;
+        --qty-color: #FF3B30;
+        --ord-color: #248A3D;
+        --gmv-color: #007AFF;
+        --table-accent: #007AFF;
+      }
+      html.dark {
+        --table-page-bg: #000000;
+        --table-card-bg: #1C1C1E;
+        --table-header-bg: #2C2C2E;
+        --table-row-hover: #1C2D41;
+        --table-divider: #38383A;
+        --text-primary: #F5F5F7;
+        --text-secondary: #98989D;
+        --qty-color: #FF453A;
+        --ord-color: #30D158;
+        --gmv-color: #0A84FF;
+        --table-accent: #0A84FF;
+      }
       html { font-size: calc(16px * var(--font-scale)); }
       body { font-family: 'Poppins', sans-serif; }
       ::-webkit-scrollbar { width: 8px; height: 8px; }

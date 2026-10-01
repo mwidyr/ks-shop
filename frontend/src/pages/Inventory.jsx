@@ -38,48 +38,82 @@ function VariantRow({ product, variant, onSaved }) {
     }
   }
 
-  return (
-    <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
-      <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {variant.color}/{variant.size}</p>
-      <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
-      <span className="text-center">
-        {editing ? (
-          <input
-            type="number" value={availableStock}
-            onChange={(e) => setAvailableStock(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm text-center tabular-nums"
-          />
-        ) : (
-          <span className={`inline-block w-full px-2 py-1 border border-transparent text-sm tabular-nums ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
-        )}
-      </span>
-      <span className="text-center">
-        {editing ? (
-          <input
-            type="number" min="0" value={incomingStock}
-            onChange={(e) => setIncomingStock(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm text-center tabular-nums"
-          />
-        ) : (
-          <span className="inline-block w-full px-2 py-1 border border-transparent text-sm tabular-nums">{variant.incoming_stock}</span>
-        )}
-      </span>
-      <span className="text-center tabular-nums">{variant.order_stock}</span>
-      <span className="text-center">
-        {isOversell && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{t('page_inventory.oversell_badge')}</span>}
-        {!isOversell && lowStock && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{t('page_inventory.low_stock_badge')}</span>}
-      </span>
-      <span className="text-right">
-        {editing ? (
-          <div className="flex gap-2 justify-end">
-            <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
-            <button onClick={() => { setEditing(false); setAvailableStock(variant.available_stock); setIncomingStock(variant.incoming_stock) }} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
-          </div>
-        ) : (
-          <button onClick={() => setEditing(true)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.edit')}</button>
-        )}
-      </span>
+  const availableField = editing ? (
+    <input
+      type="number" value={availableStock}
+      onChange={(e) => setAvailableStock(e.target.value)}
+      className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm tabular-nums"
+    />
+  ) : (
+    <span className={`inline-block px-2 py-1 border border-transparent text-sm tabular-nums ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
+  )
+  const incomingField = editing ? (
+    <input
+      type="number" min="0" value={incomingStock}
+      onChange={(e) => setIncomingStock(e.target.value)}
+      className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm tabular-nums"
+    />
+  ) : (
+    <span className="inline-block px-2 py-1 border border-transparent text-sm tabular-nums">{variant.incoming_stock}</span>
+  )
+  const badge = (
+    <>
+      {isOversell && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{t('page_inventory.oversell_badge')}</span>}
+      {!isOversell && lowStock && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{t('page_inventory.low_stock_badge')}</span>}
+    </>
+  )
+  const actions = editing ? (
+    <div className="flex gap-2 justify-end">
+      <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
+      <button onClick={() => { setEditing(false); setAvailableStock(variant.available_stock); setIncomingStock(variant.incoming_stock) }} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
     </div>
+  ) : (
+    <button onClick={() => setEditing(true)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.edit')}</button>
+  )
+
+  return (
+    <>
+      {/* Desktop: dense grid row (unchanged layout) */}
+      <div className="hidden sm:block">
+        <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+          <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {variant.color}/{variant.size}</p>
+          <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
+          <span className="text-center [&>*]:text-center [&>*]:w-full">{availableField}</span>
+          <span className="text-center [&>*]:text-center [&>*]:w-full">{incomingField}</span>
+          <span className="text-center tabular-nums">{variant.order_stock}</span>
+          <span className="text-center">{badge}</span>
+          <span className="text-right">{actions}</span>
+        </div>
+      </div>
+
+      {/* Mobile: stacked label/value pairs instead of the cramped fixed-width grid (item 007) -
+          nothing shares a column with anything else, so labels and numbers never overlap. */}
+      <div className={`sm:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{variant.sku} · {variant.color}/{variant.size}</p>
+          {badge}
+        </div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm mb-2">
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
+            <p className="font-semibold tabular-nums">{variant.total_stock}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
+            <p className="tabular-nums">{variant.order_stock}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
+            {availableField}
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
+            {incomingField}
+          </div>
+        </div>
+        {actions}
+      </div>
+    </>
   )
 }
 
@@ -110,21 +144,46 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className={`${INVENTORY_GRID_COLS} px-4 pb-3 text-xs`}>
-        <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_available')}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_incoming')}</span>
-        <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_ordered')}</span>
-        <span></span>
-        <span></span>
-        <span></span>
-        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.total}</span>
-        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.available}</span>
-        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.incoming}</span>
-        <span className="text-center font-bold text-gray-800 tabular-nums">{totals.order}</span>
-        <span></span>
-        <span></span>
+      <div className="hidden sm:block">
+        <div className={`${INVENTORY_GRID_COLS} px-4 pb-3 text-xs`}>
+          <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
+          <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
+          <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_available')}</span>
+          <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_incoming')}</span>
+          <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_ordered')}</span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.total}</span>
+          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.available}</span>
+          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.incoming}</span>
+          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.order}</span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+
+      {/* Mobile: label/value pairs, same fix as VariantRow below (item 007). */}
+      <div className="sm:hidden px-4 pb-3">
+        <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs">
+          <div>
+            <p className="text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
+            <p className="font-bold text-gray-800 tabular-nums">{totals.total}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
+            <p className="font-bold text-gray-800 tabular-nums">{totals.available}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
+            <p className="font-bold text-gray-800 tabular-nums">{totals.incoming}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
+            <p className="font-bold text-gray-800 tabular-nums">{totals.order}</p>
+          </div>
+        </div>
       </div>
 
       {isOpen && (

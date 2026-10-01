@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { listLiveSessions } from '../api/liveSessions'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { IconArrowRight } from '../components/icons'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
 export default function LiveSessionHistory() {
   const { t } = useTranslation()
@@ -28,29 +29,29 @@ export default function LiveSessionHistory() {
       ) : sessions.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_live_session_history.empty_state')}</div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className={`${cardClasses} overflow-x-auto`}>
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">{t('page_live_session_history.th_session_name')}</th>
-                <th className="p-3">{t('page_live_session_history.th_status')}</th>
-                <th className="p-3 text-right">{t('page_live_session_history.th_live_cart')}</th>
-                <th className="p-3 text-right">{t('page_live_session_history.th_order_count')}</th>
-                <th className="p-3 text-right">{t('page_live_session_history.th_peak_viewers')}</th>
-                <th className="p-3">{t('page_live_session_history.th_created_at')}</th>
-                <th className="p-3"></th>
+              <tr className={theadRowClasses}>
+                <th className="p-3.5">{t('page_live_session_history.th_session_name')}</th>
+                <th className="p-3.5">{t('page_live_session_history.th_status')}</th>
+                <th className="p-3.5 text-right">{t('page_live_session_history.th_live_cart')}</th>
+                <th className="p-3.5 text-right">{t('page_live_session_history.th_order_count')}</th>
+                <th className="p-3.5 text-right">{t('page_live_session_history.th_peak_viewers')}</th>
+                <th className="p-3.5">{t('page_live_session_history.th_created_at')}</th>
+                <th className="p-3.5"></th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {sessions.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="p-3 font-semibold text-gray-800">{s.label}</td>
-                  <td className="p-3"><SessionStatusPill status={s.status} /></td>
-                  <td className="p-3 text-right">{s.cart_count}</td>
-                  <td className="p-3 text-right">{s.order_count}</td>
-                  <td className="p-3 text-right">{s.peak_viewers}</td>
-                  <td className="p-3 text-gray-500">{new Date(s.created_at).toLocaleDateString('id-ID')}</td>
-                  <td className="p-3">
+                <tr key={s.id} className={rowClasses}>
+                  <td className="p-3.5 font-semibold text-[var(--text-primary)]">{s.label}</td>
+                  <td className="p-3.5"><SessionStatusPill status={s.status} /></td>
+                  <td className="p-3.5 text-right text-[var(--text-secondary)]">{s.cart_count}</td>
+                  <td className="p-3.5 text-right"><Metric type="ord">{s.order_count}</Metric></td>
+                  <td className="p-3.5 text-right text-[var(--text-secondary)]">{s.peak_viewers}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                  <td className="p-3.5">
                     <Link to={`/panel-siaran/${s.id}`} className="text-brand-600 font-semibold text-xs hover:underline flex items-center gap-1">
                       {t('page_live_session_history.manage_link')} <IconArrowRight width={13} height={13} />
                     </Link>

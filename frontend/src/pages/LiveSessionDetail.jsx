@@ -4,12 +4,78 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   getLiveSession, updateLiveSession, goLiveSession, endLiveSession,
   addLiveSessionProduct, removeLiveSessionProduct, submitLiveSessionData,
+  listLiveSessionScreenshots, addLiveSessionScreenshot,
 } from '../api/liveSessions'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
+import { resolveUrl, uploadImageFile } from '../utils/image'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { IconClose, IconPlus, IconTrash } from '../components/icons'
+
+// LIVE Screenshots (item 003): replaces the old trivial "Broadcast Console" card. Hosts upload a
+// TikTok LIVE screenshot (reusing the same uploadImageFile()->POST /uploads/image pipeline
+// product photos use), it's stored and listed here. AI recognition is explicitly deferred to a
+// follow-up round - recognized_data/status stay unused placeholders, shown with a "coming soon"
+// badge so the gap is visible rather than silently incomplete.
+function LiveScreenshotsCard({ sessionId }) {
+  const { t } = useTranslation()
+  const [screenshots, setScreenshots] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  function reload() {
+    listLiveSessionScreenshots(sessionId).then(setScreenshots)
+  }
+
+  useEffect(reload, [sessionId])
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError('')
+    try {
+      const url = await uploadImageFile(file)
+      await addLiveSessionScreenshot(sessionId, url)
+      reload()
+    } catch {
+      setError(t('page_live_session_detail.screenshot_upload_failed'))
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-bold text-gray-800">{t('page_live_session_detail.label_live_screenshots')}</p>
+        <label className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer">
+          {uploading ? t('page_live_session_detail.screenshot_uploading') : t('page_live_session_detail.screenshot_upload_button')}
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} disabled={uploading} className="hidden" />
+        </label>
+      </div>
+      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {screenshots.length === 0 ? (
+        <div className="border border-gray-200 rounded-xl py-4 text-center text-sm text-gray-400">
+          {t('page_live_session_detail.screenshot_empty')}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {screenshots.map((s) => (
+            <div key={s.id} className="relative">
+              <img src={resolveUrl(s.image_url)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
+              <span className="absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center px-1 py-0.5 rounded bg-amber-100 text-amber-700">
+                {t('page_live_session_detail.screenshot_ai_coming_soon')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function AddProductModal({ variants, onAdd, onClose }) {
   const { t } = useTranslation()
@@ -325,16 +391,7 @@ export default function LiveSessionDetail() {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-5">
-          <p className="font-bold text-gray-800 mb-4">{t('page_live_session_detail.label_broadcast_console')}</p>
-          {cart.length === 0 ? (
-            <div className="border border-gray-200 rounded-xl py-4 text-center text-sm text-gray-400">
-              {t('page_live_session_detail.hint_add_product_first')}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-600">{t('page_live_session_detail.cart_ready_summary', { count: cart.length })}</p>
-          )}
-        </div>
+        <LiveScreenshotsCard sessionId={id} />
       </div>
 
       <div className="flex items-center justify-between mb-3">

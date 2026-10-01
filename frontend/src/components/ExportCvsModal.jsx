@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
 // These are the client's own real import templates (711.xlsx / FamilyMart.xls, the latter
 // converted to .xlsx losslessly with LibreOffice - ExcelJS can't parse legacy .xls), bundled
@@ -251,9 +252,9 @@ export default function ExportCvsModal({ onClose, onExported }) {
           ) : visible.length === 0 ? (
             <p className="text-center text-gray-400 py-8">{t('page_orders.export_empty')}</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="py-2 w-8"><input type="checkbox" checked={selected.size === visible.length} onChange={toggleAll} /></th>
                   <th className="py-2">{t('page_orders.export_col_buyer')}</th>
                   <th className="py-2">{t('page_orders.export_col_store')}</th>
@@ -262,13 +263,13 @@ export default function ExportCvsModal({ onClose, onExported }) {
                   <th className="py-2">{t('page_orders.col_status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {visible.map((r) => (
-                  <tr key={r.order_id}>
+                  <tr key={r.order_id} className={rowClasses}>
                     <td className="py-2"><input type="checkbox" checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
                     <td className="py-2">
-                      <p className="font-medium text-gray-800">{r.customer_name}</p>
-                      <p className="text-xs text-gray-400">{r.order_no}</p>
+                      <p className="font-medium text-[var(--text-primary)]">{r.customer_name}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{r.order_no}</p>
                       {r.group_order_nos?.length > 0 && (
                         <p className="text-[10px] font-semibold text-amber-600">
                           {t('page_orders.export_merged_note', { count: r.group_order_nos.length })}
@@ -276,15 +277,15 @@ export default function ExportCvsModal({ onClose, onExported }) {
                       )}
                     </td>
                     <td className="py-2">
-                      <p className="text-gray-700">{r.pickup_store_name}</p>
-                      <p className="text-xs text-gray-400">{r.pickup_store_code}</p>
+                      <p className="text-[var(--text-primary)]">{r.pickup_store_name}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{r.pickup_store_code}</p>
                     </td>
-                    <td className="py-2">{formatCurrency(r.item_value)}</td>
-                    <td className="py-2">
+                    <td className="py-2 text-[var(--text-primary)]">{formatCurrency(r.item_value)}</td>
+                    <td className="py-2 text-[var(--text-primary)]">
                       <p>{formatCurrency(r.shipping_fee)}</p>
-                      <p className="text-xs text-gray-400">{t('page_orders.paid_by_buyer', { amount: formatCurrency(r.total_to_pay) })}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{t('page_orders.paid_by_buyer', { amount: formatCurrency(r.total_to_pay) })}</p>
                     </td>
-                    <td className="py-2 text-gray-500">{t(`page_orders.status_${classify(r)}`)}</td>
+                    <td className="py-2 text-[var(--text-secondary)]">{t(`page_orders.status_${classify(r)}`)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const productPerf = [
   { name: 'Sneakers Classic White', revenue: 2848320, orders: 6, units: 12, conversion: '4.1%', profit: 512300 },
@@ -29,23 +30,23 @@ export default function SalesAnalyticsDetail() {
         {t('shared.mock_preview_badge')}
       </span>
 
-      <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-        <h2 className="font-bold text-gray-800 mb-4">{t('page_sales_analytics.product_performance')}</h2>
-        <table className="w-full text-sm">
+      <div className={`${cardClasses} p-5 overflow-x-auto`}>
+        <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_sales_analytics.product_performance')}</h2>
+        <table className={tableClasses}>
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b">
+            <tr className={theadRowClasses}>
               <th className="p-2">{t('page_sales_analytics.col_product')}</th><th className="p-2">{t('page_sales_analytics.col_revenue')}</th><th className="p-2">{t('page_sales_analytics.col_orders')}</th>
               <th className="p-2">{t('page_sales_analytics.col_units')}</th><th className="p-2">{t('page_sales_analytics.col_conversion')}</th><th className="p-2">{t('page_sales_analytics.col_profit')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className={tbodyClasses}>
             {productPerf.map((p) => (
-              <tr key={p.name}>
-                <td className="p-2 font-medium text-gray-700">{p.name}</td>
+              <tr key={p.name} className={rowClasses}>
+                <td className="p-2 font-medium text-[var(--text-primary)]">{p.name}</td>
                 <td className="p-2 text-brand-600 font-semibold">{formatCurrency(p.revenue)}</td>
-                <td className="p-2 text-gray-500">{p.orders}</td>
-                <td className="p-2 text-gray-500">{p.units}</td>
-                <td className="p-2 text-gray-500">{p.conversion}</td>
+                <td className="p-2 text-[var(--text-secondary)]">{p.orders}</td>
+                <td className="p-2 text-[var(--text-secondary)]">{p.units}</td>
+                <td className="p-2 text-[var(--text-secondary)]">{p.conversion}</td>
                 <td className="p-2 text-green-600 font-semibold">{formatCurrency(p.profit)}</td>
               </tr>
             ))}
@@ -54,24 +55,24 @@ export default function SalesAnalyticsDetail() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-5">
-          <h2 className="font-bold text-gray-800 mb-4">{t('page_sales_analytics.customer')}</h2>
+        <div className={`${cardClasses} p-5`}>
+          <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_sales_analytics.customer')}</h2>
           <div className="space-y-2">
             {customerBreakdown.map((c) => (
               <div key={c.label} className="flex justify-between text-sm">
-                <span className="text-gray-500">{c.label}</span>
-                <span className="font-semibold text-gray-800">{c.value}</span>
+                <span className="text-[var(--text-secondary)]">{c.label}</span>
+                <span className="font-semibold text-[var(--text-primary)]">{c.value}</span>
               </div>
             ))}
           </div>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm p-5">
-          <h2 className="font-bold text-gray-800 mb-4">{t('page_sales_analytics.time')}</h2>
+        <div className={`${cardClasses} p-5`}>
+          <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_sales_analytics.time')}</h2>
           <div className="space-y-2">
             {timeBreakdown.map((t2) => (
               <div key={t2.label} className="flex justify-between text-sm">
-                <span className="text-gray-500">{t2.label}</span>
-                <span className="font-semibold text-gray-800">{t2.value}</span>
+                <span className="text-[var(--text-secondary)]">{t2.label}</span>
+                <span className="font-semibold text-[var(--text-primary)]">{t2.value}</span>
               </div>
             ))}
           </div>

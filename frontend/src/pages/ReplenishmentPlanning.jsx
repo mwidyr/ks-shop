@@ -5,6 +5,7 @@ import { listReplenishment } from '../api/replenishment'
 import { listSuppliers } from '../api/suppliers'
 import { createPurchaseRequisition, addRequisitionItem } from '../api/purchaseRequisitions'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const basisOptions = [7, 14, 30]
 
@@ -102,13 +103,13 @@ export default function ReplenishmentPlanning() {
         <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_replenishment.total_incoming')}</p><p className="text-lg font-bold text-gray-800">{fmtNum(summary.totalIncoming)}</p></div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
+      <div className={`${cardClasses} p-5 overflow-x-auto`}>
         {loading ? (
-          <p className="text-center text-gray-400 py-8">{t('common.loading')}</p>
+          <p className="text-center text-[var(--text-secondary)] py-8">{t('common.loading')}</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
+              <tr className={theadRowClasses}>
                 <th className="p-2">{t('page_replenishment.col_product')}</th>
                 <th className="p-2">{t('page_replenishment.col_variant')}</th>
                 <th className="p-2">{t('page_replenishment.col_physical')}</th>
@@ -123,21 +124,21 @@ export default function ReplenishmentPlanning() {
                 <th className="p-2">{t('page_replenishment.col_status')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {[...rows].sort((a, b) => (a.estimated_stock_days ?? Infinity) - (b.estimated_stock_days ?? Infinity)).map((r) => (
-                <tr key={r.variant_id}>
+                <tr key={r.variant_id} className={rowClasses}>
                   <td className="p-2">
-                    <p className="font-medium text-gray-700">{r.product_sku}</p>
-                    <p className="text-xs text-gray-400">{r.product_name} · {r.supplier_name}</p>
+                    <p className="font-medium text-[var(--text-primary)]">{r.product_sku}</p>
+                    <p className="text-xs text-[var(--text-secondary)]">{r.product_name} · {r.supplier_name}</p>
                   </td>
-                  <td className="p-2 text-gray-500">{r.color} / {r.size}</td>
-                  <td className="p-2 text-gray-600">{fmtNum(r.physical_stock)}</td>
-                  <td className="p-2 text-gray-600">{fmtNum(r.incoming_stock)}</td>
-                  <td className="p-2 text-gray-600">{fmtNum(r.ordered_qty)}</td>
-                  <td className="p-2 font-semibold text-gray-700">{fmtNum(r.sellable_stock)}</td>
-                  <td className="p-2 text-gray-600">{fmtNum(basis === 7 ? r.sales_7d : basis === 14 ? r.sales_14d : r.sales_30d)}</td>
-                  <td className="p-2 text-gray-600">{r.avg_daily_sales == null ? t('page_replenishment.no_sales_yet') : r.avg_daily_sales.toFixed(1)}</td>
-                  <td className="p-2 text-gray-600">{fmtDays(r.estimated_stock_days)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{r.color} / {r.size}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.physical_stock)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.incoming_stock)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.ordered_qty)}</td>
+                  <td className="p-2 font-semibold text-[var(--text-primary)]">{fmtNum(r.sellable_stock)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(basis === 7 ? r.sales_7d : basis === 14 ? r.sales_14d : r.sales_30d)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{r.avg_daily_sales == null ? t('page_replenishment.no_sales_yet') : r.avg_daily_sales.toFixed(1)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{fmtDays(r.estimated_stock_days)}</td>
                   <td className="p-2 font-semibold text-brand-600">{fmtNum(r.suggested_reorder_qty)}</td>
                   <td className="p-2">
                     <input
@@ -155,7 +156,7 @@ export default function ReplenishmentPlanning() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={12} className="p-6 text-center text-gray-400">{t('page_replenishment.empty_state')}</td></tr>
+                <tr><td colSpan={12} className="p-6 text-center text-[var(--text-secondary)]">{t('page_replenishment.empty_state')}</td></tr>
               )}
             </tbody>
           </table>

@@ -11,7 +11,9 @@ export default function ProductSearchBox({ products, sku, onPick, placeholder })
 
   const matches = useMemo(() => {
     const q = term.trim().toLowerCase()
-    if (!q) return []
+    // Clicking/focusing the field shows an initial browsable list immediately instead of
+    // requiring the user to type first (item 009) - typing then narrows it as before.
+    if (!q) return products.slice(0, 50)
     return products
       .filter((p) => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
       .slice(0, 8)

@@ -13,6 +13,7 @@ import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import ExportCvsModal from '../components/ExportCvsModal'
 import ExportKurirModal from '../components/ExportKurirModal'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
@@ -291,33 +292,33 @@ export default function Orders() {
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_orders.empty_state')}</div>
       ) : (
         <>
-          <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={`${cardClasses} overflow-x-auto hidden md:block`}>
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                  <th className="p-3 w-8">
+                <tr className={theadRowClasses}>
+                  <th className="p-3.5 w-8">
                     <input type="checkbox" checked={selected.size === data.items.length} onChange={toggleSelectAll} />
                   </th>
-                  <th className="p-3">{t('page_orders.col_order_no')}</th>
-                  <th className="p-3">{t('page_orders.col_customer')}</th>
-                  <th className="p-3">{t('page_orders.col_host')}</th>
-                  <th className="p-3">{t('page_orders.col_pickup')}</th>
-                  <th className="p-3">{t('page_orders.col_qty')}</th>
-                  <th className="p-3">{t('page_orders.col_total')}</th>
-                  <th className="p-3">{t('page_orders.col_status')}</th>
+                  <th className="p-3.5">{t('page_orders.col_order_no')}</th>
+                  <th className="p-3.5">{t('page_orders.col_customer')}</th>
+                  <th className="p-3.5">{t('page_orders.col_host')}</th>
+                  <th className="p-3.5">{t('page_orders.col_pickup')}</th>
+                  <th className="p-3.5">{t('page_orders.col_qty')}</th>
+                  <th className="p-3.5">{t('page_orders.col_total')}</th>
+                  <th className="p-3.5">{t('page_orders.col_status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {data.items.map((o) => (
                   <tr
                     key={o.id}
                     onClick={() => navigate(`/orders/${o.id}`)}
-                    className={`hover:bg-gray-50 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
+                    className={`${rowClasses} cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
                   >
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
                     </td>
-                    <td className="p-3 font-semibold text-gray-800">
+                    <td className="p-3.5 font-semibold text-[var(--text-primary)]">
                       {o.is_urgent && (
                         <p className="text-[9px] font-bold uppercase tracking-wide text-red-600 mb-0.5">⚠ {t('page_orders.urgent_badge')}</p>
                       )}
@@ -325,10 +326,10 @@ export default function Orders() {
                         <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600 mb-0.5">🔗 {t('page_orders.merged_badge')}</p>
                       )}
                       {o.order_no}
-                      <p className="text-[10px] font-normal text-gray-400 mt-0.5">{t('page_orders.created_at_label')}: {new Date(o.created_at).toLocaleString('id-ID')}</p>
+                      <p className="text-[10px] font-normal text-[var(--text-secondary)] mt-0.5">{t('page_orders.created_at_label')}: {new Date(o.created_at).toLocaleString('id-ID')}</p>
                     </td>
-                    <td className="p-3">
-                      <p className="text-gray-700 flex items-center gap-1.5">
+                    <td className="p-3.5">
+                      <p className="text-[var(--text-primary)] flex items-center gap-1.5">
                         {o.customer_name}
                         {o.customer_blacklisted && (
                           <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">{t('page_orders.blacklist_badge')}</span>
@@ -337,38 +338,75 @@ export default function Orders() {
                       <button
                         type="button"
                         onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
-                        className="text-xs text-gray-400 hover:text-brand-600 hover:underline"
+                        className="text-xs text-[var(--text-secondary)] hover:text-brand-600 hover:underline"
                       >
                         {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
                       </button>
                     </td>
-                    <td className="p-3 text-gray-700 font-medium">{o.host_names}</td>
-                    <td className="p-3 text-gray-500">
+                    <td className="p-3.5 text-[var(--text-primary)] font-medium">{o.host_names}</td>
+                    <td className="p-3.5 text-[var(--text-secondary)]">
                       {o.pickup_chain_name}
-                      {o.pickup_store_code && <span className="font-mono text-xs text-gray-400"> #{o.pickup_store_code}</span>}
+                      {o.pickup_store_code && <span className="font-mono text-xs text-[var(--text-secondary)]"> #{o.pickup_store_code}</span>}
                     </td>
-                    <td className="p-3 text-gray-500">{o.total_qty}</td>
-                    <td className="p-3 font-semibold text-brand-600">{formatCurrency(o.total)}</td>
-                    <td className="p-3"><StatusPill status={o.status} /></td>
+                    <td className="p-3.5"><Metric type="qty">{o.total_qty}</Metric></td>
+                    <td className="p-3.5"><Metric type="gmv">{formatCurrency(o.total)}</Metric></td>
+                    <td className="p-3.5"><StatusPill status={o.status} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+
+          <div className="md:hidden space-y-2">
+            {data.items.map((o) => (
+              <div
+                key={o.id}
+                onClick={() => navigate(`/orders/${o.id}`)}
+                className={`${cardClasses} p-3.5 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input type="checkbox" checked={selected.has(o.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(o.id)} />
+                    <div className="min-w-0">
+                      {o.is_urgent && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-red-600">⚠ {t('page_orders.urgent_badge')}</p>
+                      )}
+                      {o.is_merged && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600">🔗 {t('page_orders.merged_badge')}</p>
+                      )}
+                      <p className="font-semibold text-[var(--text-primary)] truncate">{o.order_no}</p>
+                    </div>
+                  </div>
+                  <StatusPill status={o.status} />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <div className="min-w-0">
+                    <p className="text-[var(--text-primary)] truncate">{o.customer_name}</p>
+                    <p className="text-xs text-[var(--text-secondary)] truncate">{o.host_names}</p>
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    <Metric type="qty" className="text-xs">{o.total_qty}×</Metric>{' '}
+                    <Metric type="gmv">{formatCurrency(o.total)}</Metric>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mt-4 text-sm text-[var(--text-secondary)]">
             <span>{t('page_orders.pagination_info', { page: data.page, totalPages, total: data.total })}</span>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40"
               >
                 {t('page_orders.prev')}
               </button>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40"
               >
                 {t('page_orders.next')}
               </button>

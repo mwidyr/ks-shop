@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
 // "Masalah" here only means missing shipping_address - we don't have address-region data to
 // detect remote-island/COD-restricted deliveries the way the reference system claims to.
@@ -147,9 +148,9 @@ export default function ExportKurirModal({ onClose, onExported }) {
           ) : visible.length === 0 ? (
             <p className="text-center text-gray-400 py-8">{t('page_orders.export_empty')}</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="py-2 w-8"><input type="checkbox" checked={selected.size === visible.length} onChange={toggleAll} /></th>
                   <th className="py-2">{t('page_orders.export_col_recipient')}</th>
                   <th className="py-2">{t('page_orders.export_col_address')}</th>
@@ -157,22 +158,22 @@ export default function ExportKurirModal({ onClose, onExported }) {
                   <th className="py-2">{t('page_orders.col_status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {visible.map((r) => (
-                  <tr key={r.order_id}>
+                  <tr key={r.order_id} className={rowClasses}>
                     <td className="py-2"><input type="checkbox" checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
                     <td className="py-2">
-                      <p className="font-medium text-gray-800">{r.customer_name}</p>
-                      <p className="text-xs text-gray-400">{r.order_no}</p>
+                      <p className="font-medium text-[var(--text-primary)]">{r.customer_name}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{r.order_no}</p>
                       {r.group_order_nos?.length > 0 && (
                         <p className="text-[10px] font-semibold text-amber-600">
                           {t('page_orders.export_merged_note', { count: r.group_order_nos.length })}
                         </p>
                       )}
                     </td>
-                    <td className="py-2 text-gray-700 max-w-[220px] truncate">{r.shipping_address}</td>
-                    <td className="py-2">{formatCurrency(r.total_to_pay)}</td>
-                    <td className="py-2 text-gray-500">{t(`page_orders.kurir_status_${classify(r)}`)}</td>
+                    <td className="py-2 text-[var(--text-primary)] max-w-[220px] truncate">{r.shipping_address}</td>
+                    <td className="py-2 text-[var(--text-primary)]">{formatCurrency(r.total_to_pay)}</td>
+                    <td className="py-2 text-[var(--text-secondary)]">{t(`page_orders.kurir_status_${classify(r)}`)}</td>
                   </tr>
                 ))}
               </tbody>

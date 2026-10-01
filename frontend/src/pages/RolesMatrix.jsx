@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listUsers, createUser, updateUser } from '../api/users'
 import { listTabs, getRoleTabAccess, updateRoleTabAccess } from '../api/rolePermissions'
+import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
 
 const roleOptions = [
   { key: 'super_user' },
@@ -143,8 +144,8 @@ export default function RolesMatrix() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-6">
-      <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h2 className="font-bold text-gray-800 mb-4">{t('page_roles.staff_section_title')}</h2>
+      <div className={`${cardClasses} p-5`}>
+        <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_roles.staff_section_title')}</h2>
         <AddStaffForm onCreated={reload} />
         {loading ? (
           <p className="text-sm text-gray-400">{t('common.loading')}</p>
@@ -173,9 +174,9 @@ export default function RolesMatrix() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
+      <div className={`${cardClasses} p-5 overflow-x-auto`}>
         <div className="flex items-center justify-between mb-1">
-          <h2 className="font-bold text-gray-800">{t('page_roles.permission_matrix_title')}</h2>
+          <h2 className="font-bold text-[var(--text-primary)]">{t('page_roles.permission_matrix_title')}</h2>
           <div className="flex items-center gap-2">
             {matrixSaved && <span className="text-xs text-green-600">{t('page_roles.saved_label')}</span>}
             <button onClick={saveMatrix} disabled={matrixSaving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded-lg">
@@ -186,22 +187,22 @@ export default function RolesMatrix() {
         <p className="text-xs text-gray-500 mb-4">
           {t('page_roles.matrix_hint_v2')}
         </p>
-        <table className="w-full text-sm">
+        <table className={tableClasses}>
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b">
+            <tr className={theadRowClasses}>
               <th className="p-2">{t('page_roles.col_tab')}</th>
               {roles.map((role) => <th key={role} className="p-2 text-center whitespace-nowrap">{t(`page_roles.role_${role}`, role)}</th>)}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className={tbodyClasses}>
             {TAB_GROUPS.map((group) => (
               <Fragment key={group.titleKey}>
-                <tr className="bg-gray-50">
-                  <td colSpan={roles.length + 1} className="p-2 text-[11px] font-bold text-gray-400 uppercase">{t(group.titleKey)}</td>
+                <tr className="bg-[var(--table-header-bg)]">
+                  <td colSpan={roles.length + 1} className="p-2 text-[11px] font-bold text-[var(--text-secondary)] uppercase">{t(group.titleKey)}</td>
                 </tr>
                 {group.tabs.map((tab) => (
                   <tr key={tab}>
-                    <td className="p-2 text-gray-700">{tabLabel(t, tab)}</td>
+                    <td className="p-2 text-[var(--text-primary)]">{tabLabel(t, tab)}</td>
                     {roles.map((role) => (
                       <td key={role} className="p-2 text-center">
                         <select

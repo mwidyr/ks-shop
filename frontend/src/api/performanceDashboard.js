@@ -1,8 +1,9 @@
 import client from './client'
 
-function buildQuery({ locationId, from, to, sort, dir, channel, affiliateId } = {}) {
+function buildQuery({ locationId, hostId, from, to, sort, dir, channel, affiliateId } = {}) {
   const params = new URLSearchParams()
   if (locationId) params.set('location_id', locationId)
+  if (hostId) params.set('host_id', hostId)
   if (from) params.set('from', from)
   if (to) params.set('to', to)
   if (sort) params.set('sort', sort)

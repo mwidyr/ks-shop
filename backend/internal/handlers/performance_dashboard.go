@@ -17,18 +17,34 @@ type PerformanceDashboardHandler struct {
 	DB *pgxpool.Pool
 }
 
-// validHostsCTE builds the "WITH valid_hosts AS (...)" fragment shared by every endpoint below:
-// every host with at least one valid LIVE Session whose started_at falls in [from, to), narrowed
-// to one Location Tag when ?location_id= is given. Args always start with [from, to].
-func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
-	args = []interface{}{}
-	where := ""
+// hostsCTEFilter builds the "AND h.location_id = $N [AND h.id = $N]" fragment shared by
+// validHostsCTE/allHostsCTE below - adding the Agent/Host filter (item 011) alongside the
+// existing Location filter, args starting right after [from, to].
+func hostsCTEFilter(r *http.Request) (whereSQL string, args []interface{}) {
+	n := 3
 	if locID := r.URL.Query().Get("location_id"); locID != "" {
 		if id, err := strconv.Atoi(locID); err == nil {
 			args = append(args, id)
-			where = " AND h.location_id = $3"
+			whereSQL += " AND h.location_id = $" + strconv.Itoa(n)
+			n++
 		}
 	}
+	if hostID := r.URL.Query().Get("host_id"); hostID != "" {
+		if id, err := strconv.Atoi(hostID); err == nil {
+			args = append(args, id)
+			whereSQL += " AND h.id = $" + strconv.Itoa(n)
+			n++
+		}
+	}
+	return whereSQL, args
+}
+
+// validHostsCTE builds the "WITH valid_hosts AS (...)" fragment shared by every endpoint below:
+// every host with at least one valid LIVE Session whose started_at falls in [from, to), narrowed
+// to one Location Tag and/or one Host when ?location_id=/?host_id= are given. Args always start
+// with [from, to].
+func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
+	where, args := hostsCTEFilter(r)
 	sql = `valid_hosts AS (
 		SELECT DISTINCT h.id AS host_id, h.name AS host_name, h.location_id, hl.name AS location_name
 		FROM hosts h
@@ -41,19 +57,12 @@ func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
 }
 
 // allHostsCTE is validHostsCTE's Sales Channel Attribution (items 040-045) counterpart for
-// ?channel=all|website: every active host in the Location, with NO live_data_recorded_at gate
-// at all - "ALL/Website... should not depend on LIVE Data, Valid LIVE Days, or LIVE sessions"
-// per spec. Same "valid_hosts" CTE name/column shape as validHostsCTE so every query below can
-// reuse the exact same SELECT/JOIN template regardless of which one is picked.
+// ?channel=all|website: every active host in the Location/Host filter, with NO
+// live_data_recorded_at gate at all - "ALL/Website... should not depend on LIVE Data, Valid LIVE
+// Days, or LIVE sessions" per spec. Same "valid_hosts" CTE name/column shape as validHostsCTE so
+// every query below can reuse the exact same SELECT/JOIN template regardless of which one is picked.
 func allHostsCTE(r *http.Request) (sql string, args []interface{}) {
-	args = []interface{}{}
-	where := ""
-	if locID := r.URL.Query().Get("location_id"); locID != "" {
-		if id, err := strconv.Atoi(locID); err == nil {
-			args = append(args, id)
-			where = " AND h.location_id = $3"
-		}
-	}
+	where, args := hostsCTEFilter(r)
 	sql = `valid_hosts AS (
 		SELECT h.id AS host_id, h.name AS host_name, h.location_id, hl.name AS location_name
 		FROM hosts h

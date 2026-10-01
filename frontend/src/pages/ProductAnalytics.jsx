@@ -7,6 +7,7 @@ import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
 // Color breakdown for one ranked product, derived client-side from the already-fetched
 // by_variant rows (no extra API call) - grouped by color, with % of that product's OWN qty
@@ -63,7 +64,7 @@ export default function ProductAnalytics() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
+      <div className={`${cardClasses} p-4 flex items-center justify-between flex-wrap gap-3`}>
         <DateRangePicker value={range} onChange={setRange} />
         <SalesChannelFilter
           channel={channel} onChannelChange={setChannel}
@@ -73,51 +74,51 @@ export default function ProductAnalytics() {
       </div>
 
       {loading || !data ? (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">{t('common.loading')}</div>
+        <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl shadow-sm p-4">
-              <p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_product_analytics.host')}</p>
-              <p className="text-lg font-bold text-gray-800">{data.summary.host_name || t('page_product_analytics.all_hosts')}</p>
+            <div className={`${cardClasses} p-4`}>
+              <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.host')}</p>
+              <p className="text-lg font-bold text-[var(--text-primary)]">{data.summary.host_name || t('page_product_analytics.all_hosts')}</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm p-4">
-              <p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_product_analytics.total_qty')}</p>
-              <p className="text-lg font-bold text-gray-800">{data.summary.qty}</p>
+            <div className={`${cardClasses} p-4`}>
+              <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.total_qty')}</p>
+              <Metric type="qty" className="text-lg">{data.summary.qty}</Metric>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm p-4">
-              <p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_product_analytics.total_gmv')}</p>
-              <p className="text-lg font-bold text-brand-600">{formatCurrency(data.summary.gmv)}</p>
+            <div className={`${cardClasses} p-4`}>
+              <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.total_gmv')}</p>
+              <Metric type="gmv" className="text-lg">{formatCurrency(data.summary.gmv)}</Metric>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-            <h2 className="font-bold text-gray-800 mb-4">{t('page_product_analytics.sales_by_category_title')}</h2>
-            <table className="w-full text-sm">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_product_analytics.sales_by_category_title')}</h2>
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="p-2">{t('page_product_analytics.col_category')}</th><th className="p-2">{t('page_product_analytics.col_qty')}</th><th className="p-2">{t('page_product_analytics.col_gmv')}</th><th className="p-2">{t('page_product_analytics.col_gmv_pct')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {data.by_category.map((c) => (
-                  <tr key={c.category}>
-                    <td className="p-2 font-medium text-gray-700">{c.category}</td>
-                    <td className="p-2 text-gray-500">{c.qty}</td>
-                    <td className="p-2 text-gray-700 font-semibold">{formatCurrency(c.gmv)}</td>
-                    <td className="p-2 text-gray-500">{c.gmv_pct.toFixed(1)}%</td>
+                  <tr key={c.category} className={rowClasses}>
+                    <td className="p-2 font-medium text-[var(--text-primary)]">{c.category}</td>
+                    <td className="p-2"><Metric type="qty">{c.qty}</Metric></td>
+                    <td className="p-2"><Metric type="gmv">{formatCurrency(c.gmv)}</Metric></td>
+                    <td className="p-2 text-[var(--text-secondary)]">{c.gmv_pct.toFixed(1)}%</td>
                   </tr>
                 ))}
                 {data.by_category.length === 0 && (
-                  <tr><td colSpan={4} className="p-6 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
+                  <tr><td colSpan={4} className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-800">{t('page_product_analytics.product_ranking_title')}</h2>
+              <h2 className="font-bold text-[var(--text-primary)]">{t('page_product_analytics.product_ranking_title')}</h2>
               <div className="flex gap-1 text-xs">
                 <button
                   onClick={() => setProductSort('gmv')}
@@ -133,14 +134,14 @@ export default function ProductAnalytics() {
                 </button>
               </div>
             </div>
-            <table className="w-full text-sm">
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="p-2">{t('page_product_analytics.col_code')}</th><th className="p-2">{t('page_product_analytics.col_category')}</th><th className="p-2">{t('page_product_analytics.col_product')}</th>
                   <th className="p-2">{t('page_product_analytics.col_qty')}</th><th className="p-2">{t('page_product_analytics.col_gmv')}</th><th className="p-2">{t('page_product_analytics.col_gmv_pct')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {[...data.by_product].sort((a, b) => (productSort === 'qty' ? b.qty - a.qty : b.gmv - a.gmv)).map((p) => {
                   const isExpanded = expandedSkus.has(p.sku)
                   const colors = isExpanded ? colorBreakdownFor(data.by_variant, p.sku, p.qty) : []
@@ -148,41 +149,41 @@ export default function ProductAnalytics() {
                     <Fragment key={p.sku}>
                       <tr
                         onClick={() => toggleExpanded(p.sku)}
-                        className="cursor-pointer hover:bg-gray-50"
+                        className={`cursor-pointer ${rowClasses}`}
                       >
                         <td className="p-2 font-mono text-xs text-brand-600">
                           <span className="inline-flex items-center gap-1">
-                            <IconChevronDown width={12} height={12} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : '-rotate-90'}`} />
+                            <IconChevronDown width={12} height={12} className={`text-[var(--text-secondary)] transition-transform ${isExpanded ? 'rotate-180' : '-rotate-90'}`} />
                             {p.sku}
                           </span>
                         </td>
-                        <td className="p-2 text-gray-500">{p.category}</td>
-                        <td className="p-2 font-medium text-gray-700">{p.product_name}</td>
-                        <td className="p-2 text-gray-500">{p.qty}</td>
-                        <td className="p-2 text-gray-700 font-semibold">{formatCurrency(p.gmv)}</td>
-                        <td className="p-2 text-gray-500">{p.gmv_pct.toFixed(1)}%</td>
+                        <td className="p-2 text-[var(--text-secondary)]">{p.category}</td>
+                        <td className="p-2 font-medium text-[var(--text-primary)]">{p.product_name}</td>
+                        <td className="p-2"><Metric type="qty">{p.qty}</Metric></td>
+                        <td className="p-2"><Metric type="gmv">{formatCurrency(p.gmv)}</Metric></td>
+                        <td className="p-2 text-[var(--text-secondary)]">{p.gmv_pct.toFixed(1)}%</td>
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={6} className="p-0 bg-gray-50">
+                          <td colSpan={6} className="p-0 bg-[var(--table-header-bg)]">
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="text-left text-gray-400 uppercase border-b border-gray-200">
+                                <tr className="text-left text-[var(--text-secondary)] uppercase border-b border-[var(--table-divider)]">
                                   <th className="py-1.5 pl-8">{t('page_product_analytics.col_color')}</th>
                                   <th className="py-1.5">{t('page_product_analytics.col_qty')}</th>
                                   <th className="py-1.5 pr-4">{t('page_product_analytics.col_qty_pct')}</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-gray-200">
+                              <tbody className="divide-y divide-[var(--table-divider)]">
                                 {colors.map((c) => (
                                   <tr key={c.color}>
-                                    <td className="py-1.5 pl-8 font-medium text-gray-700">{c.color}</td>
-                                    <td className="py-1.5 text-gray-500">{c.qty}</td>
-                                    <td className="py-1.5 pr-4 text-gray-500">{c.pct.toFixed(1)}%</td>
+                                    <td className="py-1.5 pl-8 font-medium text-[var(--text-primary)]">{c.color}</td>
+                                    <td className="py-1.5"><Metric type="qty">{c.qty}</Metric></td>
+                                    <td className="py-1.5 pr-4 text-[var(--text-secondary)]">{c.pct.toFixed(1)}%</td>
                                   </tr>
                                 ))}
                                 {colors.length === 0 && (
-                                  <tr><td colSpan={3} className="py-3 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
+                                  <tr><td colSpan={3} className="py-3 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                                 )}
                               </tbody>
                             </table>
@@ -193,35 +194,35 @@ export default function ProductAnalytics() {
                   )
                 })}
                 {data.by_product.length === 0 && (
-                  <tr><td colSpan={6} className="p-6 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
+                  <tr><td colSpan={6} className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 overflow-x-auto">
-            <h2 className="font-bold text-gray-800 mb-4">{t('page_product_analytics.sales_by_variant_title')}</h2>
-            <table className="w-full text-sm">
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_product_analytics.sales_by_variant_title')}</h2>
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
+                <tr className={theadRowClasses}>
                   <th className="p-2">{t('page_product_analytics.col_code')}</th><th className="p-2">{t('page_product_analytics.col_category')}</th><th className="p-2">{t('page_product_analytics.col_product')}</th>
                   <th className="p-2">{t('page_product_analytics.col_color')}</th><th className="p-2">{t('page_product_analytics.col_qty')}</th><th className="p-2">{t('page_product_analytics.col_gmv')}</th><th className="p-2">{t('page_product_analytics.col_gmv_pct')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {data.by_variant.map((v) => (
-                  <tr key={v.sku}>
+                  <tr key={v.sku} className={rowClasses}>
                     <td className="p-2 font-mono text-xs text-brand-600">{v.sku}</td>
-                    <td className="p-2 text-gray-500">{v.category}</td>
-                    <td className="p-2 font-medium text-gray-700">{v.product_name}</td>
-                    <td className="p-2 text-gray-500">{v.color}</td>
-                    <td className="p-2 text-gray-500">{v.qty}</td>
-                    <td className="p-2 text-gray-700 font-semibold">{formatCurrency(v.gmv)}</td>
-                    <td className="p-2 text-gray-500">{v.gmv_pct.toFixed(1)}%</td>
+                    <td className="p-2 text-[var(--text-secondary)]">{v.category}</td>
+                    <td className="p-2 font-medium text-[var(--text-primary)]">{v.product_name}</td>
+                    <td className="p-2 text-[var(--text-secondary)]">{v.color}</td>
+                    <td className="p-2"><Metric type="qty">{v.qty}</Metric></td>
+                    <td className="p-2"><Metric type="gmv">{formatCurrency(v.gmv)}</Metric></td>
+                    <td className="p-2 text-[var(--text-secondary)]">{v.gmv_pct.toFixed(1)}%</td>
                   </tr>
                 ))}
                 {data.by_variant.length === 0 && (
-                  <tr><td colSpan={7} className="p-6 text-center text-gray-400">{t('page_product_analytics.no_sales_in_range')}</td></tr>
+                  <tr><td colSpan={7} className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}
               </tbody>
             </table>

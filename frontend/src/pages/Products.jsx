@@ -7,6 +7,7 @@ import { listCategories } from '../api/categories'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Draft' }
 const statusColors = {
@@ -53,31 +54,31 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
   }
 
   return (
-    <tr className={`hover:bg-gray-50 align-top ${selected ? 'bg-brand-50/40' : ''}`}>
-      <td className="p-3">
+    <tr className={`${rowClasses} align-top ${selected ? 'bg-brand-50/40' : ''}`}>
+      <td className="p-3.5">
         <input type="checkbox" checked={selected} onChange={() => onToggleSelect(p.id)} />
       </td>
-      <td className="p-3 cursor-pointer" onClick={() => navigate(`/products/${p.id}/edit`)}>
+      <td className="p-3.5 cursor-pointer" onClick={() => navigate(`/products/${p.id}/edit`)}>
         <div className="flex items-center gap-3">
           <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
           <div className="min-w-0">
             {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-            <p className="font-semibold text-gray-800 text-sm truncate hover:underline">{p.name}</p>
-            {p.category && <p className="text-xs text-gray-500">{p.category}</p>}
-            <p className="text-xs text-gray-500">{colorsLabel}</p>
-            <p className="text-xs text-gray-500">{sizesLabel}</p>
+            <p className="font-semibold text-[var(--text-primary)] text-sm truncate hover:underline">{p.name}</p>
+            {p.category && <p className="text-xs text-[var(--text-secondary)]">{p.category}</p>}
+            <p className="text-xs text-[var(--text-secondary)]">{colorsLabel}</p>
+            <p className="text-xs text-[var(--text-secondary)]">{sizesLabel}</p>
           </div>
         </div>
       </td>
-      <td className="p-3 font-semibold text-brand-600 whitespace-nowrap">
+      <td className="p-3.5 font-semibold text-brand-600 whitespace-nowrap">
         {priceLabel}
         {maxDiscountPct > 0 && (
           <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 align-middle">-{maxDiscountPct}%</span>
         )}
       </td>
-      <td className="p-3 text-gray-600">{totalStock}</td>
-      <td className="p-3 text-gray-600">{p.units_sold}</td>
-      <td className="p-3">
+      <td className="p-3.5 text-[var(--text-secondary)]">{totalStock}</td>
+      <td className="p-3.5 text-[var(--text-secondary)]">{p.units_sold}</td>
+      <td className="p-3.5">
         <div className="flex flex-col gap-1 items-start">
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
             {t(`page_products.status_${p.status_label}`, statusLabels[p.status_label])}
@@ -87,7 +88,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
           )}
         </div>
       </td>
-      <td className="p-3 relative">
+      <td className="p-3.5 relative">
         <button
           onClick={() => setMenuOpen((o) => !o)}
           className="flex items-center gap-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
@@ -402,8 +403,8 @@ export default function Products() {
       )}
       {bulkResult && <p className="text-sm text-gray-600 mb-4">{bulkResult}</p>}
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex gap-6 px-5 pt-4 border-b border-gray-100">
+      <div className={`${cardClasses} overflow-hidden`}>
+        <div className="flex gap-6 px-5 pt-4 border-b border-[var(--table-divider)]">
           {[
             ['all', t('page_products.tab_all', { count: products.length })],
             ['active', t('page_products.tab_active', { count: activeCount })],
@@ -421,7 +422,7 @@ export default function Products() {
           ))}
         </div>
 
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+        <div className="p-4 border-b border-[var(--table-divider)] flex flex-wrap gap-2 items-center">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -453,27 +454,55 @@ export default function Products() {
         ) : filtered.length === 0 ? (
           <p className="text-gray-400 py-10 text-center">{t('page_products.no_products')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto hidden md:block">
+            <table className={tableClasses}>
               <thead>
-                <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                  <th className="p-3 w-8">
+                <tr className={theadRowClasses}>
+                  <th className="p-3.5 w-8">
                     <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
                   </th>
-                  <th className="p-3">{t('page_products.col_info')}</th>
-                  <th className="p-3">{t('page_products.col_price')}</th>
-                  <th className="p-3">{t('page_products.col_stock')}</th>
-                  <th className="p-3">{t('page_products.col_sales')}</th>
-                  <th className="p-3">{t('page_products.col_status')}</th>
-                  <th className="p-3">{t('page_products.manage_button')}</th>
+                  <th className="p-3.5">{t('page_products.col_info')}</th>
+                  <th className="p-3.5">{t('page_products.col_price')}</th>
+                  <th className="p-3.5">{t('page_products.col_stock')}</th>
+                  <th className="p-3.5">{t('page_products.col_sales')}</th>
+                  <th className="p-3.5">{t('page_products.col_status')}</th>
+                  <th className="p-3.5">{t('page_products.manage_button')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className={tbodyClasses}>
                 {filtered.map((p) => (
                   <ProductRow key={p.id} p={p} onChanged={reload} selected={selected.has(p.id)} onToggleSelect={toggleSelect} />
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 && (
+          <div className="md:hidden divide-y divide-[var(--table-divider)]">
+            {filtered.map((p) => {
+              const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
+              const prices = p.variants.map((v) => v.price)
+              const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
+                ? formatCurrency(Math.min(...prices))
+                : `${formatCurrency(Math.min(...prices))} - ${formatCurrency(Math.max(...prices))}`) : '-'
+              return (
+                <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-3 p-3.5 hover:bg-[var(--table-row-hover)]">
+                  <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
+                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
+                        {t(`page_products.status_${p.status_label}`, statusLabels[p.status_label])}
+                      </span>
+                      <span className="text-xs text-[var(--text-secondary)]">{t('page_products.col_stock')}: {totalStock}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">{priceLabel}</p>
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import ExportReportModal from '../components/ExportReportModal'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
 function SummaryCard({ summary, t }) {
   if (!summary) return null
@@ -91,60 +92,60 @@ export default function Reports() {
       ) : !data || data.items.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_reports.no_data_in_range')}</div>
       ) : tab === 'products' ? (
-        <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className={`${cardClasses} overflow-x-auto`}>
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">{t('page_reports.col_product')}</th>
-                <th className="p-3">{t('page_reports.col_variant')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_order_count')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_qty')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_returns')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_amount')}</th>
+              <tr className={theadRowClasses}>
+                <th className="p-3.5">{t('page_reports.col_product')}</th>
+                <th className="p-3.5">{t('page_reports.col_variant')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_order_count')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_qty')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_returns')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_amount')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {data.items.map((row, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="p-3 font-medium text-gray-800">{row.name} <span className="font-mono text-xs text-gray-400">{row.sku}</span></td>
-                  <td className="p-3 text-gray-500">{row.color}/{row.size}</td>
-                  <td className="p-3 text-right">{row.order_count}</td>
-                  <td className="p-3 text-right">{row.qty}</td>
-                  <td className="p-3 text-right text-red-500">{row.qty_return}</td>
-                  <td className="p-3 text-right font-semibold text-brand-600">{formatCurrency(row.revenue)}</td>
+                <tr key={i} className={rowClasses}>
+                  <td className="p-3.5 font-medium text-[var(--text-primary)]">{row.name} <span className="font-mono text-xs text-[var(--text-secondary)]">{row.sku}</span></td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{row.color}/{row.size}</td>
+                  <td className="p-3.5 text-right"><Metric type="ord">{row.order_count}</Metric></td>
+                  <td className="p-3.5 text-right"><Metric type="qty">{row.qty}</Metric></td>
+                  <td className="p-3.5 text-right text-red-500">{row.qty_return}</td>
+                  <td className="p-3.5 text-right"><Metric type="gmv">{formatCurrency(row.revenue)}</Metric></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className={`${cardClasses} overflow-x-auto`}>
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
-                <th className="p-3">{t('page_reports.col_date')}</th>
-                <th className="p-3">{t('page_reports.col_order')}</th>
-                <th className="p-3">{t('page_reports.col_status')}</th>
-                <th className="p-3">{t('page_reports.col_product')}</th>
-                <th className="p-3">{t('page_reports.col_variant')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_qty')}</th>
-                <th className="p-3 text-right">{t('page_reports.col_amount')}</th>
-                {tab !== 'hosts' && <th className="p-3">{t('page_reports.col_customer')}</th>}
-                {tab === 'hosts' ? <th className="p-3">{t('page_reports.col_host')}</th> : tab === 'staff' ? <th className="p-3">{t('page_reports.col_staff')}</th> : null}
+              <tr className={theadRowClasses}>
+                <th className="p-3.5">{t('page_reports.col_date')}</th>
+                <th className="p-3.5">{t('page_reports.col_order')}</th>
+                <th className="p-3.5">{t('page_reports.col_status')}</th>
+                <th className="p-3.5">{t('page_reports.col_product')}</th>
+                <th className="p-3.5">{t('page_reports.col_variant')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_qty')}</th>
+                <th className="p-3.5 text-right">{t('page_reports.col_amount')}</th>
+                {tab !== 'hosts' && <th className="p-3.5">{t('page_reports.col_customer')}</th>}
+                {tab === 'hosts' ? <th className="p-3.5">{t('page_reports.col_host')}</th> : tab === 'staff' ? <th className="p-3.5">{t('page_reports.col_staff')}</th> : null}
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {data.items.map((row, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="p-3 text-gray-500">{row.date}</td>
-                  <td className="p-3 font-medium text-gray-800">{row.order_no}</td>
-                  <td className="p-3 text-gray-500">{row.status}</td>
-                  <td className="p-3 text-gray-700">{row.product_name}</td>
-                  <td className="p-3 text-gray-500">{row.variant}</td>
-                  <td className="p-3 text-right">{row.qty}</td>
-                  <td className="p-3 text-right font-semibold text-brand-600">{formatCurrency(row.subtotal)}</td>
-                  {tab !== 'hosts' && <td className="p-3 text-gray-500">{row.customer_name} · {row.customer_phone}</td>}
-                  {tab === 'hosts' ? <td className="p-3 text-gray-500">{row.host_name}</td> : tab === 'staff' ? <td className="p-3 text-gray-500">{row.staff_name}</td> : null}
+                <tr key={i} className={rowClasses}>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{row.date}</td>
+                  <td className="p-3.5 font-medium text-[var(--text-primary)]">{row.order_no}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{row.status}</td>
+                  <td className="p-3.5 text-[var(--text-primary)]">{row.product_name}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{row.variant}</td>
+                  <td className="p-3.5 text-right"><Metric type="qty">{row.qty}</Metric></td>
+                  <td className="p-3.5 text-right"><Metric type="gmv">{formatCurrency(row.subtotal)}</Metric></td>
+                  {tab !== 'hosts' && <td className="p-3.5 text-[var(--text-secondary)]">{row.customer_name} · {row.customer_phone}</td>}
+                  {tab === 'hosts' ? <td className="p-3.5 text-[var(--text-secondary)]">{row.host_name}</td> : tab === 'staff' ? <td className="p-3.5 text-[var(--text-secondary)]">{row.staff_name}</td> : null}
                 </tr>
               ))}
             </tbody>

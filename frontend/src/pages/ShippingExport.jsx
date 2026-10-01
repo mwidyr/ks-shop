@@ -3,6 +3,7 @@ import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported, updateTrackingNumber } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 function statusText(row, t) {
   if (row.status === 'shipped' && row.exported_at) return t('page_shipping_export.status.already_shipped')
@@ -90,9 +91,9 @@ export default function ShippingExport() {
   function Table({ title, group, format }) {
     if (group.length === 0) return null
     return (
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+      <div className={`${cardClasses} p-4 mb-4`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-800">{title}</h2>
+          <h2 className="font-bold text-[var(--text-primary)]">{title}</h2>
           <button
             onClick={() => exportGroup(group, format)}
             disabled={busy || group.every((r) => !selected.has(r.order_id))}
@@ -102,9 +103,9 @@ export default function ShippingExport() {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className={tableClasses}>
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b">
+              <tr className={theadRowClasses}>
                 <th className="p-2"></th>
                 <th className="p-2">{t('page_shipping_export.column_order')}</th>
                 <th className="p-2">{format === 'a' ? t('page_shipping_export.column_address') : t('page_shipping_export.column_store')}</th>
@@ -113,30 +114,30 @@ export default function ShippingExport() {
                 <th className="p-2">{t('page_shipping_export.column_tracking')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className={tbodyClasses}>
               {group.map((r) => (
-                <tr key={r.order_id}>
+                <tr key={r.order_id} className={rowClasses}>
                   <td className="p-2">
                     <input type="checkbox" checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} />
                   </td>
                   <td className="p-2">
-                    <p className="font-semibold text-gray-800">{r.customer_name}</p>
-                    <p className="text-xs text-gray-400 font-mono">{r.order_no}</p>
+                    <p className="font-semibold text-[var(--text-primary)]">{r.customer_name}</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-mono">{r.order_no}</p>
                     {r.group_order_nos?.length > 0 && (
                       <p className="text-[10px] text-amber-600">+ {r.group_order_nos.join(', ')}</p>
                     )}
                   </td>
-                  <td className="p-2 text-gray-500">
+                  <td className="p-2 text-[var(--text-secondary)]">
                     {format === 'a'
                       ? r.shipping_address
                       : [r.pickup_store_name, r.pickup_store_code && `#${r.pickup_store_code}`].filter(Boolean).join(' ') || '-'}
                   </td>
-                  <td className="p-2 text-gray-700">
+                  <td className="p-2 text-[var(--text-primary)]">
                     {format === 'a'
                       ? formatCurrency(r.total_to_pay)
                       : <>{formatCurrency(r.item_value)} / {formatCurrency(r.shipping_fee)}</>}
                   </td>
-                  <td className="p-2 text-xs text-gray-500">{statusText(r, t)}</td>
+                  <td className="p-2 text-xs text-[var(--text-secondary)]">{statusText(r, t)}</td>
                   <td className="p-2">
                     <input
                       defaultValue={r.tracking_number || ''}

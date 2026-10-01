@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { listPurchaseRequisitions, createPurchaseRequisition } from '../api/purchaseRequisitions'
 import { formatCurrency } from '../utils/format'
+import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 const statusColors = {
   draft: 'bg-yellow-100 text-yellow-700',
+  submitted: 'bg-blue-100 text-blue-700',
   completed: 'bg-green-100 text-green-700',
 }
 
@@ -41,33 +43,33 @@ export default function PurchaseRequisitions() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className={`${cardClasses} overflow-x-auto`}>
+        <table className={tableClasses}>
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b">
-              <th className="p-3">{t('page_purchase_requisitions.th_requisition_no')}</th>
-              <th className="p-3">{t('page_purchase_requisitions.th_suppliers')}</th>
-              <th className="p-3">{t('page_purchase_requisitions.th_total_planned')}</th>
-              <th className="p-3">{t('page_purchase_requisitions.th_status')}</th>
-              <th className="p-3">{t('page_purchase_requisitions.th_created')}</th>
-              <th className="p-3"></th>
+            <tr className={theadRowClasses}>
+              <th className="p-3.5">{t('page_purchase_requisitions.th_requisition_no')}</th>
+              <th className="p-3.5">{t('page_purchase_requisitions.th_suppliers')}</th>
+              <th className="p-3.5">{t('page_purchase_requisitions.th_total_planned')}</th>
+              <th className="p-3.5">{t('page_purchase_requisitions.th_status')}</th>
+              <th className="p-3.5">{t('page_purchase_requisitions.th_created')}</th>
+              <th className="p-3.5"></th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className={tbodyClasses}>
             {requisitions.map((req) => (
-              <tr key={req.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/purchase-requisitions/${req.id}`)}>
-                <td className="p-3 font-mono text-xs text-brand-600">{req.requisition_no}</td>
-                <td className="p-3 text-gray-600">{req.supplier_count}</td>
-                <td className="p-3 text-gray-700 font-semibold">{formatCurrency(req.total_planned_amount)}</td>
-                <td className="p-3">
+              <tr key={req.id} className={`${rowClasses} cursor-pointer`} onClick={() => navigate(`/purchase-requisitions/${req.id}`)}>
+                <td className="p-3.5 font-mono text-xs text-brand-600">{req.requisition_no}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{req.supplier_count}</td>
+                <td className="p-3.5 text-[var(--text-primary)] font-semibold">{formatCurrency(req.total_planned_amount)}</td>
+                <td className="p-3.5">
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[req.status]}`}>{t(`page_purchase_requisitions.status_${req.status}`)}</span>
                 </td>
-                <td className="p-3 text-gray-500">{new Date(req.created_at).toLocaleDateString()}</td>
-                <td className="p-3 text-brand-600 text-xs font-semibold">{t('page_purchase_requisitions.detail_link')}</td>
+                <td className="p-3.5 text-[var(--text-secondary)]">{new Date(req.created_at).toLocaleDateString()}</td>
+                <td className="p-3.5 text-brand-600 text-xs font-semibold">{t('page_purchase_requisitions.detail_link')}</td>
               </tr>
             ))}
             {!loading && requisitions.length === 0 && (
-              <tr><td colSpan={6} className="p-6 text-center text-gray-400">{t('page_purchase_requisitions.empty_state')}</td></tr>
+              <tr><td colSpan={6} className="p-6 text-center text-[var(--text-secondary)]">{t('page_purchase_requisitions.empty_state')}</td></tr>
             )}
           </tbody>
         </table>

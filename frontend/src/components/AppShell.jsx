@@ -199,7 +199,7 @@ export default function AppShell({ children }) {
   useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="h-screen overflow-hidden flex bg-gray-50">
       {mobileNavOpen && (
         <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileNavOpen(false)} />
       )}
@@ -286,7 +286,7 @@ export default function AppShell({ children }) {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 gap-2">
+        <header className="h-16 shrink-0 sticky top-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-3 sm:px-6 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setMobileNavOpen(true)}

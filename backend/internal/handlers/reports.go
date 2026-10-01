@@ -616,16 +616,16 @@ type colorPairRow struct {
 	Pct        float64 `json:"pct"`
 }
 
-// ProductColorPair answers, for two user-picked products, which color-A x color-B combinations
-// were bought together in the same order - a two-product extension of the single-product
-// "color combo" analysis above, modeled on the same self-join-order_items-on-order_id shape as
-// colorCombos/crossSell, but with BOTH sides of the join constrained to specific products
-// instead of "any other product."
+// ProductColorPair answers, for a picked Product A, which color-A x color-B combinations were
+// bought together in the same order with every other product that shares an order with it - no
+// manual Product B selection required (item 010). When ?sku_b= is also given, falls back to the
+// original two-specific-products lookup (kept for backward compatibility); the current frontend
+// only ever sends sku_a now and lets productColorPairAuto rank+expand the partners itself.
 func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	skuA, skuB := q.Get("sku_a"), q.Get("sku_b")
-	if skuA == "" || skuB == "" {
-		respondError(w, http.StatusBadRequest, "sku_a and sku_b are required")
+	if skuA == "" {
+		respondError(w, http.StatusBadRequest, "sku_a is required")
 		return
 	}
 
@@ -633,6 +633,11 @@ func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request
 	if !filtered {
 		to = time.Now()
 		from = to.AddDate(0, 0, -30)
+	}
+
+	if skuB == "" {
+		h.productColorPairAuto(w, r, skuA, from, to)
+		return
 	}
 
 	channelWhere, channelArgs := salesChannelWhere(r, "o", 5)
@@ -676,5 +681,109 @@ func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request
 		"product_b":    map[string]string{"sku": skuB, "name": nameB},
 		"total_orders": totalOrders,
 		"pairs":        pairs,
+	})
+}
+
+type pairedProductRow struct {
+	SKU        string         `json:"sku"`
+	Name       string         `json:"name"`
+	OrderCount int            `json:"order_count"`
+	Pct        float64        `json:"pct"`
+	ColorPairs []colorPairRow `json:"color_pairs"`
+}
+
+// productColorPairAuto implements item 010: rank every other product that shares an order with
+// Product A by distinct order count (same self-join shape as the single-product cross_sell
+// query above), then for each ranked partner compute its own color-A x color-B breakdown by
+// re-running the two-SKU colorPairRow query against that specific pair - giving the frontend an
+// expandable, auto-populated list with no manual Product B step.
+func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Request, skuA string, from, to time.Time) {
+	aChannelWhere, aChannelArgs := salesChannelWhere(r, "o", 4)
+	aArgs := append([]interface{}{skuA, from, to}, aChannelArgs...)
+	aJoinWhere := `
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE p.sku = $1
+		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + aChannelWhere
+
+	var totalOrders int
+	h.DB.QueryRow(r.Context(), `SELECT COUNT(DISTINCT oi.order_id) `+aJoinWhere, aArgs...).Scan(&totalOrders)
+
+	rankRows, err := h.DB.Query(r.Context(), `
+		SELECT p2.sku, p2.name, COUNT(DISTINCT oi2.order_id)
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		JOIN order_items oi2 ON oi2.order_id = oi.order_id
+		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
+		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id
+		WHERE p.sku = $1
+		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + aChannelWhere + `
+		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, aArgs...)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to rank paired products")
+		return
+	}
+	type ranked struct {
+		SKU   string
+		Name  string
+		Count int
+	}
+	var rankedList []ranked
+	for rankRows.Next() {
+		var rr ranked
+		if rankRows.Scan(&rr.SKU, &rr.Name, &rr.Count) == nil {
+			rankedList = append(rankedList, rr)
+		}
+	}
+	rankRows.Close()
+
+	var nameA string
+	h.DB.QueryRow(r.Context(), `SELECT name FROM products WHERE sku=$1`, skuA).Scan(&nameA)
+
+	pairChannelWhere, pairChannelArgs := salesChannelWhere(r, "o", 5)
+	pairJoinWhere := `
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		JOIN order_items oi2 ON oi2.order_id = oi.order_id
+		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
+		JOIN products p2 ON p2.id = pv2.product_id
+		WHERE p.sku = $1 AND p2.sku = $2
+		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4` + pairChannelWhere
+
+	paired := make([]pairedProductRow, 0, len(rankedList))
+	for _, rr := range rankedList {
+		pairArgs := append([]interface{}{skuA, rr.SKU, from, to}, pairChannelArgs...)
+		colorRows, err := h.DB.Query(r.Context(), `
+			SELECT pv.color, pv2.color, COUNT(DISTINCT oi.order_id) `+pairJoinWhere+`
+			GROUP BY pv.color, pv2.color ORDER BY 3 DESC LIMIT 50`, pairArgs...)
+		var colorPairs []colorPairRow
+		if err == nil {
+			for colorRows.Next() {
+				var cp colorPairRow
+				if colorRows.Scan(&cp.ColorA, &cp.ColorB, &cp.OrderCount) == nil {
+					cp.Pct = pctOf(float64(cp.OrderCount), float64(rr.Count))
+					colorPairs = append(colorPairs, cp)
+				}
+			}
+			colorRows.Close()
+		}
+
+		paired = append(paired, pairedProductRow{
+			SKU: rr.SKU, Name: rr.Name, OrderCount: rr.Count,
+			Pct:        pctOf(float64(rr.Count), float64(totalOrders)),
+			ColorPairs: colorPairs,
+		})
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"product_a":       map[string]string{"sku": skuA, "name": nameA},
+		"total_orders":    totalOrders,
+		"paired_products": paired,
 	})
 }

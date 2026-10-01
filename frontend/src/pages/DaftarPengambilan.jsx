@@ -1,24 +1,55 @@
 import { useEffect, useState } from 'react'
 import { getPickingQueue, pickOrderItem } from '../api/orders'
+import { listProducts } from '../api/products'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PickingLineItem from '../components/PickingLineItem'
+import { statusLabels } from '../components/StatusPill'
+
+const statusOptions = ['picking', 'pending', 'ready_to_ship']
+const sortOptions = [
+  { value: '', labelKey: 'page_picking.sort_oldest' },
+  { value: 'newest', labelKey: 'page_picking.sort_newest' },
+  { value: 'product_code', labelKey: 'page_picking.sort_product_code' },
+  { value: 'customer', labelKey: 'page_picking.sort_customer' },
+]
 
 export default function DaftarPengambilan() {
   const { t } = useTranslation()
   const [data, setData] = useState({ items: [], total: 0 })
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('picking')
+  const [ready, setReady] = useState('')
+  const [sort, setSort] = useState('')
+  const [productCode, setProductCode] = useState('')
+  const [customer, setCustomer] = useState('')
+  const [color, setColor] = useState('')
+  const [size, setSize] = useState('')
+  const [colors, setColors] = useState([])
+  const [sizes, setSizes] = useState([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    listProducts().then((products) => {
+      const allVariants = products.flatMap((p) => p.variants)
+      setColors([...new Set(allVariants.map((v) => v.color).filter(Boolean))].sort())
+      setSizes([...new Set(allVariants.map((v) => v.size).filter(Boolean))].sort())
+    })
+  }, [])
 
   function fetchQueue() {
     setLoading(true)
-    getPickingQueue({ q: search, page_size: 100 }).then((res) => {
+    getPickingQueue({
+      q: search, status, ready, sort,
+      product_code: productCode, customer, color, size,
+      page_size: 100,
+    }).then((res) => {
       setData(res)
       setLoading(false)
     })
   }
 
-  useEffect(fetchQueue, [search])
+  useEffect(fetchQueue, [search, status, ready, sort, productCode, customer, color, size])
 
   async function handlePick(itemId, pickedQty) {
     await pickOrderItem(itemId, pickedQty)
@@ -49,6 +80,39 @@ export default function DaftarPengambilan() {
           placeholder={t('page_picking.search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
         />
+        <div className="flex flex-wrap gap-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            {statusOptions.map((s) => <option key={s} value={s}>{t(`status.${s}`, statusLabels[s])}</option>)}
+          </select>
+          <select value={ready} onChange={(e) => setReady(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">{t('page_picking.readiness_all')}</option>
+            <option value="true">{t('page_picking.readiness_ready')}</option>
+            <option value="false">{t('page_picking.readiness_not_ready')}</option>
+          </select>
+          <select value={color} onChange={(e) => setColor(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">{t('page_picking.filter_color_all')}</option>
+            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={size} onChange={(e) => setSize(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">{t('page_picking.filter_size_all')}</option>
+            {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input
+            value={productCode}
+            onChange={(e) => setProductCode(e.target.value)}
+            placeholder={t('page_picking.filter_product_code_placeholder')}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
+          />
+          <input
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
+            placeholder={t('page_picking.filter_customer_placeholder')}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36"
+          />
+          <select value={sort} onChange={(e) => setSort(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            {sortOptions.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
+          </select>
+        </div>
       </div>
 
       <p className="text-sm text-gray-500 mb-3">{t('page_picking.item_count_label', { count: data.total })}</p>
