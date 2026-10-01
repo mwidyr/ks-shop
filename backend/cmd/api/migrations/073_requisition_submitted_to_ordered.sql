@@ -1,0 +1,11 @@
+-- The Purchase Requisition lifecycle changed twice this session: draft/completed (original) ->
+-- draft/submitted/completed (first revision) -> draft/pending_contact/ordered/completed (current,
+-- per the "Purchase Requisitions - Adjustments" PDF). Any requisition that was already sitting in
+-- 'submitted' under the middle revision was never migrated - the frontend no longer has a label
+-- for it (shows the raw i18n key) and it's stuck: the auto-completion check and every
+-- action-button branch now only recognize 'ordered', not 'submitted'.
+--
+-- 'submitted' meant exactly what 'ordered' means today (real Purchase Orders already created and
+-- linked, incoming_stock already reserved, awaiting receipt) - this is a straight relabel, not a
+-- behavior change, so it's safe to apply unconditionally.
+UPDATE purchase_requisitions SET status = 'ordered' WHERE status = 'submitted';

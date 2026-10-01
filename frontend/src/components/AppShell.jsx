@@ -33,7 +33,7 @@ const navGroups = [
       { to: '/products', key: 'products', icon: IconProducts },
       { to: '/categories', key: 'categories', icon: IconTag },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
-      { to: '/customers', key: 'customers', icon: IconUsers, upcoming: true },
+      { to: '/customers', key: 'customers', icon: IconUsers },
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
       { to: '/suppliers', key: 'suppliers', icon: IconTruck },
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
