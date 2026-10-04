@@ -847,7 +847,7 @@
     "supplier_none": "No supplier set",
     "total_stock_label": "Total Stock",
     "variant_allow_oversell": "Allow oversell for this variant",
-    "variant_is_active": "Enable this variant",
+    "variant_is_active": "Sellable",
     "variant_name_label": "Variant Name",
     "variant_no_color_label": "Variant",
     "variant_required": "At least one variant is required",

@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import { listSuppliers } from '../api/suppliers'
-import { verifyPassword } from '../api/auth'
 import PhotoSlots from '../components/PhotoSlots'
 import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
@@ -145,38 +144,6 @@ export default function ProductForm() {
       if (removed?.id) setDeletedVariantIds((ids) => [...ids, removed.id])
       return vs.filter((_, i) => i !== idx)
     })
-  }
-
-  // Permanent deletion of an already-saved variant (item 050) - Admin-only, password-confirmed,
-  // and fires immediately (not deferred to form submit) since it's irreversible: a "Cancel" on
-  // the rest of the form afterward must not look like it undid a permanent delete.
-  const [deleteConfirmIdx, setDeleteConfirmIdx] = useState(null)
-  const [deletePassword, setDeletePassword] = useState('')
-  const [deleteError, setDeleteError] = useState('')
-  const [deleting, setDeleting] = useState(false)
-
-  async function confirmDeleteVariant(idx) {
-    const variant = variants[idx]
-    if (!variant?.id) return
-    setDeleting(true)
-    setDeleteError('')
-    try {
-      await verifyPassword(deletePassword)
-    } catch {
-      setDeleteError(t('page_product_form.delete_variant_wrong_password'))
-      setDeleting(false)
-      return
-    }
-    try {
-      await deleteVariant(id, variant.id)
-      setVariants((vs) => vs.filter((_, i) => i !== idx))
-      setDeleteConfirmIdx(null)
-      setDeletePassword('')
-    } catch (err) {
-      setDeleteError(err.response?.data?.error || t('page_product_form.delete_variant_failed'))
-    } finally {
-      setDeleting(false)
-    }
   }
 
   function variantBody(v) {
@@ -418,30 +385,7 @@ export default function ProductForm() {
                       {t('page_product_form.remove_variant')}
                     </button>
                   )}
-                  {isEdit && isAdmin && v.id && deleteConfirmIdx !== idx && (
-                    <button type="button" onClick={() => { setDeleteConfirmIdx(idx); setDeleteError(''); setDeletePassword('') }} className="text-xs text-red-600 hover:underline">
-                      {t('page_product_form.delete_variant_permanently')}
-                    </button>
-                  )}
                 </div>
-
-                {isEdit && deleteConfirmIdx === idx && (
-                  <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
-                    <p className="text-xs text-red-700 font-medium">{t('page_product_form.delete_variant_warning')}</p>
-                    <input
-                      type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder={t('page_product_form.delete_variant_password_placeholder')}
-                      className="w-full border border-red-300 rounded-lg px-2 py-1.5 text-sm"
-                    />
-                    {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => confirmDeleteVariant(idx)} disabled={deleting || !deletePassword} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
-                        {deleting ? t('page_product_form.deleting') : t('page_product_form.delete_variant_confirm_button')}
-                      </button>
-                      <button type="button" onClick={() => setDeleteConfirmIdx(null)} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
-                    </div>
-                  </div>
-                )}
 
                 <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-3`}>
                   {isEdit ? (
@@ -452,10 +396,14 @@ export default function ProductForm() {
                   ) : (
                     <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   )}
-                  <input placeholder={t('page_product_form.sell_price_placeholder')} type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
                   <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sell_price_placeholder')}</label>
+                    <input type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.compare_at_price_placeholder')}</label>
                     <input
-                      placeholder={t('page_product_form.compare_at_price_placeholder')} type="number" min="0" value={v.compare_at_price || ''}
+                      type="number" min="0" value={v.compare_at_price || ''}
                       onChange={(e) => updateVariantField(idx, 'compare_at_price', e.target.value)}
                       className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
                     />

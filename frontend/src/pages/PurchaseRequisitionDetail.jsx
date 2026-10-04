@@ -38,6 +38,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const isPendingContact = requisitionStatus === 'pending_contact'
   const isOrdered = requisitionStatus === 'ordered'
   const canEditPlanned = requisitionStatus === 'draft' || isPendingContact
+  const canEditNotes = requisitionStatus === 'draft' || isPendingContact
   const canConfirm = isPendingContact
   const canReceive = isOrdered && po && (po.status === 'ordered' || po.status === 'pending_arrival')
 
@@ -228,10 +229,10 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
       </div>
 
       <div className="p-4 border-t border-[var(--table-divider)] space-y-3">
-        {(canConfirm || group.notes) && (
+        {(canEditNotes || group.notes) && (
           <div>
             <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchase_requisitions.group_notes')}</label>
-            {canConfirm ? (
+            {canEditNotes ? (
               <textarea
                 value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => saveConfirmation(null)} rows={2}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"

@@ -278,8 +278,11 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 	var supplierID *int
 	var productID int
 	var costPrice float64
+	// Unit Cost defaults from the parent product's own Cost field when set (so every variant of
+	// that product shares the same cost), falling back to the variant's own cost_price otherwise.
 	if err := h.DB.QueryRow(ctx, `
-		SELECT p.id, p.supplier_id, pv.cost_price FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
+		SELECT p.id, p.supplier_id, COALESCE(NULLIF(p.cost, 0), pv.cost_price)
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
 		req.VariantID).Scan(&productID, &supplierID, &costPrice); err != nil {
 		respondError(w, http.StatusNotFound, "variant not found")
 		return
@@ -392,8 +395,8 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 			UPDATE purchase_requisition_items SET confirmed_qty = planned_qty
 			WHERE requisition_supplier_id=$1 AND confirmed_qty IS NULL`, groupID)
 		h.DB.Exec(ctx, `
-			UPDATE purchase_requisition_items pri SET unit_cost = pv.cost_price
-			FROM product_variants pv
+			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(NULLIF(p.cost, 0), pv.cost_price)
+			FROM product_variants pv JOIN products p ON p.id = pv.product_id
 			WHERE pri.variant_id = pv.id AND pri.requisition_supplier_id=$1 AND pri.unit_cost IS NULL`, groupID)
 	}
 	if req.Status != nil {

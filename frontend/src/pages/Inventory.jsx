@@ -95,19 +95,19 @@ function VariantRow({ product, variant, onSaved }) {
         </div>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs mb-2">
           <div>
-            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
+            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
             <p className="font-semibold tabular-nums">{variant.total_stock}</p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
+            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
             {availableField}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
+            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_incoming')}</p>
             {incomingField}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
+            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
             <p className="tabular-nums">{variant.order_stock}</p>
           </div>
         </div>
@@ -168,19 +168,19 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs">
           <div>
-            <p className="text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
+            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
             <p className="font-bold text-gray-800 tabular-nums">{totals.total}</p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
+            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
             <p className="font-bold text-gray-800 tabular-nums">{totals.available}</p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
+            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_incoming')}</p>
             <p className="font-bold text-gray-800 tabular-nums">{totals.incoming}</p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
+            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
             <p className="font-bold text-gray-800 tabular-nums">{totals.order}</p>
           </div>
         </div>

@@ -847,7 +847,7 @@
     "supplier_none": "尚未設定供應商",
     "total_stock_label": "總庫存",
     "variant_allow_oversell": "允許此款式超賣",
-    "variant_is_active": "啟用此款式",
+    "variant_is_active": "可銷售",
     "variant_name_label": "款式名稱",
     "variant_no_color_label": "款式",
     "variant_required": "至少需要一個款式",

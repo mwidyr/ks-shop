@@ -79,14 +79,18 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 		baseWhere += ` AND sb.available_stock < oi.qty`
 	}
 
-	orderBy := "o.created_at ASC"
+	// Every branch ends in oi.id ASC as a stable tiebreaker - Postgres doesn't guarantee a
+	// consistent order for rows that tie on the leading sort key(s), so without it, repeated
+	// identical queries (e.g. after each +/- pick) could reorder the list even though nothing
+	// about the sort-relevant data changed, confusing whoever is picking.
+	orderBy := "o.created_at ASC, oi.id ASC"
 	switch q.Get("sort") {
 	case "newest":
-		orderBy = "o.created_at DESC"
+		orderBy = "o.created_at DESC, oi.id ASC"
 	case "product_code":
-		orderBy = "p.sku ASC, o.created_at ASC"
+		orderBy = "p.sku ASC, o.created_at ASC, oi.id ASC"
 	case "customer":
-		orderBy = "c.name ASC, o.created_at ASC"
+		orderBy = "c.name ASC, o.created_at ASC, oi.id ASC"
 	}
 
 	page := 1
