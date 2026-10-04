@@ -37,23 +37,35 @@ export default function DaftarPengambilan() {
     })
   }, [])
 
-  function fetchQueue() {
-    setLoading(true)
-    getPickingQueue({
+  function queueParams() {
+    return {
       q: search, status, ready, sort,
       product_code: productCode, customer, color, size,
       page_size: 100,
-    }).then((res) => {
+    }
+  }
+
+  function fetchQueue() {
+    setLoading(true)
+    getPickingQueue(queueParams()).then((res) => {
       setData(res)
       setLoading(false)
     })
+  }
+
+  // After a pick action, re-fetch without toggling `loading` - the loading branch below swaps
+  // the entire list out for a text placeholder, which is what caused the "list jumps / loses
+  // scroll position" complaint on every single +/-/tick click. Keys (item_id) are stable and the
+  // sort order doesn't change from picking, so React reconciles this in place with no unmount.
+  function refreshQueueSilently() {
+    getPickingQueue(queueParams()).then(setData)
   }
 
   useEffect(fetchQueue, [search, status, ready, sort, productCode, customer, color, size])
 
   async function handlePick(itemId, pickedQty) {
     await pickOrderItem(itemId, pickedQty)
-    fetchQueue()
+    refreshQueueSilently()
   }
 
   const totalQty = data.items.reduce((s, it) => s + it.qty, 0)

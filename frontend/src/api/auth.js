@@ -23,3 +23,7 @@ export function acceptInvite(token, password) {
 export function validateAuthToken(token) {
   return client.get(`/auth/tokens/${token}`).then((res) => res.data)
 }
+
+export function verifyPassword(password) {
+  return client.post('/auth/verify-password', { password }).then((res) => res.data)
+}

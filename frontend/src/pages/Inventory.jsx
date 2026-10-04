@@ -93,22 +93,22 @@ function VariantRow({ product, variant, onSaved }) {
           <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{variant.sku} · {variant.color}/{variant.size}</p>
           {badge}
         </div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm mb-2">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs mb-2">
           <div>
-            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
+            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_total')}</p>
             <p className="font-semibold tabular-nums">{variant.total_stock}</p>
           </div>
           <div>
-            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
-            <p className="tabular-nums">{variant.order_stock}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
+            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_available')}</p>
             {availableField}
           </div>
           <div>
-            <p className="text-[11px] text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
+            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_incoming')}</p>
             {incomingField}
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-400 uppercase">{t('page_inventory.col_ordered')}</p>
+            <p className="tabular-nums">{variant.order_stock}</p>
           </div>
         </div>
         {actions}
@@ -282,11 +282,11 @@ export default function Inventory() {
 
   return (
     <div className="px-4 sm:px-6 py-6">
-      <div className="flex flex-wrap gap-4 mb-6">
-        <BigStatCard title={t('page_inventory.actual_stock')} value={totalAvailable} iconBg="bg-green-50" iconColor="text-green-600" icon="📦" />
-        <BigStatCard title={t('page_inventory.ordered_stock')} value={totalOrdered} iconBg="bg-blue-50" iconColor="text-blue-600" icon="🚚" />
-        <BigStatCard title={t('page_inventory.low_stock_badge')} value={lowStockCount} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⚠️" />
-        <BigStatCard title={t('page_inventory.oversell_variants')} value={oversellCount} iconBg="bg-red-50" iconColor="text-red-600" icon="🔴" />
+      <div className="flex flex-wrap gap-3 mb-6">
+        <BigStatCard compact title={t('page_inventory.actual_stock')} value={totalAvailable} iconBg="bg-green-50" iconColor="text-green-600" icon="📦" />
+        <BigStatCard compact title={t('page_inventory.ordered_stock')} value={totalOrdered} iconBg="bg-blue-50" iconColor="text-blue-600" icon="🚚" />
+        <BigStatCard compact title={t('page_inventory.low_stock_badge')} value={lowStockCount} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⚠️" />
+        <BigStatCard compact title={t('page_inventory.oversell_variants')} value={oversellCount} iconBg="bg-red-50" iconColor="text-red-600" icon="🔴" />
       </div>
 
       <div className="flex gap-2 mb-4">

@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 
 const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Draft' }
 const statusColors = {
@@ -15,7 +16,7 @@ const statusColors = {
   out_of_stock: 'bg-red-100 text-red-700', nonaktif: 'bg-gray-100 text-gray-500',
 }
 
-function ProductRow({ p, onChanged, selected, onToggleSelect }) {
+function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -60,7 +61,11 @@ function ProductRow({ p, onChanged, selected, onToggleSelect }) {
       </td>
       <td className="p-3.5 cursor-pointer" onClick={() => navigate(`/products/${p.id}/edit`)}>
         <div className="flex items-center gap-3">
-          <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
+          <img
+            src={resolveUrl(p.images[0]?.url)}
+            onClick={(e) => { e.stopPropagation(); onPreview(p) }}
+            className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
+          />
           <div className="min-w-0">
             {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
             <p className="font-semibold text-[var(--text-primary)] text-sm truncate hover:underline">{p.name}</p>
@@ -135,6 +140,7 @@ export default function Products() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkResult, setBulkResult] = useState('')
   const [importing, setImporting] = useState(false)
+  const [previewProduct, setPreviewProduct] = useState(null)
 
   function reload() {
     listProducts().then((data) => {
@@ -471,7 +477,7 @@ export default function Products() {
               </thead>
               <tbody className={tbodyClasses}>
                 {filtered.map((p) => (
-                  <ProductRow key={p.id} p={p} onChanged={reload} selected={selected.has(p.id)} onToggleSelect={toggleSelect} />
+                  <ProductRow key={p.id} p={p} onChanged={reload} selected={selected.has(p.id)} onToggleSelect={toggleSelect} onPreview={setPreviewProduct} />
                 ))}
               </tbody>
             </table>
@@ -488,7 +494,11 @@ export default function Products() {
                 : `${formatCurrency(Math.min(...prices))} - ${formatCurrency(Math.max(...prices))}`) : '-'
               return (
                 <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-3 p-3.5 hover:bg-[var(--table-row-hover)]">
-                  <img src={resolveUrl(p.images[0]?.url)} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
+                  <img
+                    src={resolveUrl(p.images[0]?.url)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewProduct(p) }}
+                    className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
+                  />
                   <div className="min-w-0 flex-1">
                     {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
                     <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{p.name}</p>
@@ -506,6 +516,7 @@ export default function Products() {
           </div>
         )}
       </div>
+      {previewProduct && <ImagePreviewModal images={previewProduct.images} onClose={() => setPreviewProduct(null)} />}
     </div>
   )
 }

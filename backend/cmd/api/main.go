@@ -129,6 +129,8 @@ func main() {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
 			r.Use(appmw.RequireRole(allStaffRoles...))
 
+			r.Post("/auth/verify-password", authH.VerifyPassword)
+
 			r.With(view("products")).Get("/products", productH.List)
 			r.With(view("products")).Get("/products/{id}", productH.Detail)
 			r.With(view("inventory")).Get("/inventory/history", productH.StockHistory)

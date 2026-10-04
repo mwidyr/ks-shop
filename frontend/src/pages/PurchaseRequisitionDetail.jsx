@@ -10,7 +10,7 @@ import { getPurchase, receivePurchase } from '../api/purchases'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
-import { IconTrash, IconPlus } from '../components/icons'
+import { IconTrash, IconPlus, IconChevronDown } from '../components/icons'
 
 const groupStatusColors = {
   pending_contact: 'bg-amber-100 text-amber-700',
@@ -33,6 +33,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const [saving, setSaving] = useState(false)
   const [po, setPo] = useState(null)
   const [actualQty, setActualQty] = useState({})
+  const [expanded, setExpanded] = useState(true)
 
   const isPendingContact = requisitionStatus === 'pending_contact'
   const isOrdered = requisitionStatus === 'ordered'
@@ -111,9 +112,15 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
 
   return (
     <div className={`${cardClasses} overflow-hidden`}>
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-[var(--table-divider)] flex-wrap">
-        <h3 className="font-bold text-[var(--text-primary)]">{group.supplier_name}</h3>
-        <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
+      <div
+        className="flex items-center justify-between gap-3 p-4 border-b border-[var(--table-divider)] flex-wrap cursor-pointer"
+        onClick={() => setExpanded((e) => !e)}
+      >
+        <div className="flex items-center gap-2">
+          <IconChevronDown width={16} height={16} className={`text-[var(--text-secondary)] shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <h3 className="font-bold text-[var(--text-primary)]">{group.supplier_name}</h3>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]" onClick={(e) => e.stopPropagation()}>
           <span>{group.items.length} {t('page_purchase_requisitions.stat_products')}</span>
           <span>{totalQty} {t('page_purchase_requisitions.pcs_suffix')}</span>
           <span className="font-semibold text-[var(--text-primary)]">{formatCNY(total)}</span>
@@ -135,6 +142,8 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
         </div>
       </div>
 
+      {expanded && (
+      <>
       <div className="overflow-x-auto">
         <table className={tableClasses}>
           <thead>
@@ -238,6 +247,8 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
           </button>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

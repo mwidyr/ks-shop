@@ -490,7 +490,14 @@ func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // DeleteVariant removes one variant (cascades to its stock_buckets row). Blocked with 409 if it
 // has order/stock-movement history, same FK-tolerant pattern as Delete.
+// DeleteVariant permanently removes a variant (item 050) - Admin-only at the API level too, not
+// just hidden in the UI, since the frontend's password-confirmation step is a UX safeguard, not
+// an authorization boundary on its own.
 func (h *ProductHandler) DeleteVariant(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		respondError(w, http.StatusForbidden, "only an admin can permanently delete a variant")
+		return
+	}
 	variantID, err := strconv.Atoi(chi.URLParam(r, "variantId"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid variant id")

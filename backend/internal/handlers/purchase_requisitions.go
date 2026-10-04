@@ -277,9 +277,10 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 
 	var supplierID *int
 	var productID int
+	var costPrice float64
 	if err := h.DB.QueryRow(ctx, `
-		SELECT p.id, p.supplier_id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
-		req.VariantID).Scan(&productID, &supplierID); err != nil {
+		SELECT p.id, p.supplier_id, pv.cost_price FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
+		req.VariantID).Scan(&productID, &supplierID, &costPrice); err != nil {
 		respondError(w, http.StatusNotFound, "variant not found")
 		return
 	}
@@ -297,11 +298,15 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Unit Cost defaults from the product's current cost price immediately on add (item 054),
+	// instead of staying blank until the group is confirmed - still freely editable afterward.
+	// Only set on first insert; a conflict (re-adding/adjusting qty on the same variant) leaves
+	// any already-edited unit_cost untouched.
 	if _, err := h.DB.Exec(ctx, `
-		INSERT INTO purchase_requisition_items (requisition_supplier_id, variant_id, planned_qty)
-		VALUES ($1,$2,$3)
+		INSERT INTO purchase_requisition_items (requisition_supplier_id, variant_id, planned_qty, unit_cost)
+		VALUES ($1,$2,$3,$4)
 		ON CONFLICT (requisition_supplier_id, variant_id) DO UPDATE SET planned_qty = EXCLUDED.planned_qty`,
-		groupID, req.VariantID, req.PlannedQty); err != nil {
+		groupID, req.VariantID, req.PlannedQty, costPrice); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to add item")
 		return
 	}
@@ -457,13 +462,20 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 	defer tx.Rollback(ctx)
 
 	var status string
-	if err := tx.QueryRow(ctx, `SELECT status FROM purchase_requisitions WHERE id=$1 FOR UPDATE`, id).Scan(&status); err != nil {
+	var reqNote *string
+	if err := tx.QueryRow(ctx, `SELECT status, note FROM purchase_requisitions WHERE id=$1 FOR UPDATE`, id).Scan(&status, &reqNote); err != nil {
 		respondError(w, http.StatusNotFound, "requisition not found")
 		return
 	}
 	if status != "pending_contact" {
 		respondError(w, http.StatusBadRequest, "requisition must be Pending Contact to confirm the order")
 		return
+	}
+	// Item 053: whatever the staff wrote in the requisition's own Note field (editable from
+	// Draft onward) carries forward onto every Purchase Order this confirmation creates.
+	poNotes := "Created from Purchase Requisition"
+	if reqNote != nil && *reqNote != "" {
+		poNotes = *reqNote
 	}
 
 	type group struct {
@@ -519,7 +531,7 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 			continue
 		}
 
-		purchaseID, err := createPurchaseTx(ctx, tx, g.SupplierID, today, "", "Created from Purchase Requisition", claims.UserID, items)
+		purchaseID, err := createPurchaseTx(ctx, tx, g.SupplierID, today, "", poNotes, claims.UserID, items)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return

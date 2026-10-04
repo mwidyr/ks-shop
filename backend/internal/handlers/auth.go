@@ -13,6 +13,7 @@ import (
 	"ordermgmt/internal/auth"
 	"ordermgmt/internal/config"
 	"ordermgmt/internal/mailer"
+	appmw "ordermgmt/internal/middleware"
 )
 
 type AuthHandler struct {
@@ -311,6 +312,32 @@ func (h *AuthHandler) issueToken(r *http.Request, userID int, purpose string, tt
 		return "", err
 	}
 	return raw, nil
+}
+
+type verifyPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// VerifyPassword re-checks the currently logged-in user's own password, used as a confirmation
+// step before an irreversible action (e.g. permanently deleting a product variant - item 050)
+// rather than re-authenticating from scratch.
+func (h *AuthHandler) VerifyPassword(w http.ResponseWriter, r *http.Request) {
+	var req verifyPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "password is required")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	var hash string
+	if err := h.DB.QueryRow(r.Context(), `SELECT password_hash FROM users WHERE id=$1`, claims.UserID).Scan(&hash); err != nil {
+		respondError(w, http.StatusUnauthorized, "incorrect password")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+		respondError(w, http.StatusUnauthorized, "incorrect password")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *AuthHandler) lookupToken(r *http.Request, raw, purpose string) (userID int, tokenID int, err error) {
