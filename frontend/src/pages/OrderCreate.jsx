@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createOrder } from '../api/orders'
+import { validatePromotion } from '../api/promotions'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
@@ -27,6 +28,9 @@ const emptyOrder = () => ({
   shippingFeeDirty: false,
   discountAmount: '',
   additionalAmount: '',
+  promotionCode: '',
+  promotionResult: null,
+  promotionError: '',
   keepDate: '',
   internalNotes: '',
   isUrgent: false,
@@ -111,7 +115,40 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shipp
     onUpdate('items', order.items.map((it) => (it.variantId === variantId ? { ...it, [field]: value } : it)))
   }
 
-  const total = Math.max(0, subtotal - (Number(order.discountAmount) || 0) + (Number(order.additionalAmount) || 0) + (Number(order.shippingFee) || 0))
+  const [couponApplying, setCouponApplying] = useState(false)
+
+  async function applyCoupon() {
+    const code = order.promotionCode.trim()
+    if (!code) return
+    setCouponApplying(true)
+    try {
+      const res = await validatePromotion(code, order.customer?.id || null, subtotal)
+      onUpdate('promotionResult', res)
+      onUpdate('promotionError', '')
+      if (res.free_shipping) {
+        onUpdate('shippingFee', 0)
+        onUpdate('shippingFeeDirty', true)
+      }
+    } catch (err) {
+      onUpdate('promotionResult', null)
+      onUpdate('promotionError', err.response?.data?.error || t('page_order_create.coupon_invalid'))
+    } finally {
+      setCouponApplying(false)
+    }
+  }
+
+  function removeCoupon() {
+    if (order.promotionResult?.free_shipping) {
+      onUpdate('shippingFeeDirty', false)
+      onUpdate('shippingFee', defaultShippingFee(selectedChain, shippingSettings, subtotal))
+    }
+    onUpdate('promotionCode', '')
+    onUpdate('promotionResult', null)
+    onUpdate('promotionError', '')
+  }
+
+  const promotionDiscount = order.promotionResult?.discount_amount || 0
+  const total = Math.max(0, subtotal - (Number(order.discountAmount) || 0) - promotionDiscount + (Number(order.additionalAmount) || 0) + (Number(order.shippingFee) || 0))
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
@@ -222,6 +259,36 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shipp
           </div>
         </div>
       ))}
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.coupon_code_label')}</label>
+        {order.promotionResult ? (
+          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <div>
+              <p className="text-sm font-semibold text-green-700 font-mono">{order.promotionCode.trim().toUpperCase()}</p>
+              <p className="text-xs text-green-600">
+                {order.promotionResult.free_shipping ? t('page_order_create.coupon_applied_free_shipping') : t('page_order_create.coupon_applied_discount', { amount: formatCurrency(order.promotionResult.discount_amount) })}
+              </p>
+            </div>
+            <button type="button" onClick={removeCoupon} className="text-xs font-semibold text-red-600 hover:underline">{t('page_order_create.coupon_remove')}</button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex gap-2">
+              <input
+                value={order.promotionCode}
+                onChange={(e) => onUpdate('promotionCode', e.target.value)}
+                placeholder={t('page_order_create.coupon_code_placeholder')}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase"
+              />
+              <button type="button" onClick={applyCoupon} disabled={couponApplying || !order.promotionCode.trim()} className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-lg">
+                {couponApplying ? t('page_order_create.coupon_applying') : t('page_order_create.coupon_apply_button')}
+              </button>
+            </div>
+            {order.promotionError && <p className="text-xs text-red-600 mt-1">{order.promotionError}</p>}
+          </div>
+        )}
+      </div>
 
       <div>
         <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs text-gray-500 hover:underline">
@@ -396,6 +463,7 @@ export default function OrderCreate() {
         sales_channel: order.salesChannel,
         affiliate_id: order.salesChannel === 'website' && order.affiliateId ? Number(order.affiliateId) : null,
         discount_amount: Number(order.discountAmount) || 0,
+        promotion_code: order.promotionResult ? order.promotionCode.trim() : '',
         additional_amount: Number(order.additionalAmount) || 0,
         keep_date: order.keepDate || null,
         shipping_fee_override: Number(order.shippingFee) || 0,

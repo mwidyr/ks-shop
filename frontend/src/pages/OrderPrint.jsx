@@ -35,6 +35,7 @@ function InvoiceView({ order }) {
       <div className="text-sm ml-auto w-56">
         <div className="flex justify-between"><span>{t('page_order_print.subtotal_label')}</span><span>{formatCurrency(order.subtotal)}</span></div>
         {order.discount_amount > 0 && <div className="flex justify-between"><span>{t('page_order_print.discount_label')}</span><span>-{formatCurrency(order.discount_amount)}</span></div>}
+        {order.promotion_discount_amount > 0 && <div className="flex justify-between"><span>{t('page_order_print.promotion_discount_label')}</span><span>-{formatCurrency(order.promotion_discount_amount)}</span></div>}
         {order.additional_amount > 0 && <div className="flex justify-between"><span>{t('page_order_print.additional_fee_label')}</span><span>+{formatCurrency(order.additional_amount)}</span></div>}
         <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>{t('page_order_print.total_label')}</span><span>{formatCurrency(order.total)}</span></div>
       </div>

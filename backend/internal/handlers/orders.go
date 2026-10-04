@@ -48,6 +48,7 @@ type orderListItem struct {
 	HostNames       string  `json:"host_names"`
 	TotalQty        int     `json:"total_qty"`
 	Total           float64 `json:"total"`
+	PromotionCode   *string `json:"promotion_code"`
 	CreatedAt       string  `json:"created_at"`
 	CustomerBlocked bool    `json:"customer_blacklisted"`
 	IsUrgent        bool    `json:"is_urgent"`
@@ -147,7 +148,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT o.id, o.order_no, o.status, c.name, c.phone, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.created_at,
-		       COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount + o.additional_amount +
+		       COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount - o.promotion_discount_amount + o.additional_amount +
 		       CASE WHEN EXISTS (
 		           SELECT 1 FROM order_shipment_group_members gm
 		           JOIN order_shipment_groups g ON g.id = gm.group_id
@@ -158,13 +159,15 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-'),
 		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist'),
 		       o.is_urgent,
-		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id)
+		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id),
+		       pm.code
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
-		LEFT JOIN order_items oi ON oi.order_id = o.id` +
+		LEFT JOIN order_items oi ON oi.order_id = o.id
+		LEFT JOIN promotions pm ON pm.id = o.promotion_id` +
 		baseWhere +
-		" GROUP BY o.id, c.name, c.phone, pc.name ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		" GROUP BY o.id, c.name, c.phone, pc.name, pm.code ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {
@@ -178,7 +181,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var o orderListItem
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged); err != nil {
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged, &o.PromotionCode); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)
@@ -230,6 +233,8 @@ type orderDetailView struct {
 	Items                    []orderItemView `json:"items"`
 	Subtotal                 float64         `json:"subtotal"`
 	DiscountAmount           float64         `json:"discount_amount"`
+	PromotionCode            *string         `json:"promotion_code"`
+	PromotionDiscountAmount  float64         `json:"promotion_discount_amount"`
 	AdditionalAmount         float64         `json:"additional_amount"`
 	Total                    float64         `json:"total"`
 	InternalNotes            string          `json:"internal_notes"`
@@ -275,17 +280,18 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		       o.shipping_address, pc.id, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
 		       COALESCE(o.internal_notes,''), o.is_urgent, o.notes_deadline, COALESCE(u.name,'system'), o.created_at, o.keep_date,
-		       o.shipping_fee, o.free_shipping_override
+		       o.shipping_fee, o.free_shipping_override, pm.code, o.promotion_discount_amount
 		FROM orders o
 		JOIN customers c ON c.id=o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN users u ON u.id = o.sales_id
+		LEFT JOIN promotions pm ON pm.id = o.promotion_id
 		WHERE o.id=$1`, id).
 		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerBlocked,
 			&o.ShippingAddress, &o.PickupChainID, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
 			&o.InternalNotes, &o.IsUrgent, &notesDeadline, &o.CreatedBy, &createdAt, &keepDate,
-			&o.ShippingFee, &o.FreeShippingOverride)
+			&o.ShippingFee, &o.FreeShippingOverride, &o.PromotionCode, &o.PromotionDiscountAmount)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
@@ -384,15 +390,15 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		var groupDiscount, groupAdditional float64
+		var groupDiscount, groupPromotionDiscount, groupAdditional float64
 		h.DB.QueryRow(ctx, `
-			SELECT COALESCE(SUM(o2.discount_amount),0), COALESCE(SUM(o2.additional_amount),0)
+			SELECT COALESCE(SUM(o2.discount_amount),0), COALESCE(SUM(o2.promotion_discount_amount),0), COALESCE(SUM(o2.additional_amount),0)
 			FROM order_shipment_group_members m2
 			JOIN orders o2 ON o2.id = m2.order_id
-			WHERE m2.group_id = $1`, *groupID).Scan(&groupDiscount, &groupAdditional)
-		o.ShipmentGroupTotal = o.ShipmentGroupTotal - groupDiscount + groupAdditional + o.ShipmentGroupShippingFee
+			WHERE m2.group_id = $1`, *groupID).Scan(&groupDiscount, &groupPromotionDiscount, &groupAdditional)
+		o.ShipmentGroupTotal = o.ShipmentGroupTotal - groupDiscount - groupPromotionDiscount + groupAdditional + o.ShipmentGroupShippingFee
 	}
-	o.Total = o.Subtotal - o.DiscountAmount + o.AdditionalAmount + o.ShippingFee
+	o.Total = o.Subtotal - o.DiscountAmount - o.PromotionDiscountAmount + o.AdditionalAmount + o.ShippingFee
 
 	attRows, err := h.DB.Query(ctx, `SELECT url FROM order_attachments WHERE order_id=$1 ORDER BY created_at`, id)
 	if err == nil {
@@ -444,6 +450,7 @@ type createOrderRequest struct {
 	PickupStoreCode      string              `json:"pickup_store_code"`
 	Items                []createOrderItem   `json:"items"`
 	DiscountAmount       float64             `json:"discount_amount"`
+	PromotionCode        string              `json:"promotion_code"`
 	AdditionalAmount     float64             `json:"additional_amount"`
 	KeepDate             *string             `json:"keep_date"`
 	FreeShippingOverride bool                `json:"free_shipping_override"`
@@ -600,6 +607,23 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// A coupon code is resolved against the real, server-computed subtotal (never a client-sent
+	// value) and locked (FOR UPDATE, see resolvePromotionByCode) inside this same transaction, so
+	// two orders racing to redeem the last unit of a usage_limit-capped code can't both succeed.
+	var promotionID *int
+	var promotionDiscountAmount float64
+	var promoFreeShipping bool
+	if strings.TrimSpace(req.PromotionCode) != "" {
+		result, errMsg := resolvePromotionByCode(ctx, tx, strings.ToUpper(strings.TrimSpace(req.PromotionCode)), customerID, subtotal)
+		if errMsg != "" {
+			respondError(w, http.StatusBadRequest, errMsg)
+			return
+		}
+		promotionID = &result.id
+		promotionDiscountAmount = result.discountAmount
+		promoFreeShipping = result.freeShipping
+	}
+
 	shippingFee := 0.0
 	freeShippingOverride := req.FreeShippingOverride
 	if req.ShippingFeeOverride != nil {
@@ -613,10 +637,24 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=$1, free_shipping_override=$2 WHERE id=$3`,
-		shippingFee, freeShippingOverride, orderID); err != nil {
+	if promoFreeShipping {
+		// A free-shipping promotion always wins over any client-sent override, so a stale/forgotten
+		// frontend value can never silently skip the discount the customer is entitled to.
+		shippingFee = 0
+		freeShippingOverride = true
+	}
+	if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=$1, free_shipping_override=$2, promotion_id=$3, promotion_discount_amount=$4 WHERE id=$5`,
+		shippingFee, freeShippingOverride, promotionID, promotionDiscountAmount, orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save shipping fee")
 		return
+	}
+	if promotionID != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied)
+			VALUES ($1,$2,$3,$4)`, *promotionID, orderID, *customerID, promotionDiscountAmount); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to record promotion redemption")
+			return
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -808,6 +846,11 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(ctx, `UPDATE orders SET status=$1, updated_at=now() WHERE id=$2`, req.Status, id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update order status")
 		return
+	}
+	if req.Status == "cancelled" {
+		// Free the promotion's usage/per-customer count back up - a cancelled order shouldn't
+		// permanently consume a limited coupon's redemption slot.
+		tx.Exec(ctx, `DELETE FROM promotion_redemptions WHERE order_id=$1`, id)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)

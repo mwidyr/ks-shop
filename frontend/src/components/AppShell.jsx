@@ -43,7 +43,7 @@ const navGroups = [
   },
   {
     title: 'marketing', icon: IconMegaphone, items: [
-      { to: '/promotions', key: 'promotions', icon: IconMegaphone, upcoming: true },
+      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
       { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
       { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
     ],

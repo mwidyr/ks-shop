@@ -51,6 +51,7 @@ func main() {
 	productH := &handlers.ProductHandler{DB: pool}
 	orderH := &handlers.OrderHandler{DB: pool}
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
+	promotionH := &handlers.PromotionHandler{DB: pool}
 	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
 	cvsStoreH := &handlers.CvsStoreHandler{
 		DB:         pool,
@@ -161,6 +162,11 @@ func main() {
 			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
 			r.With(edit("picking")).Patch("/order-items/{itemId}/pick", orderH.PickItem)
 			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)
+			r.With(view("promotions")).Get("/promotions", promotionH.List)
+			r.With(edit("promotions")).Post("/promotions", promotionH.Create)
+			r.With(edit("promotions")).Patch("/promotions/{id}", promotionH.Update)
+			r.With(edit("promotions")).Delete("/promotions/{id}", promotionH.Delete)
+			r.With(edit("orders")).Post("/promotions/validate", promotionH.Validate)
 			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
 			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)
 			r.With(edit("orders")).Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)

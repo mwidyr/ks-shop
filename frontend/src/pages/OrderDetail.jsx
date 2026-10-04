@@ -578,6 +578,12 @@ export default function OrderDetail() {
                 <span>-{formatCurrency(order.discount_amount)}</span>
               </div>
             )}
+            {order.promotion_discount_amount > 0 && (
+              <div className="flex items-center justify-between text-red-600">
+                <span>{t('page_order_detail.promotion_discount_label')} {order.promotion_code && <span className="font-mono text-[10px] text-gray-400">({order.promotion_code})</span>}</span>
+                <span>-{formatCurrency(order.promotion_discount_amount)}</span>
+              </div>
+            )}
             {order.additional_amount > 0 && (
               <div className="flex items-center justify-between text-gray-500">
                 <span>{t('page_order_detail.additional_fee_label')}</span>
