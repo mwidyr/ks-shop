@@ -50,13 +50,12 @@ const periodPresets = [
   { key: 'custom', labelKey: 'shared.date_custom' },
 ]
 
-function PeriodPicker({ value, onChange }) {
+function PeriodPicker({ value, onChange, active, onActiveChange }) {
   const { t } = useTranslation()
-  const [active, setActive] = useState('today')
   const [customFrom, setCustomFrom] = useState(value.from)
   const [customTo, setCustomTo] = useState(value.to)
   function selectPreset(p) {
-    setActive(p.key)
+    onActiveChange(p.key)
     if (p.key === 'custom') return
     const range = p.range()
     setCustomFrom(range.from); setCustomTo(range.to)
@@ -84,11 +83,27 @@ function PeriodPicker({ value, onChange }) {
   )
 }
 
-const NUM_SLOTS = 35
+const NUM_SLOTS = 48
 function slotLabel(i) {
-  const hour = 6 + Math.floor(i / 2)
+  const hour = Math.floor(i / 2)
   const minute = (i % 2) * 30
-  return `${hour}:${String(minute).padStart(2, '0')}`
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+const TIME_BLOCK_LABELS = [
+  '00:00-02:30', '03:00-05:30', '06:00-08:30', '09:00-11:30',
+  '12:00-14:30', '15:00-17:30', '18:00-20:30', '21:00-23:30',
+]
+
+// Real-time NOW indicator (item 058): Jakarta time -> matching 30-minute slot index, same
+// floor(minute/30) rule as the backend's slotIndexExpr (heatmap.go).
+function jakartaNowSlot() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta', hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(new Date())
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+  return hour * 2 + Math.floor(minute / 30)
 }
 
 // Fixed QTY thresholds per level, keyed by how many days are in the selected range - client spec
@@ -197,8 +212,22 @@ export default function Heatmap() {
   const [grid, setGrid] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeCell, setActiveCell] = useState(null)
+  const [activePreset, setActivePreset] = useState('today')
+  const [nowTick, setNowTick] = useState(0)
 
   useEffect(() => { listLocations().then(setLocations) }, [])
+
+  // Keeps the NOW indicator (item 058) actually moving as time passes while the page stays open,
+  // without re-fetching data - just forces a re-render to recompute jakartaNowSlot().
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  // nowTick (unused directly) exists purely to force this re-render every 60s, so nowSlot below
+  // stays current as time passes while the page is open.
+  void nowTick
+  const nowSlot = activePreset === 'today' ? jakartaNowSlot() : null
 
   useEffect(() => {
     setLoading(true)
@@ -219,7 +248,7 @@ export default function Heatmap() {
           <option value="">{t('page_performance_dashboard.all_locations')}</option>
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <PeriodPicker value={range} onChange={setRange} />
+        <PeriodPicker value={range} onChange={setRange} active={activePreset} onActiveChange={setActivePreset} />
         <p className="text-sm font-semibold text-[var(--text-primary)]">{range.from === range.to ? range.from : `${range.from} – ${range.to}`}</p>
       </div>
 
@@ -240,7 +269,16 @@ export default function Heatmap() {
                   <th className="p-1 text-left sticky left-0 bg-white">{t('page_heatmap.col_host')}</th>
                   <th className="p-1 text-right">{t('page_heatmap.total_qty')}</th>
                   {Array.from({ length: NUM_SLOTS }).map((_, i) => (
-                    <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap">{slotLabel(i)}</th>
+                    <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
+                      {i === nowSlot && (
+                        <div className="flex flex-col items-center leading-none mb-0.5">
+                          <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded-full">{t('page_heatmap.now_badge')}</span>
+                          <span className="text-red-600 text-[7px] -mt-px">▼</span>
+                        </div>
+                      )}
+                      <span className={i === nowSlot ? 'font-bold text-black' : ''}>{slotLabel(i)}</span>
+                      {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -257,10 +295,11 @@ export default function Heatmap() {
                         <td
                           key={i}
                           onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
-                          className={`p-1 text-center rounded cursor-pointer ${color.className || ''}`}
+                          className={`p-1 text-center rounded cursor-pointer relative ${color.className || ''}`}
                           style={color.style}
                         >
                           {qty || ''}
+                          {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                         </td>
                       )
                     })}
@@ -271,7 +310,12 @@ export default function Heatmap() {
                   <td className="p-1 text-right font-bold text-gray-800">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
                     const color = cellColor(qty, rangeDays, ALL_COLORS)
-                    return <td key={i} className={`p-1 text-center font-semibold rounded ${color.className || ''}`} style={color.style}>{qty || ''}</td>
+                    return (
+                      <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
+                        {qty || ''}
+                        {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                      </td>
+                    )
                   })}
                 </tr>
                 <tr>
@@ -279,7 +323,12 @@ export default function Heatmap() {
                   <td className="p-1"></td>
                   {grid.avg_row.map((v, i) => {
                     const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
-                    return <td key={i} className={`p-1 text-center rounded ${color.className || ''}`} style={color.style}>{v == null ? '—' : v.toFixed(1)}</td>
+                    return (
+                      <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
+                        {v == null ? '—' : v.toFixed(1)}
+                        {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                      </td>
+                    )
                   })}
                 </tr>
               </tbody>
@@ -288,8 +337,8 @@ export default function Heatmap() {
 
           <div className={`${cardClasses} p-5`}>
             <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_heatmap.time_block_total')}</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
-              {['06:00-08:30', '09:00-11:30', '12:00-14:30', '15:00-17:30', '18:00-20:30', '21:00-23:30'].map((label, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {TIME_BLOCK_LABELS.map((label, i) => (
                 <div key={label}>
                   <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{label}</p>
                   <Metric type="qty" className="text-lg">{fmtNum(grid.time_blocks[i])}</Metric>

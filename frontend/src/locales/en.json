@@ -1580,6 +1580,7 @@
   "page_heatmap": {
     "average_row": "AVERAGE",
     "col_host": "Host",
+    "now_badge": "NOW",
     "order_breakdown": "Orders",
     "time_block_total": "Time Block Total",
     "total_gmv": "Total GMV",
@@ -1645,6 +1646,9 @@
     "col_product_name": "Product Name",
     "col_unit_cost": "Unit Cost (CNY)",
     "completes_hint": "Completes automatically once every linked Purchase Order is fully received.",
+    "copied": "Copied!",
+    "copy_button": "Copy",
+    "copy_for_wechat": "Copy purchase details to paste into WeChat",
     "confirm_order_button": "Confirm Order",
     "confirm_order_failed": "Failed to confirm order",
     "confirm_order_hint": "Every supplier group must be confirmed before you can confirm the order.",

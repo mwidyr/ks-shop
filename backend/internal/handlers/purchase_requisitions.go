@@ -84,6 +84,7 @@ type requisitionItemView struct {
 	ID           int      `json:"id"`
 	VariantID    int      `json:"variant_id"`
 	ProductSKU   string   `json:"product_sku"`
+	VendorSKU    string   `json:"vendor_sku"`
 	ProductName  string   `json:"product_name"`
 	Color        string   `json:"color"`
 	Size         string   `json:"size"`
@@ -171,7 +172,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	supRows.Close()
 
 	itemRows, err := h.DB.Query(ctx, `
-		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), p.name, pv.color, pv.size, pv.sku,
+		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), COALESCE(p.vendor_sku,''), p.name, pv.color, pv.size, pv.sku,
 		       pri.planned_qty, pri.confirmed_qty, pri.unit_cost
 		FROM purchase_requisition_items pri
 		JOIN purchase_requisition_suppliers prs ON prs.id = pri.requisition_supplier_id
@@ -184,7 +185,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 		for itemRows.Next() {
 			var groupID int
 			var it requisitionItemView
-			if err := itemRows.Scan(&groupID, &it.ID, &it.VariantID, &it.ProductSKU, &it.ProductName, &it.Color, &it.Size, &it.SKU,
+			if err := itemRows.Scan(&groupID, &it.ID, &it.VariantID, &it.ProductSKU, &it.VendorSKU, &it.ProductName, &it.Color, &it.Size, &it.SKU,
 				&it.PlannedQty, &it.ConfirmedQty, &it.UnitCost); err != nil {
 				continue
 			}

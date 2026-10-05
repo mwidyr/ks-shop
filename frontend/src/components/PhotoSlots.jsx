@@ -7,7 +7,7 @@ const MAX_PHOTOS = 5
 // Up to 5 photo slots: value = array of {id?, url}. onAdd(url)/onRemove(image, index) let the
 // caller decide whether to just update local state (create flow) or fire an API call
 // immediately (edit flow).
-export default function PhotoSlots({ value = [], onAdd, onRemove }) {
+export default function PhotoSlots({ value = [], onAdd, onRemove, onPreview }) {
   const { t } = useTranslation()
   const slotLabels = [t('shared.photo_slot_main'), t('shared.photo_slot_n', { n: 2 }), t('shared.photo_slot_n', { n: 3 }), t('shared.photo_slot_n', { n: 4 }), t('shared.photo_slot_n', { n: 5 })]
   const [uploadingSlot, setUploadingSlot] = useState(null)
@@ -39,7 +39,12 @@ export default function PhotoSlots({ value = [], onAdd, onRemove }) {
             return (
               <div key={i} className="w-28 text-center">
                 <div className="w-28 h-28 rounded-xl bg-gray-100 overflow-hidden border border-gray-200 relative group">
-                  <img src={resolveUrl(image.url)} alt={slotLabels[i]} className="w-full h-full object-cover" />
+                  <img
+                    src={resolveUrl(image.url)}
+                    alt={slotLabels[i]}
+                    className={`w-full h-full object-cover ${onPreview ? 'cursor-pointer' : ''}`}
+                    onClick={() => onPreview && onPreview(i)}
+                  />
                   <button
                     type="button"
                     onClick={() => onRemove(image, i)}

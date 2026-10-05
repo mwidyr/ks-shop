@@ -1580,6 +1580,7 @@
   "page_heatmap": {
     "average_row": "RATA-RATA",
     "col_host": "Host",
+    "now_badge": "NOW",
     "order_breakdown": "Daftar Order",
     "time_block_total": "Total per Blok Waktu",
     "total_gmv": "Total GMV",
@@ -1645,6 +1646,9 @@
     "col_product_name": "Nama Produk",
     "col_unit_cost": "Harga Satuan (CNY)",
     "completes_hint": "Akan selesai otomatis setelah setiap Purchase Order terkait diterima penuh.",
+    "copied": "Tersalin!",
+    "copy_button": "Salin",
+    "copy_for_wechat": "Salin detail pembelian untuk ditempel di WeChat",
     "confirm_order_button": "Konfirmasi Pesanan",
     "confirm_order_failed": "Gagal mengonfirmasi pesanan",
     "confirm_order_hint": "Setiap grup supplier harus dikonfirmasi sebelum pesanan bisa dikonfirmasi.",

@@ -1580,6 +1580,7 @@
   "page_heatmap": {
     "average_row": "平均",
     "col_host": "主播",
+    "now_badge": "NOW",
     "order_breakdown": "訂單列表",
     "time_block_total": "時段總計",
     "total_gmv": "總流水",
@@ -1645,6 +1646,9 @@
     "col_product_name": "產品名稱",
     "col_unit_cost": "單位成本 (CNY)",
     "completes_hint": "當所有關聯的採購單都完整收貨後，此申請單會自動完成。",
+    "copied": "已複製！",
+    "copy_button": "複製",
+    "copy_for_wechat": "複製採購明細以貼到微信",
     "confirm_order_button": "確認訂單",
     "confirm_order_failed": "確認訂單失敗",
     "confirm_order_hint": "所有供應商群組都須確認後才能確認訂單。",

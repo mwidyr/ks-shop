@@ -10,7 +10,7 @@ import { getPurchase, receivePurchase } from '../api/purchases'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
-import { IconTrash, IconPlus, IconChevronDown } from '../components/icons'
+import { IconTrash, IconPlus, IconChevronDown, IconClipboard } from '../components/icons'
 
 const groupStatusColors = {
   pending_contact: 'bg-amber-100 text-amber-700',
@@ -34,6 +34,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const [po, setPo] = useState(null)
   const [actualQty, setActualQty] = useState({})
   const [expanded, setExpanded] = useState(true)
+  const [copied, setCopied] = useState(false)
 
   const isPendingContact = requisitionStatus === 'pending_contact'
   const isOrdered = requisitionStatus === 'ordered'
@@ -111,6 +112,43 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   }, 0)
   const totalQty = group.items.reduce((sum, it) => sum + (Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0), 0)
 
+  // WeChat-ready copy text (item 056): grouped by the supplier's own product code/name (not our
+  // internal SKU), one line per color with its purchase qty. Name/Address are left blank - this
+  // is a message template to send the supplier, not pulled from any real contact record.
+  function buildCopyText() {
+    const groups = []
+    const byKey = new Map()
+    for (const it of group.items) {
+      const key = (it.vendor_sku || '') + '\u0000' + it.product_name
+      let g = byKey.get(key)
+      if (!g) {
+        g = { vendorSku: it.vendor_sku || '', productName: it.product_name, lines: [] }
+        byKey.set(key, g)
+        groups.push(g)
+      }
+      const qty = Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0
+      g.lines.push(`${it.color} : ${qty}`)
+    }
+    const parts = ['姓名 : ', '地址 : ', '']
+    groups.forEach((g, idx) => {
+      parts.push(g.vendorSku ? `${g.vendorSku}# ${g.productName}` : g.productName)
+      parts.push(...g.lines)
+      if (idx < groups.length - 1) parts.push('')
+    })
+    return parts.join('\n')
+  }
+
+  async function handleCopy(e) {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(buildCopyText())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard API unavailable (e.g. non-HTTPS) - button just won't give feedback
+    }
+  }
+
   return (
     <div className={`${cardClasses} overflow-hidden`}>
       <div
@@ -125,6 +163,16 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
           <span>{group.items.length} {t('page_purchase_requisitions.stat_products')}</span>
           <span>{totalQty} {t('page_purchase_requisitions.pcs_suffix')}</span>
           <span className="font-semibold text-[var(--text-primary)]">{formatCNY(total)}</span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={group.items.length === 0}
+            title={t('page_purchase_requisitions.copy_for_wechat')}
+            className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border border-[var(--table-divider)] text-[var(--text-secondary)] hover:bg-gray-50 disabled:opacity-40"
+          >
+            <IconClipboard width={13} height={13} />
+            {copied ? t('page_purchase_requisitions.copied') : t('page_purchase_requisitions.copy_button')}
+          </button>
           {canConfirm ? (
             <select
               value={group.status}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { requestLoginOtp, verifyLoginOtp } from '../api/auth'
 import { getStoreSettings } from '../api/storeSettings'
+import PasswordInput from '../components/PasswordInput'
 
 const sampleAccounts = [
   { roleKey: 'super_user', email: 'superuser@demo.com' },
@@ -225,8 +226,7 @@ export default function Login() {
                     {t('page_login.forgot_password_link')}
                   </Link>
                 </div>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"

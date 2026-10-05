@@ -13,31 +13,33 @@ import (
 // by real orders (Order Management), not "valid LIVE Session" status - every Active host
 // assigned to the selected Location is shown, even with zero sales in the period, per spec.
 //
-// Slots: 35 fixed 30-minute intervals, 06:00 through 23:00 (each slot's start time; the last
-// slot covers 23:00-23:30), matching the client's own operational sheet exactly. They group into
-// 6 Time Blocks of 5 consecutive slots each, with one "break" slot skipped between every pair of
-// blocks (08:30, 11:30, 14:30, 17:30, 20:30) - those slots still show in the grid, just aren't
-// counted in any Time Block Total. Verified against the block boundaries in the spec (06:00-
-// 08:30, 09:00-11:30, ...): 6*5 + 5 gaps = 35, matching exactly.
+// Slots: 48 fixed 30-minute intervals covering the full 24 hours, 00:00 through 23:30 (each
+// slot's start time), per sheet item #057 (original spec only covered 06:00-23:00; expanded to
+// the full day). They group into 8 Time Blocks of 5 consecutive slots each (still a 3-hour cycle:
+// 2.5h counted + a 30-min "break" slot skipped between every pair of blocks - 02:30, 05:30, 08:30,
+// 11:30, 14:30, 17:30, 20:30, 23:30), those break slots still show in the grid, just aren't
+// counted in any Time Block Total. 8*5 + 8 gaps = 48, matching exactly.
 type HeatmapHandler struct {
 	DB *pgxpool.Pool
 }
 
-const numSlots = 35
+const numSlots = 48
 
 // slotBounds returns [startHour, startMinute] for slot i (0-indexed).
 func slotBounds(i int) (hour, minute int) {
-	return 6 + i/2, (i % 2) * 30
+	return i / 2, (i % 2) * 30
 }
 
-// timeBlockSlots maps each of the 6 Time Blocks to its 5 slot indices (see doc comment above).
-var timeBlockSlots = [6][5]int{
-	{0, 1, 2, 3, 4},      // 06:00-08:30
-	{6, 7, 8, 9, 10},     // 09:00-11:30
-	{12, 13, 14, 15, 16}, // 12:00-14:30
-	{18, 19, 20, 21, 22}, // 15:00-17:30
-	{24, 25, 26, 27, 28}, // 18:00-20:30
-	{30, 31, 32, 33, 34}, // 21:00-23:30
+// timeBlockSlots maps each of the 8 Time Blocks to its 5 slot indices (see doc comment above).
+var timeBlockSlots = [8][5]int{
+	{0, 1, 2, 3, 4},          // 00:00-02:30
+	{6, 7, 8, 9, 10},         // 03:00-05:30
+	{12, 13, 14, 15, 16},     // 06:00-08:30
+	{18, 19, 20, 21, 22},     // 09:00-11:30
+	{24, 25, 26, 27, 28},     // 12:00-14:30
+	{30, 31, 32, 33, 34},     // 15:00-17:30
+	{36, 37, 38, 39, 40},     // 18:00-20:30
+	{42, 43, 44, 45, 46},     // 21:00-23:30
 }
 
 type heatmapSummary struct {
@@ -92,13 +94,13 @@ type heatmapGridResponse struct {
 	Hosts      []heatmapHostRow   `json:"hosts"`
 	AllRow     [numSlots]int      `json:"all_row"`
 	AvgRow     [numSlots]*float64 `json:"avg_row"`
-	TimeBlocks [6]int             `json:"time_blocks"`
+	TimeBlocks [8]int             `json:"time_blocks"`
 }
 
 // slotIndexExpr is the shared SQL fragment turning an order's created_at (Asia/Jakarta) into a
-// 0-based slot index; NULL for anything outside 06:00-23:30 (the grid's fixed window).
+// 0-based slot index covering the full 24-hour day (00:00-23:30).
 const slotIndexExpr = `
-	(EXTRACT(HOUR FROM (o.created_at AT TIME ZONE 'Asia/Jakarta')) - 6) * 2
+	EXTRACT(HOUR FROM (o.created_at AT TIME ZONE 'Asia/Jakarta')) * 2
 	+ FLOOR(EXTRACT(MINUTE FROM (o.created_at AT TIME ZONE 'Asia/Jakarta')) / 30)`
 
 // Grid returns every active host in the Location (even with zero sales), grouped by Shift
@@ -209,7 +211,7 @@ func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var blocks [6]int
+	var blocks [8]int
 	for b, slots := range timeBlockSlots {
 		for _, s := range slots {
 			blocks[b] += allRow[s]

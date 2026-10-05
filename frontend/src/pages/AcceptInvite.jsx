@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { acceptInvite, validateAuthToken } from '../api/auth'
+import PasswordInput from '../components/PasswordInput'
 
 export default function AcceptInvite() {
   const { t } = useTranslation()
@@ -65,8 +66,7 @@ export default function AcceptInvite() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_accept_invite.password_label')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   minLength={6}
@@ -76,8 +76,7 @@ export default function AcceptInvite() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_reset_password.confirm_password_label')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   minLength={6}

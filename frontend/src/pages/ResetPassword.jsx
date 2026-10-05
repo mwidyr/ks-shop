@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { resetPassword, validateAuthToken } from '../api/auth'
+import PasswordInput from '../components/PasswordInput'
 
 export default function ResetPassword() {
   const { t } = useTranslation()
@@ -64,8 +65,7 @@ export default function ResetPassword() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_reset_password.new_password_label')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   minLength={6}
@@ -75,8 +75,7 @@ export default function ResetPassword() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_reset_password.confirm_password_label')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   minLength={6}

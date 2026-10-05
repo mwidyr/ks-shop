@@ -73,7 +73,23 @@ DECLARE
         'schema_migrations'
     ];
     tbl text;
+    fk_constraint text;
 BEGIN
+    -- users.customer_id -> customers is a legacy link (the separate customer-portal login this
+    -- app used to have is gone - see README) that's always NULL for every real staff account
+    -- today. It's the only foreign key anywhere FROM a preserved table TO a non-preserved one -
+    -- left in place, TRUNCATE ... CASCADE on customers would cascade into users (and from there
+    -- into auth_tokens too, since auth_tokens references users), wiping every login despite both
+    -- being in preserve_tables. Drop it before truncating, restore it after.
+    SELECT conname INTO fk_constraint
+    FROM pg_constraint
+    WHERE conrelid = 'users'::regclass AND confrelid = 'customers'::regclass AND contype = 'f';
+
+    IF fk_constraint IS NOT NULL THEN
+        UPDATE users SET customer_id = NULL;
+        EXECUTE format('ALTER TABLE users DROP CONSTRAINT %I', fk_constraint);
+    END IF;
+
     FOR tbl IN
         SELECT tablename FROM pg_tables
         WHERE schemaname = 'public' AND tablename <> ALL(preserve_tables)
@@ -81,6 +97,10 @@ BEGIN
         EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE', tbl);
         RAISE NOTICE 'Dikosongkan: %', tbl;
     END LOOP;
+
+    IF fk_constraint IS NOT NULL THEN
+        ALTER TABLE users ADD CONSTRAINT users_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id);
+    END IF;
 END $$;
 SQL
 

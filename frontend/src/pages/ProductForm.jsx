@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import { listSuppliers } from '../api/suppliers'
 import PhotoSlots from '../components/PhotoSlots'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
 
@@ -47,6 +48,7 @@ export default function ProductForm() {
   })
   const [suppliers, setSuppliers] = useState([])
   const [images, setImages] = useState([])
+  const [previewIndex, setPreviewIndex] = useState(null)
   const [colorsText, setColorsText] = useState('')
   const [sizesText, setSizesText] = useState('')
   const [variants, setVariants] = useState([])
@@ -221,7 +223,7 @@ export default function ProductForm() {
         <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{t('page_product_form.product_photos')}</label>
-            <PhotoSlots value={images} onAdd={handleAddImage} onRemove={handleRemoveImage} />
+            <PhotoSlots value={images} onAdd={handleAddImage} onRemove={handleRemoveImage} onPreview={setPreviewIndex} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_name')}</label>
@@ -473,6 +475,7 @@ export default function ProductForm() {
           </button>
         </div>
       </form>
+      {previewIndex !== null && <ImagePreviewModal images={images} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
     </div>
   )
 }
