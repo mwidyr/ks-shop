@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,11 +11,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ordermgmt/internal/auth"
 	appmw "ordermgmt/internal/middleware"
 )
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint violation (code 23505) -
+// used to turn a raw DB error into an actionable message instead of a generic "failed to ...".
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type ProductHandler struct {
 	DB *pgxpool.Pool
@@ -356,6 +365,10 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	for _, v := range req.Variants {
 		if err := insertVariant(ctx, tx, id, v); err != nil {
+			if isUniqueViolation(err) {
+				respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
+				return
+			}
 			respondError(w, http.StatusInternalServerError, "failed to create variant "+v.SKU)
 			return
 		}
@@ -538,6 +551,10 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 
 	variantID, err := insertVariantReturningID(ctx, tx, productID, v)
 	if err != nil {
+		if isUniqueViolation(err) {
+			respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to create variant")
 		return
 	}
@@ -607,6 +624,10 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(ctx, `
 		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7, is_active=$8 WHERE id=$9`,
 		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, req.IsActive, variantID); err != nil {
+		if isUniqueViolation(err) {
+			respondError(w, http.StatusConflict, "variant SKU \""+req.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to update variant")
 		return
 	}
