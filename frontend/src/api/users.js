@@ -11,3 +11,11 @@ export function createUser(payload) {
 export function updateUser(id, payload) {
   return client.patch(`/users/${id}`, payload).then((res) => res.data)
 }
+
+export function deleteUser(id) {
+  return client.delete(`/users/${id}`).then((res) => res.data)
+}
+
+export function resendInvite(id) {
+  return client.post(`/users/${id}/resend-invite`).then((res) => res.data)
+}

@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ordermgmt/internal/auth"
@@ -81,21 +84,31 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, err := auth.NewRawToken()
-	if err == nil {
-		_, err = h.DB.Exec(r.Context(), `
-			INSERT INTO auth_tokens (user_id, token_hash, purpose, expires_at)
-			VALUES ($1,$2,'invite', now() + interval '7 days')`, id, auth.HashToken(raw))
-	}
-	if err == nil {
-		link := fmt.Sprintf("%s/accept-invite?token=%s", h.Cfg.AppBaseURL, raw)
-		mailer.Send(h.Cfg, req.Email, "You've been invited",
-			fmt.Sprintf("You've been invited to join as %s. Set your password here (valid 7 days):\n\n%s", req.Role, link))
-	}
+	sendInvite(r.Context(), h.DB, h.Cfg, id, req.Email, req.Role)
 
 	respondJSON(w, http.StatusCreated, map[string]any{
 		"id": id, "invited": true,
 	})
+}
+
+// sendInvite issues a fresh invite token (any previous unused invite tokens for this user are
+// dropped first, so only the newest link is ever valid - old ones silently 404 at accept-invite
+// instead of leaving multiple simultaneously-valid links floating around) and emails it. Shared
+// by Create (first invite) and ResendInvite (item: "kirim email ulang").
+func sendInvite(ctx context.Context, db *pgxpool.Pool, cfg config.Config, userID int, email, role string) {
+	db.Exec(ctx, `DELETE FROM auth_tokens WHERE user_id=$1 AND purpose='invite'`, userID)
+
+	raw, err := auth.NewRawToken()
+	if err == nil {
+		_, err = db.Exec(ctx, `
+			INSERT INTO auth_tokens (user_id, token_hash, purpose, expires_at)
+			VALUES ($1,$2,'invite', now() + interval '7 days')`, userID, auth.HashToken(raw))
+	}
+	if err == nil {
+		link := fmt.Sprintf("%s/accept-invite?token=%s", cfg.AppBaseURL, raw)
+		mailer.Send(cfg, email, "You've been invited",
+			fmt.Sprintf("You've been invited to join as %s. Set your password here (valid 7 days):\n\n%s", role, link))
+	}
 }
 
 type updateUserRequest struct {
@@ -138,5 +151,88 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		logActivity(r.Context(), h.DB, "user", id, "active_changed", actorID, fmt.Sprintf("is_active -> %v", *req.IsActive))
 	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ResendInvite re-sends the invite email for a still-pending account (is_active=false, no
+// password set yet) - e.g. the first email never arrived because SMTP wasn't configured yet, or
+// just got lost. Not meant for an already-active account; they use Forgot Password instead.
+func (h *UserHandler) ResendInvite(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var email, roleName string
+	var isActive bool
+	if err := h.DB.QueryRow(r.Context(), `
+		SELECT u.email, ro.name, u.is_active FROM users u JOIN roles ro ON ro.id = u.role_id WHERE u.id=$1`, id).
+		Scan(&email, &roleName, &isActive); err != nil {
+		respondError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if isActive {
+		respondError(w, http.StatusBadRequest, "this account is already active - use Forgot Password instead")
+		return
+	}
+	sendInvite(r.Context(), h.DB, h.Cfg, id, email, roleName)
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Delete permanently removes a staff account. Blocked for the caller's own account (can't delete
+// yourself) and for the last active super_user (would lock everyone out of admin access). A
+// user with real history (orders, activity log, etc.) can't be hard-deleted either - every FK
+// from those tables to users.id is a plain REFERENCES with no cascade, so Postgres itself refuses
+// with a foreign_key_violation; that's surfaced as a friendly message pointing at Deactivate
+// instead, rather than a raw 500.
+func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	if claims != nil && claims.UserID == id {
+		respondError(w, http.StatusBadRequest, "you can't delete your own account")
+		return
+	}
+
+	var roleName string
+	if err := h.DB.QueryRow(r.Context(), `
+		SELECT ro.name FROM users u JOIN roles ro ON ro.id = u.role_id WHERE u.id=$1`, id).Scan(&roleName); err != nil {
+		respondError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if roleName == "super_user" {
+		var activeAdmins int
+		h.DB.QueryRow(r.Context(), `
+			SELECT COUNT(*) FROM users u JOIN roles ro ON ro.id = u.role_id
+			WHERE ro.name = 'super_user' AND u.is_active = true`).Scan(&activeAdmins)
+		if activeAdmins <= 1 {
+			respondError(w, http.StatusBadRequest, "can't delete the last active super_user")
+			return
+		}
+	}
+
+	ct, err := h.DB.Exec(r.Context(), `DELETE FROM users WHERE id=$1`, id)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			respondError(w, http.StatusBadRequest, "this user has order/activity history and can't be permanently deleted - use Deactivate instead")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to delete user")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	claimsID := (*int)(nil)
+	if claims != nil {
+		claimsID = &claims.UserID
+	}
+	logActivity(r.Context(), h.DB, "user", id, "deleted", claimsID, "")
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listUsers, createUser, updateUser } from '../api/users'
+import { listUsers, createUser, updateUser, deleteUser, resendInvite } from '../api/users'
 import { listTabs, getRoleTabAccess, updateRoleTabAccess } from '../api/rolePermissions'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
 
@@ -96,6 +96,8 @@ export default function RolesMatrix() {
   const [matrix, setMatrix] = useState({})
   const [matrixSaving, setMatrixSaving] = useState(false)
   const [matrixSaved, setMatrixSaved] = useState(false)
+  const [rowError, setRowError] = useState({})
+  const [resentId, setResentId] = useState(null)
 
   function reload() {
     listUsers().then((data) => { setUsers(data); setLoading(false) })
@@ -142,6 +144,28 @@ export default function RolesMatrix() {
     reload()
   }
 
+  async function handleDelete(u) {
+    if (!window.confirm(t('page_roles.delete_confirm', { name: u.name }))) return
+    setRowError((e) => ({ ...e, [u.id]: '' }))
+    try {
+      await deleteUser(u.id)
+      reload()
+    } catch (err) {
+      setRowError((e) => ({ ...e, [u.id]: err.response?.data?.error || t('page_roles.delete_failed_error') }))
+    }
+  }
+
+  async function handleResendInvite(u) {
+    setRowError((e) => ({ ...e, [u.id]: '' }))
+    try {
+      await resendInvite(u.id)
+      setResentId(u.id)
+      setTimeout(() => setResentId(null), 2000)
+    } catch (err) {
+      setRowError((e) => ({ ...e, [u.id]: err.response?.data?.error || t('page_roles.resend_invite_failed_error') }))
+    }
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6 space-y-6">
       <div className={`${cardClasses} p-5`}>
@@ -152,22 +176,33 @@ export default function RolesMatrix() {
         ) : (
           <div className="divide-y">
             {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between py-2 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{u.name}</p>
-                  <p className="text-xs text-gray-500">{u.email}</p>
+              <div key={u.id} className="py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <div>
+                    <p className="font-medium text-gray-800">{u.name}</p>
+                    <p className="text-xs text-gray-500">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1">
+                      {roleOptions.map((r) => <option key={r.key} value={r.key}>{t(`page_roles.role_${r.key}`)}</option>)}
+                    </select>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {u.is_active ? t('page_roles.active_label') : t('page_roles.inactive_label')}
+                    </span>
+                    <button onClick={() => toggleActive(u)} className="text-xs font-semibold text-brand-600 hover:underline">
+                      {u.is_active ? t('page_roles.deactivate_button') : t('page_roles.activate_button')}
+                    </button>
+                    {!u.is_active && (
+                      <button onClick={() => handleResendInvite(u)} className="text-xs font-semibold text-brand-600 hover:underline">
+                        {resentId === u.id ? t('page_roles.resend_invite_sent') : t('page_roles.resend_invite_button')}
+                      </button>
+                    )}
+                    <button onClick={() => handleDelete(u)} className="text-xs font-semibold text-red-600 hover:underline">
+                      {t('page_roles.delete_button')}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1">
-                    {roleOptions.map((r) => <option key={r.key} value={r.key}>{t(`page_roles.role_${r.key}`)}</option>)}
-                  </select>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {u.is_active ? t('page_roles.active_label') : t('page_roles.inactive_label')}
-                  </span>
-                  <button onClick={() => toggleActive(u)} className="text-xs font-semibold text-brand-600 hover:underline">
-                    {u.is_active ? t('page_roles.deactivate_button') : t('page_roles.activate_button')}
-                  </button>
-                </div>
+                {rowError[u.id] && <p className="text-xs text-red-600 mt-1 text-right">{rowError[u.id]}</p>}
               </div>
             ))}
           </div>
