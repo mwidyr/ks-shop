@@ -1,0 +1,15 @@
+# For a VPS WITHOUT a domain / host-level nginx in front (e.g. an IP-only test VPS) - exposes
+# the "web" container directly on the VPS's public IP at port 80, instead of the default
+# 127.0.0.1:8081-only binding in docker-compose.prod.yml (which assumes a host nginx + Certbot is
+# reverse-proxying to it - see "Domain + HTTPS" in docs/DEPLOYMENT_VPS.md).
+#
+# One-time setup on that VPS:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# docker-compose.override.yml is gitignored - it stays local to this VPS and is never touched by
+# git pull, so this only has to be done once. From then on, always build/deploy with BOTH files:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d --build
+services:
+  web:
+    ports:
+      - "80:80"

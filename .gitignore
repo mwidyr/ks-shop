@@ -18,6 +18,11 @@ backend/uploads/*
 .env.local
 *.env
 
+# Per-VPS local override (e.g. exposing "web" directly on :80 for an IP-only test VPS instead of
+# the domain+host-nginx setup docker-compose.prod.yml assumes by default) - see
+# docker-compose.override.yml.example. Never committed; each VPS keeps its own copy.
+docker-compose.override.yml
+
 # Editor / OS
 .idea/
 .vscode/
