@@ -104,7 +104,7 @@ const VISIBLE_TAB_KEYS = new Set([
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'hosts', 'affiliates', 'returns', 'refunds',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
-  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit',
+  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit', 'promotions',
 ])
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't

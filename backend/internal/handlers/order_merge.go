@@ -98,23 +98,25 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, customer_id, pickup_chain_id, COALESCE(pickup_store_code,''), status
+		SELECT id, customer_id, pickup_chain_id, COALESCE(pickup_store_code,''), status, shipping_fee, free_shipping_override
 		FROM orders WHERE id = ANY($1) ORDER BY created_at`, req.OrderIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "db error")
 		return
 	}
 	type ov struct {
-		ID            int
-		CustomerID    int
-		PickupChainID int
-		StoreCode     string
-		Status        string
+		ID                   int
+		CustomerID           int
+		PickupChainID        int
+		StoreCode            string
+		Status               string
+		ShippingFee          float64
+		FreeShippingOverride bool
 	}
 	var orders []ov
 	for rows.Next() {
 		var o ov
-		if err := rows.Scan(&o.ID, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status); err != nil {
+		if err := rows.Scan(&o.ID, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status, &o.ShippingFee, &o.FreeShippingOverride); err != nil {
 			continue
 		}
 		orders = append(orders, o)
@@ -144,12 +146,54 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	// If the orders' combined subtotal clears the free-shipping threshold even though none of
+	// them individually did, waive the fee-holder's shipping fee automatically - the same
+	// threshold a single order would be checked against (loadShippingFeeSettings, shipping_fee.go),
+	// just evaluated against the sum of every merged order's items. The fee-holder's pre-waiver
+	// values are preserved on the group row so DeleteGroup (unmerge) can restore them exactly.
+	feeHolder := orders[0]
+	waiveFee := false
+	if feeHolder.ShippingFee > 0 {
+		var combinedSubtotal float64
+		tx.QueryRow(ctx, `
+			SELECT COALESCE(SUM(oi.qty * oi.price_at_order),0) FROM order_items oi WHERE oi.order_id = ANY($1)`,
+			req.OrderIDs).Scan(&combinedSubtotal)
+
+		var chainType string
+		tx.QueryRow(ctx, `SELECT chain_type FROM pickup_chains WHERE id=$1`, feeHolder.PickupChainID).Scan(&chainType)
+
+		settings, sErr := loadShippingFeeSettings(ctx, tx)
+		if sErr == nil {
+			threshold := settings["free_shipping_threshold_minimarket"]
+			if chainType == "courier" {
+				threshold = settings["free_shipping_threshold_pos"]
+			}
+			if threshold > 0 && combinedSubtotal >= threshold {
+				waiveFee = true
+			}
+		}
+	}
+
 	var groupID int
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO order_shipment_groups (shipping_fee_order_id, created_by) VALUES ($1,$2) RETURNING id`,
-		orders[0].ID, claims.UserID).Scan(&groupID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create shipment group")
-		return
+	if waiveFee {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_shipment_groups (shipping_fee_order_id, created_by, original_shipping_fee, original_free_shipping_override)
+			VALUES ($1,$2,$3,$4) RETURNING id`,
+			feeHolder.ID, claims.UserID, feeHolder.ShippingFee, feeHolder.FreeShippingOverride).Scan(&groupID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to create shipment group")
+			return
+		}
+		if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=0, free_shipping_override=true WHERE id=$1`, feeHolder.ID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to waive shipping fee")
+			return
+		}
+	} else {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_shipment_groups (shipping_fee_order_id, created_by) VALUES ($1,$2) RETURNING id`,
+			feeHolder.ID, claims.UserID).Scan(&groupID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to create shipment group")
+			return
+		}
 	}
 	for _, o := range orders {
 		if _, err := tx.Exec(ctx, `
@@ -169,21 +213,51 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	respondJSON(w, http.StatusCreated, map[string]int{"id": groupID})
 }
 
-// DeleteGroup unmerges a shipment group - a trivial row delete, nothing on the underlying
-// orders needs to be unwound since they were never modified.
+// DeleteGroup unmerges a shipment group. Orders/order_items were never modified by the merge
+// itself, but CreateGroup may have zeroed the fee-holder's shipping_fee as a free-shipping
+// waiver (see there) - if so, original_shipping_fee/original_free_shipping_override on the group
+// row restore it before the group is deleted, so unmerging doesn't leave the fee stuck at 0.
 func (h *OrderMergeHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid group id")
 		return
 	}
-	ct, err := h.DB.Exec(r.Context(), `DELETE FROM order_shipment_groups WHERE id=$1`, id)
+	ctx := r.Context()
+
+	tx, err := h.DB.Begin(ctx)
 	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var feeOrderID int
+	var originalFee *float64
+	var originalOverride *bool
+	if err := tx.QueryRow(ctx, `
+		SELECT shipping_fee_order_id, original_shipping_fee, original_free_shipping_override
+		FROM order_shipment_groups WHERE id=$1`, id).Scan(&feeOrderID, &originalFee, &originalOverride); err != nil {
+		respondError(w, http.StatusNotFound, "shipment group not found")
+		return
+	}
+
+	if originalFee != nil {
+		override := originalOverride != nil && *originalOverride
+		if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=$1, free_shipping_override=$2 WHERE id=$3`,
+			*originalFee, override, feeOrderID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to restore shipping fee")
+			return
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM order_shipment_groups WHERE id=$1`, id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete shipment group")
 		return
 	}
-	if ct.RowsAffected() == 0 {
-		respondError(w, http.StatusNotFound, "shipment group not found")
+
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
