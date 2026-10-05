@@ -140,13 +140,30 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
 
   async function handleCopy(e) {
     e.stopPropagation()
+    const text = buildCopyText()
     try {
-      await navigator.clipboard.writeText(buildCopyText())
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      if (!navigator.clipboard) throw new Error('clipboard API unavailable')
+      await navigator.clipboard.writeText(text)
     } catch {
-      // clipboard API unavailable (e.g. non-HTTPS) - button just won't give feedback
+      // navigator.clipboard needs a secure context (HTTPS or localhost) - on a plain HTTP
+      // deployment (e.g. an IP-only test VPS) it's undefined entirely. Fall back to the old
+      // execCommand('copy') trick: a temporary off-screen textarea, select it, copy, remove it -
+      // this still works on plain HTTP.
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      try {
+        document.execCommand('copy')
+      } catch {
+        // both methods unavailable - give up silently, button just won't show "Copied!"
+      }
+      document.body.removeChild(textarea)
     }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   return (
