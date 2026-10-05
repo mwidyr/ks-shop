@@ -110,14 +110,96 @@ docker compose -f docker-compose.prod.yml up -d --build
 Data di Postgres dan foto yang sudah diupload tidak hilang saat rebuild — keduanya tersimpan di
 Docker volume (`db_data`, `backend_uploads`), bukan di dalam container itu sendiri.
 
-## 8. Kalau nanti punya domain asli
+## 8. Domain + HTTPS (mis. admin.domainanda.com)
 
 Karena frontend sudah dibangun untuk memanggil API secara relatif (`/api`, bukan alamat IP
-tertulis langsung), pindah ke domain asli nanti **tidak perlu rebuild frontend sama sekali**:
-1. Arahkan DNS domain Anda (A record) ke IP VPS ini.
-2. Tambahkan `server_name domain-anda.com;` di `frontend/nginx.conf`, lalu
-   `docker compose -f docker-compose.prod.yml up -d --build web`.
-3. (Opsional) Pasang HTTPS gratis via [Certbot](https://certbot.eff.org/) untuk domain tersebut.
+tertulis langsung), pindah ke domain **tidak perlu rebuild frontend sama sekali** — tinggal
+pasang domain + HTTPS di depan stack Docker yang sudah jalan.
+
+Pendekatan: nginx di **host** (bukan di dalam Docker) yang terbuka ke publik di :80/:443 dan
+menangani sertifikat HTTPS (lewat Certbot, auto-renew), lalu meneruskan semua trafik ke container
+`web` yang sekarang hanya bind ke `127.0.0.1:8081` (lihat `docker-compose.prod.yml`). Ini dipilih
+karena Certbot plugin nginx butuh mengedit config nginx yang benar-benar menerima trafik publik —
+nginx di dalam Docker tidak terlihat olehnya.
+
+```
+Browser → https://admin.domainanda.com (nginx HOST, :80 redirect → :443 HTTPS)
+               → 127.0.0.1:8081 → container "web" (nginx Docker, build statis React)
+                                        ├─ /api/*, /uploads/*, /health → container backend
+```
+
+### 8.1 Arahkan DNS
+
+Di panel registrar domain Anda (mis. Namecheap → Domain List → Manage → Advanced DNS), tambahkan:
+- **Type**: A Record, **Host**: `admin` (atau subdomain lain yang diinginkan), **Value**: IP VPS
+  Anda, **TTL**: Automatic.
+- **Jangan** menambah/mengubah record untuk `@` (root domain) kalau root domain memang sengaja
+  dibiarkan kosong — biarkan apa adanya (biasanya halaman parking bawaan registrar).
+
+Tunggu beberapa menit - jam untuk propagasi DNS. Cek dengan `dig admin.domainanda.com +short` dari
+komputer lokal - harus menampilkan IP VPS Anda.
+
+### 8.2 Pastikan container `web` hanya bind ke localhost
+
+`docker-compose.prod.yml` versi terbaru di repo ini sudah mem-bind container `web` ke
+`127.0.0.1:8081` (bukan `80:80` lagi), supaya hanya nginx host yang bisa menjangkau port publik.
+Kalau sudah pernah `up` dengan versi lama, jalankan ulang setelah `git pull`:
+```bash
+docker compose -f docker-compose.prod.yml up -d --build web
+```
+
+### 8.3 Install nginx + Certbot di host
+
+```bash
+apt update && apt install -y nginx certbot python3-certbot-nginx
+ufw allow 80/tcp
+ufw allow 443/tcp
+```
+
+### 8.4 Buat server block nginx (host)
+
+```bash
+cat > /etc/nginx/sites-available/admin.domainanda.com <<'EOF'
+server {
+    listen 80;
+    server_name admin.domainanda.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+ln -s /etc/nginx/sites-available/admin.domainanda.com /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+```
+Ganti `admin.domainanda.com` di dua tempat di atas (nama file & `server_name`) dengan subdomain
+asli Anda. Pastikan `curl http://admin.domainanda.com/health` sudah balas `{"status":"ok"}`
+sebelum lanjut ke langkah HTTPS — Certbot butuh ini untuk verifikasi domain (HTTP-01 challenge).
+
+### 8.5 Pasang HTTPS gratis (Certbot)
+
+```bash
+certbot --nginx -d admin.domainanda.com
+```
+Ikuti prompt (isi email, setuju ToS). Certbot otomatis mengubah server block di atas untuk
+redirect HTTP→HTTPS dan menambah blok `listen 443 ssl`, lalu memasang systemd timer untuk
+perpanjangan otomatis sebelum sertifikat kedaluwarsa (90 hari) — tidak perlu langkah manual lagi.
+
+### 8.6 Update APP_BASE_URL
+
+Edit `.env` di root repo, ubah `APP_BASE_URL` dari IP ke domain HTTPS-nya:
+```
+APP_BASE_URL=https://admin.domainanda.com
+```
+Lalu terapkan ke backend:
+```bash
+docker compose -f docker-compose.prod.yml up -d backend
+```
 
 ## Troubleshooting singkat
 

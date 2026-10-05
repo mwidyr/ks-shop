@@ -55,8 +55,12 @@ services:
       args:
         VITE_API_URL: /api
     restart: unless-stopped
+    # Bound to localhost only, not the public internet - once a domain is in use (see
+    # "Domain + HTTPS" in docs/DEPLOYMENT_VPS.md), a host-level nginx + Certbot terminates TLS on
+    # :80/:443 and reverse-proxies here. For the plain IP-only setup (no domain yet), change this
+    # back to "80:80" to expose this container's nginx directly.
     ports:
-      - "80:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       - backend
 
