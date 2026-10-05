@@ -1,10 +1,14 @@
 package mailer
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/smtp"
 	"time"
 
@@ -13,40 +17,82 @@ import (
 
 const dialTimeout = 10 * time.Second
 const sessionTimeout = 20 * time.Second
+const httpTimeout = 15 * time.Second
 
-// Send delivers a plain-text email. When cfg.SMTPHost is unset (no provider configured), it
-// logs the message to stdout instead of sending - lets invite/reset flows be tested locally
-// without real SMTP credentials; set SMTP_HOST etc. to send for real (e.g. Gmail's
-// smtp.gmail.com:587 with an app password).
+// Send delivers a plain-text email, preferring Resend's HTTPS API (cfg.ResendAPIKey) when
+// configured, falling back to plain SMTP (cfg.SMTPHost), falling back further to just logging
+// the message to stdout when neither is set - fine for local dev, no real credentials needed to
+// test the invite/reset-password/OTP flows.
 //
-// The actual send runs in a background goroutine with a bounded timeout and always returns nil
-// immediately - every caller (invite/reset-password/OTP) already discarded the old synchronous
-// error anyway, but net/smtp.SendMail has NO timeout of its own: if the outbound SMTP port is
-// blocked by the VPS's network/firewall (common on cloud providers as an anti-spam default), the
-// underlying TCP dial can hang for minutes, which previously blocked the whole HTTP request
-// (e.g. "Add Staff") until it hit the browser/proxy's own timeout with no server-side log at all.
-// Running it in a goroutine with dialTimeout/sessionTimeout means a slow or blocked SMTP
-// connection can never again stall an API response - the user row/token is already committed to
-// the DB by the time this is called, so a failed send just means the email didn't go out, not
-// that the action itself failed.
+// Resend is checked first because outbound SMTP ports are frequently blocked by VPS network/
+// firewalls as an anti-spam default (confirmed on this project's own VPS: dial timeouts to
+// smtp.gmail.com:587 even with correct credentials) while outbound HTTPS essentially never is.
+//
+// The actual send always runs in a background goroutine with a bounded timeout and this always
+// returns nil immediately - every caller (invite/reset-password/OTP) already discarded the
+// synchronous error anyway, but neither net/smtp.SendMail nor a bare http.Client has a timeout by
+// default, so a blocked/slow provider could otherwise hang the whole HTTP request (e.g. "Add
+// Staff") until the browser/proxy's own timeout, with no server-side log explaining why. The
+// user row/token is already committed to the DB by the time this is called, so a failed send
+// just means the email didn't go out, not that the action itself failed.
 func Send(cfg config.Config, to, subject, body string) error {
-	if cfg.SMTPHost == "" {
-		log.Printf("[mailer] SMTP not configured, logging email instead:\nTo: %s\nSubject: %s\n%s\n", to, subject, body)
-		return nil
+	switch {
+	case cfg.ResendAPIKey != "":
+		go func() {
+			if err := sendViaResend(cfg, to, subject, body); err != nil {
+				log.Printf("[mailer] failed to send to %s via Resend: %v", to, err)
+			} else {
+				log.Printf("[mailer] sent to %s via Resend", to)
+			}
+		}()
+	case cfg.SMTPHost != "":
+		go func() {
+			addr := cfg.SMTPHost + ":" + cfg.SMTPPort
+			if err := sendViaSMTP(cfg, addr, to, subject, body); err != nil {
+				log.Printf("[mailer] failed to send to %s via %s: %v", to, addr, err)
+			} else {
+				log.Printf("[mailer] sent to %s via %s", to, addr)
+			}
+		}()
+	default:
+		log.Printf("[mailer] no email provider configured, logging email instead:\nTo: %s\nSubject: %s\n%s\n", to, subject, body)
 	}
-
-	go func() {
-		addr := cfg.SMTPHost + ":" + cfg.SMTPPort
-		if err := sendNow(cfg, addr, to, subject, body); err != nil {
-			log.Printf("[mailer] failed to send to %s via %s: %v", to, addr, err)
-		} else {
-			log.Printf("[mailer] sent to %s via %s", to, addr)
-		}
-	}()
 	return nil
 }
 
-func sendNow(cfg config.Config, addr, to, subject, body string) error {
+func sendViaResend(cfg config.Config, to, subject, body string) error {
+	payload, err := json.Marshal(map[string]string{
+		"from":    cfg.ResendFrom,
+		"to":      to,
+		"subject": subject,
+		"text":    body,
+	})
+	if err != nil {
+		return fmt.Errorf("encode payload: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.ResendAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: httpTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend returned %d: %s", resp.StatusCode, respBody)
+	}
+	return nil
+}
+
+func sendViaSMTP(cfg config.Config, addr, to, subject, body string) error {
 	conn, err := net.DialTimeout("tcp", addr, dialTimeout)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

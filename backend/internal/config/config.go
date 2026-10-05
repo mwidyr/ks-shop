@@ -15,8 +15,14 @@ type Config struct {
 	CloudinaryAPIKey    string
 	CloudinaryAPISecret string
 
-	// Optional: when SMTPHost is unset, invite/reset-password emails are logged to stdout
-	// instead of sent - fine for local dev, no real mailbox needed to test the flow.
+	// Optional: when ResendAPIKey is set, invite/reset-password/OTP emails send via Resend's
+	// HTTPS API instead of SMTP - preferred when it's set, since outbound SMTP ports are
+	// frequently blocked by VPS network/firewalls (confirmed on this project's own VPS) while
+	// HTTPS essentially never is. Falls back to SMTPHost (plain net/smtp) when unset, then to
+	// logging the email to stdout when neither is configured - fine for local dev.
+	ResendAPIKey string
+	ResendFrom   string
+
 	SMTPHost string
 	SMTPPort string
 	SMTPUser string
@@ -61,6 +67,8 @@ func Load() Config {
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
 		CloudinaryAPIKey:    getEnv("CLOUDINARY_API_KEY", ""),
 		CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
+		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
+		ResendFrom:          getEnv("RESEND_FROM", "onboarding@resend.dev"),
 		SMTPHost:            getEnv("SMTP_HOST", ""),
 		SMTPPort:            getEnv("SMTP_PORT", "587"),
 		SMTPUser:            getEnv("SMTP_USER", ""),
