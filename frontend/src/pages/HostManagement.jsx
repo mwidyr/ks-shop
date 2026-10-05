@@ -12,7 +12,7 @@ function toPayload(fields, form) {
   )
 }
 
-function fieldInput(f, value, onChange) {
+function fieldInput(f, value, onChange, t) {
   if (f.type === 'select') {
     return (
       <select
@@ -21,7 +21,14 @@ function fieldInput(f, value, onChange) {
         className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
         required={f.required}
       >
-        {!f.required && <option value="">{f.emptyLabel || ''}</option>}
+        {/* Always render the empty placeholder, even for a required field - a <select> with no
+            option matching the current (empty) value just silently auto-highlights its first
+            real option without ever firing onChange or updating the bound value, so the form
+            looked like a location was chosen ("Ohlala") while the actual submitted value was
+            still empty, tripping the backend's "location_id is required" check with no visible
+            cause. Keeping this option lets the native `required` validation work correctly
+            instead (browser blocks submit until the user explicitly picks something). */}
+        <option value="">{f.emptyLabel || t('common.select_placeholder')}</option>
         {f.options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
@@ -151,7 +158,7 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
                 {fields.map((f) => (
                   <div key={f.key}>
                     <label className="block text-[11px] text-gray-500 mb-1">{f.label}</label>
-                    {fieldInput(f, editForm[f.key], (v) => setEditForm((s) => ({ ...s, [f.key]: v })))}
+                    {fieldInput(f, editForm[f.key], (v) => setEditForm((s) => ({ ...s, [f.key]: v })), t)}
                   </div>
                 ))}
                 <button onClick={() => saveEdit(item)} className="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
@@ -194,7 +201,7 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
         {fields.map((f) => (
           <div key={f.key}>
             <label className="block text-[11px] text-gray-500 mb-1">{f.label}</label>
-            {fieldInput(f, form[f.key], (v) => setForm((s) => ({ ...s, [f.key]: v })))}
+            {fieldInput(f, form[f.key], (v) => setForm((s) => ({ ...s, [f.key]: v })), t)}
           </div>
         ))}
         <button type="submit" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg">
