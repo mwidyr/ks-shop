@@ -23,5 +23,14 @@ func Send(cfg config.Config, to, subject, body string) error {
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		cfg.SMTPFrom, to, subject, body)
 
-	return smtp.SendMail(addr, auth, cfg.SMTPFrom, []string{to}, []byte(msg))
+	err := smtp.SendMail(addr, auth, cfg.SMTPFrom, []string{to}, []byte(msg))
+	if err != nil {
+		// Every caller (invite/reset-password/OTP) discards this error to keep the API response
+		// unaffected by a flaky mail provider - this is the only place a real send failure (bad
+		// app password, connection refused, etc.) ever surfaces, so it must be logged here.
+		log.Printf("[mailer] failed to send to %s via %s: %v", to, addr, err)
+	} else {
+		log.Printf("[mailer] sent to %s via %s", to, addr)
+	}
+	return err
 }
