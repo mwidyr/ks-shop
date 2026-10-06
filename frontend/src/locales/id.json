@@ -874,7 +874,8 @@
     "variants_heading": "Varian",
     "vendor_sku": "Kode Barang Vendor",
     "add_color_from_master": "Tambah dari daftar warna...",
-    "product_saved_variant_failed_prefix": "Data produk sudah tersimpan, tapi salah satu varian gagal:"
+    "product_saved_variant_failed_prefix": "Data produk sudah tersimpan, tapi salah satu varian gagal:",
+    "variant_sku_hint": "Terisi otomatis dari Kode Produk - bisa diedit manual kalau perlu"
   },
   "page_products": {
     "activate": "Aktifkan",

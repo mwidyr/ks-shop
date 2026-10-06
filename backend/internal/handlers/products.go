@@ -52,8 +52,18 @@ func buildVariantSKU(productCode, color, size string) string {
 // same base SKU for the same size - item 075's "duplicate SKU" bug. Rather than let that surface
 // as a raw unique-violation on save, append a numeric suffix (-2, -3, ...) until it's unique.
 // excludeVariantID lets an update check against every OTHER variant without colliding with itself.
-func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size string) string {
-	base := buildVariantSKU(productCode, color, size)
+//
+// requestedSKU, when non-empty, is used as the base instead of auto-computing one (item 075
+// follow-up: staff asked for the SKU field back, editable, as a manual escape hatch for whatever
+// case the automatic PRODUCT-CODE-COLOR-SIZE derivation doesn't handle well) - the frontend
+// pre-fills it with the same live preview as before, so leaving it untouched behaves exactly
+// like full auto-generation; typing over it is a deliberate override. Either way, the collision
+// check below still applies, so a manual value can never hard-fail into a raw unique-violation.
+func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size, requestedSKU string) string {
+	base := strings.ToUpper(strings.TrimSpace(requestedSKU))
+	if base == "" {
+		base = buildVariantSKU(productCode, color, size)
+	}
 	sku := base
 	for suffix := 2; suffix < 100; suffix++ {
 		var count int
@@ -412,7 +422,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, v := range req.Variants {
-		v.SKU = buildUniqueVariantSKU(ctx, tx, 0, req.SKU, v.Color, v.Size)
+		v.SKU = buildUniqueVariantSKU(ctx, tx, 0, req.SKU, v.Color, v.Size, v.SKU)
 		if err := insertVariant(ctx, tx, id, v); err != nil {
 			if isUniqueViolation(err) {
 				respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
@@ -672,7 +682,7 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before adding variants")
 		return
 	}
-	v.SKU = buildUniqueVariantSKU(ctx, tx, 0, *productCode, v.Color, v.Size)
+	v.SKU = buildUniqueVariantSKU(ctx, tx, 0, *productCode, v.Color, v.Size, v.SKU)
 
 	variantID, err := insertVariantReturningID(ctx, tx, productID, v)
 	if err != nil {
@@ -749,7 +759,7 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before editing variants")
 		return
 	}
-	req.SKU = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size)
+	req.SKU = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size, req.SKU)
 
 	if req.AvailableStock < before.OrderStock {
 		respondError(w, http.StatusConflict, fmt.Sprintf("available_stock tidak boleh kurang dari order_stock (%d)", before.OrderStock))

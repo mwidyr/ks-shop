@@ -874,7 +874,8 @@
     "variants_heading": "商品款式",
     "vendor_sku": "供應商貨號",
     "add_color_from_master": "從顏色清單新增...",
-    "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗："
+    "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗：",
+    "variant_sku_hint": "依商品代碼自動帶入 - 如有需要可手動修改"
   },
   "page_products": {
     "activate": "上架",

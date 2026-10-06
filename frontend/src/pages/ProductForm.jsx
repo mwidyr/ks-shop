@@ -410,21 +410,24 @@ export default function ProductForm() {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.colors_label')}</label>
-              <div className="flex gap-2">
+              {/* Stacked, not side-by-side: a flex row here overflowed into the Ukuran column
+                  next to it, since the master-color <select>'s placeholder text doesn't shrink
+                  below its own content width. Stacking is overflow-proof at any column width. */}
+              <div className="space-y-1.5">
                 <input
                   value={colorsText}
                   onChange={(e) => setColorsText(e.target.value)}
                   onBlur={() => regenerateVariants()}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
                   placeholder={t('page_product_form.colors_placeholder')}
-                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                 />
                 {colorOptions.length > 0 && (
                   <select
                     defaultValue=""
                     onChange={addColorFromMaster}
                     title={t('page_product_form.add_color_from_master')}
-                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-500"
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-500"
                   >
                     <option value="">{t('page_product_form.add_color_from_master')}</option>
                     {colorOptions.map((c) => <option key={c.id} value={c.name_zh}>{translateColor(c.name_zh)}</option>)}
@@ -447,20 +450,31 @@ export default function ProductForm() {
           <div className="space-y-4">
             {variants.map((v, idx) => (
               <div key={`${v.color}|${v.size}`} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-700">
-                    {v.color ? translateColor(v.color) : t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
-                  </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0">
+                      {v.color ? translateColor(v.color) : t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
+                    </p>
+                    {/* SKU is auto-computed and normally doesn't need touching - pre-filled with
+                        the same live preview as before (suggestSku) - but editable as a manual
+                        escape hatch: if save ever fails, this can be fixed by hand and retried
+                        instead of being stuck. The backend still auto-disambiguates on collision
+                        either way (buildUniqueVariantSKU), so this can never hard-fail either. */}
+                    <input
+                      type="text"
+                      value={v.sku}
+                      onChange={(e) => updateVariantField(idx, 'sku', e.target.value)}
+                      title={t('page_product_form.variant_sku_hint')}
+                      className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-600"
+                    />
+                  </div>
                   {!isEdit && variants.length > 1 && (
-                    <button type="button" onClick={() => removeVariantRow(idx)} className="text-xs text-red-600 hover:underline">
+                    <button type="button" onClick={() => removeVariantRow(idx)} className="text-xs text-red-600 hover:underline shrink-0">
                       {t('page_product_form.remove_variant')}
                     </button>
                   )}
                 </div>
 
-                {/* Variant SKU/Name is server-computed and intentionally not shown here (item 075) -
-                    the row header above already identifies the variant by color/size, which is
-                    all staff need day-to-day; the SKU still exists and is managed in the background. */}
                 <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-3`}>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sell_price_placeholder')}</label>

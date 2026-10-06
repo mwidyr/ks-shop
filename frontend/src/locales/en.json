@@ -874,7 +874,8 @@
     "variants_heading": "Variants",
     "vendor_sku": "Vendor Item Code",
     "add_color_from_master": "Add from color list...",
-    "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:"
+    "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:",
+    "variant_sku_hint": "Auto-filled from the Product Code - editable if you need to fix it manually"
   },
   "page_products": {
     "activate": "Activate",
