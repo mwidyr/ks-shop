@@ -873,7 +873,8 @@
     "variant_required": "At least one variant is required",
     "variants_heading": "Variants",
     "vendor_sku": "Vendor Item Code",
-    "add_color_from_master": "Add from color list..."
+    "add_color_from_master": "Add from color list...",
+    "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:"
   },
   "page_products": {
     "activate": "Activate",
@@ -922,7 +923,7 @@
     "sort_stock_desc": "Stock: High to Low",
     "status_active": "Active",
     "status_low_stock": "Low Stock",
-    "status_nonaktif": "Draft",
+    "status_nonaktif": "Inactive",
     "status_out_of_stock": "Out of Stock",
     "stock_filter_all": "All Stock",
     "stock_filter_has_stock": "Has Stock",
@@ -934,7 +935,11 @@
     "tab_all": "All Products ({{count}})",
     "tab_inactive": "Inactive ({{count}})",
     "update_price": "Update Price",
-    "variant_count": "{{count}} variants"
+    "variant_count": "{{count}} variants",
+    "toggle_active_failed": "Failed to change product status",
+    "force_delete_link": "This product has order history. Delete permanently anyway (Admin)?",
+    "force_delete_title": "Delete Permanently",
+    "force_delete_message": "\"{{name}}\" has order history. It will be archived (hidden everywhere, but historical orders/reports stay intact) rather than truly erased. Confirm your password to continue."
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -1508,7 +1513,11 @@
     "title_settings": "Settings",
     "title_shipping_export": "Shipping Data Export",
     "category_new_placeholder_zh": "New category name (Chinese)",
-    "category_new_placeholder_id": "New category name (Indonesian)"
+    "category_new_placeholder_id": "New category name (Indonesian)",
+    "password_confirm_label": "Your password",
+    "password_confirm_button": "Confirm",
+    "password_confirm_busy": "Checking...",
+    "password_confirm_failed": "Incorrect password"
   },
   "status": {
     "cancelled": "Cancelled",
@@ -1710,7 +1719,8 @@
     "th_requisition_no": "Requisition No",
     "th_status": "Status",
     "th_suppliers": "Suppliers",
-    "th_total_amount": "Total Amount (CNY)"
+    "th_total_amount": "Total Amount (CNY)",
+    "add_product_failed": "failed to add"
   },
   "page_colors": {
     "add_button": "+ Add",

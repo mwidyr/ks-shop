@@ -873,7 +873,8 @@
     "variant_required": "至少需要一個款式",
     "variants_heading": "商品款式",
     "vendor_sku": "供應商貨號",
-    "add_color_from_master": "從顏色清單新增..."
+    "add_color_from_master": "從顏色清單新增...",
+    "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗："
   },
   "page_products": {
     "activate": "上架",
@@ -922,7 +923,7 @@
     "sort_stock_desc": "庫存：高至低",
     "status_active": "上架中",
     "status_low_stock": "庫存偏低",
-    "status_nonaktif": "草稿",
+    "status_nonaktif": "未啟用",
     "status_out_of_stock": "缺貨",
     "stock_filter_all": "所有庫存",
     "stock_filter_has_stock": "有庫存",
@@ -934,7 +935,11 @@
     "tab_all": "全部商品（{{count}}）",
     "tab_inactive": "未上架（{{count}}）",
     "update_price": "更新價格",
-    "variant_count": "{{count}} 種款式"
+    "variant_count": "{{count}} 種款式",
+    "toggle_active_failed": "變更商品狀態失敗",
+    "force_delete_link": "此商品有訂單紀錄。仍要永久刪除嗎（管理員）？",
+    "force_delete_title": "永久刪除",
+    "force_delete_message": "「{{name}}」有訂單紀錄，將改為封存（在所有畫面中隱藏，但歷史訂單/報表資料不受影響），而非真正刪除。請輸入密碼確認。"
   },
   "page_profit": {
     "ad_cost": "廣告成本",
@@ -1508,7 +1513,11 @@
     "title_settings": "設定",
     "title_shipping_export": "匯出物流資料",
     "category_new_placeholder_zh": "新分類名稱（中文）",
-    "category_new_placeholder_id": "新分類名稱（印尼文）"
+    "category_new_placeholder_id": "新分類名稱（印尼文）",
+    "password_confirm_label": "您的密碼",
+    "password_confirm_button": "確認",
+    "password_confirm_busy": "驗證中...",
+    "password_confirm_failed": "密碼錯誤"
   },
   "status": {
     "cancelled": "已取消",
@@ -1710,7 +1719,8 @@
     "th_requisition_no": "申請單號",
     "th_status": "狀態",
     "th_suppliers": "供應商",
-    "th_total_amount": "總金額 (CNY)"
+    "th_total_amount": "總金額 (CNY)",
+    "add_product_failed": "新增失敗"
   },
   "page_colors": {
     "add_button": "+ 新增",

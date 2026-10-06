@@ -16,6 +16,10 @@ export function updateProduct(id, payload) {
   return client.patch(`/products/${id}`, payload).then((res) => res.data)
 }
 
+export function setProductActive(id, isActive) {
+  return client.patch(`/products/${id}/active`, { is_active: isActive }).then((res) => res.data)
+}
+
 export function createVariant(productId, payload) {
   return client.post(`/products/${productId}/variants`, payload).then((res) => res.data)
 }
@@ -24,8 +28,8 @@ export function updateVariant(productId, variantId, payload) {
   return client.patch(`/products/${productId}/variants/${variantId}`, payload).then((res) => res.data)
 }
 
-export function deleteProduct(id) {
-  return client.delete(`/products/${id}`).then((res) => res.data)
+export function deleteProduct(id, force) {
+  return client.delete(`/products/${id}${force ? '?force=true' : ''}`).then((res) => res.data)
 }
 
 export function deleteVariant(productId, variantId) {

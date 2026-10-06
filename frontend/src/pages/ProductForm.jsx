@@ -10,8 +10,21 @@ import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
 import { useMasterData } from '../context/MasterDataContext'
 
+// Case-insensitive dedup (item 075): "Red, red" used to produce two distinct variant rows that
+// both resolved to the identical computed SKU (buildVariantSKU uppercases before truncating),
+// colliding on every save. Keeps the first-seen casing so the displayed text isn't rewritten.
 function parseList(text) {
-  return text.split(',').map((s) => s.trim()).filter(Boolean)
+  const seen = new Set()
+  const result = []
+  for (const raw of text.split(',')) {
+    const s = raw.trim()
+    if (!s) continue
+    const key = s.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(s)
+  }
+  return result
 }
 
 // Variant SKU is always PRODUCT-CODE-COLOR-SIZE - prefixing with the parent product's own code
@@ -222,29 +235,38 @@ export default function ProductForm() {
         navigate('/products')
       } else {
         await updateProduct(id, productBody)
-        for (const removedVariant of deletedVariantIds) {
-          try {
-            await deleteVariant(id, removedVariant.id)
-          } catch (err) {
-            // A variant that's ever been used in an order can't be hard-deleted (FK constraint,
-            // by design - see products.go DeleteVariant) - removing its color/size from the list
-            // above used to just fail outright here with no way to recover (item 069). Fall back
-            // to deactivating it instead, matching this form's "no permanent delete, sellable
-            // toggle only" policy everywhere else.
-            if (err.response?.status === 409) {
-              await updateVariant(id, removedVariant.id, { ...variantBody(removedVariant), is_active: false })
-            } else {
-              throw err
+        // Product-level fields are already committed by this point (separate call/transaction
+        // from the variant updates below) - if a variant update fails, the error shown must make
+        // that clear rather than reading like nothing was saved at all (item 075).
+        try {
+          for (const removedVariant of deletedVariantIds) {
+            try {
+              await deleteVariant(id, removedVariant.id)
+            } catch (err) {
+              // A variant that's ever been used in an order can't be hard-deleted (FK constraint,
+              // by design - see products.go DeleteVariant) - removing its color/size from the list
+              // above used to just fail outright here with no way to recover (item 069). Fall back
+              // to deactivating it instead, matching this form's "no permanent delete, sellable
+              // toggle only" policy everywhere else.
+              if (err.response?.status === 409) {
+                await updateVariant(id, removedVariant.id, { ...variantBody(removedVariant), is_active: false })
+              } else {
+                throw err
+              }
             }
           }
-        }
-        for (const v of variants) {
-          const body = variantBody(v)
-          if (v.id) {
-            await updateVariant(id, v.id, body)
-          } else {
-            await createVariant(id, body)
+          for (const v of variants) {
+            const body = variantBody(v)
+            if (v.id) {
+              await updateVariant(id, v.id, body)
+            } else {
+              await createVariant(id, body)
+            }
           }
+        } catch (err) {
+          setError(`${t('page_product_form.product_saved_variant_failed_prefix')} ${err.response?.data?.error || t('page_product_form.save_failed')}`)
+          setSaving(false)
+          return
         }
         navigate('/products')
       }
@@ -436,11 +458,10 @@ export default function ProductForm() {
                   )}
                 </div>
 
-                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-3`}>
-                  <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.variant_name_label')}</label>
-                    <input type="text" value={v.sku} disabled title={t('page_product_form.variant_sku_auto_hint')} className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
-                  </div>
+                {/* Variant SKU/Name is server-computed and intentionally not shown here (item 075) -
+                    the row header above already identifies the variant by color/size, which is
+                    all staff need day-to-day; the SKU still exists and is managed in the background. */}
+                <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-3`}>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sell_price_placeholder')}</label>
                     <input type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />

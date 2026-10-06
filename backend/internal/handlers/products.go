@@ -46,6 +46,25 @@ func buildVariantSKU(productCode, color, size string) string {
 	return strings.Join(parts, "-")
 }
 
+// buildUniqueVariantSKU wraps buildVariantSKU with a collision check: product_variants.sku is
+// unique across the WHOLE table (not scoped per product), and two colors that share the same
+// first-3-rune uppercase prefix (e.g. "Red"/"red", or two legacy color strings) produce the exact
+// same base SKU for the same size - item 075's "duplicate SKU" bug. Rather than let that surface
+// as a raw unique-violation on save, append a numeric suffix (-2, -3, ...) until it's unique.
+// excludeVariantID lets an update check against every OTHER variant without colliding with itself.
+func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size string) string {
+	base := buildVariantSKU(productCode, color, size)
+	sku := base
+	for suffix := 2; suffix < 100; suffix++ {
+		var count int
+		if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE sku=$1 AND id != $2`, sku, excludeVariantID).Scan(&count); err != nil || count == 0 {
+			return sku
+		}
+		sku = fmt.Sprintf("%s-%d", base, suffix)
+	}
+	return sku
+}
+
 type ProductHandler struct {
 	DB *pgxpool.Pool
 }
@@ -111,7 +130,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
 		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
 		       created_at
-		FROM products ORDER BY id`)
+		FROM products WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch products")
 		return
@@ -218,17 +237,21 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, products)
 }
 
+// A deactivated product's status always reads "nonaktif" regardless of its stock level - a
+// staff member who deliberately deactivated a product needs to see that it's deactivated, not a
+// stock-derived label masking it (item 073: a deactivated product with 0 stock used to show
+// "Out of Stock", hiding the fact that it was deactivated on purpose).
 func statusLabelFor(isActive bool, available, minimum int) string {
+	if !isActive {
+		return "nonaktif"
+	}
 	if available == 0 {
 		return "out_of_stock"
 	}
 	if minimum > 0 && available <= minimum {
 		return "low_stock"
 	}
-	if isActive {
-		return "active"
-	}
-	return "nonaktif"
+	return "active"
 }
 
 func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
@@ -248,7 +271,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
 		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
 		       created_at
-		FROM products WHERE id=$1`, id).
+		FROM products WHERE id=$1 AND deleted_at IS NULL`, id).
 		Scan(&p.ID, &p.SKU, &p.VendorSKU, &p.Name, &p.Description, &p.Category, &p.Brand,
 			&p.SupplierID, &p.BasePrice, &cost, &p.IsActive, &p.AllowOversell,
 			&p.MeasurementBust, &p.MeasurementWaist, &p.MeasurementLength, &p.MeasurementBottomLength, &p.MeasurementElasticity, &p.MeasurementNote,
@@ -389,7 +412,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, v := range req.Variants {
-		v.SKU = buildVariantSKU(req.SKU, v.Color, v.Size)
+		v.SKU = buildUniqueVariantSKU(ctx, tx, 0, req.SKU, v.Color, v.Size)
 		if err := insertVariant(ctx, tx, id, v); err != nil {
 			if isUniqueViolation(err) {
 				respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
@@ -519,8 +542,50 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Delete removes a product (cascades to variants/images/stock). Blocked with 409 if any of
-// its variants have order history, since order_items.variant_id has no cascade delete.
+type setActiveRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+// SetActive flips only is_active, used by the product list's quick Activate/Deactivate toggle.
+// Deliberately separate from Update: that handler has full-replace semantics over every field
+// (name, category, measurements, supplier...), so a toggle request built from only the fields
+// visible on the list row would silently null out everything it omits - this endpoint can never
+// clobber anything else, regardless of what the caller does or doesn't know about the product.
+func (h *ProductHandler) SetActive(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid product id")
+		return
+	}
+	var req setActiveRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ctx := r.Context()
+	ct, err := h.DB.Exec(ctx, `UPDATE products SET is_active=$1 WHERE id=$2`, req.IsActive, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update product status")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "product not found")
+		return
+	}
+	if claims := getClaimsSafe(r); claims != nil {
+		logActivity(ctx, h.DB, "product", id, "product_updated", &claims.UserID, fmt.Sprintf("Status Aktif: %v", req.IsActive))
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Delete removes a product (cascades to variants/images/stock) when it has no order history.
+// Blocked with 409 for a product with order history (order_items.variant_id has no cascade
+// delete) - UNLESS the caller is super_user AND passes ?force=true (item 074), in which case
+// it's archived instead: deleted_at is set and the row otherwise untouched, so every historical
+// order/report/analytics JOIN against it keeps working exactly as before. The force flag is
+// required (not just isAdmin(r) alone) so a plain delete click never silently archives anything
+// without the frontend's password-confirmation step actually having happened first - that step
+// is what sets force=true on the follow-up call, not merely a UX nicety layered on top.
 func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -530,7 +595,18 @@ func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_, err = h.DB.Exec(r.Context(), `DELETE FROM products WHERE id=$1`, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "violates") {
-			respondError(w, http.StatusConflict, "produk pernah digunakan di order; nonaktifkan saja")
+			if !isAdmin(r) || r.URL.Query().Get("force") != "true" {
+				respondError(w, http.StatusConflict, "produk pernah digunakan di order; nonaktifkan saja")
+				return
+			}
+			if _, archErr := h.DB.Exec(r.Context(), `UPDATE products SET deleted_at=now(), is_active=false WHERE id=$1`, id); archErr != nil {
+				respondError(w, http.StatusInternalServerError, "failed to archive product")
+				return
+			}
+			if claims := getClaimsSafe(r); claims != nil {
+				logActivity(r.Context(), h.DB, "product", id, "product_archived", &claims.UserID, "Produk diarsipkan (sudah pernah digunakan di order)")
+			}
+			respondJSON(w, http.StatusOK, map[string]string{"status": "archived"})
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to delete product")
@@ -596,7 +672,7 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before adding variants")
 		return
 	}
-	v.SKU = buildVariantSKU(*productCode, v.Color, v.Size)
+	v.SKU = buildUniqueVariantSKU(ctx, tx, 0, *productCode, v.Color, v.Size)
 
 	variantID, err := insertVariantReturningID(ctx, tx, productID, v)
 	if err != nil {
@@ -673,7 +749,7 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before editing variants")
 		return
 	}
-	req.SKU = buildVariantSKU(*productCode, req.Color, req.Size)
+	req.SKU = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size)
 
 	if req.AvailableStock < before.OrderStock {
 		respondError(w, http.StatusConflict, fmt.Sprintf("available_stock tidak boleh kurang dari order_stock (%d)", before.OrderStock))

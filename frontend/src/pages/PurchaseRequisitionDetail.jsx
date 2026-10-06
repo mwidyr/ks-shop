@@ -34,6 +34,24 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const [items, setItems] = useState(() => Object.fromEntries(group.items.map((it) => [it.id, {
     planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '',
   }])))
+  // group.items only seeds local state once (useState initializer) - without this, an item
+  // added to this SAME group later (item 076) never gets an entry here, so its Planned/Confirmed
+  // Qty inputs render blank until the user types in them, even though the row itself displays
+  // fine (driven directly by the group.items prop). Only ADDS missing entries, never overwrites
+  // one already being edited.
+  useEffect(() => {
+    setItems((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const it of group.items) {
+        if (!(it.id in next)) {
+          next[it.id] = { planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '' }
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [group.items])
   const [notes, setNotes] = useState(group.notes || '')
   const [saving, setSaving] = useState(false)
   const [po, setPo] = useState(null)
@@ -117,17 +135,21 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   }, 0)
   const totalQty = group.items.reduce((sum, it) => sum + (Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0), 0)
 
-  // WeChat-ready copy text (item 056): grouped by the supplier's own product code/name (not our
-  // internal SKU), one line per color with its purchase qty. Name/Address are left blank - this
-  // is a message template to send the supplier, not pulled from any real contact record.
+  // WeChat-ready copy text (item 056, format updated per item 077): grouped by the supplier's
+  // own vendor_sku prefix (still shown when present) plus our own Product Code - not the product
+  // NAME, since name translation isn't available yet and the supplier reads Chinese. Color stays
+  // the Chinese canonical name from Color Master already (see translateColor usage below - this
+  // function deliberately does NOT call it, so the copied text is always Chinese regardless of
+  // the staff member's current UI locale). One line per color with its purchase qty. Name/Address
+  // are left blank - this is a message template to send the supplier, not a real contact record.
   function buildCopyText() {
     const groups = []
     const byKey = new Map()
     for (const it of group.items) {
-      const key = (it.vendor_sku || '') + '\u0000' + it.product_name
+      const key = (it.vendor_sku || '') + '\u0000' + it.product_sku
       let g = byKey.get(key)
       if (!g) {
-        g = { vendorSku: it.vendor_sku || '', productName: it.product_name, lines: [] }
+        g = { vendorSku: it.vendor_sku || '', productCode: it.product_sku, lines: [] }
         byKey.set(key, g)
         groups.push(g)
       }
@@ -136,7 +158,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
     }
     const parts = ['姓名 : ', '地址 : ', '']
     groups.forEach((g, idx) => {
-      parts.push(g.vendorSku ? `${g.vendorSku}# ${g.productName}` : g.productName)
+      parts.push(g.vendorSku ? `${g.vendorSku}# ${g.productCode}` : g.productCode)
       parts.push(...g.lines)
       if (idx < groups.length - 1) parts.push('')
     })
@@ -369,8 +391,18 @@ export default function PurchaseRequisitionDetail() {
   }
 
   async function handleAddProducts(pickerItems) {
-    for (const it of pickerItems) {
-      await addRequisitionItem(detail.id, { variant_id: it.variantId, planned_qty: it.qty })
+    setError('')
+    // Each item is independent (item 076) - previously a single `for...await` loop meant one
+    // failing item (e.g. a product with no Supplier set, which AddItem rejects) silently aborted
+    // every item after it with zero feedback, looking exactly like "can't add a second product".
+    const results = await Promise.allSettled(
+      pickerItems.map((it) => addRequisitionItem(detail.id, { variant_id: it.variantId, planned_qty: it.qty }))
+    )
+    const failed = results
+      .map((res, i) => ({ res, it: pickerItems[i] }))
+      .filter(({ res }) => res.status === 'rejected')
+    if (failed.length > 0) {
+      setError(failed.map(({ res, it }) => `${it.productName}: ${res.reason?.response?.data?.error || t('page_purchase_requisitions.add_product_failed')}`).join(' / '))
     }
     reload()
   }

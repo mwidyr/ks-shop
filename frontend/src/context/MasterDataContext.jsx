@@ -22,9 +22,13 @@ export function MasterDataProvider({ children }) {
     listColors().then(setColors)
   }, [])
 
+  // Matches on EITHER name_zh or name_id - not just name_zh. Data entered before this master
+  // list existed has no governance on which language it was typed in (confirmed by the client:
+  // plenty of pre-existing colors are stored as Indonesian text, not Chinese), so a one-direction
+  // lookup silently fails to translate those when switching to Chinese.
   function translate(list, raw) {
     if (!raw) return raw
-    const match = list.find((item) => item.name_zh === raw)
+    const match = list.find((item) => item.name_zh === raw || item.name_id === raw)
     if (!match) return raw
     return i18n.language === 'id' ? match.name_id : match.name_zh
   }

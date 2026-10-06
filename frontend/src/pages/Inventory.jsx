@@ -78,7 +78,7 @@ function VariantRow({ product, variant, onSaved }) {
       {/* Desktop: dense grid row (unchanged layout) */}
       <div className="hidden sm:block">
         <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
-          <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {translateColor(variant.color)}/{variant.size}</p>
+          <p className="text-sm text-gray-700 min-w-0 truncate">{translateColor(variant.color)}/{variant.size}</p>
           <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{availableField}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{incomingField}</span>
@@ -92,7 +92,7 @@ function VariantRow({ product, variant, onSaved }) {
           nothing shares a column with anything else, so labels and numbers never overlap. */}
       <div className={`sm:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
         <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{variant.sku} · {translateColor(variant.color)}/{variant.size}</p>
+          <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{translateColor(variant.color)}/{variant.size}</p>
           {badge}
         </div>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs mb-2">

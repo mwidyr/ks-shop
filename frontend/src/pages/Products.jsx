@@ -3,16 +3,18 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
-import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct } from '../api/products'
+import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct, setProductActive } from '../api/products'
 import { listCategories } from '../api/categories'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
+import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
+import { useAuth } from '../context/AuthContext'
 
-const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Draft' }
+const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Inactive' }
 const statusColors = {
   active: 'bg-green-100 text-green-700', low_stock: 'bg-yellow-100 text-yellow-700',
   out_of_stock: 'bg-red-100 text-red-700', nonaktif: 'bg-gray-100 text-gray-500',
@@ -21,10 +23,17 @@ const statusColors = {
 function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { t } = useTranslation()
   const { translateColor, translateCategory } = useMasterData()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'super_user'
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState(null)
   const [error, setError] = useState('')
+  // Set only when a plain delete was blocked because this product has order history - offers
+  // the Super Admin a path to archive it anyway (item 074), gated behind a password re-check
+  // (PasswordConfirmModal) rather than happening on the same click that triggered the 409.
+  const [blockedByHistory, setBlockedByHistory] = useState(false)
+  const [forceDeleteOpen, setForceDeleteOpen] = useState(false)
   const menuButtonRef = useRef(null)
 
   // The "Atur" menu is rendered via a portal into document.body with fixed positioning
@@ -63,22 +72,36 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const maxDiscountPct = discountPcts.length ? Math.max(...discountPcts) : 0
 
   async function toggleActive() {
-    await updateProduct(p.id, {
-      sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, category: p.category,
-      brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: !p.is_active,
-    })
-    onChanged()
+    setError('')
+    setMenuOpen(false)
+    try {
+      await setProductActive(p.id, !p.is_active)
+      onChanged()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_products.toggle_active_failed'))
+    }
   }
 
   async function handleDelete() {
     setError('')
+    setBlockedByHistory(false)
     setMenuOpen(false)
     try {
       await deleteProduct(p.id)
       onChanged()
     } catch (err) {
       setError(err.response?.data?.error || t('page_products.delete_product_failed'))
+      if (err.response?.status === 409 && isAdmin) {
+        setBlockedByHistory(true)
+      }
     }
+  }
+
+  async function handleForceDelete() {
+    await deleteProduct(p.id, true)
+    setBlockedByHistory(false)
+    setError('')
+    onChanged()
   }
 
   return (
@@ -149,6 +172,19 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
           document.body
         )}
         {error && <p className="text-[11px] text-red-600 mt-1 max-w-[160px]">{error}</p>}
+        {blockedByHistory && (
+          <button type="button" onClick={() => setForceDeleteOpen(true)} className="text-[11px] font-semibold text-red-700 underline mt-0.5">
+            {t('page_products.force_delete_link')}
+          </button>
+        )}
+        {forceDeleteOpen && (
+          <PasswordConfirmModal
+            title={t('page_products.force_delete_title')}
+            message={t('page_products.force_delete_message', { name: p.name })}
+            onConfirm={handleForceDelete}
+            onClose={() => setForceDeleteOpen(false)}
+          />
+        )}
       </td>
     </tr>
   )

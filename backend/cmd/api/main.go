@@ -138,6 +138,7 @@ func main() {
 			r.With(view("inventory")).Get("/inventory/history", productH.StockHistory)
 			r.With(edit("products")).Post("/products", productH.Create)
 			r.With(edit("products")).Patch("/products/{id}", productH.Update)
+			r.With(edit("products")).Patch("/products/{id}/active", productH.SetActive)
 			r.With(edit("products")).Post("/products/{id}/variants", productH.CreateVariant)
 			r.With(edit("products")).Patch("/products/{id}/variants/{variantId}", productH.UpdateVariant)
 			r.With(edit("products")).Delete("/products/{id}/variants/{variantId}", productH.DeleteVariant)
