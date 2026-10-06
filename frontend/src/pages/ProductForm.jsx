@@ -12,16 +12,22 @@ function parseList(text) {
   return text.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-function suggestSku(productName, variant) {
-  const initials = productName.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'SKU'
+// Variant SKU is always PRODUCT-CODE-COLOR-SIZE - prefixing with the parent product's own code
+// (unique per product, enforced server-side) guarantees the variant SKU is unique too, without
+// relying on the product's name (which two unrelated products can easily share the same
+// initials/color/size combination for - see the "variant SKU already used by another product"
+// incident this replaced). The backend recomputes this itself on every create/update regardless
+// of what's sent here, so this is a live preview only, not the final source of truth.
+function suggestSku(productCode, variant) {
+  const codePart = (productCode || '').trim().toUpperCase()
   const colorPart = (variant.color || '').slice(0, 3).toUpperCase()
   const sizePart = (variant.size || '').toUpperCase()
-  return [initials, colorPart, sizePart].filter(Boolean).join('-')
+  return [codePart, colorPart, sizePart].filter(Boolean).join('-')
 }
 
 function freshVariantRow(color, size, product) {
   return {
-    sku: suggestSku(product.name || 'Produk', { color, size }), color, size,
+    sku: suggestSku(product.sku, { color, size }), color, size,
     price: product.base_price || '', compare_at_price: 0, cost_price: 0,
     allow_oversell: product.allow_oversell, is_active: true,
     available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
@@ -390,14 +396,10 @@ export default function ProductForm() {
                 </div>
 
                 <div className={`grid grid-cols-2 ${isEdit ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-3`}>
-                  {isEdit ? (
-                    <div>
-                      <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.variant_name_label')}</label>
-                      <input type="text" value={v.sku} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
-                    </div>
-                  ) : (
-                    <input placeholder="SKU" value={v.sku} onChange={(e) => updateVariantField(idx, 'sku', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" required />
-                  )}
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.variant_name_label')}</label>
+                    <input type="text" value={v.sku} disabled title={t('page_product_form.variant_sku_auto_hint')} className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
+                  </div>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sell_price_placeholder')}</label>
                     <input type="number" value={v.price} onChange={(e) => updateVariantField(idx, 'price', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" required />

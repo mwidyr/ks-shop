@@ -860,6 +860,7 @@
     "variant_allow_oversell": "Allow oversell for this variant",
     "variant_is_active": "Sellable",
     "variant_name_label": "Variant Name",
+    "variant_sku_auto_hint": "Auto-generated from the product's Code - not editable",
     "variant_no_color_label": "Variant",
     "variant_required": "At least one variant is required",
     "variants_heading": "Variants",

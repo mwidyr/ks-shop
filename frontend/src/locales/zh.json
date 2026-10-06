@@ -860,6 +860,7 @@
     "variant_allow_oversell": "允許此款式超賣",
     "variant_is_active": "可銷售",
     "variant_name_label": "款式名稱",
+    "variant_sku_auto_hint": "由產品代碼自動產生 - 無法手動編輯",
     "variant_no_color_label": "款式",
     "variant_required": "至少需要一個款式",
     "variants_heading": "商品款式",

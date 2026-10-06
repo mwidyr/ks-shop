@@ -860,6 +860,7 @@
     "variant_allow_oversell": "Izinkan oversell untuk varian ini",
     "variant_is_active": "Dapat Dijual",
     "variant_name_label": "Nama Varian",
+    "variant_sku_auto_hint": "Dibuat otomatis dari Kode Produk - tidak bisa diedit manual",
     "variant_no_color_label": "Varian",
     "variant_required": "Minimal harus ada satu varian",
     "variants_heading": "Varian",

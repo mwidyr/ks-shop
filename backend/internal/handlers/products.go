@@ -25,6 +25,27 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
+// buildVariantSKU derives a variant's SKU as PRODUCT-CODE-COLOR-SIZE. The backend always computes
+// this itself (never trusts a client-submitted SKU for a variant) so it can never drift from the
+// one guarantee that actually matters: product.sku is unique per product (enforced by its own DB
+// constraint), so prefixing with it makes every variant SKU unique too, without depending on the
+// product's name/color/size never colliding with another unrelated product's - see the "variant
+// SKU already used by another product" incident this replaced.
+func buildVariantSKU(productCode, color, size string) string {
+	parts := []string{strings.ToUpper(strings.TrimSpace(productCode))}
+	if color != "" {
+		runes := []rune(strings.ToUpper(color))
+		if len(runes) > 3 {
+			runes = runes[:3]
+		}
+		parts = append(parts, string(runes))
+	}
+	if size != "" {
+		parts = append(parts, strings.ToUpper(size))
+	}
+	return strings.Join(parts, "-")
+}
+
 type ProductHandler struct {
 	DB *pgxpool.Pool
 }
@@ -326,6 +347,10 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "maksimal 5 foto per produk")
 		return
 	}
+	if len(req.Variants) > 0 && strings.TrimSpace(req.SKU) == "" {
+		respondError(w, http.StatusBadRequest, "Product Code is required before adding variants")
+		return
+	}
 	isActive := true
 	if req.IsActive != nil {
 		isActive = *req.IsActive
@@ -364,6 +389,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, v := range req.Variants {
+		v.SKU = buildVariantSKU(req.SKU, v.Color, v.Size)
 		if err := insertVariant(ctx, tx, id, v); err != nil {
 			if isUniqueViolation(err) {
 				respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
@@ -435,6 +461,17 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active FROM products WHERE id=$1`, id).
 		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive)
+
+	if strings.TrimSpace(req.SKU) == "" {
+		// Every variant's SKU is derived as PRODUCT-CODE-COLOR-SIZE (see buildVariantSKU) - clearing
+		// the product's own code once variants exist would orphan that guarantee entirely.
+		var variantCount int
+		h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE product_id=$1`, id).Scan(&variantCount)
+		if variantCount > 0 {
+			respondError(w, http.StatusBadRequest, "this product has variants - Product Code can't be cleared, only changed")
+			return
+		}
+	}
 
 	ct, err := h.DB.Exec(ctx, `
 		UPDATE products SET sku=NULLIF($1,''), vendor_sku=NULLIF($2,''), name=$3, description=$4, category=$5,
@@ -536,7 +573,7 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var v variantInput
-	if err := decodeJSON(r, &v); err != nil || v.SKU == "" {
+	if err := decodeJSON(r, &v); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -548,6 +585,17 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
+
+	var productCode *string
+	if err := tx.QueryRow(ctx, `SELECT sku FROM products WHERE id=$1`, productID).Scan(&productCode); err != nil {
+		respondError(w, http.StatusNotFound, "product not found")
+		return
+	}
+	if productCode == nil || strings.TrimSpace(*productCode) == "" {
+		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before adding variants")
+		return
+	}
+	v.SKU = buildVariantSKU(*productCode, v.Color, v.Size)
 
 	variantID, err := insertVariantReturningID(ctx, tx, productID, v)
 	if err != nil {
@@ -613,6 +661,19 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "variant not found")
 		return
 	}
+	var productCode *string
+	if err := tx.QueryRow(ctx, `
+		SELECT p.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
+		variantID).Scan(&productCode); err != nil {
+		respondError(w, http.StatusNotFound, "variant not found")
+		return
+	}
+	if productCode == nil || strings.TrimSpace(*productCode) == "" {
+		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before editing variants")
+		return
+	}
+	req.SKU = buildVariantSKU(*productCode, req.Color, req.Size)
+
 	if req.AvailableStock < before.OrderStock {
 		respondError(w, http.StatusConflict, fmt.Sprintf("available_stock tidak boleh kurang dari order_stock (%d)", before.OrderStock))
 		return
