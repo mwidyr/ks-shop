@@ -100,7 +100,7 @@ const navGroups = [
 // until it's ready to ship. This is a blanket visibility gate on top of (not a replacement
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
-  'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'inventory', 'customers',
+  'panel_siaran', 'orders', 'picking', 'shipping', 'products', 'categories', 'inventory', 'customers',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'hosts', 'affiliates', 'returns', 'refunds',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
