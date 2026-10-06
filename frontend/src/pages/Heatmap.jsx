@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getHeatmapSummary, getHeatmapGrid, getHeatmapCellDetail } from '../api/heatmap'
@@ -7,16 +7,14 @@ import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
-// Fixed width for the sticky Host name column (col 0) so the sticky QTY column (col 1) has a
-// known offset to pin itself at - matches the client's reference (Google Sheets freeze-columns
-// view, where Host + its adjacent number column both stay fixed while the time grid scrolls).
-const HOST_COL_WIDTH = 130
-// The table uses border-separate with this borderSpacing (see the <table> below), which inserts
-// a real gap between every pair of adjacent cells - including between the two sticky columns.
-// Neither sticky cell's own background covers that gap, so without adding it to QTY's offset,
-// a thin strip of whatever's scrolling underneath shows through between Host and QTY.
-const CELL_GAP = 2
-const QTY_COL_LEFT = HOST_COL_WIDTH + CELL_GAP
+// Host names are truncated to this width (via an inner div, not the <td> itself - see below) so
+// one long name can't blow out the column. This is only a cap, not the actual rendered width:
+// without table-layout:fixed, a <td>'s own width/maxWidth style is just a hint to the browser's
+// auto column-sizing, not a hard constraint, so a hardcoded sticky offset based on this number
+// alone drifted from the real rendered boundary (the exact gap the client reported). The sticky
+// QTY column's left offset is instead measured from the Host column's actual DOM width at
+// runtime (see hostColRef/qtyColLeft below), which is correct regardless of content or layout.
+const HOST_COL_MAX_WIDTH = 110
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -225,6 +223,18 @@ export default function Heatmap() {
   const [activeCell, setActiveCell] = useState(null)
   const [activePreset, setActivePreset] = useState('today')
   const [nowTick, setNowTick] = useState(0)
+  const hostColRef = useRef(null)
+  const [qtyColLeft, setQtyColLeft] = useState(HOST_COL_MAX_WIDTH + 24)
+
+  // Measures the Host column's actual rendered width (border-separate's border-spacing included,
+  // since getBoundingClientRect reflects real layout, not a guess) and uses that exact pixel
+  // value for the sticky QTY column's offset - see the HOST_COL_MAX_WIDTH comment for why a
+  // hardcoded constant drifted from the real boundary and left a gap.
+  useLayoutEffect(() => {
+    if (hostColRef.current) {
+      setQtyColLeft(hostColRef.current.getBoundingClientRect().width)
+    }
+  }, [grid])
 
   useEffect(() => { listLocations().then(setLocations) }, [])
 
@@ -277,8 +287,10 @@ export default function Heatmap() {
             <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
               <thead>
                 <tr>
-                  <th className="p-1 text-left sticky left-0 z-20 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
-                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: QTY_COL_LEFT }}>{t('page_heatmap.total_qty')}</th>
+                  <th ref={hostColRef} className="p-1 text-left sticky left-0 z-20 bg-white">
+                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.col_host')}</div>
+                  </th>
+                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: qtyColLeft }}>{t('page_heatmap.total_qty')}</th>
                   {Array.from({ length: NUM_SLOTS }).map((_, i) => (
                     <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
                       {i === nowSlot && (
@@ -296,10 +308,12 @@ export default function Heatmap() {
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id}>
-                    <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>
-                      {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
+                    <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white">
+                      <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>
+                        {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
+                      </div>
                     </td>
-                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}>{fmtNum(host.total_qty)}</td>
+                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: qtyColLeft }}>{fmtNum(host.total_qty)}</td>
                     {host.slots.map((qty, i) => {
                       const color = cellColor(qty, rangeDays)
                       return (
@@ -317,8 +331,10 @@ export default function Heatmap() {
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>ALL</td>
-                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white">
+                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>ALL</div>
+                  </td>
+                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: qtyColLeft }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
                     const color = cellColor(qty, rangeDays, ALL_COLORS)
                     return (
@@ -330,8 +346,10 @@ export default function Heatmap() {
                   })}
                 </tr>
                 <tr>
-                  <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</td>
-                  <td className="p-1 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}></td>
+                  <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white">
+                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.average_row')}</div>
+                  </td>
+                  <td className="p-1 sticky z-10 bg-white" style={{ left: qtyColLeft }}></td>
                   {grid.avg_row.map((v, i) => {
                     const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
                     return (
