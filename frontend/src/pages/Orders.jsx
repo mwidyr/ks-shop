@@ -94,7 +94,21 @@ export default function Orders() {
   async function handleMergeAll() {
     setMergeAllBusy(true)
     setMergeAllResult('')
-    const results = await Promise.allSettled(mergeSuggestions.map((s) => createMergeGroup(s.order_ids)))
+    // Nothing ticked: unchanged one-click shortcut, merge every eligible group in full.
+    // Something ticked (the same per-row checkboxes that drive bulk status/print below):
+    // narrow each group to only its ticked order_ids; a group left with fewer than 2 ticked
+    // orders is skipped (not enough to merge).
+    const groups = selected.size === 0
+      ? mergeSuggestions.map((s) => s.order_ids)
+      : mergeSuggestions
+          .map((s) => s.order_ids.filter((id) => selected.has(id)))
+          .filter((ids) => ids.length >= 2)
+    if (groups.length === 0) {
+      setMergeAllResult(t('page_orders.merge_all_result_none'))
+      setMergeAllBusy(false)
+      return
+    }
+    const results = await Promise.allSettled(groups.map((ids) => createMergeGroup(ids)))
     const fail = results.filter((r) => r.status === 'rejected').length
     setMergeAllResult(fail > 0
       ? t('page_orders.merge_all_result_partial', { success: results.length - fail, fail })
@@ -185,6 +199,7 @@ export default function Orders() {
           <p className="text-sm text-amber-800">
             💡 <span className="font-semibold">{t('page_orders.merge_all_title')}</span>{' '}
             {t('page_orders.merge_all_desc', { groups: mergeSuggestions.length, orders: mergeTotalOrders })}
+            {' '}<span className="text-amber-700">{t('page_orders.merge_all_hint')}</span>
           </p>
           <div className="flex items-center gap-2 shrink-0">
             <Link to="/orders/merge" className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100">

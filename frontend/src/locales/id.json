@@ -730,7 +730,9 @@
     "merge_view_all": "Lihat Semua Gabungan",
     "merged_badge": "Gabung",
     "phone_copied": "✓ Disalin",
-    "created_at_label": "Dibuat"
+    "created_at_label": "Dibuat",
+    "merge_all_result_none": "Tidak ada order yang dicentang untuk digabung.",
+    "merge_all_hint": "(Centang order tertentu di atas untuk hanya menggabungkan itu.)"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",

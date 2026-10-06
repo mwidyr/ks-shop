@@ -730,7 +730,9 @@
     "merge_view_all": "查看所有合併",
     "merged_badge": "合併",
     "phone_copied": "✓ 已複製",
-    "created_at_label": "建立於"
+    "created_at_label": "建立於",
+    "merge_all_result_none": "沒有勾選要合併的訂單。",
+    "merge_all_hint": "（勾選上方特定訂單即可只合併該訂單。）"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",

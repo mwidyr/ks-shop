@@ -730,7 +730,9 @@
     "merge_view_all": "View All Merges",
     "merged_badge": "Merged",
     "phone_copied": "✓ Copied",
-    "created_at_label": "Created"
+    "created_at_label": "Created",
+    "merge_all_result_none": "No ticked orders to merge.",
+    "merge_all_hint": "(Tick specific orders above to merge only those.)"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",
