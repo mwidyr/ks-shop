@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,31 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { translateColor, translateCategory } = useMasterData()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState(null)
   const [error, setError] = useState('')
+  const menuButtonRef = useRef(null)
+
+  // The "Atur" menu is rendered via a portal into document.body with fixed positioning
+  // (instead of absolute inside the <td>) because the desktop table sits in an
+  // overflow-x-auto wrapper (for horizontal scroll on narrow screens) - and a scrollable
+  // ancestor clips any absolutely-positioned descendant that extends past its own bounds,
+  // which cut the menu off for rows near the bottom of the table.
+  function openMenu() {
+    const rect = menuButtonRef.current.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setMenuOpen(true)
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function close() { setMenuOpen(false) }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [menuOpen])
   const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
   const colors = [...new Set(p.variants.map((v) => v.color).filter(Boolean))]
   const sizes = [...new Set(p.variants.map((v) => v.size).filter(Boolean))]
@@ -97,15 +122,19 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
       </td>
       <td className="p-3.5 relative">
         <button
-          onClick={() => setMenuOpen((o) => !o)}
+          ref={menuButtonRef}
+          onClick={() => (menuOpen ? setMenuOpen(false) : openMenu())}
           className="flex items-center gap-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
         >
           {t('page_products.manage_button')} <IconChevronDown />
         </button>
-        {menuOpen && (
+        {menuOpen && menuPos && createPortal(
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1">
+            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+            <div
+              style={{ position: 'fixed', top: menuPos.top, right: menuPos.right }}
+              className="w-40 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1"
+            >
               <Link to={`/products/${p.id}/edit`} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <IconPencil /> {t('common.edit')}
               </Link>
@@ -116,7 +145,8 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
                 <IconTrash /> {t('common.delete')}
               </button>
             </div>
-          </>
+          </>,
+          document.body
         )}
         {error && <p className="text-[11px] text-red-600 mt-1 max-w-[160px]">{error}</p>}
       </td>

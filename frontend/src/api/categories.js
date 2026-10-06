@@ -17,3 +17,7 @@ export function updateCategory(id, nameId) {
 export function deleteCategory(id) {
   return client.delete(`/categories/${id}`).then((res) => res.data)
 }
+
+export function mergeCategory(id, intoId) {
+  return client.post(`/categories/${id}/merge`, { into_id: intoId }).then((res) => res.data)
+}

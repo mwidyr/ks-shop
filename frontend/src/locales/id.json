@@ -154,7 +154,11 @@
     "loading_categories": "Memuat kategori...",
     "product_count": "{{count}} produk",
     "name_zh_placeholder": "Nama Mandarin",
-    "name_id_placeholder": "Nama Indonesia"
+    "name_id_placeholder": "Nama Indonesia",
+    "merge_button": "Gabung ke...",
+    "merge_target_placeholder": "Pilih kategori tujuan",
+    "merge_confirm_button": "Konfirmasi",
+    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua produk yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus."
   },
   "page_chat": {
     "ai_suggestion_label": "Saran AI",
@@ -1714,6 +1718,10 @@
     "loading_colors": "Memuat warna...",
     "name_zh_placeholder": "Nama Mandarin",
     "name_id_placeholder": "Nama Indonesia",
-    "used_count": "{{count}} varian"
+    "used_count": "{{count}} varian",
+    "merge_button": "Gabung ke...",
+    "merge_target_placeholder": "Pilih warna tujuan",
+    "merge_confirm_button": "Konfirmasi",
+    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua varian yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus."
   }
 }

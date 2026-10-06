@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listColors, createColor, updateColor, deleteColor } from '../api/colors'
+import { listColors, createColor, updateColor, deleteColor, mergeColor } from '../api/colors'
 
 export default function ColorManagement() {
   const { t } = useTranslation()
@@ -12,6 +12,8 @@ export default function ColorManagement() {
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editNameId, setEditNameId] = useState('')
+  const [mergingId, setMergingId] = useState(null)
+  const [mergeTarget, setMergeTarget] = useState('')
 
   function reload() {
     listColors().then((data) => {
@@ -52,6 +54,21 @@ export default function ColorManagement() {
   async function saveEdit() {
     await updateColor(editingId, editNameId.trim())
     setEditingId(null)
+    reload()
+  }
+
+  function startMerge(id) {
+    setMergingId(id)
+    setMergeTarget('')
+  }
+
+  async function confirmMerge(c) {
+    if (!mergeTarget) return
+    const target = colors.find((x) => String(x.id) === mergeTarget)
+    if (!target) return
+    if (!window.confirm(t('page_colors.merge_confirm', { source: c.name_zh, target: target.name_zh }))) return
+    await mergeColor(c.id, target.id)
+    setMergingId(null)
     reload()
   }
 
@@ -106,10 +123,28 @@ export default function ColorManagement() {
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">{t('page_colors.used_count', { count: c.used_count })}</span>
-                <button onClick={() => handleDelete(c.id)} className="text-xs font-semibold text-red-600 hover:underline">{t('common.delete')}</button>
-              </div>
+              {mergingId === c.id ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={mergeTarget}
+                    onChange={(e) => setMergeTarget(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="">{t('page_colors.merge_target_placeholder')}</option>
+                    {colors.filter((x) => x.id !== c.id).map((x) => (
+                      <option key={x.id} value={x.id}>{x.name_zh} / {x.name_id}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => confirmMerge(c)} disabled={!mergeTarget} className="text-xs font-semibold text-brand-600 hover:underline disabled:opacity-40">{t('page_colors.merge_confirm_button')}</button>
+                  <button onClick={() => setMergingId(null)} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">{t('page_colors.used_count', { count: c.used_count })}</span>
+                  <button onClick={() => startMerge(c.id)} className="text-xs font-semibold text-gray-500 hover:underline">{t('page_colors.merge_button')}</button>
+                  <button onClick={() => handleDelete(c.id)} className="text-xs font-semibold text-red-600 hover:underline">{t('common.delete')}</button>
+                </div>
+              )}
             </div>
           ))}
         </div>

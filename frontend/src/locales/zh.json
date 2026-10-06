@@ -154,7 +154,11 @@
     "loading_categories": "分類載入中...",
     "product_count": "{{count}} 項商品",
     "name_zh_placeholder": "中文名稱",
-    "name_id_placeholder": "印尼文名稱"
+    "name_id_placeholder": "印尼文名稱",
+    "merge_button": "合併至...",
+    "merge_target_placeholder": "選擇目標分類",
+    "merge_confirm_button": "確認",
+    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的商品將移至「{{target}}」，並刪除「{{source}}」。"
   },
   "page_chat": {
     "ai_suggestion_label": "AI 建議",
@@ -1714,6 +1718,10 @@
     "loading_colors": "顏色載入中...",
     "name_zh_placeholder": "中文名稱",
     "name_id_placeholder": "印尼文名稱",
-    "used_count": "{{count}} 個款式"
+    "used_count": "{{count}} 個款式",
+    "merge_button": "合併至...",
+    "merge_target_placeholder": "選擇目標顏色",
+    "merge_confirm_button": "確認",
+    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的款式將移至「{{target}}」，並刪除「{{source}}」。"
   }
 }

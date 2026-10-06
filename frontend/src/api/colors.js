@@ -17,3 +17,7 @@ export function updateColor(id, nameId) {
 export function deleteColor(id) {
   return client.delete(`/colors/${id}`).then((res) => res.data)
 }
+
+export function mergeColor(id, intoId) {
+  return client.post(`/colors/${id}/merge`, { into_id: intoId }).then((res) => res.data)
+}

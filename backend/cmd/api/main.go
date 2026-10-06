@@ -151,11 +151,13 @@ func main() {
 			r.With(view("categories")).Get("/categories", categoryH.List)
 			r.With(edit("categories")).Post("/categories", categoryH.Create)
 			r.With(edit("categories")).Patch("/categories/{id}", categoryH.Update)
+			r.With(edit("categories")).Post("/categories/{id}/merge", categoryH.Merge)
 			r.With(edit("categories")).Delete("/categories/{id}", categoryH.Delete)
 
 			r.With(view("colors")).Get("/colors", colorH.List)
 			r.With(edit("colors")).Post("/colors", colorH.Create)
 			r.With(edit("colors")).Patch("/colors/{id}", colorH.Update)
+			r.With(edit("colors")).Post("/colors/{id}/merge", colorH.Merge)
 			r.With(edit("colors")).Delete("/colors/{id}", colorH.Delete)
 
 			r.With(view("orders")).Get("/pickup-stores/validate", cvsStoreH.ValidateStoreCode)

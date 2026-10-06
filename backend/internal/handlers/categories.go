@@ -104,6 +104,65 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+type mergeCategoryRequest struct {
+	IntoID int `json:"into_id"`
+}
+
+// Merge folds a category into another: every product currently using the source category's
+// name is reassigned to the target's name, then the source row is removed. Added because
+// migration 076 introduced the 8 official (Chinese-named) categories alongside whatever ad hoc
+// free-text categories already existed in production (e.g. "Aksesoris" the old free-text entry
+// vs "配件" the new official one, which also happens to translate to "Aksesoris" under the
+// Indonesian locale) - this lets staff consolidate those duplicates deliberately rather than
+// the migration guessing an ambiguous mapping on their behalf.
+func (h *CategoryHandler) Merge(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid category id")
+		return
+	}
+	var req mergeCategoryRequest
+	if err := decodeJSON(r, &req); err != nil || req.IntoID == 0 {
+		respondError(w, http.StatusBadRequest, "into_id is required")
+		return
+	}
+	if req.IntoID == id {
+		respondError(w, http.StatusBadRequest, "cannot merge a category into itself")
+		return
+	}
+
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to merge category")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var sourceName, targetName string
+	if err := tx.QueryRow(ctx, `SELECT name FROM categories WHERE id=$1`, id).Scan(&sourceName); err != nil {
+		respondError(w, http.StatusNotFound, "category not found")
+		return
+	}
+	if err := tx.QueryRow(ctx, `SELECT name FROM categories WHERE id=$1`, req.IntoID).Scan(&targetName); err != nil {
+		respondError(w, http.StatusNotFound, "target category not found")
+		return
+	}
+	if _, err := tx.Exec(ctx, `UPDATE products SET category=$1 WHERE category=$2`, targetName, sourceName); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to reassign products")
+		return
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM categories WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete merged category")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to merge category")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (h *CategoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

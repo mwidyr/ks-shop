@@ -154,7 +154,11 @@
     "loading_categories": "Loading categories...",
     "product_count": "{{count}} products",
     "name_zh_placeholder": "Chinese name",
-    "name_id_placeholder": "Indonesian name"
+    "name_id_placeholder": "Indonesian name",
+    "merge_button": "Merge into...",
+    "merge_target_placeholder": "Choose target category",
+    "merge_confirm_button": "Confirm",
+    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every product using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed."
   },
   "page_chat": {
     "ai_suggestion_label": "AI Suggestion",
@@ -1714,6 +1718,10 @@
     "loading_colors": "Loading colors...",
     "name_zh_placeholder": "Chinese name",
     "name_id_placeholder": "Indonesian name",
-    "used_count": "{{count}} variants"
+    "used_count": "{{count}} variants",
+    "merge_button": "Merge into...",
+    "merge_target_placeholder": "Choose target color",
+    "merge_confirm_button": "Confirm",
+    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every variant using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed."
   }
 }
