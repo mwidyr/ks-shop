@@ -11,6 +11,7 @@ import ProductPickerModal from '../components/ProductPickerModal'
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
 import { IconTrash, IconPlus, IconChevronDown, IconClipboard } from '../components/icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 const groupStatusColors = {
   pending_contact: 'bg-amber-100 text-amber-700',
@@ -26,6 +27,10 @@ const requisitionStatusColors = {
 
 function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const { t } = useTranslation()
+  // translateColor is deliberately NOT used in handleCopy's grouping below - that text is sent
+  // to the (Chinese-speaking) supplier and must always show the Chinese color name, regardless
+  // of the staff member's current UI locale. It's only applied to the on-screen items table.
+  const { translateColor } = useMasterData()
   const [items, setItems] = useState(() => Object.fromEntries(group.items.map((it) => [it.id, {
     planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '',
   }])))
@@ -233,7 +238,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
                 <tr key={it.id}>
                   <td className="p-2 pl-4 font-mono text-xs text-brand-600">{it.product_sku}</td>
                   <td className="p-2 text-[var(--text-primary)]">{it.product_name}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{it.color}/{it.size}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{translateColor(it.color)}/{it.size}</td>
                   <td className="p-2">
                     {canEditPlanned ? (
                       <input

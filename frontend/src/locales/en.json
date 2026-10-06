@@ -75,7 +75,8 @@
       "suppliers": "Suppliers",
       "team": "Team",
       "transactions": "Transactions",
-      "warehouses": "Warehouses"
+      "warehouses": "Warehouses",
+      "colors": "Color Management"
     },
     "settings": "Settings"
   },
@@ -151,8 +152,9 @@
     "adding": "Adding...",
     "empty_state": "No categories yet. Enter a name above to add one.",
     "loading_categories": "Loading categories...",
-    "name_placeholder": "Enter category name",
-    "product_count": "{{count}} products"
+    "product_count": "{{count}} products",
+    "name_zh_placeholder": "Chinese name",
+    "name_id_placeholder": "Indonesian name"
   },
   "page_chat": {
     "ai_suggestion_label": "AI Suggestion",
@@ -864,7 +866,8 @@
     "variant_no_color_label": "Variant",
     "variant_required": "At least one variant is required",
     "variants_heading": "Variants",
-    "vendor_sku": "Vendor Item Code"
+    "vendor_sku": "Vendor Item Code",
+    "add_color_from_master": "Add from color list..."
   },
   "page_products": {
     "activate": "Activate",
@@ -1445,7 +1448,6 @@
     "apply": "Apply",
     "category_choose": "Choose category",
     "category_new_option": "+ New category...",
-    "category_new_placeholder": "New category name",
     "customer_address_placeholder": "Address",
     "customer_blacklist_badge": "Blacklist",
     "customer_blacklist_warning": "⚠️ This customer is blacklisted. Please review before creating this order.",
@@ -1498,7 +1500,9 @@
     "title_print_order": "Print Order",
     "title_session_history": "Session History",
     "title_settings": "Settings",
-    "title_shipping_export": "Shipping Data Export"
+    "title_shipping_export": "Shipping Data Export",
+    "category_new_placeholder_zh": "New category name (Chinese)",
+    "category_new_placeholder_id": "New category name (Indonesian)"
   },
   "status": {
     "cancelled": "Cancelled",
@@ -1700,5 +1704,16 @@
     "th_status": "Status",
     "th_suppliers": "Suppliers",
     "th_total_amount": "Total Amount (CNY)"
+  },
+  "page_colors": {
+    "add_button": "+ Add",
+    "add_color_title": "Add Color",
+    "add_failed": "Failed to add color",
+    "adding": "Adding...",
+    "empty_state": "No colors yet. Enter a name above to add one.",
+    "loading_colors": "Loading colors...",
+    "name_zh_placeholder": "Chinese name",
+    "name_id_placeholder": "Indonesian name",
+    "used_count": "{{count}} variants"
   }
 }

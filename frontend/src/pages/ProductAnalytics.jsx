@@ -9,6 +9,7 @@ import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { useMasterData } from '../context/MasterDataContext'
 
 // Color breakdown for one ranked product, derived client-side from the already-fetched
 // by_variant rows (no extra API call) - grouped by color, with % of that product's OWN qty
@@ -27,6 +28,7 @@ function colorBreakdownFor(byVariant, productSku, productQty) {
 
 export default function ProductAnalytics() {
   const { t } = useTranslation()
+  const { translateColor, translateCategory } = useMasterData()
   const [range, setRange] = useState(presetRange(29))
   const [hostId, setHostId] = useState('')
   const [hosts, setHosts] = useState([])
@@ -109,7 +111,7 @@ export default function ProductAnalytics() {
               <tbody className={tbodyClasses}>
                 {data.by_category.map((c) => (
                   <tr key={c.category} className={rowClasses}>
-                    <td className="p-2 font-medium text-[var(--text-primary)]">{c.category}</td>
+                    <td className="p-2 font-medium text-[var(--text-primary)]">{translateCategory(c.category)}</td>
                     <td className="p-2"><Metric type="qty">{c.qty}</Metric></td>
                     <td className="p-2"><Metric type="gmv">{formatCurrency(c.gmv)}</Metric></td>
                     <td className="p-2 text-[var(--text-secondary)]">{c.gmv_pct.toFixed(1)}%</td>
@@ -163,7 +165,7 @@ export default function ProductAnalytics() {
                             {p.sku}
                           </span>
                         </td>
-                        <td className="p-2 text-[var(--text-secondary)]">{p.category}</td>
+                        <td className="p-2 text-[var(--text-secondary)]">{translateCategory(p.category)}</td>
                         <td className="p-2 font-medium text-[var(--text-primary)]">{p.product_name}</td>
                         <td className="p-2"><Metric type="qty">{p.qty}</Metric></td>
                         <td className="p-2"><Metric type="gmv">{formatCurrency(p.gmv)}</Metric></td>
@@ -183,7 +185,7 @@ export default function ProductAnalytics() {
                               <tbody className="divide-y divide-[var(--table-divider)]">
                                 {colors.map((c) => (
                                   <tr key={c.color}>
-                                    <td className="py-1.5 pl-8 font-medium text-[var(--text-primary)]">{c.color}</td>
+                                    <td className="py-1.5 pl-8 font-medium text-[var(--text-primary)]">{translateColor(c.color)}</td>
                                     <td className="py-1.5"><Metric type="qty">{c.qty}</Metric></td>
                                     <td className="py-1.5 pr-4 text-[var(--text-secondary)]">{c.pct.toFixed(1)}%</td>
                                   </tr>
@@ -219,9 +221,9 @@ export default function ProductAnalytics() {
                 {data.by_variant.map((v) => (
                   <tr key={v.sku} className={rowClasses}>
                     <td className="p-2 font-mono text-xs text-brand-600">{v.sku}</td>
-                    <td className="p-2 text-[var(--text-secondary)]">{v.category}</td>
+                    <td className="p-2 text-[var(--text-secondary)]">{translateCategory(v.category)}</td>
                     <td className="p-2 font-medium text-[var(--text-primary)]">{v.product_name}</td>
-                    <td className="p-2 text-[var(--text-secondary)]">{v.color}</td>
+                    <td className="p-2 text-[var(--text-secondary)]">{translateColor(v.color)}</td>
                     <td className="p-2"><Metric type="qty">{v.qty}</Metric></td>
                     <td className="p-2"><Metric type="gmv">{formatCurrency(v.gmv)}</Metric></td>
                     <td className="p-2 text-[var(--text-secondary)]">{v.gmv_pct.toFixed(1)}%</td>

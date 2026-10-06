@@ -12,6 +12,7 @@ import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { IconClose, IconPlus, IconTrash } from '../components/icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 // LIVE Screenshots (item 003): replaces the old trivial "Broadcast Console" card. Hosts upload a
 // TikTok LIVE screenshot (reusing the same uploadImageFile()->POST /uploads/image pipeline
@@ -79,6 +80,7 @@ function LiveScreenshotsCard({ sessionId }) {
 
 function AddProductModal({ variants, onAdd, onClose }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [variantId, setVariantId] = useState('')
   const [livePrice, setLivePrice] = useState('')
   const [saving, setSaving] = useState(false)
@@ -112,7 +114,7 @@ function AddProductModal({ variants, onAdd, onClose }) {
           >
             <option value="">{t('page_live_session_detail.option_choose_product')}</option>
             {variants.map((v) => (
-              <option key={v.id} value={v.id}>{v.productName} — {v.color}/{v.size} ({v.sku})</option>
+              <option key={v.id} value={v.id}>{v.productName} — {translateColor(v.color)}/{v.size} ({v.sku})</option>
             ))}
           </select>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('page_live_session_detail.label_live_price')}</label>
@@ -253,6 +255,7 @@ function LiveDataCard({ session, onSave }) {
 
 export default function LiveSessionDetail() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const { id } = useParams()
   const navigate = useNavigate()
   const [session, setSession] = useState(null)
@@ -411,7 +414,7 @@ export default function LiveSessionDetail() {
             <div key={c.id} className="flex items-center justify-between p-4">
               <div>
                 <p className="text-sm font-semibold text-gray-800">{c.product_name}</p>
-                <p className="text-xs text-gray-500">{c.color}/{c.size} · <span className="font-mono">{c.sku}</span></p>
+                <p className="text-xs text-gray-500">{translateColor(c.color)}/{c.size} · <span className="font-mono">{c.sku}</span></p>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">

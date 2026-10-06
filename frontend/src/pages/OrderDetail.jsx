@@ -13,6 +13,7 @@ import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
 import { IconClose } from '../components/icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 // Only for the copy-to-clipboard text sent to customers ("NT$ 1,234" with a space) - the
 // on-screen formatCurrency() has its own tighter Intl-driven style and stays unchanged.
@@ -89,7 +90,7 @@ function SplitOrderModal({ order, onClose, onDone }) {
           {order.items.map((it) => (
             <label key={it.id} className="flex items-center gap-2 border border-gray-200 rounded-lg p-2 text-sm">
               <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggle(it.id)} />
-              <span className="flex-1">{it.product_name} ({it.color}/{it.size}) × {it.qty}</span>
+              <span className="flex-1">{it.product_name} ({translateColor(it.color)}/{it.size}) × {it.qty}</span>
             </label>
           ))}
         </div>
@@ -290,6 +291,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
 
 export default function OrderDetail() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)

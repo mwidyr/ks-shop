@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
+import { useMasterData } from '../context/MasterDataContext'
 
 const basisOptions = [7, 14, 30]
 
@@ -22,6 +23,7 @@ const statusColors = {
 
 export default function ReplenishmentPlanning() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -147,7 +149,7 @@ export default function ReplenishmentPlanning() {
                       </div>
                     </div>
                   </td>
-                  <td className="p-2 text-[var(--text-secondary)]">{r.color} / {r.size}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{translateColor(r.color)} / {r.size}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.physical_stock)}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.incoming_stock)}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.ordered_qty)}</td>

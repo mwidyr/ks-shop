@@ -3,9 +3,11 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getOrder } from '../api/orders'
 import { formatCurrency } from '../utils/format'
+import { useMasterData } from '../context/MasterDataContext'
 
 function InvoiceView({ order }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   return (
     <div className="print-page">
       <h1 className="text-xl font-bold mb-1">{t('page_order_print.type_invoice')}</h1>
@@ -24,7 +26,7 @@ function InvoiceView({ order }) {
         <tbody>
           {order.items.map((it, i) => (
             <tr key={i} className="border-b">
-              <td className="py-1">{it.product_name} ({it.color}/{it.size})</td>
+              <td className="py-1">{it.product_name} ({translateColor(it.color)}/{it.size})</td>
               <td className="py-1">{it.qty}</td>
               <td className="py-1 text-right">{formatCurrency(it.price)}</td>
               <td className="py-1 text-right">{formatCurrency(it.price * it.qty)}</td>
@@ -65,6 +67,7 @@ function LabelView({ order }) {
 
 function PackingSlipView({ order }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   return (
     <div className="print-page">
       <h1 className="text-xl font-bold mb-1">{t('page_order_print.type_packing_slip')}</h1>
@@ -84,7 +87,7 @@ function PackingSlipView({ order }) {
             <tr key={i} className="border-b">
               <td className="py-1">☐</td>
               <td className="py-1 font-mono">{it.sku}</td>
-              <td className="py-1">{it.product_name} ({it.color}/{it.size})</td>
+              <td className="py-1">{it.product_name} ({translateColor(it.color)}/{it.size})</td>
               <td className="py-1">{it.host_name}</td>
               <td className="py-1 text-right">{it.qty}</td>
             </tr>

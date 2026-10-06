@@ -4,6 +4,7 @@ import { listProducts, updateVariant, getStockHistory } from '../api/products'
 import BigStatCard from '../components/BigStatCard'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
 // exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
@@ -12,6 +13,7 @@ const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,8
 
 function VariantRow({ product, variant, onSaved }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [editing, setEditing] = useState(false)
   const [availableStock, setAvailableStock] = useState(variant.available_stock)
   const [incomingStock, setIncomingStock] = useState(variant.incoming_stock)
@@ -76,7 +78,7 @@ function VariantRow({ product, variant, onSaved }) {
       {/* Desktop: dense grid row (unchanged layout) */}
       <div className="hidden sm:block">
         <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
-          <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {variant.color}/{variant.size}</p>
+          <p className="text-sm text-gray-700 min-w-0 truncate">{variant.sku} · {translateColor(variant.color)}/{variant.size}</p>
           <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{availableField}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{incomingField}</span>
@@ -90,7 +92,7 @@ function VariantRow({ product, variant, onSaved }) {
           nothing shares a column with anything else, so labels and numbers never overlap. */}
       <div className={`sm:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
         <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{variant.sku} · {variant.color}/{variant.size}</p>
+          <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{variant.sku} · {translateColor(variant.color)}/{variant.size}</p>
           {badge}
         </div>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs mb-2">
@@ -199,6 +201,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
 
 function StockHistoryTab() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [rows, setRows] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -232,7 +235,7 @@ function StockHistoryTab() {
                   </span>
                   <div>
                     <p className="text-sm font-medium text-gray-800">{r.product_name} <span className="font-mono text-xs text-gray-400">{r.sku}</span></p>
-                    <p className="text-xs text-gray-500">{r.color}/{r.size} · {r.event_type} · {t('page_inventory.by', { name: r.changed_by })}</p>
+                    <p className="text-xs text-gray-500">{translateColor(r.color)}/{r.size} · {r.event_type} · {t('page_inventory.by', { name: r.changed_by })}</p>
                   </div>
                 </div>
                 <div className="text-right">

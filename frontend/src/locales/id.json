@@ -75,7 +75,8 @@
       "suppliers": "Supplier",
       "team": "Tim",
       "transactions": "Transaksi",
-      "warehouses": "Gudang"
+      "warehouses": "Gudang",
+      "colors": "Manajemen Warna"
     },
     "settings": "Pengaturan"
   },
@@ -151,8 +152,9 @@
     "adding": "Menambah...",
     "empty_state": "Belum ada kategori. Masukkan nama di atas untuk menambah.",
     "loading_categories": "Memuat kategori...",
-    "name_placeholder": "Masukkan nama kategori",
-    "product_count": "{{count}} produk"
+    "product_count": "{{count}} produk",
+    "name_zh_placeholder": "Nama Mandarin",
+    "name_id_placeholder": "Nama Indonesia"
   },
   "page_chat": {
     "ai_suggestion_label": "Saran AI",
@@ -864,7 +866,8 @@
     "variant_no_color_label": "Varian",
     "variant_required": "Minimal harus ada satu varian",
     "variants_heading": "Varian",
-    "vendor_sku": "Kode Barang Vendor"
+    "vendor_sku": "Kode Barang Vendor",
+    "add_color_from_master": "Tambah dari daftar warna..."
   },
   "page_products": {
     "activate": "Aktifkan",
@@ -1445,7 +1448,6 @@
     "apply": "Terapkan",
     "category_choose": "Pilih kategori",
     "category_new_option": "+ Kategori baru...",
-    "category_new_placeholder": "Nama kategori baru",
     "customer_address_placeholder": "Alamat",
     "customer_blacklist_badge": "Blacklist",
     "customer_blacklist_warning": "⚠️ Pelanggan ini ditandai sebagai daftar hitam. Periksa dulu sebelum membuat pesanan ini.",
@@ -1498,7 +1500,9 @@
     "title_print_order": "Cetak Order",
     "title_session_history": "Riwayat Sesi",
     "title_settings": "Pengaturan",
-    "title_shipping_export": "Ekspor Data Pengiriman"
+    "title_shipping_export": "Ekspor Data Pengiriman",
+    "category_new_placeholder_zh": "Nama kategori baru (Mandarin)",
+    "category_new_placeholder_id": "Nama kategori baru (Indonesia)"
   },
   "status": {
     "cancelled": "Dibatalkan",
@@ -1700,5 +1704,16 @@
     "th_status": "Status",
     "th_suppliers": "Supplier",
     "th_total_amount": "Total Jumlah (CNY)"
+  },
+  "page_colors": {
+    "add_button": "+ Tambah",
+    "add_color_title": "Tambah Warna",
+    "add_failed": "Gagal menambah warna",
+    "adding": "Menambah...",
+    "empty_state": "Belum ada warna. Masukkan nama di atas untuk menambah.",
+    "loading_colors": "Memuat warna...",
+    "name_zh_placeholder": "Nama Mandarin",
+    "name_id_placeholder": "Nama Indonesia",
+    "used_count": "{{count}} varian"
   }
 }

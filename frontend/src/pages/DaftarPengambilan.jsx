@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import PickingLineItem from '../components/PickingLineItem'
 import { statusLabels } from '../components/StatusPill'
+import { useMasterData } from '../context/MasterDataContext'
 
 const statusOptions = ['picking', 'pending', 'ready_to_ship']
 const sortOptions = [
@@ -16,6 +17,7 @@ const sortOptions = [
 
 export default function DaftarPengambilan() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [data, setData] = useState({ items: [], total: 0 })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('picking')
@@ -103,7 +105,7 @@ export default function DaftarPengambilan() {
           </select>
           <select value={color} onChange={(e) => setColor(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
             <option value="">{t('page_picking.filter_color_all')}</option>
-            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+            {colors.map((c) => <option key={c} value={c}>{translateColor(c)}</option>)}
           </select>
           <select value={size} onChange={(e) => setSize(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
             <option value="">{t('page_picking.filter_size_all')}</option>

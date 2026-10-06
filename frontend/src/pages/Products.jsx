@@ -9,6 +9,7 @@ import { resolveUrl } from '../utils/image'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
+import { useMasterData } from '../context/MasterDataContext'
 
 const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Draft' }
 const statusColors = {
@@ -18,13 +19,14 @@ const statusColors = {
 
 function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { t } = useTranslation()
+  const { translateColor, translateCategory } = useMasterData()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
   const colors = [...new Set(p.variants.map((v) => v.color).filter(Boolean))]
   const sizes = [...new Set(p.variants.map((v) => v.size).filter(Boolean))]
-  const colorsLabel = colors.length <= 1 ? t('page_products.one_color') : colors.join(', ')
+  const colorsLabel = colors.length <= 1 ? t('page_products.one_color') : colors.map(translateColor).join(', ')
   const sizesLabel = sizes.length <= 1 ? t('page_products.one_size') : sizes.join(', ')
   const prices = p.variants.map((v) => v.price)
   const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
@@ -69,7 +71,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
           <div className="min-w-0">
             {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
             <p className="font-semibold text-[var(--text-primary)] text-sm truncate hover:underline">{p.name}</p>
-            {p.category && <p className="text-xs text-[var(--text-secondary)]">{p.category}</p>}
+            {p.category && <p className="text-xs text-[var(--text-secondary)]">{translateCategory(p.category)}</p>}
             <p className="text-xs text-[var(--text-secondary)]">{colorsLabel}</p>
             <p className="text-xs text-[var(--text-secondary)]">{sizesLabel}</p>
           </div>
@@ -124,6 +126,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
 
 export default function Products() {
   const { t } = useTranslation()
+  const { translateCategory } = useMasterData()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('all')
@@ -444,7 +447,7 @@ export default function Products() {
           </select>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
             <option value="">{t('page_products.category_filter_all')}</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{translateCategory(c)}</option>)}
           </select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
             <option value="newest">{t('page_products.sort_newest')}</option>

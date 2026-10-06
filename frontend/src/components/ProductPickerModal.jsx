@@ -5,6 +5,7 @@ import { listCategories } from '../api/categories'
 import { resolveUrl } from '../utils/image'
 import { formatCurrency } from '../utils/format'
 import { IconChevronDown } from './icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 // Same product-search predicate as Inventory.jsx, so "find a product" behaves identically
 // everywhere in the app. Exported for reuse by PurchaseRequisitionDetail.jsx's inline picker.
@@ -18,12 +19,13 @@ export function productMatches(product, q) {
 
 function PickerVariantRow({ product, variant, qty, onChangeQty }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const isOversell = variant.total_stock < 0
 
   return (
     <tr className={qty > 0 ? 'bg-brand-50/40' : 'hover:bg-[var(--table-row-hover)]'}>
       <td className="p-3">
-        <p className="text-sm text-[var(--text-primary)]">{product.sku} · {variant.color}/{variant.size}</p>
+        <p className="text-sm text-[var(--text-primary)]">{product.sku} · {translateColor(variant.color)}/{variant.size}</p>
         <p className="text-xs text-[var(--text-secondary)]">{formatCurrency(variant.price)}</p>
       </td>
       <td className="p-3 text-center">
@@ -91,6 +93,7 @@ function PickerProductCard({ product, forceOpen, pending, setQty }) {
 // at once with "Simpan" - mirrors Inventory.jsx's card/row pattern but with qty inputs instead
 // of stock-editing controls.
 export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
+  const { translateColor, translateCategory } = useMasterData()
   const { t } = useTranslation()
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
@@ -135,7 +138,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
       const { product, variant } = variantIndex[variantId]
       return {
         variantId: Number(variantId), qty,
-        productName: product.name, variantLabel: `${variant.color}/${variant.size}`,
+        productName: product.name, variantLabel: `${translateColor(variant.color)}/${variant.size}`,
         imageUrl: product.images[0]?.url || '', price: variant.price, sku: product.sku,
       }
     })
@@ -161,7 +164,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
             />
             <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-2 text-sm">
               <option value="">{t('page_products.category_filter_all')}</option>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => <option key={c} value={c}>{translateCategory(c)}</option>)}
             </select>
           </div>
           {supplierId && !q && (

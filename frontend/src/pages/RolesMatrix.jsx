@@ -17,7 +17,7 @@ const roleOptions = [
 const TAB_GROUPS = [
   { titleKey: 'page_roles.group_general', tabs: ['dashboard', 'settings'] },
   { titleKey: 'nav.groups.sales', tabs: ['panel_siaran', 'orders', 'picking', 'shipping', 'chat', 'customers', 'reviews'] },
-  { titleKey: 'nav.groups.catalog', tabs: ['products', 'categories', 'inventory', 'warehouses', 'suppliers', 'purchases', 'purchase_alert'] },
+  { titleKey: 'nav.groups.catalog', tabs: ['products', 'categories', 'colors', 'inventory', 'warehouses', 'suppliers', 'purchases', 'purchase_alert'] },
   { titleKey: 'nav.groups.fulfillment', tabs: ['returns', 'refunds'] },
   { titleKey: 'nav.groups.marketing', tabs: ['promotions', 'campaigns', 'advertising'] },
   { titleKey: 'nav.groups.analytics', tabs: ['sales_analytics', 'product_analytics', 'profit'] },

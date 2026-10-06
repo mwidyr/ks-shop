@@ -10,9 +10,11 @@ import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { useMasterData } from '../context/MasterDataContext'
 
 export default function ProductPerformance() {
   const { t } = useTranslation()
+  const { translateColor, translateCategory } = useMasterData()
   const [range, setRange] = useState(presetRange(29))
   const [hostId, setHostId] = useState('')
   const [hosts, setHosts] = useState([])
@@ -74,7 +76,7 @@ export default function ProductPerformance() {
             <div className={`${cardClasses} p-4`}>
               <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_performance.product')}</p>
               <p className="text-sm font-bold text-[var(--text-primary)] truncate">{data.summary.product_name}</p>
-              <p className="text-xs text-[var(--text-secondary)] font-mono">{data.summary.sku} · {data.summary.category}</p>
+              <p className="text-xs text-[var(--text-secondary)] font-mono">{data.summary.sku} · {translateCategory(data.summary.category)}</p>
             </div>
             <div className={`${cardClasses} p-4`}>
               <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.total_qty')}</p>
@@ -132,7 +134,7 @@ export default function ProductPerformance() {
                 <tbody className={tbodyClasses}>
                   {data.by_color.map((c) => (
                     <tr key={c.color} className={rowClasses}>
-                      <td className="p-2 font-medium text-[var(--text-primary)]">{c.color}</td>
+                      <td className="p-2 font-medium text-[var(--text-primary)]">{translateColor(c.color)}</td>
                       <td className="p-2"><Metric type="qty">{c.qty}</Metric></td>
                       <td className="p-2"><Metric type="gmv">{formatCurrency(c.gmv)}</Metric></td>
                       <td className="p-2 text-[var(--text-secondary)]">{c.gmv_pct.toFixed(1)}%</td>
@@ -183,7 +185,7 @@ export default function ProductPerformance() {
                 <tbody className={tbodyClasses}>
                   {data.combo.color_combos.map((c, i) => (
                     <tr key={i} className={rowClasses}>
-                      <td className="p-2 font-medium text-[var(--text-primary)]">{c.colors}</td>
+                      <td className="p-2 font-medium text-[var(--text-primary)]">{c.colors.split(' + ').map(translateColor).join(' + ')}</td>
                       <td className="p-2"><Metric type="ord">{c.order_count}</Metric></td>
                       <td className="p-2 text-[var(--text-secondary)]">{c.pct.toFixed(1)}%</td>
                     </tr>

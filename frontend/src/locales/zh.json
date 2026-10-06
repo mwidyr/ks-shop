@@ -75,7 +75,8 @@
       "suppliers": "供應商",
       "team": "團隊",
       "transactions": "交易紀錄",
-      "warehouses": "倉庫"
+      "warehouses": "倉庫",
+      "colors": "顏色管理"
     },
     "settings": "設定"
   },
@@ -151,8 +152,9 @@
     "adding": "新增中...",
     "empty_state": "尚無分類，請在上方輸入名稱以新增。",
     "loading_categories": "分類載入中...",
-    "name_placeholder": "請輸入分類名稱",
-    "product_count": "{{count}} 項商品"
+    "product_count": "{{count}} 項商品",
+    "name_zh_placeholder": "中文名稱",
+    "name_id_placeholder": "印尼文名稱"
   },
   "page_chat": {
     "ai_suggestion_label": "AI 建議",
@@ -864,7 +866,8 @@
     "variant_no_color_label": "款式",
     "variant_required": "至少需要一個款式",
     "variants_heading": "商品款式",
-    "vendor_sku": "供應商貨號"
+    "vendor_sku": "供應商貨號",
+    "add_color_from_master": "從顏色清單新增..."
   },
   "page_products": {
     "activate": "上架",
@@ -1445,7 +1448,6 @@
     "apply": "套用",
     "category_choose": "選擇分類",
     "category_new_option": "+ 新增分類...",
-    "category_new_placeholder": "新分類名稱",
     "customer_address_placeholder": "地址",
     "customer_blacklist_badge": "黑名單",
     "customer_blacklist_warning": "⚠️ 此客戶已被列入黑名單，建立訂單前請先確認。",
@@ -1498,7 +1500,9 @@
     "title_print_order": "列印訂單",
     "title_session_history": "場次紀錄",
     "title_settings": "設定",
-    "title_shipping_export": "匯出物流資料"
+    "title_shipping_export": "匯出物流資料",
+    "category_new_placeholder_zh": "新分類名稱（中文）",
+    "category_new_placeholder_id": "新分類名稱（印尼文）"
   },
   "status": {
     "cancelled": "已取消",
@@ -1700,5 +1704,16 @@
     "th_status": "狀態",
     "th_suppliers": "供應商",
     "th_total_amount": "總金額 (CNY)"
+  },
+  "page_colors": {
+    "add_button": "+ 新增",
+    "add_color_title": "新增顏色",
+    "add_failed": "新增顏色失敗",
+    "adding": "新增中...",
+    "empty_state": "尚無顏色，請在上方輸入名稱以新增。",
+    "loading_colors": "顏色載入中...",
+    "name_zh_placeholder": "中文名稱",
+    "name_id_placeholder": "印尼文名稱",
+    "used_count": "{{count}} 個款式"
   }
 }

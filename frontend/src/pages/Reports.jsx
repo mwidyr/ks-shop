@@ -6,6 +6,7 @@ import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import ExportReportModal from '../components/ExportReportModal'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { useMasterData } from '../context/MasterDataContext'
 
 function SummaryCard({ summary, t }) {
   if (!summary) return null
@@ -20,6 +21,7 @@ function SummaryCard({ summary, t }) {
 
 export default function Reports() {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const tabs = [
     { key: 'products', label: t('page_reports.tab_products') },
     { key: 'customers', label: t('page_reports.tab_customers') },
@@ -108,7 +110,7 @@ export default function Reports() {
               {data.items.map((row, i) => (
                 <tr key={i} className={rowClasses}>
                   <td className="p-3.5 font-medium text-[var(--text-primary)]">{row.name} <span className="font-mono text-xs text-[var(--text-secondary)]">{row.sku}</span></td>
-                  <td className="p-3.5 text-[var(--text-secondary)]">{row.color}/{row.size}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]">{translateColor(row.color)}/{row.size}</td>
                   <td className="p-3.5 text-right"><Metric type="ord">{row.order_count}</Metric></td>
                   <td className="p-3.5 text-right"><Metric type="qty">{row.qty}</Metric></td>
                   <td className="p-3.5 text-right text-red-500">{row.qty_return}</td>

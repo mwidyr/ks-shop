@@ -94,6 +94,7 @@ func main() {
 	pickingH := &handlers.PickingHandler{DB: pool}
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
+	colorH := &handlers.ColorHandler{DB: pool}
 	reportsH := &handlers.ReportsHandler{DB: pool}
 	userH := &handlers.UserHandler{DB: pool, Cfg: cfg}
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
@@ -149,7 +150,13 @@ func main() {
 
 			r.With(view("categories")).Get("/categories", categoryH.List)
 			r.With(edit("categories")).Post("/categories", categoryH.Create)
+			r.With(edit("categories")).Patch("/categories/{id}", categoryH.Update)
 			r.With(edit("categories")).Delete("/categories/{id}", categoryH.Delete)
+
+			r.With(view("colors")).Get("/colors", colorH.List)
+			r.With(edit("colors")).Post("/colors", colorH.Create)
+			r.With(edit("colors")).Patch("/colors/{id}", colorH.Update)
+			r.With(edit("colors")).Delete("/colors/{id}", colorH.Delete)
 
 			r.With(view("orders")).Get("/pickup-stores/validate", cvsStoreH.ValidateStoreCode)
 			r.With(view("orders")).Get("/orders", orderH.List)

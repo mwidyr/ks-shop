@@ -7,6 +7,7 @@ import {
 } from '../api/purchases'
 import { formatCurrency } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
+import { useMasterData } from '../context/MasterDataContext'
 
 const statusColors = {
   ordered: 'bg-yellow-100 text-yellow-700',
@@ -18,6 +19,7 @@ const statuses = ['ordered', 'pending_arrival', 'received', 'cancelled']
 
 function DetailModal({ purchaseId, onClose, onChanged }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [purchase, setPurchase] = useState(null)
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -124,7 +126,7 @@ function DetailModal({ purchaseId, onClose, onChanged }) {
               <div key={it.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-2 text-sm">
                 <div>
                   <p className="font-medium text-gray-800">{it.product_name}</p>
-                  <p className="text-xs text-gray-500">{it.color}/{it.size} · {t('page_purchases.ordered_qty_label', { qty: it.qty })}</p>
+                  <p className="text-xs text-gray-500">{translateColor(it.color)}/{it.size} · {t('page_purchases.ordered_qty_label', { qty: it.qty })}</p>
                 </div>
                 <input type="number" min="0" value={receiveQty[it.id] ?? it.qty} onChange={(e) => setReceiveQty((r) => ({ ...r, [it.id]: e.target.value }))} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
               </div>
@@ -137,7 +139,7 @@ function DetailModal({ purchaseId, onClose, onChanged }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-800">{it.product_name}</p>
-                    <p className="text-xs text-gray-500">{it.color}/{it.size} · <span className="font-mono">{it.sku}</span></p>
+                    <p className="text-xs text-gray-500">{translateColor(it.color)}/{it.size} · <span className="font-mono">{it.sku}</span></p>
                   </div>
                   {editing ? (
                     <div className="flex gap-1">

@@ -22,6 +22,7 @@ const Customers = lazy(() => import('./pages/Customers'))
 const Inventory = lazy(() => import('./pages/Inventory'))
 const Profit = lazy(() => import('./pages/Profit'))
 const Categories = lazy(() => import('./pages/Categories'))
+const ColorManagement = lazy(() => import('./pages/ColorManagement'))
 const Chat = lazy(() => import('./pages/Chat'))
 const Reviews = lazy(() => import('./pages/Reviews'))
 const Warehouses = lazy(() => import('./pages/Warehouses'))
@@ -124,6 +125,7 @@ export default function App() {
         <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
         <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+        <Route path="/colors" element={<ProtectedRoute><ColorManagement /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
         <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
         <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />

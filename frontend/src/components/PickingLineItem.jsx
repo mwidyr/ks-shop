@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveUrl } from '../utils/image'
+import { useMasterData } from '../context/MasterDataContext'
 
 // Shared picking control: qty stepper + checkmark "confirm picked" action, with the
 // reference's "Bisa ambil X · Fisik Y" stock line and an oversell warning. Used both on
@@ -10,6 +11,7 @@ export default function PickingLineItem({
   availableToPick, physicalStock, isOversell, hostName, onPick, meta,
 }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [draft, setDraft] = useState(pickedQty)
   const [saving, setSaving] = useState(false)
   const confirmed = draft >= qty
@@ -33,7 +35,7 @@ export default function PickingLineItem({
           {meta}
           <p className="text-xs font-mono text-brand-600">{sku}</p>
           <p className="text-sm font-semibold text-gray-800 truncate">{productName}</p>
-          <p className="text-xs text-gray-500">{color} / {size}</p>
+          <p className="text-xs text-gray-500">{translateColor(color)} / {size}</p>
           {hostName && <p className="text-[11px] text-brand-600">Host: {hostName}</p>}
         </div>
       </div>

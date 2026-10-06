@@ -6,8 +6,12 @@ export function listCategories() {
   return client.get('/categories').then((res) => res.data).catch(() => [])
 }
 
-export function createCategory(name) {
-  return client.post('/categories', { name }).then((res) => res.data)
+export function createCategory(nameZh, nameId) {
+  return client.post('/categories', { name_zh: nameZh, name_id: nameId }).then((res) => res.data)
+}
+
+export function updateCategory(id, nameId) {
+  return client.patch(`/categories/${id}`, { name_id: nameId }).then((res) => res.data)
 }
 
 export function deleteCategory(id) {

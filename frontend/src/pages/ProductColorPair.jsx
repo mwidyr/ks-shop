@@ -9,9 +9,11 @@ import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { IconChevronDown } from '../components/icons'
+import { useMasterData } from '../context/MasterDataContext'
 
 function PairedProductRow({ row, t }) {
   const [open, setOpen] = useState(false)
+  const { translateColor } = useMasterData()
   return (
     <div className="border-b border-[var(--table-divider)] last:border-b-0">
       <button
@@ -42,8 +44,8 @@ function PairedProductRow({ row, t }) {
           <tbody className={tbodyClasses}>
             {(row.color_pairs || []).map((p, i) => (
               <tr key={i} className={rowClasses}>
-                <td className="p-2 pl-6 font-medium text-[var(--text-primary)]">{p.color_a}</td>
-                <td className="p-2 font-medium text-[var(--text-primary)]">{p.color_b}</td>
+                <td className="p-2 pl-6 font-medium text-[var(--text-primary)]">{translateColor(p.color_a)}</td>
+                <td className="p-2 font-medium text-[var(--text-primary)]">{translateColor(p.color_b)}</td>
                 <td className="p-2"><Metric type="ord">{p.order_count}</Metric></td>
                 <td className="p-2 text-[var(--text-secondary)]">{p.pct.toFixed(1)}%</td>
               </tr>

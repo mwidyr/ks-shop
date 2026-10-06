@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import { listSuppliers } from '../api/suppliers'
+import { listColors } from '../api/colors'
 import PhotoSlots from '../components/PhotoSlots'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
+import { useMasterData } from '../context/MasterDataContext'
 
 function parseList(text) {
   return text.split(',').map((s) => s.trim()).filter(Boolean)
@@ -41,6 +43,7 @@ export default function ProductForm() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { translateColor } = useMasterData()
   // Product Cost is admin-only: the field is only ever present in the API response for
   // super_user, and the backend silently ignores it from anyone else's write - this check is
   // just what decides whether to show the input at all.
@@ -57,6 +60,7 @@ export default function ProductForm() {
   const [previewIndex, setPreviewIndex] = useState(null)
   const [colorsText, setColorsText] = useState('')
   const [sizesText, setSizesText] = useState('')
+  const [colorOptions, setColorOptions] = useState([])
   const [variants, setVariants] = useState([])
   const [deletedVariantIds, setDeletedVariantIds] = useState([])
   const [loading, setLoading] = useState(isEdit)
@@ -95,6 +99,21 @@ export default function ProductForm() {
   }, [isEdit, variants.length, product.name, product.sku, product.base_price])
 
   useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
+  useEffect(() => { listColors().then(setColorOptions) }, [])
+
+  // Appends the chosen master color's Chinese (canonical) name into the existing comma-text
+  // field instead of replacing the input - keeps regenerateVariants'/parseList's Cartesian
+  // generation untouched, this is purely a faster way to fill that same field.
+  function addColorFromMaster(e) {
+    const nameZh = e.target.value
+    e.target.value = ''
+    if (!nameZh) return
+    const existing = parseList(colorsText)
+    if (existing.includes(nameZh)) return
+    const next = existing.concat(nameZh).join(', ')
+    setColorsText(next)
+    regenerateVariants(next)
+  }
 
   async function handleAddImage(url) {
     if (!isEdit) {
@@ -126,8 +145,8 @@ export default function ProductForm() {
   // (not just its id) for server-side deletion on save - see handleSubmit, which needs the full
   // row to fall back to deactivating instead when the variant has order history and can't
   // actually be hard-deleted (item 069).
-  function regenerateVariants() {
-    const colors = parseList(colorsText)
+  function regenerateVariants(overrideColorsText) {
+    const colors = parseList(overrideColorsText ?? colorsText)
     const sizes = parseList(sizesText)
     const colorList = colors.length ? colors : ['']
     const sizeList = sizes.length ? sizes : ['']
@@ -369,21 +388,34 @@ export default function ProductForm() {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.colors_label')}</label>
-              <input
-                value={colorsText}
-                onChange={(e) => setColorsText(e.target.value)}
-                onBlur={regenerateVariants}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
-                placeholder={t('page_product_form.colors_placeholder')}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-              />
+              <div className="flex gap-2">
+                <input
+                  value={colorsText}
+                  onChange={(e) => setColorsText(e.target.value)}
+                  onBlur={() => regenerateVariants()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
+                  placeholder={t('page_product_form.colors_placeholder')}
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                />
+                {colorOptions.length > 0 && (
+                  <select
+                    defaultValue=""
+                    onChange={addColorFromMaster}
+                    title={t('page_product_form.add_color_from_master')}
+                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-500"
+                  >
+                    <option value="">{t('page_product_form.add_color_from_master')}</option>
+                    {colorOptions.map((c) => <option key={c.id} value={c.name_zh}>{translateColor(c.name_zh)}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.sizes_label')}</label>
               <input
                 value={sizesText}
                 onChange={(e) => setSizesText(e.target.value)}
-                onBlur={regenerateVariants}
+                onBlur={() => regenerateVariants()}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
                 placeholder={t('page_product_form.sizes_placeholder')}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
@@ -395,7 +427,7 @@ export default function ProductForm() {
               <div key={`${v.color}|${v.size}`} className="border border-gray-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-700">
-                    {v.color || t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
+                    {v.color ? translateColor(v.color) : t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
                   </p>
                   {!isEdit && variants.length > 1 && (
                     <button type="button" onClick={() => removeVariantRow(idx)} className="text-xs text-red-600 hover:underline">

@@ -1,0 +1,101 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// ColorHandler manages the Color master list (Color Management) - mirrors CategoryHandler
+// exactly: name_zh is the canonical value product_variants.color is matched against (free
+// text, not an FK, same as categories), name_id is a pure display-layer translation.
+type ColorHandler struct {
+	DB *pgxpool.Pool
+}
+
+type colorView struct {
+	ID        int    `json:"id"`
+	NameZh    string `json:"name_zh"`
+	NameID    string `json:"name_id"`
+	UsedCount int    `json:"used_count"`
+}
+
+func (h *ColorHandler) List(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT c.id, c.name_zh, c.name_id, COUNT(v.id)
+		FROM colors c
+		LEFT JOIN product_variants v ON v.color = c.name_zh
+		GROUP BY c.id, c.name_zh, c.name_id ORDER BY c.name_zh`)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch colors")
+		return
+	}
+	defer rows.Close()
+
+	list := []colorView{}
+	for rows.Next() {
+		var c colorView
+		if err := rows.Scan(&c.ID, &c.NameZh, &c.NameID, &c.UsedCount); err != nil {
+			continue
+		}
+		list = append(list, c)
+	}
+	respondJSON(w, http.StatusOK, list)
+}
+
+type colorRequest struct {
+	NameZh string `json:"name_zh"`
+	NameID string `json:"name_id"`
+}
+
+func (h *ColorHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req colorRequest
+	if err := decodeJSON(r, &req); err != nil || strings.TrimSpace(req.NameZh) == "" || strings.TrimSpace(req.NameID) == "" {
+		respondError(w, http.StatusBadRequest, "name_zh and name_id are required")
+		return
+	}
+	var id int
+	if err := h.DB.QueryRow(r.Context(), `
+		INSERT INTO colors (name_zh, name_id) VALUES ($1, $2) RETURNING id`,
+		strings.TrimSpace(req.NameZh), strings.TrimSpace(req.NameID)).Scan(&id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to create color (mungkin sudah ada)")
+		return
+	}
+	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
+}
+
+// Update edits only the Indonesian translation - see CategoryHandler.Update for why name_zh
+// (the join key) is intentionally immutable here.
+func (h *ColorHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid color id")
+		return
+	}
+	var req colorRequest
+	if err := decodeJSON(r, &req); err != nil || strings.TrimSpace(req.NameID) == "" {
+		respondError(w, http.StatusBadRequest, "name_id is required")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `UPDATE colors SET name_id=$1 WHERE id=$2`, strings.TrimSpace(req.NameID), id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update color")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *ColorHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid color id")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `DELETE FROM colors WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete color")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
