@@ -7,6 +7,11 @@ import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
+// Fixed width for the sticky Host name column (col 0) so the sticky QTY column (col 1) has a
+// known offset to pin itself at - matches the client's reference (Google Sheets freeze-columns
+// view, where Host + its adjacent number column both stay fixed while the time grid scrolls).
+const HOST_COL_WIDTH = 130
+
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
   const day = d.getDay()
@@ -266,8 +271,8 @@ export default function Heatmap() {
             <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
               <thead>
                 <tr>
-                  <th className="p-1 text-left sticky left-0 bg-white">{t('page_heatmap.col_host')}</th>
-                  <th className="p-1 text-right">{t('page_heatmap.total_qty')}</th>
+                  <th className="p-1 text-left sticky left-0 z-20 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
+                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: HOST_COL_WIDTH }}>{t('page_heatmap.total_qty')}</th>
                   {Array.from({ length: NUM_SLOTS }).map((_, i) => (
                     <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
                       {i === nowSlot && (
@@ -285,10 +290,10 @@ export default function Heatmap() {
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id}>
-                    <td className="p-1 font-medium text-gray-700 sticky left-0 bg-white whitespace-nowrap">
+                    <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>
                       {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
                     </td>
-                    <td className="p-1 text-right font-semibold text-gray-700">{fmtNum(host.total_qty)}</td>
+                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}>{fmtNum(host.total_qty)}</td>
                     {host.slots.map((qty, i) => {
                       const color = cellColor(qty, rangeDays)
                       return (
@@ -306,8 +311,8 @@ export default function Heatmap() {
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td className="p-1 font-bold text-gray-800 sticky left-0 bg-white">ALL</td>
-                  <td className="p-1 text-right font-bold text-gray-800">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>ALL</td>
+                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
                     const color = cellColor(qty, rangeDays, ALL_COLORS)
                     return (
@@ -319,8 +324,8 @@ export default function Heatmap() {
                   })}
                 </tr>
                 <tr>
-                  <td className="p-1 font-bold text-gray-500 sticky left-0 bg-white">{t('page_heatmap.average_row')}</td>
-                  <td className="p-1"></td>
+                  <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</td>
+                  <td className="p-1 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}></td>
                   {grid.avg_row.map((v, i) => {
                     const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
                     return (
