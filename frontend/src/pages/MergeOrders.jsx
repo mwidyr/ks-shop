@@ -9,21 +9,39 @@ export default function MergeOrders() {
   const [loading, setLoading] = useState(true)
   const [busyKey, setBusyKey] = useState(null)
   const [doneKeys, setDoneKeys] = useState(new Set())
+  // Per-suggestion set of selected order_ids - lets staff merge only some of a group's orders
+  // (e.g. 2 out of 3) instead of always the whole suggested set. Defaults to "all selected" so
+  // the one-click merge-everything flow still works unchanged if nothing is deselected.
+  const [selectedByKey, setSelectedByKey] = useState({})
 
   function load() {
     setLoading(true)
     getMergeSuggestions().then((data) => {
       setSuggestions(data)
+      setSelectedByKey(Object.fromEntries(
+        data.map((s) => [`${s.customer_id}-${s.pickup_store_code}`, new Set(s.order_ids)])
+      ))
       setLoading(false)
     })
   }
 
   useEffect(() => { load() }, [])
 
+  function toggleOrder(key, orderId) {
+    setSelectedByKey((prev) => {
+      const next = new Set(prev[key])
+      if (next.has(orderId)) next.delete(orderId)
+      else next.add(orderId)
+      return { ...prev, [key]: next }
+    })
+  }
+
   async function handleMerge(suggestion, key) {
+    const orderIds = [...(selectedByKey[key] || [])]
+    if (orderIds.length < 2) return
     setBusyKey(key)
     try {
-      await createMergeGroup(suggestion.order_ids)
+      await createMergeGroup(orderIds)
       setDoneKeys((s) => new Set(s).add(key))
       load()
     } finally {
@@ -52,6 +70,8 @@ export default function MergeOrders() {
           {suggestions.map((s) => {
             const key = `${s.customer_id}-${s.pickup_store_code}`
             const done = doneKeys.has(key)
+            const selected = selectedByKey[key] || new Set()
+            const canMerge = selected.size >= 2
             return (
               <div key={key} className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -61,16 +81,33 @@ export default function MergeOrders() {
                   </div>
                   <button
                     onClick={() => handleMerge(s, key)}
-                    disabled={busyKey === key || done}
+                    disabled={busyKey === key || done || !canMerge}
+                    title={!canMerge && !done ? t('page_merge_orders.select_at_least_two') : undefined}
                     className="text-sm font-semibold px-4 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 shrink-0"
                   >
-                    {done ? t('page_merge_orders.merged_label') : busyKey === key ? t('page_orders.merging') : t('page_merge_orders.merge_button')}
+                    {done ? t('page_merge_orders.merged_label') : busyKey === key ? t('page_orders.merging') : t('page_merge_orders.merge_button', { count: selected.size })}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  {s.order_nos.map((no) => (
-                    <span key={no} className="text-xs font-mono px-2 py-1 rounded-lg bg-gray-100 text-gray-600">{no}</span>
-                  ))}
+                  {s.order_nos.map((no, i) => {
+                    const orderId = s.order_ids[i]
+                    const checked = selected.has(orderId)
+                    return (
+                      <label
+                        key={no}
+                        className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-lg cursor-pointer ${checked ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 border border-transparent'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleOrder(key, orderId)}
+                          disabled={done}
+                          className="accent-amber-600"
+                        />
+                        {no}
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
             )

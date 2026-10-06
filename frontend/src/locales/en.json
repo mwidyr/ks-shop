@@ -1562,8 +1562,9 @@
     "subheading": "Orders from the same customer with the same pickup method can share one shipment",
     "back_to_orders": "Back to Orders",
     "empty": "No mergeable orders yet",
-    "merge_button": "Merge",
-    "merged_label": "Merged"
+    "merge_button": "Merge ({{count}})",
+    "merged_label": "Merged",
+    "select_at_least_two": "Select at least 2 orders to merge"
   },
   "page_performance_dashboard": {
     "all_locations": "All locations",

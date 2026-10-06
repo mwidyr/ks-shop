@@ -420,19 +420,22 @@ export default function OrderDetail() {
     const shippingInfo = shippingFee > 0
       ? fmtNT(shippingFee)
       : t('page_order_detail.free_label') + (order.shipment_group_id ? t('page_order_detail.copy_combined_shipment_note') : '')
+    // Double blank lines between each section (not single) - sent as-is to customers via
+    // WhatsApp/LINE, where a single blank line reads as cramped; the extra line makes each
+    // block (order/customer/products/totals) visually distinct at a glance.
     const lines = [
       t('page_order_detail.copy_order_label', { orderNos: orderNos.join(' + ') }),
-      '',
+      '', '',
       t('page_order_detail.copy_customer_label', { name: order.customer_name }),
       t('page_order_detail.copy_phone_label', { phone: order.customer_phone }),
       t(isStorePickup ? 'page_order_detail.copy_address_store_label' : 'page_order_detail.copy_address_label', { address: order.shipping_address }),
-      '',
+      '', '',
       t('page_order_detail.copy_products_header'),
       ...items.map((it) => t('page_order_detail.copy_item_line', {
         sku: it.product_sku, name: it.product_name, color: it.color, size: it.size, qty: it.qty,
         price: fmtNT(it.price), subtotal: fmtNT(it.price * it.qty),
       })),
-      '',
+      '', '',
       t('page_order_detail.copy_subtotal_label', { subtotal: fmtNT(productSubtotal) }),
       t('page_order_detail.copy_shipping_label', { fee: shippingInfo }),
       t('page_order_detail.copy_total_label', { total: fmtNT(total) }),

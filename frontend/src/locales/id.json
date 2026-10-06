@@ -1562,8 +1562,9 @@
     "subheading": "Order dari pelanggan yang sama dengan metode pengambilan yang sama bisa digabung pengirimannya",
     "back_to_orders": "Kembali ke Pesanan",
     "empty": "Belum ada order yang bisa digabung",
-    "merge_button": "Gabung",
-    "merged_label": "Tergabung"
+    "merge_button": "Gabung ({{count}})",
+    "merged_label": "Tergabung",
+    "select_at_least_two": "Pilih minimal 2 order untuk digabung"
   },
   "page_performance_dashboard": {
     "all_locations": "Semua lokasi",

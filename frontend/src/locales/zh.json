@@ -1562,8 +1562,9 @@
     "subheading": "同一位客戶、相同取件方式的訂單可以合併成一次寄送",
     "back_to_orders": "返回訂單",
     "empty": "目前沒有可合併的訂單",
-    "merge_button": "合併",
-    "merged_label": "已合併"
+    "merge_button": "合併（{{count}}）",
+    "merged_label": "已合併",
+    "select_at_least_two": "請至少選擇 2 筆訂單才能合併"
   },
   "page_performance_dashboard": {
     "all_locations": "所有位置",
