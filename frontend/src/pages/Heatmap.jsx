@@ -15,6 +15,14 @@ import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, M
 // QTY column's left offset is instead measured from the Host column's actual DOM width at
 // runtime (see hostColRef/qtyColLeft below), which is correct regardless of content or layout.
 const HOST_COL_MAX_WIDTH = 110
+// A wide leftward box-shadow, same color as the cell's own background, painted behind the Host
+// column - covers any leading-edge gap between the scroll container's padding and where the
+// sticky column actually pins (border-spacing/padding rounding), the same class of bug as the
+// Host-QTY gap, just at the very start instead of between two sticky columns. A box-shadow is
+// safe here even though it extends far past the cell's own box: it's purely visual (doesn't
+// affect layout/scroll width) and gets clipped by the scroll container's own overflow, so it
+// can never leak past the card's rounded edge into the page behind it.
+const HOST_COL_SHADOW = { boxShadow: '-40px 0 0 0 white' }
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -287,7 +295,7 @@ export default function Heatmap() {
             <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
               <thead>
                 <tr>
-                  <th ref={hostColRef} className="p-1 text-left sticky left-0 z-20 bg-white">
+                  <th ref={hostColRef} className="p-1 text-left sticky left-0 z-20 bg-white" style={HOST_COL_SHADOW}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.col_host')}</div>
                   </th>
                   <th className="p-1 text-right sticky z-20 bg-white" style={{ left: qtyColLeft }}>{t('page_heatmap.total_qty')}</th>
@@ -308,7 +316,7 @@ export default function Heatmap() {
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id}>
-                    <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white">
+                    <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white" style={HOST_COL_SHADOW}>
                       <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>
                         {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
                       </div>
@@ -331,7 +339,7 @@ export default function Heatmap() {
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white">
+                  <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white" style={HOST_COL_SHADOW}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>ALL</div>
                   </td>
                   <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: qtyColLeft }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
@@ -346,7 +354,7 @@ export default function Heatmap() {
                   })}
                 </tr>
                 <tr>
-                  <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white">
+                  <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white" style={HOST_COL_SHADOW}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.average_row')}</div>
                   </td>
                   <td className="p-1 sticky z-10 bg-white" style={{ left: qtyColLeft }}></td>
