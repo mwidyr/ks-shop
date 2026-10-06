@@ -853,7 +853,7 @@
     "size_placeholder": "Size",
     "sizes_label": "Sizes (comma-separated)",
     "sizes_placeholder": "e.g. M, L",
-    "supplier_hint": "Set once at creation. To change supplier later, create a new product instead of editing this one.",
+    "supplier_hint": "Can be changed anytime after creation, for users with product-edit access.",
     "supplier_label": "Supplier",
     "supplier_none": "No supplier set",
     "total_stock_label": "Total Stock",

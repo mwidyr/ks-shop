@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductColorPair } from '../api/reports'
 import { listProducts } from '../api/products'
+import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
@@ -67,12 +68,15 @@ export default function ProductColorPair() {
   const [products, setProducts] = useState([])
   const [skuA, setSkuA] = useState('')
   const [channel, setChannel] = useState('all')
+  const [hostId, setHostId] = useState('')
+  const [hosts, setHosts] = useState([])
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { listProducts().then(setProducts) }, [])
+  useEffect(() => { listHosts(true).then(setHosts) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
   useEffect(() => {
@@ -80,11 +84,12 @@ export default function ProductColorPair() {
     setLoading(true)
     getProductColorPair({
       sku_a: skuA, date_from: range.from, date_to: range.to,
-      channel, affiliate_id: channel === 'website' ? affiliateId : '',
+      channel, host_id: channel === 'live' ? hostId : '',
+      affiliate_id: channel === 'website' ? affiliateId : '',
     })
       .then((res) => { setData(res); setLoading(false) })
       .catch(() => { setData(null); setLoading(false) })
-  }, [skuA, range, channel, affiliateId])
+  }, [skuA, range, channel, hostId, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -94,6 +99,7 @@ export default function ProductColorPair() {
           <DateRangePicker value={range} onChange={setRange} />
           <SalesChannelFilter
             channel={channel} onChannelChange={setChannel}
+            hostId={hostId} onHostChange={setHostId} hosts={hosts}
             affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
           />
         </div>

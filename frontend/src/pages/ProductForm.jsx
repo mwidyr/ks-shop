@@ -122,8 +122,10 @@ export default function ProductForm() {
 
   // Regenerates the variant list as the color x size Cartesian product, reconciling against the
   // current list by exact (color, size) match so existing rows (sku/price/stock/oversell, and any
-  // saved id) survive unchanged. Combinations no longer present are dropped, queuing their id (if
-  // any) for server-side deletion on save.
+  // saved id) survive unchanged. Combinations no longer present are dropped, queuing the full row
+  // (not just its id) for server-side deletion on save - see handleSubmit, which needs the full
+  // row to fall back to deactivating instead when the variant has order history and can't
+  // actually be hard-deleted (item 069).
   function regenerateVariants() {
     const colors = parseList(colorsText)
     const sizes = parseList(sizesText)
@@ -140,7 +142,7 @@ export default function ProductForm() {
       const nextKeys = new Set(next.map((v) => `${v.color}|${v.size}`))
       const removed = prev.filter((v) => v.id && !nextKeys.has(`${v.color}|${v.size}`))
       if (removed.length) {
-        setDeletedVariantIds((ids) => [...ids, ...removed.map((v) => v.id)])
+        setDeletedVariantIds((rows) => [...rows, ...removed])
       }
       return next
     })
@@ -149,7 +151,7 @@ export default function ProductForm() {
   function removeVariantRow(idx) {
     setVariants((vs) => {
       const removed = vs[idx]
-      if (removed?.id) setDeletedVariantIds((ids) => [...ids, removed.id])
+      if (removed?.id) setDeletedVariantIds((rows) => [...rows, removed])
       return vs.filter((_, i) => i !== idx)
     })
   }
@@ -201,8 +203,21 @@ export default function ProductForm() {
         navigate('/products')
       } else {
         await updateProduct(id, productBody)
-        for (const variantId of deletedVariantIds) {
-          await deleteVariant(id, variantId)
+        for (const removedVariant of deletedVariantIds) {
+          try {
+            await deleteVariant(id, removedVariant.id)
+          } catch (err) {
+            // A variant that's ever been used in an order can't be hard-deleted (FK constraint,
+            // by design - see products.go DeleteVariant) - removing its color/size from the list
+            // above used to just fail outright here with no way to recover (item 069). Fall back
+            // to deactivating it instead, matching this form's "no permanent delete, sellable
+            // toggle only" policy everywhere else.
+            if (err.response?.status === 409) {
+              await updateVariant(id, removedVariant.id, { ...variantBody(removedVariant), is_active: false })
+            } else {
+              throw err
+            }
+          }
         }
         for (const v of variants) {
           const body = variantBody(v)
@@ -266,20 +281,14 @@ export default function ProductForm() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.supplier_label')}</label>
-            {isEdit ? (
-              <p className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
-                {suppliers.find((s) => s.id === product.supplier_id)?.name || t('page_product_form.supplier_none')}
-              </p>
-            ) : (
-              <select
-                value={product.supplier_id}
-                onChange={(e) => updateField('supplier_id', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="">{t('page_product_form.supplier_none')}</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            )}
+            <select
+              value={product.supplier_id}
+              onChange={(e) => updateField('supplier_id', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">{t('page_product_form.supplier_none')}</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
             <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.supplier_hint')}</p>
           </div>
           <div>

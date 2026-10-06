@@ -853,7 +853,7 @@
     "size_placeholder": "尺寸",
     "sizes_label": "尺寸（以逗號分隔）",
     "sizes_placeholder": "例如：M, L",
-    "supplier_hint": "僅在建立時設定。若之後要更換供應商，請建立新商品，而非編輯此商品。",
+    "supplier_hint": "建立後隨時可更改，限有商品編輯權限的使用者。",
     "supplier_label": "供應商",
     "supplier_none": "尚未設定供應商",
     "total_stock_label": "總庫存",

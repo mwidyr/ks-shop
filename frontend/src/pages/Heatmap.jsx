@@ -277,7 +277,7 @@ export default function Heatmap() {
                         </div>
                       )}
                       <span className={i === nowSlot ? 'font-bold text-black' : ''}>{slotLabel(i)}</span>
-                      {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                      {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                     </th>
                   ))}
                 </tr>
@@ -299,7 +299,7 @@ export default function Heatmap() {
                           style={color.style}
                         >
                           {qty || ''}
-                          {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                          {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                         </td>
                       )
                     })}
@@ -313,7 +313,7 @@ export default function Heatmap() {
                     return (
                       <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
                         {qty || ''}
-                        {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                       </td>
                     )
                   })}
@@ -326,7 +326,7 @@ export default function Heatmap() {
                     return (
                       <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
                         {v == null ? '—' : v.toFixed(1)}
-                        {i === nowSlot && <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                       </td>
                     )
                   })}

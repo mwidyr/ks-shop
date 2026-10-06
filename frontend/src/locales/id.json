@@ -853,7 +853,7 @@
     "size_placeholder": "Ukuran",
     "sizes_label": "Ukuran (pisahkan dengan koma)",
     "sizes_placeholder": "Contoh: M, L",
-    "supplier_hint": "Ditetapkan saat dibuat. Untuk ganti supplier nanti, buat produk baru, bukan mengedit yang ini.",
+    "supplier_hint": "Bisa diubah kapan saja setelah produk dibuat, untuk pengguna yang punya akses edit produk.",
     "supplier_label": "Supplier",
     "supplier_none": "Belum ada supplier",
     "total_stock_label": "Total Stock",

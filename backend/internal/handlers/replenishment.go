@@ -24,6 +24,7 @@ type replenishmentRow struct {
 	ProductID           int      `json:"product_id"`
 	ProductSKU          string   `json:"product_sku"`
 	ProductName         string   `json:"product_name"`
+	ImageURL            string   `json:"image_url"`
 	Category            string   `json:"category"`
 	SupplierID          *int     `json:"supplier_id"`
 	SupplierName        string   `json:"supplier_name"`
@@ -82,7 +83,9 @@ func (h *ReplenishmentHandler) List(w http.ResponseWriter, r *http.Request) {
 			WHERE o.status NOT IN ('cancelled','return') AND o.created_at >= now() - interval '30 days'
 			GROUP BY oi.variant_id
 		)
-		SELECT pv.id, p.id, COALESCE(p.sku,''), p.name, COALESCE(p.category,''), p.supplier_id, COALESCE(s.name,'-'),
+		SELECT pv.id, p.id, COALESCE(p.sku,''), p.name,
+		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
+		       COALESCE(p.category,''), p.supplier_id, COALESCE(s.name,'-'),
 		       pv.color, pv.size, sb.available_stock, sb.incoming_stock, sb.order_stock,
 		       COALESCE(sa.sales_7d,0), COALESCE(sa.sales_14d,0), COALESCE(sa.sales_30d,0), s.default_lead_time_days
 		FROM product_variants pv
@@ -103,7 +106,7 @@ func (h *ReplenishmentHandler) List(w http.ResponseWriter, r *http.Request) {
 	list := []replenishmentRow{}
 	for rows.Next() {
 		var row replenishmentRow
-		if err := rows.Scan(&row.VariantID, &row.ProductID, &row.ProductSKU, &row.ProductName, &row.Category,
+		if err := rows.Scan(&row.VariantID, &row.ProductID, &row.ProductSKU, &row.ProductName, &row.ImageURL, &row.Category,
 			&row.SupplierID, &row.SupplierName, &row.Color, &row.Size, &row.PhysicalStock, &row.IncomingStock,
 			&row.OrderedQty, &row.Sales7D, &row.Sales14D, &row.Sales30D, &row.LeadTimeDays); err != nil {
 			continue

@@ -144,26 +144,37 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	args := []interface{}{from, to}
 	var hostName string
 	if hostID := q.Get("host_id"); hostID != "" {
-		where += " AND oi.host_id = $3 "
+		where += " AND oi.host_id = $" + strconv.Itoa(len(args)+1) + " "
 		args = append(args, hostID)
 		h.DB.QueryRow(r.Context(), `SELECT name FROM hosts WHERE id=$1`, hostID).Scan(&hostName)
+	}
+	var locationName string
+	if locationID := q.Get("location_id"); locationID != "" {
+		// hosts is LEFT JOINed (see joinHosts below), not INNER - order_items.host_id is nullable
+		// for website-channel orders not tied to a live host, and an inner join would silently
+		// drop those rows from every total whenever this handler runs, not just when a location
+		// filter is actually requested.
+		where += " AND h.location_id = $" + strconv.Itoa(len(args)+1) + " "
+		args = append(args, locationID)
+		h.DB.QueryRow(r.Context(), `SELECT name FROM host_locations WHERE id=$1`, locationID).Scan(&locationName)
 	}
 	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
 	where += channelWhere
 	args = append(args, channelArgs...)
+	const joinHosts = " LEFT JOIN hosts h ON h.id = oi.host_id"
 
 	var totalQty int
 	var totalGMV float64
 	h.DB.QueryRow(r.Context(), `
 		SELECT COALESCE(SUM(oi.qty),0), COALESCE(SUM(oi.qty*oi.price_at_order),0)
-		FROM order_items oi JOIN orders o ON o.id = oi.order_id`+where, args...).Scan(&totalQty, &totalGMV)
+		FROM order_items oi JOIN orders o ON o.id = oi.order_id`+joinHosts+where, args...).Scan(&totalQty, &totalGMV)
 
 	catRows, err := h.DB.Query(r.Context(), `
 		SELECT COALESCE(p.category,'-'), SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+where+`
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 		GROUP BY p.category ORDER BY 3 DESC`, args...)
 	byCategory := []categoryAnalysisRow{}
 	if err == nil {
@@ -187,7 +198,7 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+where+`
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 		GROUP BY p.id, p.sku, p.category, p.name ORDER BY 5 DESC LIMIT 100`, args...)
 	byProduct := []productAnalysisRow{}
 	if err == nil {
@@ -209,7 +220,7 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+where+`
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 		GROUP BY pv.id, pv.sku, p.sku, p.category, p.name, pv.color ORDER BY 7 DESC LIMIT 100`, args...)
 	byVariant := []variantAnalysisRow{}
 	if err == nil {
@@ -227,7 +238,7 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"summary":     map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName},
+		"summary":     map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName, "location_name": locationName},
 		"by_category": byCategory,
 		"by_product":  byProduct,
 		"by_variant":  byVariant,
@@ -698,15 +709,28 @@ type pairedProductRow struct {
 // re-running the two-SKU colorPairRow query against that specific pair - giving the frontend an
 // expandable, auto-populated list with no manual Product B step.
 func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Request, skuA string, from, to time.Time) {
-	aChannelWhere, aChannelArgs := salesChannelWhere(r, "o", 4)
-	aArgs := append([]interface{}{skuA, from, to}, aChannelArgs...)
+	// Host filter (item 067) matches on oi.host_id - the anchor product's (A's) own attributed
+	// host for that order item - not oi2's, since the paired product in the same order may have
+	// been attributed to a different host entirely (each line item's host can be overridden
+	// individually, see OrderCreate.jsx). Same convention ProductAnalysis already uses.
+	hostID := r.URL.Query().Get("host_id")
+	aArgsBase := []interface{}{skuA, from, to}
+	hostWhereA := ""
+	nextArg := 4
+	if hostID != "" {
+		hostWhereA = " AND oi.host_id = $4"
+		aArgsBase = append(aArgsBase, hostID)
+		nextArg = 5
+	}
+	aChannelWhere, aChannelArgs := salesChannelWhere(r, "o", nextArg)
+	aArgs := append(aArgsBase, aChannelArgs...)
 	aJoinWhere := `
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
 		WHERE p.sku = $1
-		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + aChannelWhere
+		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + hostWhereA + aChannelWhere
 
 	var totalOrders int
 	h.DB.QueryRow(r.Context(), `SELECT COUNT(DISTINCT oi.order_id) `+aJoinWhere, aArgs...).Scan(&totalOrders)
@@ -721,7 +745,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
 		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id
 		WHERE p.sku = $1
-		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + aChannelWhere + `
+		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + hostWhereA + aChannelWhere + `
 		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, aArgs...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to rank paired products")
@@ -744,7 +768,15 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 	var nameA string
 	h.DB.QueryRow(r.Context(), `SELECT name FROM products WHERE sku=$1`, skuA).Scan(&nameA)
 
-	pairChannelWhere, pairChannelArgs := salesChannelWhere(r, "o", 5)
+	hostWherePair := ""
+	pairArgExtra := []interface{}{}
+	nextPairArg := 5
+	if hostID != "" {
+		hostWherePair = " AND oi.host_id = $5"
+		pairArgExtra = append(pairArgExtra, hostID)
+		nextPairArg = 6
+	}
+	pairChannelWhere, pairChannelArgs := salesChannelWhere(r, "o", nextPairArg)
 	pairJoinWhere := `
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
@@ -754,11 +786,12 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
 		JOIN products p2 ON p2.id = pv2.product_id
 		WHERE p.sku = $1 AND p2.sku = $2
-		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4` + pairChannelWhere
+		  AND o.status <> 'cancelled' AND o.created_at >= $3 AND o.created_at < $4` + hostWherePair + pairChannelWhere
 
 	paired := make([]pairedProductRow, 0, len(rankedList))
 	for _, rr := range rankedList {
-		pairArgs := append([]interface{}{skuA, rr.SKU, from, to}, pairChannelArgs...)
+		pairArgs := append([]interface{}{skuA, rr.SKU, from, to}, pairArgExtra...)
+		pairArgs = append(pairArgs, pairChannelArgs...)
 		colorRows, err := h.DB.Query(r.Context(), `
 			SELECT pv.color, pv2.color, COUNT(DISTINCT oi.order_id) `+pairJoinWhere+`
 			GROUP BY pv.color, pv2.color ORDER BY 3 DESC LIMIT 50`, pairArgs...)

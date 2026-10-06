@@ -5,7 +5,9 @@ import { listReplenishment } from '../api/replenishment'
 import { listSuppliers } from '../api/suppliers'
 import { createPurchaseRequisition, addRequisitionItem } from '../api/purchaseRequisitions'
 import { formatCurrency } from '../utils/format'
+import { resolveUrl } from '../utils/image'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 
 const basisOptions = [7, 14, 30]
 
@@ -30,6 +32,7 @@ export default function ReplenishmentPlanning() {
   const [planned, setPlanned] = useState({}) // variantId -> qty, local working values only
   const [loading, setLoading] = useState(true)
   const [creatingPO, setCreatingPO] = useState(false)
+  const [previewImage, setPreviewImage] = useState(null)
 
   useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
 
@@ -128,8 +131,21 @@ export default function ReplenishmentPlanning() {
               {[...rows].sort((a, b) => (a.estimated_stock_days ?? Infinity) - (b.estimated_stock_days ?? Infinity)).map((r) => (
                 <tr key={r.variant_id} className={rowClasses}>
                   <td className="p-2">
-                    <p className="font-medium text-[var(--text-primary)]">{r.product_sku}</p>
-                    <p className="text-xs text-[var(--text-secondary)]">{r.product_name} · {r.supplier_name}</p>
+                    <div className="flex items-center gap-2">
+                      {r.image_url ? (
+                        <img
+                          src={resolveUrl(r.image_url)}
+                          onClick={() => setPreviewImage(r.image_url)}
+                          className="w-8 h-8 rounded-lg object-cover bg-gray-100 shrink-0 cursor-pointer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
+                      )}
+                      <div>
+                        <p className="font-medium text-[var(--text-primary)]">{r.product_sku}</p>
+                        <p className="text-xs text-[var(--text-secondary)]">{r.product_name} · {r.supplier_name}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="p-2 text-[var(--text-secondary)]">{r.color} / {r.size}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.physical_stock)}</td>
@@ -163,6 +179,7 @@ export default function ReplenishmentPlanning() {
         )}
       </div>
       <p className="text-xs text-gray-400">{t('page_replenishment.planned_hint')}</p>
+      {previewImage && <ImagePreviewModal images={[{ url: previewImage }]} onClose={() => setPreviewImage(null)} />}
     </div>
   )
 }

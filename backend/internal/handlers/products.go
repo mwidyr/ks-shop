@@ -419,6 +419,7 @@ type updateProductRequest struct {
 	Description             string   `json:"description"`
 	Category                string   `json:"category"`
 	Brand                   string   `json:"brand"`
+	SupplierID              *int     `json:"supplier_id"`
 	BasePrice               float64  `json:"base_price"`
 	Cost                    *float64 `json:"cost"` // admin-only - pointer so a non-admin's payload (which never includes it) leaves the stored value untouched rather than zeroing it
 	IsActive                *bool    `json:"is_active"`
@@ -475,11 +476,11 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ct, err := h.DB.Exec(ctx, `
 		UPDATE products SET sku=NULLIF($1,''), vendor_sku=NULLIF($2,''), name=$3, description=$4, category=$5,
-		                     brand=$6, base_price=$7, is_active=$8, allow_oversell=$9,
-		                     measurement_bust=NULLIF($10,''), measurement_waist=NULLIF($11,''), measurement_length=NULLIF($12,''),
-		                     measurement_bottom_length=NULLIF($13,''), measurement_elasticity=NULLIF($14,''), measurement_note=NULLIF($15,'')
-		                 WHERE id=$16`,
-		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.BasePrice, isActive, allowOversell,
+		                     brand=$6, supplier_id=$7, base_price=$8, is_active=$9, allow_oversell=$10,
+		                     measurement_bust=NULLIF($11,''), measurement_waist=NULLIF($12,''), measurement_length=NULLIF($13,''),
+		                     measurement_bottom_length=NULLIF($14,''), measurement_elasticity=NULLIF($15,''), measurement_note=NULLIF($16,'')
+		                 WHERE id=$17`,
+		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.SupplierID, req.BasePrice, isActive, allowOversell,
 		req.MeasurementBust, req.MeasurementWaist, req.MeasurementLength, req.MeasurementBottomLength, req.MeasurementElasticity, req.MeasurementNote, id)
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to update product (kode produk mungkin sudah dipakai)")
