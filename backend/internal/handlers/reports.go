@@ -439,12 +439,20 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 	where := " WHERE p.sku = $1 AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3 "
 	args := []interface{}{sku, from, to}
 	if hostID := q.Get("host_id"); hostID != "" {
-		where += " AND oi.host_id = $4 "
+		where += " AND oi.host_id = $" + strconv.Itoa(len(args)+1) + " "
 		args = append(args, hostID)
+	}
+	if locationID := q.Get("location_id"); locationID != "" {
+		// hosts is LEFT JOINed (see joinHosts below), not INNER - order_items.host_id is nullable
+		// for website-channel orders, and an inner join would silently drop those rows from every
+		// total whenever this handler runs, not just when a location filter is requested.
+		where += " AND h.location_id = $" + strconv.Itoa(len(args)+1) + " "
+		args = append(args, locationID)
 	}
 	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
 	where += channelWhere
 	args = append(args, channelArgs...)
+	const joinHosts = " LEFT JOIN hosts h ON h.id = oi.host_id"
 
 	var productName, category string
 	if err := h.DB.QueryRow(r.Context(), `SELECT name, COALESCE(category,'-') FROM products WHERE sku=$1`, sku).
@@ -460,7 +468,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+where, args...).Scan(&totalQty, &totalGMV)
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where, args...).Scan(&totalQty, &totalGMV)
 
 	// Item 040: Today/7D/14D/30D/Custom Avg Daily Sales - plain calendar-day sales, explicitly
 	// independent of LIVE Data/Valid LIVE Days/LIVE sessions (spec), so these fixed lookback
@@ -471,6 +479,10 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 	if hostID := q.Get("host_id"); hostID != "" {
 		basisArgs = append(basisArgs, hostID)
 		basisWhere += " AND oi.host_id = $" + strconv.Itoa(len(basisArgs))
+	}
+	if locationID := q.Get("location_id"); locationID != "" {
+		basisArgs = append(basisArgs, locationID)
+		basisWhere += " AND h.location_id = $" + strconv.Itoa(len(basisArgs))
 	}
 	basisChannelWhere, basisChannelArgs := salesChannelWhere(r, "o", len(basisArgs)+1)
 	basisWhere += basisChannelWhere
@@ -486,7 +498,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+basisWhere, basisArgs...).Scan(&todayQty, &d7Qty, &d14Qty, &d30Qty)
+		JOIN products p ON p.id = pv.product_id`+joinHosts+basisWhere, basisArgs...).Scan(&todayQty, &d7Qty, &d14Qty, &d30Qty)
 
 	customDays := math.Round(to.Sub(from).Hours() / 24)
 	if customDays < 1 {
@@ -498,7 +510,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+where+`
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 		GROUP BY pv.color ORDER BY 2 DESC`, args...)
 	byColor := []productPerfColorRow{}
 	if err == nil {
@@ -514,13 +526,12 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 	}
 
 	hostRows, err := h.DB.Query(r.Context(), `
-		SELECT COALESCE(hst.name,'-'), SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		SELECT COALESCE(h.name,'-'), SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id
-		LEFT JOIN hosts hst ON hst.id = oi.host_id`+where+`
-		GROUP BY hst.id, hst.name ORDER BY 2 DESC`, args...)
+		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
+		GROUP BY h.id, h.name ORDER BY 2 DESC`, args...)
 	byHost := []productPerfHostRow{}
 	if err == nil {
 		defer hostRows.Close()
@@ -542,7 +553,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
 			JOIN product_variants pv ON pv.id = oi.variant_id
-			JOIN products p ON p.id = pv.product_id`+where+`
+			JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 			GROUP BY oi.order_id
 		)
 		SELECT COUNT(*), COUNT(*) FILTER (WHERE n_colors > 1) FROM order_colors`, args...).
@@ -554,7 +565,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
 			JOIN product_variants pv ON pv.id = oi.variant_id
-			JOIN products p ON p.id = pv.product_id`+where+`
+			JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
 			GROUP BY oi.order_id
 		)
 		SELECT array_to_string(colors, ' + '), COUNT(*)
@@ -583,7 +594,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		JOIN products p ON p.id = pv.product_id
 		JOIN order_items oi2 ON oi2.order_id = oi.order_id
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
-		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id`+where+`
+		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id`+joinHosts+where+`
 		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, args...)
 	crossSell := []crossSellRow{}
 	if err == nil {

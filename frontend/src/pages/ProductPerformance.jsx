@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { getProductPerformance } from '../api/reports'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
+import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import DateRangePicker, { presetRange } from '../components/DateRangePicker'
@@ -15,6 +16,8 @@ export default function ProductPerformance() {
   const [range, setRange] = useState(presetRange(29))
   const [hostId, setHostId] = useState('')
   const [hosts, setHosts] = useState([])
+  const [locationId, setLocationId] = useState('')
+  const [locations, setLocations] = useState([])
   const [channel, setChannel] = useState('all')
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
@@ -25,6 +28,7 @@ export default function ProductPerformance() {
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
+  useEffect(() => { listLocations().then(setLocations) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
   useEffect(() => { listProducts().then(setProducts) }, [])
 
@@ -34,11 +38,12 @@ export default function ProductPerformance() {
     setNotFound(false)
     getProductPerformance({
       sku, date_from: range.from, date_to: range.to, host_id: channel === 'live' ? hostId : '',
+      location_id: channel === 'live' ? locationId : '',
       channel, affiliate_id: channel === 'website' ? affiliateId : '',
     })
       .then((res) => { setData(res); setLoading(false) })
       .catch(() => { setData(null); setLoading(false); setNotFound(true) })
-  }, [sku, range, hostId, channel, affiliateId])
+  }, [sku, range, hostId, locationId, channel, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -48,6 +53,7 @@ export default function ProductPerformance() {
           <DateRangePicker value={range} onChange={setRange} />
           <SalesChannelFilter
             channel={channel} onChannelChange={setChannel}
+            locationId={locationId} onLocationChange={setLocationId} locations={locations}
             hostId={hostId} onHostChange={setHostId} hosts={hosts}
             affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
           />
