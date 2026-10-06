@@ -11,6 +11,12 @@ import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, M
 // known offset to pin itself at - matches the client's reference (Google Sheets freeze-columns
 // view, where Host + its adjacent number column both stay fixed while the time grid scrolls).
 const HOST_COL_WIDTH = 130
+// The table uses border-separate with this borderSpacing (see the <table> below), which inserts
+// a real gap between every pair of adjacent cells - including between the two sticky columns.
+// Neither sticky cell's own background covers that gap, so without adding it to QTY's offset,
+// a thin strip of whatever's scrolling underneath shows through between Host and QTY.
+const CELL_GAP = 2
+const QTY_COL_LEFT = HOST_COL_WIDTH + CELL_GAP
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -272,7 +278,7 @@ export default function Heatmap() {
               <thead>
                 <tr>
                   <th className="p-1 text-left sticky left-0 z-20 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
-                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: HOST_COL_WIDTH }}>{t('page_heatmap.total_qty')}</th>
+                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: QTY_COL_LEFT }}>{t('page_heatmap.total_qty')}</th>
                   {Array.from({ length: NUM_SLOTS }).map((_, i) => (
                     <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
                       {i === nowSlot && (
@@ -293,7 +299,7 @@ export default function Heatmap() {
                     <td className="p-1 font-medium text-gray-700 sticky left-0 z-10 bg-white truncate" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>
                       {host.host_name}{host.shift && <span className="text-gray-400"> ({t(`page_hosts.shift_${host.shift}`)})</span>}
                     </td>
-                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}>{fmtNum(host.total_qty)}</td>
+                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}>{fmtNum(host.total_qty)}</td>
                     {host.slots.map((qty, i) => {
                       const color = cellColor(qty, rangeDays)
                       return (
@@ -312,7 +318,7 @@ export default function Heatmap() {
                 ))}
                 <tr className="border-t-2 border-gray-200">
                   <td className="p-1 font-bold text-gray-800 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>ALL</td>
-                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
                     const color = cellColor(qty, rangeDays, ALL_COLORS)
                     return (
@@ -325,7 +331,7 @@ export default function Heatmap() {
                 </tr>
                 <tr>
                   <td className="p-1 font-bold text-gray-500 sticky left-0 z-10 bg-white" style={{ width: HOST_COL_WIDTH, maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</td>
-                  <td className="p-1 sticky z-10 bg-white" style={{ left: HOST_COL_WIDTH }}></td>
+                  <td className="p-1 sticky z-10 bg-white" style={{ left: QTY_COL_LEFT }}></td>
                   {grid.avg_row.map((v, i) => {
                     const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
                     return (
