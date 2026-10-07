@@ -880,7 +880,10 @@
     "vendor_sku": "Kode Barang Vendor",
     "add_color_from_master": "Tambah dari daftar warna...",
     "product_saved_variant_failed_prefix": "Data produk sudah tersimpan, tapi salah satu varian gagal:",
-    "variant_sku_hint": "Terisi otomatis dari Kode Produk - bisa diedit manual kalau perlu"
+    "variant_sku_hint": "Terisi otomatis dari Kode Produk - bisa diedit manual kalau perlu",
+    "names_by_language": "Nama per bahasa",
+    "names_by_language_hint": "Opsional. Kosong = pakai nama Mandarin di atas. Nama Mandarin selalu dipakai untuk salin teks Purchase Requisition.",
+    "chinese_name_hint": "Nama utama (Mandarin)"
   },
   "page_products": {
     "activate": "Aktifkan",
@@ -1272,7 +1275,15 @@
     "moved_settings_notice_prefix": "Pengaturan host live dan metode pengambilan/ongkir sudah dipindah ke halaman",
     "moved_settings_notice_suffix": "masing-masing.",
     "saved_label": "Tersimpan",
-    "saving": "Menyimpan..."
+    "saving": "Menyimpan...",
+    "languages_title": "Bahasa Produk",
+    "languages_desc": "Bahasa yang tersedia untuk nama produk di Edit Produk. Menambah bahasa baru tidak mengubah teks antarmuka; hanya menambah kolom nama produk.",
+    "languages_code": "Kode (mis. vi, fil)",
+    "languages_label": "Nama bahasa",
+    "languages_add": "Tambah",
+    "languages_active": "Aktif",
+    "languages_inactive": "Nonaktif",
+    "languages_error": "Gagal menyimpan bahasa"
   },
   "page_shipping": {
     "cancel_link": "Batalkan",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { listLanguages } from '../api/languages'
 import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
 import { listSuppliers } from '../api/suppliers'
 import { listColors } from '../api/colors'
@@ -63,12 +64,14 @@ export default function ProductForm() {
   const isAdmin = user?.role === 'super_user'
 
   const [product, setProduct] = useState({
-    sku: '', vendor_sku: '', name: '', description: '', category: '', brand: '', supplier_id: '',
+    sku: '', vendor_sku: '', name: '', names: {}, description: '', category: '', brand: '', supplier_id: '',
     base_price: '', cost: '', is_active: true, allow_oversell: false,
     measurement_bust: '', measurement_waist: '', measurement_length: '', measurement_bottom_length: '',
     measurement_elasticity: '', measurement_note: '',
   })
   const [suppliers, setSuppliers] = useState([])
+  const [languages, setLanguages] = useState([])
+  useEffect(() => { listLanguages().then(setLanguages) }, [])
   const [images, setImages] = useState([])
   const [previewIndex, setPreviewIndex] = useState(null)
   const [colorsText, setColorsText] = useState('')
@@ -84,7 +87,7 @@ export default function ProductForm() {
     if (!isEdit) return
     getProduct(id).then((p) => {
       setProduct({
-        sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description,
+        sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, names: p.names || {}, description: p.description,
         category: p.category, brand: p.brand, supplier_id: p.supplier_id ?? '', base_price: p.base_price || '',
         cost: p.cost ?? '', // absent entirely in the response for non-admins - stays '' for them
         is_active: p.is_active, allow_oversell: p.allow_oversell,
@@ -295,7 +298,26 @@ export default function ProductForm() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               required
             />
+            <p className="text-xs text-gray-400 mt-1">{t('page_product_form.chinese_name_hint')}</p>
           </div>
+          {languages.filter((l) => l.code !== 'zh').length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.names_by_language')}</label>
+              <div className="space-y-2">
+                {languages.filter((l) => l.code !== 'zh').map((l) => (
+                  <div key={l.code} className="flex items-center gap-2">
+                    <span className="w-28 shrink-0 text-xs text-gray-500">{l.label}</span>
+                    <input
+                      value={product.names?.[l.code] || ''}
+                      onChange={(e) => updateField('names', { ...product.names, [l.code]: e.target.value })}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">{t('page_product_form.names_by_language_hint')}</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_sku')}</label>
             <input

@@ -83,7 +83,7 @@ func (h *ReplenishmentHandler) List(w http.ResponseWriter, r *http.Request) {
 			WHERE o.status NOT IN ('cancelled','return') AND o.created_at >= now() - interval '30 days'
 			GROUP BY oi.variant_id
 		)
-		SELECT pv.id, p.id, COALESCE(p.sku,''), p.name,
+		SELECT pv.id, p.id, COALESCE(p.sku,''), ` + productNameSQL(r, "p") + `,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       COALESCE(p.category,''), p.supplier_id, COALESCE(s.name,'-'),
 		       pv.color, pv.size, sb.available_stock, sb.incoming_stock, sb.order_stock,

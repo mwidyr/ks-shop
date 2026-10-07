@@ -69,7 +69,7 @@ func (h *ReportsHandler) Products(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, p.name, pv.sku, pv.color, pv.size,
+		SELECT p.id, `+productNameSQL(r, "p")+`, pv.sku, pv.color, pv.size,
 		       COUNT(DISTINCT oi.order_id),
 		       COALESCE(SUM(oi.qty) FILTER (WHERE o.status <> 'cancelled'),0),
 		       COALESCE(SUM(oi.qty) FILTER (WHERE o.status = 'return'),0),
@@ -194,7 +194,7 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	// Aggregated per product (across colors) - mirrors the reference sheet's "Host Product
 	// Ranking" (per-host drill-down) and "GMV/QTY Ranking" (Overview, no host filter) sections.
 	prodRows, err := h.DB.Query(r.Context(), `
-		SELECT COALESCE(p.sku,'-'), COALESCE(p.category,'-'), p.name, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		SELECT COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
@@ -216,12 +216,12 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 
 	varRows, err := h.DB.Query(r.Context(), `
-		SELECT pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), p.name, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		SELECT pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
-		GROUP BY pv.id, pv.sku, p.sku, p.category, p.name, pv.color ORDER BY 7 DESC LIMIT 100`, args...)
+		GROUP BY pv.id, pv.sku, p.id, p.sku, p.category, p.name, pv.color ORDER BY 7 DESC LIMIT 100`, args...)
 	byVariant := []variantAnalysisRow{}
 	if err == nil {
 		defer varRows.Close()
@@ -356,7 +356,7 @@ func (h *ReportsHandler) Orders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		SELECT o.created_at::date::text, o.order_no, o.status, p.name,
+		SELECT o.created_at::date::text, o.order_no, o.status, ` + productNameSQL(r, "p") + `,
 		       CONCAT(pv.color, '/', pv.size), pv.sku, oi.qty, oi.price_at_order, oi.qty * oi.price_at_order,
 		       c.name, c.phone, COALESCE(h.name,'-'), COALESCE(u.name,'-')
 		FROM order_items oi
@@ -756,7 +756,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
 		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id
 		WHERE p.sku = $1
-		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3` + hostWhereA + aChannelWhere + `
+		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3`+hostWhereA+aChannelWhere+`
 		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, aArgs...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to rank paired products")

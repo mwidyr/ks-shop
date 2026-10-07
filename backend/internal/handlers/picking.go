@@ -58,7 +58,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 
 	if search := q.Get("q"); search != "" {
 		like := "%" + search + "%"
-		baseWhere += ` AND (p.sku ILIKE ` + addArg(like) + ` OR pv.sku ILIKE ` + addArg(like) + ` OR p.name ILIKE ` + addArg(like) +
+		baseWhere += ` AND (p.sku ILIKE ` + addArg(like) + ` OR pv.sku ILIKE ` + addArg(like) + ` OR p.name ILIKE ` + addArg(like) + ` OR p.names_search ILIKE ` + addArg(like) +
 			` OR c.name ILIKE ` + addArg(like) + ` OR o.order_no ILIKE ` + addArg(like) + `)`
 	}
 	if productCode := q.Get("product_code"); productCode != "" {
@@ -120,7 +120,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	listArgs = append(listArgs, (page-1)*pageSize)
 
 	query := `
-		SELECT o.id, o.order_no, oi.id, oi.variant_id, p.name,
+		SELECT o.id, o.order_no, oi.id, oi.variant_id, ` + productNameSQL(r, "p") + `,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.sku, COALESCE(p.sku,''), pv.color, pv.size, oi.qty, oi.picked_qty, c.name, COALESCE(h.name,'-'), o.status,
 		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock

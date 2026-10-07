@@ -211,7 +211,7 @@ func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int)
 		return map[int]string{}, map[int]string{}, qty
 	}
 	rows, err := db.Query(r.Context(), `
-		SELECT oi.order_id, p.name, oi.qty, COALESCE(p.sku,''), pv.color, pv.size
+		SELECT oi.order_id, `+productNameSQL(r, "p")+`, oi.qty, COALESCE(p.sku,''), pv.color, pv.size
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id

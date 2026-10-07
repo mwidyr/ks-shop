@@ -880,7 +880,10 @@
     "vendor_sku": "Vendor Item Code",
     "add_color_from_master": "Add from color list...",
     "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:",
-    "variant_sku_hint": "Auto-filled from the Product Code - editable if you need to fix it manually"
+    "variant_sku_hint": "Auto-filled from the Product Code - editable if you need to fix it manually",
+    "names_by_language": "Names by language",
+    "names_by_language_hint": "Optional. Empty = the Chinese name above is used. The Chinese name is always used for Purchase Requisition copy.",
+    "chinese_name_hint": "Main name (Chinese)"
   },
   "page_products": {
     "activate": "Activate",
@@ -1272,7 +1275,15 @@
     "moved_settings_notice_prefix": "Live host and pickup/shipping settings have been moved to the",
     "moved_settings_notice_suffix": "pages, respectively.",
     "saved_label": "Saved",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "languages_title": "Product Languages",
+    "languages_desc": "Languages available for product names in Edit Product. Adding a language does not translate the app interface; it only adds a product-name field.",
+    "languages_code": "Code (e.g. vi, fil)",
+    "languages_label": "Language name",
+    "languages_add": "Add",
+    "languages_active": "Active",
+    "languages_inactive": "Inactive",
+    "languages_error": "Failed to save language"
   },
   "page_shipping": {
     "cancel_link": "Cancel",

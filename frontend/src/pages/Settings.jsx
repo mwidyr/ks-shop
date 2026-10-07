@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getFeeSettings, updateFeeSettings } from '../api/settings'
+import { listLanguages, createLanguage, updateLanguage } from '../api/languages'
 
 function FeeSettingsCard() {
   const { t } = useTranslation()
@@ -66,6 +67,64 @@ function FeeSettingsCard() {
   )
 }
 
+function LanguagesCard() {
+  const { t } = useTranslation()
+  const [languages, setLanguages] = useState([])
+  const [code, setCode] = useState('')
+  const [label, setLabel] = useState('')
+  const [error, setError] = useState('')
+
+  const load = () => listLanguages(true).then(setLanguages)
+  useEffect(() => { load() }, [])
+
+  async function add(e) {
+    e.preventDefault()
+    setError('')
+    try {
+      await createLanguage({ code, label })
+      setCode(''); setLabel('')
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_settings.languages_error'))
+    }
+  }
+
+  async function toggle(l) {
+    setError('')
+    try {
+      await updateLanguage(l.code, { is_active: !l.is_active })
+      load()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_settings.languages_error'))
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5 mt-4">
+      <h2 className="font-bold text-gray-800 mb-1">{t('page_settings.languages_title')}</h2>
+      <p className="text-xs text-gray-500 mb-4">{t('page_settings.languages_desc')}</p>
+      <div className="divide-y divide-gray-100 mb-4">
+        {languages.map((l) => (
+          <div key={l.code} className="flex items-center justify-between py-2 text-sm">
+            <span><span className="font-mono text-xs text-gray-400 mr-2">{l.code}</span>{l.label}</span>
+            {l.code !== 'zh' && (
+              <button type="button" onClick={() => toggle(l)} className={`text-xs font-semibold px-3 py-1 rounded-lg border ${l.is_active ? 'border-gray-300 text-gray-600' : 'border-gray-200 text-gray-400'}`}>
+                {l.is_active ? t('page_settings.languages_active') : t('page_settings.languages_inactive')}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <form onSubmit={add} className="flex flex-wrap gap-2">
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('page_settings.languages_code')} className="w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('page_settings.languages_label')} className="flex-1 min-w-[10rem] border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
+        <button type="submit" className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">{t('page_settings.languages_add')}</button>
+      </form>
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+    </div>
+  )
+}
+
 export default function Settings() {
   const { t } = useTranslation()
   return (
@@ -75,6 +134,7 @@ export default function Settings() {
         <span className="font-semibold"> {t('nav.items.hosts')}</span> {t('page_settings.and')} <span className="font-semibold">{t('nav.items.shipping_settings')}</span> {t('page_settings.moved_settings_notice_suffix')}
       </p>
       <FeeSettingsCard />
+      <LanguagesCard />
     </div>
   )
 }

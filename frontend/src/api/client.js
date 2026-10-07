@@ -8,6 +8,10 @@ const PUBLIC_PATHS = ['/login', '/live-data-upload', '/pickup/', '/forgot-passwo
 const client = axios.create({ baseURL: API_BASE })
 
 client.interceptors.request.use((config) => {
+  // Tells the backend which language to localize product names into (falls back to the
+  // canonical Chinese name when a product has no translation for it).
+  const lang = localStorage.getItem('language')
+  if (lang) config.headers['X-Lang'] = lang
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`

@@ -209,7 +209,7 @@ func (h *DashboardHandler) TopProducts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, p.name,
+		SELECT p.id, `+productNameSQL(r, "p")+`,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       SUM(oi.qty) AS qty, SUM(oi.qty * oi.price_at_order) AS revenue
 		FROM order_items oi
@@ -373,7 +373,7 @@ func (h *DashboardHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 
 	declining := []string{}
 	rows, err := h.DB.Query(ctx, `
-		SELECT p.name,
+		SELECT `+productNameSQL(r, "p")+`,
 		       COALESCE(SUM(CASE WHEN o.created_at >= $1 AND o.created_at < $2 THEN oi.qty ELSE 0 END),0) AS current_qty,
 		       COALESCE(SUM(CASE WHEN o.created_at >= $3 AND o.created_at < $1 THEN oi.qty ELSE 0 END),0) AS prior_qty
 		FROM order_items oi

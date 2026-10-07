@@ -235,7 +235,7 @@ func (h *SupplierHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if rows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, COALESCE(p.sku,''), p.name,
+		SELECT p.id, COALESCE(p.sku,''), `+productNameSQL(r, "p")+`,
 		       COALESCE((SELECT url FROM product_images WHERE product_id = p.id ORDER BY sort_order LIMIT 1), '')
 		FROM products p WHERE p.supplier_id=$1 ORDER BY p.name`, id); err == nil {
 		defer rows.Close()

@@ -880,7 +880,10 @@
     "vendor_sku": "供應商貨號",
     "add_color_from_master": "從顏色清單新增...",
     "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗：",
-    "variant_sku_hint": "依商品代碼自動帶入 - 如有需要可手動修改"
+    "variant_sku_hint": "依商品代碼自動帶入 - 如有需要可手動修改",
+    "names_by_language": "各語言名稱",
+    "names_by_language_hint": "選填。留空則使用上方的中文名稱。採購請求的一鍵複製一律使用中文名稱。",
+    "chinese_name_hint": "主要名稱（中文）"
   },
   "page_products": {
     "activate": "上架",
@@ -1272,7 +1275,15 @@
     "moved_settings_notice_prefix": "直播主播與取貨／運費方式設定已分別移至",
     "moved_settings_notice_suffix": "頁面。",
     "saved_label": "已儲存",
-    "saving": "儲存中..."
+    "saving": "儲存中...",
+    "languages_title": "商品語言",
+    "languages_desc": "編輯商品時可填寫名稱的語言。新增語言不會翻譯系統介面，只會新增商品名稱欄位。",
+    "languages_code": "代碼（例如 vi、fil）",
+    "languages_label": "語言名稱",
+    "languages_add": "新增",
+    "languages_active": "啟用",
+    "languages_inactive": "停用",
+    "languages_error": "儲存語言失敗"
   },
   "page_shipping": {
     "cancel_link": "取消",

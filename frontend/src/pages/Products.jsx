@@ -7,6 +7,7 @@ import { listProducts, createProduct, updateProduct, updateVariant, deleteProduc
 import { listCategories } from '../api/categories'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
+import { localizedProductName, allProductNames } from '../utils/productName'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
@@ -21,7 +22,7 @@ const statusColors = {
 }
 
 function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { translateColor, translateCategory } = useMasterData()
   const { user } = useAuth()
   const isAdmin = user?.role === 'super_user'
@@ -118,7 +119,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
           />
           <div className="min-w-0">
             {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-            <p className="font-semibold text-[var(--text-primary)] text-sm truncate hover:underline">{p.name}</p>
+            <p className="font-semibold text-[var(--text-primary)] text-sm truncate hover:underline">{localizedProductName(p, i18n.language)}</p>
             {p.category && <p className="text-xs text-[var(--text-secondary)]">{translateCategory(p.category)}</p>}
             <p className="text-xs text-[var(--text-secondary)]">{colorsLabel}</p>
             <p className="text-xs text-[var(--text-secondary)]">{sizesLabel}</p>
@@ -191,7 +192,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
 }
 
 export default function Products() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { translateCategory } = useMasterData()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -231,7 +232,7 @@ export default function Products() {
       if (tab === 'inactive' && p.is_active) return false
       if (search) {
         const q = search.toLowerCase()
-        const matchesName = p.name.toLowerCase().includes(q)
+        const matchesName = allProductNames(p).includes(q)
         const matchesSku = (p.sku || '').toLowerCase().includes(q)
         if (!matchesName && !matchesSku) return false
       }
@@ -570,7 +571,7 @@ export default function Products() {
                   />
                   <div className="min-w-0 flex-1">
                     {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{p.name}</p>
+                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{localizedProductName(p, i18n.language)}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
                         {t(`page_products.status_${p.status_label}`, statusLabels[p.status_label])}

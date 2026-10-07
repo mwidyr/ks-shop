@@ -129,7 +129,7 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	p.ReceivedAt = receivedAt
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT pi.id, pi.variant_id, pr.name, pv.color, pv.size, pv.sku, pi.qty, pi.unit_cost, pi.received_qty
+		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, pi.qty, pi.unit_cost, pi.received_qty
 		FROM purchase_items pi
 		JOIN product_variants pv ON pv.id = pi.variant_id
 		JOIN products pr ON pr.id = pv.product_id

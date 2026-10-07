@@ -145,7 +145,7 @@ func (h *LiveSessionHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT lsp.id, pv.id, p.name, pv.color, pv.size, pv.sku, pv.price, lsp.live_price
+		SELECT lsp.id, pv.id, `+productNameSQL(r, "p")+`, pv.color, pv.size, pv.sku, pv.price, lsp.live_price
 		FROM live_session_products lsp
 		JOIN product_variants pv ON pv.id = lsp.variant_id
 		JOIN products p ON p.id = pv.product_id

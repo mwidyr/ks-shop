@@ -30,6 +30,9 @@ export function changeLanguage(lang) {
   } catch {
     // ignore storage errors (private browsing, etc.)
   }
+  // Product names are localized by the backend (X-Lang header), so already-loaded data must be
+  // refetched - a reload is the simplest way to make every page do that.
+  window.location.reload()
 }
 
 export default i18next

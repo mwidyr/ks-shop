@@ -81,6 +81,7 @@ func main() {
 	hostAnalyticsH := &handlers.HostAnalyticsHandler{DB: pool}
 	heatmapH := &handlers.HeatmapHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
+	languageH := &handlers.LanguageHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
 		CloudinaryCloudName: cfg.CloudinaryCloudName,
@@ -239,6 +240,12 @@ func main() {
 			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
 			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
 			r.With(edit("shipping_settings")).Delete("/pickup-chains/{id}", pickupChainH.Delete)
+
+			// Languages for the per-language product names (reference data: any staff can read it,
+			// the Settings tab edits it).
+			r.Get("/languages", languageH.List)
+			r.With(edit("settings")).Post("/languages", languageH.Create)
+			r.With(edit("settings")).Patch("/languages/{code}", languageH.Update)
 			r.With(view("shipping_settings")).Get("/settings/shipping", shippingSettingsH.Get)
 			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
 			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)

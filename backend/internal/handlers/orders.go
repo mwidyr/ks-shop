@@ -307,7 +307,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT oi.id, oi.variant_id, p.name,
+		SELECT oi.id, oi.variant_id, `+productNameSQL(r, "p")+`,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
 		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock
@@ -364,7 +364,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 
 		itemRows, err := h.DB.Query(ctx, `
-			SELECT oi.id, oi.variant_id, p.name,
+			SELECT oi.id, oi.variant_id, `+productNameSQL(r, "p")+`,
 			       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 			       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
 			       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock, o2.order_no
