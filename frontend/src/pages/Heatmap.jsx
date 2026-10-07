@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getHeatmapSummary, getHeatmapGrid, getHeatmapCellDetail } from '../api/heatmap'
@@ -7,41 +7,20 @@ import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
-// Host names are truncated to this width (via an inner div, not the <td> itself - see below) so
-// one long name can't blow out the column. This is only a cap, not the actual rendered width:
-// without table-layout:fixed, a <td>'s own width/maxWidth style is just a hint to the browser's
-// auto column-sizing, not a hard constraint, so a hardcoded sticky offset based on this number
-// alone drifted from the real rendered boundary (the exact gap the client reported). The sticky
-// QTY column's left offset is instead measured from the Host column's actual DOM width at
-// runtime (see hostColRef/qtyColLeft below), which is correct regardless of content or layout.
-const HOST_COL_MAX_WIDTH = 110
-// Shift and QTY are genuinely fixed-width (not just capped) per the client spec - Shift always
-// shows one of 3 short English words regardless of locale, QTY is numeric and must comfortably
-// fit a 3-digit value. Host Name stays the one dynamically-measured column (names vary too much
-// for a safe fixed width) - see hostColRef/qtyColLeft below.
-const SHIFT_COL_WIDTH = 68
+// The left block (Host | QTY | Shift) is its own fixed, non-scrolling table next to the
+// horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
+// paint over it. Because they are two tables, every row must have the same fixed height.
+const HOST_COL_WIDTH = 120
 const QTY_COL_WIDTH = 56
+const SHIFT_COL_WIDTH = 80
 const CELL_GAP = 2
+const HEAD_ROW_H = 36
+const BODY_ROW_H = 28
 // Fixed-English display labels (deliberately separate from the page_hosts.shift_* i18n keys
 // used elsewhere in the app, which stay correctly translated per locale) - the client explicitly
 // wants "Morning/Middle/Night" in all 3 languages here, including "Night" for what's stored as
 // 'evening' everywhere else in the schema/UI.
 const SHIFT_LABELS = { morning: 'Morning', middle: 'Middle', evening: 'Night' }
-// A wide leftward box-shadow, same color as the cell's own background, painted behind a sticky
-// column - covers any leading-edge/inter-column gap (border-spacing/padding rounding). A
-// box-shadow is safe here even though it extends far past the cell's own box: it's purely
-// visual (doesn't affect layout/scroll width) and gets clipped by the scroll container's own
-// overflow, so it can never leak past the card's rounded edge into the page behind it. Applied
-// to ALL THREE sticky columns (Shift, Host, QTY) - a previous round only applied it to Shift,
-// leaving the Shift-Host and Host-QTY boundaries uncovered.
-//
-// Color is the --table-card-bg CSS variable (see index.html, light #FFFFFF / dark #1C1C1E),
-// NOT a literal "white" - a hardcoded white here is exactly what caused the dark-mode bug: in
-// dark mode the surrounding table is correctly dark, but every sticky cell still painted a
-// bright white block behind itself, regardless of theme. bg-white below has the same problem
-// and is replaced with bg-[var(--table-card-bg)] throughout for the same reason.
-const STICKY_COL_SHADOW = { boxShadow: '-40px 0 0 0 var(--table-card-bg)' }
-
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
   const day = d.getDay()
@@ -249,23 +228,6 @@ export default function Heatmap() {
   const [activeCell, setActiveCell] = useState(null)
   const [activePreset, setActivePreset] = useState('today')
   const [nowTick, setNowTick] = useState(0)
-  const hostColRef = useRef(null)
-  const hostColLeft = SHIFT_COL_WIDTH + CELL_GAP
-  const [qtyColLeft, setQtyColLeft] = useState(hostColLeft + HOST_COL_MAX_WIDTH + CELL_GAP)
-
-  // Measures the Host column's actual rendered width (border-separate's border-spacing included,
-  // since getBoundingClientRect reflects real layout, not a guess) and uses that exact pixel
-  // value for the sticky QTY column's offset - see the HOST_COL_MAX_WIDTH comment for why a
-  // hardcoded constant drifted from the real boundary and left a gap. Shift's own offset doesn't
-  // need this treatment: it's a genuinely fixed width, not a guessed cap, so hostColLeft above is
-  // a plain constant.
-  useLayoutEffect(() => {
-    if (hostColRef.current) {
-      setQtyColLeft(hostColLeft + hostColRef.current.getBoundingClientRect().width + CELL_GAP)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grid])
-
   useEffect(() => { listLocations().then(setLocations) }, [])
 
   // Keeps the NOW indicator (item 058) actually moving as time passes while the page stays open,
@@ -313,92 +275,103 @@ export default function Heatmap() {
             <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_gmv')}</p><Metric type="gmv" className="text-lg">{fmtMoney(summary.gmv)}</Metric></div>
           </div>
 
-          <div className={`${cardClasses} p-5 overflow-x-auto`}>
-            <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
+          <div className={`${cardClasses} p-5 flex`}>
+            {/* Left block: fixed, opaque, never scrolls. */}
+            <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-1 mr-1" style={{ borderSpacing: CELL_GAP }}>
               <thead>
-                <tr>
-                  <th className="p-1 text-left sticky left-0 z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
-                    {t('page_heatmap.col_shift')}
-                  </th>
-                  <th ref={hostColRef} className="p-1 text-left sticky z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
-                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.col_host')}</div>
-                  </th>
+                <tr style={{ height: HEAD_ROW_H }}>
+                  <th className="p-1 text-left whitespace-nowrap" style={{ width: HOST_COL_WIDTH, minWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
                   {/* Always literal "QTY" in all 3 languages per the client spec - no t() call. */}
-                  <th className="p-1 text-right sticky z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>QTY</th>
-                  {Array.from({ length: NUM_SLOTS }).map((_, i) => (
-                    <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
-                      {i === nowSlot && (
-                        <div className="flex flex-col items-center leading-none mb-0.5">
-                          <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded-full">{t('page_heatmap.now_badge')}</span>
-                          <span className="text-red-600 text-[7px] -mt-px">▼</span>
-                        </div>
-                      )}
-                      <span className={i === nowSlot ? 'font-bold text-black' : ''}>{slotLabel(i)}</span>
-                      {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
-                    </th>
-                  ))}
+                  <th className="p-1 text-right whitespace-nowrap" style={{ width: QTY_COL_WIDTH, minWidth: QTY_COL_WIDTH }}>QTY</th>
+                  <th className="p-1 text-left whitespace-nowrap" style={{ width: SHIFT_COL_WIDTH, minWidth: SHIFT_COL_WIDTH }}>{t('page_heatmap.col_shift')}</th>
                 </tr>
               </thead>
               <tbody>
                 {grid.hosts.map((host) => (
-                  <tr key={host.host_id}>
-                    <td className="p-1 font-medium text-gray-500 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
-                      {SHIFT_LABELS[host.shift] || ''}
+                  <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
+                    <td className="p-1 font-medium text-gray-700" title={host.host_name}>
+                      <div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{host.host_name}</div>
                     </td>
-                    <td className="p-1 font-medium text-gray-700 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
-                      <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{host.host_name}</div>
-                    </td>
-                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(host.total_qty)}</td>
-                    {host.slots.map((qty, i) => {
-                      const color = cellColor(qty, rangeDays)
+                    <td className="p-1 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtNum(host.total_qty)}</td>
+                    <td className="p-1 font-medium text-gray-500 whitespace-nowrap">{SHIFT_LABELS[host.shift] || ''}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
+                  <td className="p-1 font-bold text-gray-800">ALL</td>
+                  <td className="p-1 text-right font-bold text-gray-800 whitespace-nowrap">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="p-1"></td>
+                </tr>
+                <tr style={{ height: BODY_ROW_H }}>
+                  <td className="p-1 font-bold text-gray-500"><div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</div></td>
+                  <td className="p-1"></td>
+                  <td className="p-1"></td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Right pane: only the time-slot columns scroll. */}
+            <div className="overflow-x-auto flex-1 min-w-0">
+              <table className="text-xs border-separate" style={{ borderSpacing: CELL_GAP }}>
+                <thead>
+                  <tr style={{ height: HEAD_ROW_H }}>
+                    {Array.from({ length: NUM_SLOTS }).map((_, i) => (
+                      <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
+                        {i === nowSlot && (
+                          <div className="flex flex-col items-center leading-none mb-0.5">
+                            <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded-full">{t('page_heatmap.now_badge')}</span>
+                            <span className="text-red-600 text-[7px] -mt-px">▼</span>
+                          </div>
+                        )}
+                        <span className={i === nowSlot ? 'font-bold text-black' : ''}>{slotLabel(i)}</span>
+                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grid.hosts.map((host) => (
+                    <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
+                      {host.slots.map((qty, i) => {
+                        const color = cellColor(qty, rangeDays)
+                        return (
+                          <td
+                            key={i}
+                            onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
+                            className={`p-1 text-center rounded cursor-pointer relative ${color.className || ''}`}
+                            style={color.style}
+                          >
+                            {qty || ''}
+                            {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
+                    {grid.all_row.map((qty, i) => {
+                      const color = cellColor(qty, rangeDays, ALL_COLORS)
                       return (
-                        <td
-                          key={i}
-                          onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
-                          className={`p-1 text-center rounded cursor-pointer relative ${color.className || ''}`}
-                          style={color.style}
-                        >
+                        <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
                           {qty || ''}
                           {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
                         </td>
                       )
                     })}
                   </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200">
-                  <td className="p-1 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
-                  <td className="p-1 font-bold text-gray-800 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
-                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>ALL</div>
-                  </td>
-                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
-                  {grid.all_row.map((qty, i) => {
-                    const color = cellColor(qty, rangeDays, ALL_COLORS)
-                    return (
-                      <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
-                        {qty || ''}
-                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
-                      </td>
-                    )
-                  })}
-                </tr>
-                <tr>
-                  <td className="p-1 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
-                  <td className="p-1 font-bold text-gray-500 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
-                    <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.average_row')}</div>
-                  </td>
-                  <td className="p-1 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}></td>
-                  {grid.avg_row.map((v, i) => {
-                    const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
-                    return (
-                      <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
-                        {v == null ? '—' : v.toFixed(1)}
-                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
-                      </td>
-                    )
-                  })}
-                </tr>
-              </tbody>
-            </table>
+                  <tr style={{ height: BODY_ROW_H }}>
+                    {grid.avg_row.map((v, i) => {
+                      const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
+                      return (
+                        <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
+                          {v == null ? '—' : v.toFixed(1)}
+                          {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className={`${cardClasses} p-5`}>
