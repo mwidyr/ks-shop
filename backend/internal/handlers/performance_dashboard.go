@@ -168,16 +168,29 @@ func (h *PerformanceDashboardHandler) HostRanking(w http.ResponseWriter, r *http
 	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
 	args = append(args, channelArgs...)
 
-	query := `WITH ` + cte + `
+	// sales_agg is an INNER JOIN + WHERE (not a LEFT JOIN with the filter stuffed into its ON
+	// clause, which used to be a no-op here: the oi/qty/gmv aggregates read oi directly, which
+	// was never actually filtered, so cancelled/returned orders' items still got summed) -
+	// mirrors PerformanceData's sales_agg CTE in this same file, the correct reference pattern.
+	// The outer LEFT JOIN from valid_hosts is what still lets a host with zero valid sales show
+	// up via COALESCE instead of disappearing from the ranking entirely.
+	query := `WITH ` + cte + `,
+		sales_agg AS (
+			SELECT oi.host_id, SUM(oi.qty) AS qty, COUNT(DISTINCT oi.order_id) AS ord,
+			       SUM(oi.qty * oi.price_at_order) AS gmv
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
+			  AND o.created_at >= $1 AND o.created_at < $2
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
+			GROUP BY oi.host_id
+		)
 		SELECT vh.host_id, vh.host_name, vh.location_name,
-		       COALESCE(SUM(oi.qty),0) AS qty,
-		       COALESCE(COUNT(DISTINCT oi.order_id),0) AS ord,
-		       COALESCE(SUM(oi.qty * oi.price_at_order),0) AS gmv
+		       COALESCE(sa.qty,0) AS qty,
+		       COALESCE(sa.ord,0) AS ord,
+		       COALESCE(sa.gmv,0) AS gmv
 		FROM valid_hosts vh
-		LEFT JOIN order_items oi ON oi.host_id = vh.host_id
-		LEFT JOIN orders o ON o.id = oi.order_id AND o.created_at >= $1 AND o.created_at < $2
-		     AND o.status NOT IN ('cancelled','return')` + channelWhere + `
-		GROUP BY vh.host_id, vh.host_name, vh.location_name
+		LEFT JOIN sales_agg sa ON sa.host_id = vh.host_id
 		ORDER BY gmv DESC`
 
 	rows, err := h.DB.Query(r.Context(), query, args...)

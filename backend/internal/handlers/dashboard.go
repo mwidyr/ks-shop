@@ -283,9 +283,15 @@ func (h *DashboardHandler) Profit(w http.ResponseWriter, r *http.Request) {
 		WHERE o.created_at >= $1 AND o.created_at < $2 AND o.status <> 'cancelled'`,
 		from, to).Scan(&gross, &cogs)
 
+	// Prefer an admin-set reference cost (products.cost) when one's actually been entered,
+	// otherwise fall back to the auto-tracked cost_price (updated automatically whenever a
+	// purchase is received - see purchases.go) - same COALESCE/NULLIF ordering already
+	// established in purchase_requisitions.go. products.cost is optional/admin-only and in
+	// practice almost never populated, which is why this figure used to read as flat 0 even
+	// with real, correct cost_price data sitting right there (used three lines above for cogs).
 	var productCost float64
 	h.DB.QueryRow(ctx, `
-		SELECT COALESCE(SUM(oi.qty * p.cost),0)
+		SELECT COALESCE(SUM(oi.qty * COALESCE(NULLIF(p.cost,0), pv.cost_price)),0)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id

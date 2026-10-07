@@ -1627,7 +1627,8 @@
     "total_gmv": "Total GMV",
     "total_ord": "Total ORD",
     "total_qty": "Total QTY",
-    "view_order_detail": "Klik untuk membuka order ini"
+    "view_order_detail": "Klik untuk membuka order ini",
+    "col_shift": "Shift"
   },
   "page_purchase_history": {
     "all_suppliers": "Semua supplier",

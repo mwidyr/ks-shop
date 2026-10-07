@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { getSummary, getGraph, getHostRanking, getTopProducts, getProfit, getAlerts } from '../api/dashboard'
+import { getSummary, getGraph, getHostRanking, getTopProducts, getAlerts } from '../api/dashboard'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
@@ -40,7 +40,6 @@ export default function Dashboard() {
   const [ranking, setRanking] = useState([])
   const [topProducts, setTopProducts] = useState([])
   const [activeHostCount, setActiveHostCount] = useState(0)
-  const [profit, setProfit] = useState(null)
   const [alerts, setAlerts] = useState(null)
   const [range, setRange] = useState(null)
   const [metric, setMetric] = useState('qty')
@@ -55,7 +54,6 @@ export default function Dashboard() {
     getGraph(range).then(setGraphPoints)
     getHostRanking(range).then(setRanking)
     getTopProducts(range).then(setTopProducts)
-    getProfit(range).then(setProfit)
     getAlerts(range).then(setAlerts)
   }, [range])
 
@@ -183,33 +181,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {profit && (
-                <div className="bg-white rounded-2xl shadow-sm p-5">
-                  <h2 className="font-bold text-gray-800 mb-4">{t('page_dashboard.gross_to_net_profit')}</h2>
-                  <div className="text-sm divide-y">
-                    {[
-                      [t('page_dashboard.profit_gross_sales'), profit.gross_sales, false],
-                      [t('page_dashboard.profit_discount'), profit.discount, true],
-                      [t('page_dashboard.profit_platform_fee'), profit.platform_fee, true],
-                      [t('page_dashboard.profit_shipping_subsidy'), profit.shipping_subsidy, true],
-                      [t('page_dashboard.profit_ads'), profit.ad_cost, true],
-                      [t('page_dashboard.profit_refund'), profit.refund, true],
-                      [t('page_dashboard.profit_net_sales'), profit.net_sales, false],
-                    ].map(([label, value, neg]) => (
-                      <div key={label} className="flex items-center justify-between py-1.5">
-                        <span className="text-gray-500">{label}</span>
-                        <span className={neg ? 'text-red-600' : 'text-gray-700 font-medium'}>
-                          {neg && value > 0 ? '-' : ''}{formatCurrency(value)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between py-2 pt-3">
-                      <span className="font-bold text-gray-800">{t('page_dashboard.profit_label')}</span>
-                      <span className="text-lg font-extrabold text-brand-600">{formatCurrency(profit.net_profit)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="space-y-6">

@@ -1627,7 +1627,8 @@
     "total_gmv": "總流水",
     "total_ord": "總訂單數",
     "total_qty": "總銷量",
-    "view_order_detail": "點擊開啟此訂單"
+    "view_order_detail": "點擊開啟此訂單",
+    "col_shift": "班別"
   },
   "page_purchase_history": {
     "all_suppliers": "所有供應商",

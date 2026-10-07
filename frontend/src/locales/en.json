@@ -1627,7 +1627,8 @@
     "total_gmv": "Total GMV",
     "total_ord": "Total ORD",
     "total_qty": "Total QTY",
-    "view_order_detail": "Click to open this order"
+    "view_order_detail": "Click to open this order",
+    "col_shift": "Shift"
   },
   "page_purchase_history": {
     "all_suppliers": "All suppliers",
