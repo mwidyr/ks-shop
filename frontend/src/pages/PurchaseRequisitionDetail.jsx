@@ -30,7 +30,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   // translateColor is deliberately NOT used in handleCopy's grouping below - that text is sent
   // to the (Chinese-speaking) supplier and must always show the Chinese color name, regardless
   // of the staff member's current UI locale. It's only applied to the on-screen items table.
-  const { translateColor } = useMasterData()
+  const { translateColor, toChineseColor } = useMasterData()
   const [items, setItems] = useState(() => Object.fromEntries(group.items.map((it) => [it.id, {
     planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '',
   }])))
@@ -137,11 +137,13 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
 
   // WeChat-ready copy text (item 056, format updated per item 077): grouped by the supplier's
   // own vendor_sku prefix (still shown when present) plus our own Product Code - not the product
-  // NAME, since name translation isn't available yet and the supplier reads Chinese. Color stays
-  // the Chinese canonical name from Color Master already (see translateColor usage below - this
-  // function deliberately does NOT call it, so the copied text is always Chinese regardless of
-  // the staff member's current UI locale). One line per color with its purchase qty. Name/Address
-  // are left blank - this is a message template to send the supplier, not a real contact record.
+  // NAME, since name translation isn't available yet and the supplier reads Chinese. Color uses
+  // toChineseColor (NOT translateColor, which follows the staff member's current UI locale) so
+  // the copied text always shows the Chinese name from Color Master, even for legacy items whose
+  // raw stored color is actually Indonesian text entered before Color Master existed - confirmed
+  // broken in practice (e.g. "Mocca", "Abu Muda", "Navy" showing up in copy text for older SKUs).
+  // One line per color with its purchase qty. Name/Address are left blank - this is a message
+  // template to send the supplier, not a real contact record.
   function buildCopyText() {
     const groups = []
     const byKey = new Map()
@@ -154,7 +156,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
         groups.push(g)
       }
       const qty = Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0
-      g.lines.push(`${it.color} : ${qty}`)
+      g.lines.push(`${toChineseColor(it.color)} : ${qty}`)
     }
     const parts = ['姓名 : ', '地址 : ', '']
     groups.forEach((g, idx) => {

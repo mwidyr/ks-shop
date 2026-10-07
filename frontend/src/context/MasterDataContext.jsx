@@ -10,6 +10,7 @@ import { listColors } from '../api/colors'
 const MasterDataContext = createContext({
   categories: [], colors: [],
   translateCategory: (v) => v, translateColor: (v) => v,
+  toChineseColor: (v) => v,
 })
 
 export function MasterDataProvider({ children }) {
@@ -33,11 +34,22 @@ export function MasterDataProvider({ children }) {
     return i18n.language === 'id' ? match.name_id : match.name_zh
   }
 
+  // Always resolves to name_zh, regardless of the current UI locale - for places (like the
+  // Purchase Requisition copy-text) that must show the canonical Chinese color name even when
+  // the app itself is displaying Indonesian or English, and even when the raw stored value is
+  // legacy Indonesian text (see the matching comment on translate() above).
+  function toChinese(list, raw) {
+    if (!raw) return raw
+    const match = list.find((item) => item.name_zh === raw || item.name_id === raw)
+    return match ? match.name_zh : raw
+  }
+
   const value = {
     categories,
     colors,
     translateCategory: (raw) => translate(categories, raw),
     translateColor: (raw) => translate(colors, raw),
+    toChineseColor: (raw) => toChinese(colors, raw),
   }
 
   return <MasterDataContext.Provider value={value}>{children}</MasterDataContext.Provider>

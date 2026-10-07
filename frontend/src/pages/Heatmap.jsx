@@ -28,14 +28,19 @@ const CELL_GAP = 2
 // 'evening' everywhere else in the schema/UI.
 const SHIFT_LABELS = { morning: 'Morning', middle: 'Middle', evening: 'Night' }
 // A wide leftward box-shadow, same color as the cell's own background, painted behind a sticky
-// column - covers any leading-edge gap between the scroll container's padding and where the
-// sticky column actually pins (border-spacing/padding rounding). A box-shadow is safe here even
-// though it extends far past the cell's own box: it's purely visual (doesn't affect layout/
-// scroll width) and gets clipped by the scroll container's own overflow, so it can never leak
-// past the card's rounded edge into the page behind it. Applied to both Shift (now the true
-// leftmost column) and Host (cheap extra insurance, having chased this exact class of gap bug
-// twice already).
-const STICKY_COL_SHADOW = { boxShadow: '-40px 0 0 0 white' }
+// column - covers any leading-edge/inter-column gap (border-spacing/padding rounding). A
+// box-shadow is safe here even though it extends far past the cell's own box: it's purely
+// visual (doesn't affect layout/scroll width) and gets clipped by the scroll container's own
+// overflow, so it can never leak past the card's rounded edge into the page behind it. Applied
+// to ALL THREE sticky columns (Shift, Host, QTY) - a previous round only applied it to Shift,
+// leaving the Shift-Host and Host-QTY boundaries uncovered.
+//
+// Color is the --table-card-bg CSS variable (see index.html, light #FFFFFF / dark #1C1C1E),
+// NOT a literal "white" - a hardcoded white here is exactly what caused the dark-mode bug: in
+// dark mode the surrounding table is correctly dark, but every sticky cell still painted a
+// bright white block behind itself, regardless of theme. bg-white below has the same problem
+// and is replaced with bg-[var(--table-card-bg)] throughout for the same reason.
+const STICKY_COL_SHADOW = { boxShadow: '-40px 0 0 0 var(--table-card-bg)' }
 
 function isoDate(d) { return d.toISOString().slice(0, 10) }
 function startOfWeek(d) {
@@ -312,14 +317,14 @@ export default function Heatmap() {
             <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
               <thead>
                 <tr>
-                  <th className="p-1 text-left sticky left-0 z-20 bg-white" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
+                  <th className="p-1 text-left sticky left-0 z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
                     {t('page_heatmap.col_shift')}
                   </th>
-                  <th ref={hostColRef} className="p-1 text-left sticky z-20 bg-white" style={{ left: hostColLeft }}>
+                  <th ref={hostColRef} className="p-1 text-left sticky z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.col_host')}</div>
                   </th>
                   {/* Always literal "QTY" in all 3 languages per the client spec - no t() call. */}
-                  <th className="p-1 text-right sticky z-20 bg-white" style={{ left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>QTY</th>
+                  <th className="p-1 text-right sticky z-20 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>QTY</th>
                   {Array.from({ length: NUM_SLOTS }).map((_, i) => (
                     <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
                       {i === nowSlot && (
@@ -337,13 +342,13 @@ export default function Heatmap() {
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id}>
-                    <td className="p-1 font-medium text-gray-500 sticky left-0 z-10 bg-white" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
+                    <td className="p-1 font-medium text-gray-500 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}>
                       {SHIFT_LABELS[host.shift] || ''}
                     </td>
-                    <td className="p-1 font-medium text-gray-700 sticky z-10 bg-white" style={{ left: hostColLeft }}>
+                    <td className="p-1 font-medium text-gray-700 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
                       <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{host.host_name}</div>
                     </td>
-                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-white" style={{ left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(host.total_qty)}</td>
+                    <td className="p-1 text-right font-semibold text-gray-700 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(host.total_qty)}</td>
                     {host.slots.map((qty, i) => {
                       const color = cellColor(qty, rangeDays)
                       return (
@@ -361,11 +366,11 @@ export default function Heatmap() {
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200">
-                  <td className="p-1 sticky left-0 z-10 bg-white" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
-                  <td className="p-1 font-bold text-gray-800 sticky z-10 bg-white" style={{ left: hostColLeft }}>
+                  <td className="p-1 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
+                  <td className="p-1 font-bold text-gray-800 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>ALL</div>
                   </td>
-                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-white" style={{ left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="p-1 text-right font-bold text-gray-800 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}>{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                   {grid.all_row.map((qty, i) => {
                     const color = cellColor(qty, rangeDays, ALL_COLORS)
                     return (
@@ -377,11 +382,11 @@ export default function Heatmap() {
                   })}
                 </tr>
                 <tr>
-                  <td className="p-1 sticky left-0 z-10 bg-white" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
-                  <td className="p-1 font-bold text-gray-500 sticky z-10 bg-white" style={{ left: hostColLeft }}>
+                  <td className="p-1 sticky left-0 z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, width: SHIFT_COL_WIDTH, maxWidth: SHIFT_COL_WIDTH }}></td>
+                  <td className="p-1 font-bold text-gray-500 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: hostColLeft }}>
                     <div className="truncate" style={{ maxWidth: HOST_COL_MAX_WIDTH }}>{t('page_heatmap.average_row')}</div>
                   </td>
-                  <td className="p-1 sticky z-10 bg-white" style={{ left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}></td>
+                  <td className="p-1 sticky z-10 bg-[var(--table-card-bg)]" style={{ ...STICKY_COL_SHADOW, left: qtyColLeft, width: QTY_COL_WIDTH, maxWidth: QTY_COL_WIDTH }}></td>
                   {grid.avg_row.map((v, i) => {
                     const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
                     return (
