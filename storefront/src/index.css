@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+body { font-family: 'Poppins', system-ui, sans-serif; color: #111; background: #fff; -webkit-font-smoothing: antialiased; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.btn { @apply inline-flex items-center justify-center font-semibold text-sm uppercase tracking-wide px-6 py-3 transition disabled:opacity-40 disabled:cursor-not-allowed; }
+.btn-dark { @apply bg-black text-white hover:bg-brand-600; }
+.btn-outline { @apply border border-black text-black hover:bg-black hover:text-white; }
+.input { @apply w-full border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:border-black; }

@@ -69,6 +69,22 @@ services:
     depends_on:
       - backend
 
+  # Customer website (ralulu.com). Same pattern as "web": localhost-only, the host nginx terminates
+  # TLS and routes ralulu.com -> :8082 and admin.ralulu.com -> :8081.
+  store:
+    build:
+      context: ./storefront
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    # Localhost-only by default (production: the host nginx routes ralulu.com here). On the
+    # IP-only staging VPS set STORE_BIND=0.0.0.0 in .env to reach it at http://<IP>:8082.
+    ports:
+      - "${STORE_BIND:-127.0.0.1}:8082:80"
+    depends_on:
+      - backend
+
 volumes:
   db_data:
   backend_uploads:

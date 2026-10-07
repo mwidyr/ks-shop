@@ -43,7 +43,7 @@ func main() {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Lang"},
 		AllowCredentials: false,
 	}))
 
@@ -82,6 +82,7 @@ func main() {
 	heatmapH := &handlers.HeatmapHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	languageH := &handlers.LanguageHandler{DB: pool}
+	storeH := &handlers.StorefrontHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
 		CloudinaryCloudName: cfg.CloudinaryCloudName,
@@ -145,6 +146,17 @@ func main() {
 		r.Post("/public/live-data/upload", uploadH.UploadImage)
 		r.Post("/public/live-data/recognize", liveDataH.Recognize)
 		r.Post("/public/live-data/submit", liveDataH.Submit)
+
+		// Customer website (ralulu.com): public catalog + guest checkout, see storefront.go.
+		r.Get("/public/store/settings", storeH.Settings)
+		r.Get("/public/store/categories", storeH.Categories)
+		r.Get("/public/store/products", storeH.Products)
+		r.Get("/public/store/products/{id}", storeH.Product)
+		r.Get("/public/store/promotions", storeH.Promotions)
+		r.Post("/public/store/quote", storeH.Quote)
+		r.Post("/public/store/orders", storeH.CreateOrder)
+		r.Get("/public/store/orders/track", storeH.Track)
+		r.Post("/public/store/newsletter", storeH.Subscribe)
 
 		r.Group(func(r chi.Router) {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
