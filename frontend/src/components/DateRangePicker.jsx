@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { jakartaIsoDate } from '../utils/jakartaDate'
 
-function isoDate(d) {
-  return d.toISOString().slice(0, 10)
-}
+const isoDate = jakartaIsoDate
 
 const presets = [
   { key: 'yesterday', labelKey: 'shared.date_yesterday', single: 1 },

@@ -85,10 +85,10 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if dateFrom := q.Get("date_from"); dateFrom != "" {
-		baseWhere += " AND o.created_at >= " + addArg(dateFrom)
+		baseWhere += " AND o.created_at >= (" + addArg(dateFrom) + "::date)::timestamp AT TIME ZONE 'Asia/Jakarta'"
 	}
 	if dateTo := q.Get("date_to"); dateTo != "" {
-		baseWhere += " AND o.created_at < " + addArg(dateTo) + "::date + interval '1 day'"
+		baseWhere += " AND o.created_at < (" + addArg(dateTo) + "::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'"
 	}
 	if pickupChainID := q.Get("pickup_chain_id"); pickupChainID != "" {
 		baseWhere += " AND o.pickup_chain_id = " + addArg(pickupChainID)

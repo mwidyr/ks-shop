@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Papa from 'papaparse'
 import { getProductReport, getOrderReport } from '../api/reports'
+import { jakartaIsoDate } from '../utils/jakartaDate'
 
-function isoDate(d) {
-  return d.toISOString().slice(0, 10)
-}
+const isoDate = jakartaIsoDate
 function todayISO() {
   return isoDate(new Date())
 }

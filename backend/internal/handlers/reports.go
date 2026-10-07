@@ -356,7 +356,7 @@ func (h *ReportsHandler) Orders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		SELECT o.created_at::date::text, o.order_no, o.status, ` + productNameSQL(r, "p") + `,
+		SELECT DATE(o.created_at AT TIME ZONE 'Asia/Jakarta')::text, o.order_no, o.status, ` + productNameSQL(r, "p") + `,
 		       CONCAT(pv.color, '/', pv.size), pv.sku, oi.qty, oi.price_at_order, oi.qty * oi.price_at_order,
 		       c.name, c.phone, COALESCE(h.name,'-'), COALESCE(u.name,'-')
 		FROM order_items oi
@@ -491,7 +491,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 	var todayQty, d7Qty, d14Qty, d30Qty int
 	h.DB.QueryRow(r.Context(), `
 		SELECT
-			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= date_trunc('day', now())),0),
+			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'Asia/Jakarta'),0),
 			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '7 days'),0),
 			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '14 days'),0),
 			COALESCE(SUM(oi.qty) FILTER (WHERE o.created_at >= now() - interval '30 days'),0)

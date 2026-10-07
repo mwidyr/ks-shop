@@ -18,6 +18,9 @@ type DashboardHandler struct {
 // API surface; reading either here means every caller works regardless of which one it sends,
 // rather than requiring every caller to agree on one name.
 // Defaults to "all time" (zero time -> now) when not provided.
+// businessTZ is the business day's timezone (Asia/Jakarta, UTC+7, no DST).
+var businessTZ = time.FixedZone("WIB", 7*60*60)
+
 func dateRange(r *http.Request) (time.Time, time.Time, bool) {
 	q := r.URL.Query()
 	fromStr, toStr := q.Get("from"), q.Get("to")
@@ -30,8 +33,11 @@ func dateRange(r *http.Request) (time.Time, time.Time, bool) {
 	if fromStr == "" && toStr == "" {
 		return time.Time{}, time.Time{}, false
 	}
-	from, _ := time.Parse("2006-01-02", fromStr)
-	to, err := time.Parse("2006-01-02", toStr)
+	// Day boundaries are Asia/Jakarta midnights, not UTC: parsing in UTC made "today" start at
+	// 07:00 Jakarta time, so an order created 00:00-07:00 counted toward the previous day. Jakarta
+	// has no DST, so a fixed +7 offset is exact (and needs no tzdata inside the container).
+	from, _ := time.ParseInLocation("2006-01-02", fromStr, businessTZ)
+	to, err := time.ParseInLocation("2006-01-02", toStr, businessTZ)
 	if err == nil {
 		to = to.Add(24 * time.Hour)
 	} else {
@@ -125,7 +131,7 @@ func (h *DashboardHandler) Graph(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT date_trunc('day', o.created_at)::date::text AS day, h.id, h.name,
+		SELECT DATE(o.created_at AT TIME ZONE 'Asia/Jakarta')::text AS day, h.id, h.name,
 		       SUM(oi.qty) AS qty, SUM(oi.qty * oi.price_at_order) AS revenue
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id

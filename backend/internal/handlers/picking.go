@@ -46,7 +46,7 @@ func (h *PickingHandler) Queue(w http.ResponseWriter, r *http.Request) {
 	if status == "" {
 		status = "picking"
 	}
-	baseWhere := " WHERE o.status = $1 AND (o.keep_date IS NULL OR o.keep_date <= CURRENT_DATE + 1) "
+	baseWhere := " WHERE o.status = $1 AND (o.keep_date IS NULL OR o.keep_date <= (now() AT TIME ZONE 'Asia/Jakarta')::date + 1) "
 	args := []interface{}{status}
 	argN := 2
 	addArg := func(a interface{}) string {

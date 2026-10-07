@@ -513,7 +513,7 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 	}
 
 	today := ""
-	tx.QueryRow(ctx, `SELECT now()::date::text`).Scan(&today)
+	tx.QueryRow(ctx, `SELECT (now() AT TIME ZONE 'Asia/Jakarta')::date::text`).Scan(&today)
 
 	for _, g := range groups {
 		itemRows, err := tx.Query(ctx, `

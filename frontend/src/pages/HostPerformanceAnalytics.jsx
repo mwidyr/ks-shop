@@ -7,8 +7,9 @@ import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { jakartaIsoDate } from '../utils/jakartaDate'
 
-function isoDate(d) { return d.toISOString().slice(0, 10) }
+const isoDate = jakartaIsoDate
 function startOfWeek(d) {
   const day = d.getDay()
   const start = new Date(d)

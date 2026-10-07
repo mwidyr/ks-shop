@@ -6,6 +6,7 @@ import { listLocations } from '../api/hostLocations'
 import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { jakartaIsoDate } from '../utils/jakartaDate'
 
 // The left block (Shift | Host | QTY) is its own fixed, non-scrolling table next to the
 // horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
@@ -21,7 +22,7 @@ const BODY_ROW_H = 28
 // wants "Morning/Middle/Night" in all 3 languages here, including "Night" for what's stored as
 // 'evening' everywhere else in the schema/UI.
 const SHIFT_LABELS = { morning: 'Morning', middle: 'Middle', evening: 'Night' }
-function isoDate(d) { return d.toISOString().slice(0, 10) }
+const isoDate = jakartaIsoDate
 function startOfWeek(d) {
   const day = d.getDay()
   const start = new Date(d)
