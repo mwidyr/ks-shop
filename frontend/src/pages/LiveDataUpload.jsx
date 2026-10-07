@@ -44,6 +44,7 @@ export default function LiveDataUpload() {
   const [slots, setSlots] = useState([null, null, null]) // {url, uploading, error}
 
   const [form, setForm] = useState(emptyForm)
+  const [recognizedRaw, setRecognizedRaw] = useState(null)
   const [recognizing, setRecognizing] = useState(false)
   const [stepError, setStepError] = useState('')
 
@@ -100,6 +101,7 @@ export default function LiveDataUpload() {
     setRecognizing(true)
     try {
       const result = await recognizeLiveData(slots.map((s) => s.url))
+      setRecognizedRaw(result)
       setForm({
         views: result.views ?? '', uv: result.uv ?? '', active_viewers: result.active_viewers ?? '',
         awt_text: secondsToMMSS(result.awt_seconds), pcu: result.pcu ?? '', acu: result.acu ?? '',
@@ -138,6 +140,7 @@ export default function LiveDataUpload() {
         likes: Number(form.likes) || 0,
         live_duration_seconds: (Number(form.live_duration_minutes) || 0) * 60,
         image_urls: slots.map((s) => s.url),
+        recognized_data: recognizedRaw,
       })
       setSubmitted(true)
     } catch (err) {

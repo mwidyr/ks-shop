@@ -380,7 +380,10 @@
     "option_choose_host": "Choose host...",
     "option_choose_product": "Choose product...",
     "saving": "Saving...",
-    "start_broadcast_button": "📡 Start Broadcast"
+    "start_broadcast_button": "📡 Start Broadcast",
+    "screenshot_ai_recognized": "AI recognized",
+    "view_ai_result": "View AI result",
+    "hide_ai_result": "Hide AI result"
   },
   "page_live_session_history": {
     "add_session_button": "+ Add Session",

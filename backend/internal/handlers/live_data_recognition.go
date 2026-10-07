@@ -325,8 +325,9 @@ type submitPublicLiveDataRequest struct {
 	Chats               int      `json:"chats"`
 	Shares              int      `json:"shares"`
 	Likes               int      `json:"likes"`
-	LiveDurationSeconds int      `json:"live_duration_seconds"`
-	ImageURLs           []string `json:"image_urls"`
+	LiveDurationSeconds int             `json:"live_duration_seconds"`
+	ImageURLs           []string        `json:"image_urls"`
+	RecognizedData      json.RawMessage `json:"recognized_data"` // the raw AI output from Recognize, passed back through unchanged - stored for staff to audit what the AI actually read vs. what the host corrected it to
 }
 
 // Submit creates a brand new live_sessions row directly (status 'ended', already carrying
@@ -382,8 +383,14 @@ func (h *LiveDataHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The same recognized_data snapshot is attached to all 3 screenshot rows (they were
+	// recognized together as one stitched image, not individually) - lets staff later see
+	// exactly what the AI read for this batch vs. what the host ended up submitting.
+	recognizedSnapshot := req.RecognizedData
+	if len(recognizedSnapshot) == 0 {
+		recognizedSnapshot = json.RawMessage("null")
+	}
 	for _, url := range req.ImageURLs {
-		recognizedSnapshot, _ := json.Marshal(map[string]interface{}{"source": "live_data_upload"})
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO live_session_screenshots (session_id, image_url, status, recognized_data)
 			VALUES ($1,$2,'processed',$3)`, sessionID, url, recognizedSnapshot); err != nil {

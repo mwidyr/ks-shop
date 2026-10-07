@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -20,10 +21,11 @@ type LiveSessionScreenshotHandler struct {
 }
 
 type liveSessionScreenshotView struct {
-	ID        int    `json:"id"`
-	ImageURL  string `json:"image_url"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
+	ID             int             `json:"id"`
+	ImageURL       string          `json:"image_url"`
+	Status         string          `json:"status"`
+	CreatedAt      string          `json:"created_at"`
+	RecognizedData json.RawMessage `json:"recognized_data"` // populated when uploaded via the public LIVE Data Upload wizard; null for screenshots added through this page's own upload card
 }
 
 func (h *LiveSessionScreenshotHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +35,7 @@ func (h *LiveSessionScreenshotHandler) List(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT id, image_url, status, created_at::text
+		SELECT id, image_url, status, created_at::text, recognized_data
 		FROM live_session_screenshots WHERE session_id=$1 ORDER BY created_at DESC`, sessionID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch screenshots")
@@ -44,7 +46,7 @@ func (h *LiveSessionScreenshotHandler) List(w http.ResponseWriter, r *http.Reque
 	list := []liveSessionScreenshotView{}
 	for rows.Next() {
 		var s liveSessionScreenshotView
-		if err := rows.Scan(&s.ID, &s.ImageURL, &s.Status, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ImageURL, &s.Status, &s.CreatedAt, &s.RecognizedData); err != nil {
 			continue
 		}
 		list = append(list, s)

@@ -19,11 +19,21 @@ import { useMasterData } from '../context/MasterDataContext'
 // product photos use), it's stored and listed here. AI recognition is explicitly deferred to a
 // follow-up round - recognized_data/status stay unused placeholders, shown with a "coming soon"
 // badge so the gap is visible rather than silently incomplete.
+// Fields the AI recognition step (LiveDataUpload.jsx, public wizard) tries to extract - shown
+// here read-only so staff can audit what the AI actually read vs. what the host ended up
+// submitting. Reuses page_live_data_upload's own field_* labels rather than duplicating them.
+const AI_RESULT_FIELDS = [
+  ['views', 'field_views'], ['uv', 'field_uv'], ['active_viewers', 'field_active'],
+  ['pcu', 'field_pcu'], ['acu', 'field_acu'], ['follows', 'field_follows'],
+  ['chats', 'field_chats'], ['shares', 'field_shares'], ['likes', 'field_likes'],
+]
+
 function LiveScreenshotsCard({ sessionId }) {
   const { t } = useTranslation()
   const [screenshots, setScreenshots] = useState([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [showAiResult, setShowAiResult] = useState(false)
 
   function reload() {
     listLiveSessionScreenshots(sessionId).then(setScreenshots)
@@ -48,6 +58,10 @@ function LiveScreenshotsCard({ sessionId }) {
     }
   }
 
+  // All screenshots from one LIVE Data Upload submission share the same recognized_data (they
+  // were recognized together as one stitched image) - just grab the first one that has it.
+  const recognized = screenshots.find((s) => s.recognized_data)?.recognized_data
+
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
@@ -63,16 +77,47 @@ function LiveScreenshotsCard({ sessionId }) {
           {t('page_live_session_detail.screenshot_empty')}
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {screenshots.map((s) => (
-            <div key={s.id} className="relative">
-              <img src={resolveUrl(s.image_url)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
-              <span className="absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center px-1 py-0.5 rounded bg-amber-100 text-amber-700">
-                {t('page_live_session_detail.screenshot_ai_coming_soon')}
-              </span>
+        <>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {screenshots.map((s) => (
+              <div key={s.id} className="relative">
+                <img src={resolveUrl(s.image_url)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
+                <span className={`absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center px-1 py-0.5 rounded ${s.recognized_data ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {s.recognized_data ? t('page_live_session_detail.screenshot_ai_recognized') : t('page_live_session_detail.screenshot_ai_coming_soon')}
+                </span>
+              </div>
+            ))}
+          </div>
+          {recognized && (
+            <div className="mt-3">
+              <button type="button" onClick={() => setShowAiResult((v) => !v)} className="text-xs font-semibold text-brand-600 hover:underline">
+                {showAiResult ? t('page_live_session_detail.hide_ai_result') : t('page_live_session_detail.view_ai_result')}
+              </button>
+              {showAiResult && (
+                <div className="mt-2 border border-gray-200 rounded-lg p-3 text-xs grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {AI_RESULT_FIELDS.map(([key, labelKey]) => (
+                    <div key={key}>
+                      <p className="text-gray-400">{t(`page_live_data_upload.${labelKey}`)}</p>
+                      <p className="font-semibold text-gray-700">{recognized[key] ?? '—'}</p>
+                    </div>
+                  ))}
+                  <div>
+                    <p className="text-gray-400">{t('page_live_data_upload.field_awt')}</p>
+                    <p className="font-semibold text-gray-700">
+                      {recognized.awt_seconds != null ? `${Math.floor(recognized.awt_seconds / 60)}:${String(recognized.awt_seconds % 60).padStart(2, '0')}` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">{t('page_live_data_upload.field_duration')}</p>
+                    <p className="font-semibold text-gray-700">
+                      {recognized.live_duration_seconds != null ? Math.round(recognized.live_duration_seconds / 60) : '—'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   )

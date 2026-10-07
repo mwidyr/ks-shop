@@ -380,7 +380,10 @@
     "option_choose_host": "Pilih host...",
     "option_choose_product": "Pilih produk...",
     "saving": "Menyimpan...",
-    "start_broadcast_button": "📡 Mulai Siaran"
+    "start_broadcast_button": "📡 Mulai Siaran",
+    "screenshot_ai_recognized": "Sudah dibaca AI",
+    "view_ai_result": "Lihat hasil AI",
+    "hide_ai_result": "Sembunyikan hasil AI"
   },
   "page_live_session_history": {
     "add_session_button": "+ Tambah Sesi",
