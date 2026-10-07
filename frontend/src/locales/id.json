@@ -335,7 +335,8 @@
     "stock_out": "Keluar",
     "tab_current": "Stok Saat Ini",
     "tab_history": "Riwayat Perubahan",
-    "variant_count": "{{count}} varian"
+    "variant_count": "{{count}} varian",
+    "inventory_value": "Nilai Persediaan"
   },
   "page_live_session_detail": {
     "add_product_button": "Tambah Produk",

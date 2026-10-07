@@ -56,3 +56,9 @@ export function getProductPurchaseRules(productId) {
 export function updateProductPurchaseRules(productId, payload) {
   return client.patch(`/products/${productId}/purchase-rules`, payload).then((res) => res.data)
 }
+
+// super_user only (403 for everyone else) - resolves to null instead of rejecting so non-admins
+// simply never get the card.
+export function getInventoryValue() {
+  return client.get('/inventory/value').then((res) => res.data.inventory_value).catch(() => null)
+}

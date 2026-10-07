@@ -1020,3 +1020,25 @@ func (h *ProductHandler) UpdatePurchaseRules(w http.ResponseWriter, r *http.Requ
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
+// InventoryValue returns Sum(actual stock x the variant's own unit cost) across every non-deleted
+// product/variant. super_user only: cost is admin-only data (see isAdmin), and this total would
+// let anyone back out the cost, so non-admins get 403 rather than a hidden number. Oversold
+// variants (negative actual stock) count as 0 - they hold no value, and must not reduce the total.
+func (h *ProductHandler) InventoryValue(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		respondError(w, http.StatusForbidden, "inventory value is only available to Admin")
+		return
+	}
+	var value float64
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT COALESCE(SUM(GREATEST(sb.available_stock, 0) * pv.cost_price), 0)
+		FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id AND p.deleted_at IS NULL
+		JOIN stock_buckets sb ON sb.variant_id = pv.id`).Scan(&value)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to compute inventory value")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]float64{"inventory_value": value})
+}

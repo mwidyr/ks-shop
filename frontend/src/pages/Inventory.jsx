@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listProducts, updateVariant, getStockHistory } from '../api/products'
+import { listProducts, updateVariant, getStockHistory, getInventoryValue } from '../api/products'
+import { useAuth } from '../context/AuthContext'
+import { formatCurrency } from '../utils/format'
 import BigStatCard from '../components/BigStatCard'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
@@ -267,6 +269,13 @@ export default function Inventory() {
 
   useEffect(reload, [])
 
+  // Admin-only: the backend 403s everyone else, so the card is simply never shown to them.
+  const { user } = useAuth()
+  const [inventoryValue, setInventoryValue] = useState(null)
+  useEffect(() => {
+    if (user?.role === 'super_user') getInventoryValue().then(setInventoryValue)
+  }, [user?.role])
+
   const allVariants = products.flatMap((p) => p.variants.map((v) => ({ product: p, variant: v })))
   const lowStockCount = allVariants.filter(({ variant }) => variant.minimum_stock > 0 && variant.available_stock <= variant.minimum_stock).length
   const oversellCount = allVariants.filter(({ variant }) => variant.available_stock < 0).length
@@ -287,6 +296,9 @@ export default function Inventory() {
     <div className="px-4 sm:px-6 py-6">
       <div className="flex flex-wrap gap-3 mb-6">
         <BigStatCard compact title={t('page_inventory.actual_stock')} value={totalAvailable} iconBg="bg-green-50" iconColor="text-green-600" icon="📦" />
+        {inventoryValue !== null && (
+          <BigStatCard compact title={t('page_inventory.inventory_value')} value={formatCurrency(inventoryValue)} iconBg="bg-purple-50" iconColor="text-purple-600" icon="💰" />
+        )}
         <BigStatCard compact title={t('page_inventory.ordered_stock')} value={totalOrdered} iconBg="bg-blue-50" iconColor="text-blue-600" icon="🚚" />
         <BigStatCard compact title={t('page_inventory.low_stock_badge')} value={lowStockCount} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⚠️" />
         <BigStatCard compact title={t('page_inventory.oversell_variants')} value={oversellCount} iconBg="bg-red-50" iconColor="text-red-600" icon="🔴" />

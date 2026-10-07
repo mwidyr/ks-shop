@@ -335,7 +335,8 @@
     "stock_out": "出庫",
     "tab_current": "目前庫存",
     "tab_history": "異動紀錄",
-    "variant_count": "{{count}} 個款式"
+    "variant_count": "{{count}} 個款式",
+    "inventory_value": "庫存價值"
   },
   "page_live_session_detail": {
     "add_product_button": "新增商品",
