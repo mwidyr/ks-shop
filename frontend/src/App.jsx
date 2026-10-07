@@ -29,6 +29,7 @@ const Warehouses = lazy(() => import('./pages/Warehouses'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail'))
 const Purchases = lazy(() => import('./pages/Purchases'))
+const PurchaseDetail = lazy(() => import('./pages/PurchaseDetail'))
 const PurchaseHistory = lazy(() => import('./pages/PurchaseHistory'))
 const ReplenishmentPlanning = lazy(() => import('./pages/ReplenishmentPlanning'))
 const PurchaseRequisitions = lazy(() => import('./pages/PurchaseRequisitions'))
@@ -134,6 +135,7 @@ export default function App() {
         <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
         <Route path="/purchases/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
+        <Route path="/purchases/:id" element={<ProtectedRoute><PurchaseDetail /></ProtectedRoute>} />
         <Route path="/replenishment-planning" element={<ProtectedRoute><ReplenishmentPlanning /></ProtectedRoute>} />
         <Route path="/purchase-requisitions" element={<ProtectedRoute><PurchaseRequisitions /></ProtectedRoute>} />
         <Route path="/purchase-requisitions/:id" element={<ProtectedRoute><PurchaseRequisitionDetail /></ProtectedRoute>} />

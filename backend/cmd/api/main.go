@@ -281,6 +281,10 @@ func main() {
 			r.With(edit("purchases")).Patch("/purchases/{id}", purchaseH.Update)
 			r.With(edit("purchases")).Patch("/purchases/{id}/status", purchaseH.UpdateStatus)
 			r.With(edit("purchases")).Patch("/purchases/{id}/receive", purchaseH.Receive)
+			r.With(edit("purchases")).Post("/purchases/items/{itemId}/batches", purchaseH.AddBatch)
+			r.With(edit("purchases")).Patch("/purchases/batches/{batchId}", purchaseH.UpdateBatch)
+			r.With(edit("purchases")).Delete("/purchases/batches/{batchId}", purchaseH.DeleteBatch)
+			r.With(edit("purchases")).Post("/purchases/batches/{batchId}/receive", purchaseH.ConfirmBatch)
 			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
 			r.With(view("replenishment_planning")).Get("/replenishment", replenishmentH.List)
@@ -297,6 +301,9 @@ func main() {
 			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/supplier-groups/{supplierGroupId}", purchaseRequisitionH.UpdateSupplierGroup)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/submit-for-confirmation", purchaseRequisitionH.SubmitForConfirmation)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/confirm-order", purchaseRequisitionH.ConfirmOrder)
+			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/supplier-groups/{supplierGroupId}/notes", purchaseRequisitionH.AddGroupNote)
+			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/notes/{noteId}", purchaseRequisitionH.UpdateGroupNote)
+			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/notes/{noteId}", purchaseRequisitionH.DeleteGroupNote)
 
 			r.With(view("customers")).Get("/customers", customerH.Search)
 			r.With(edit("customers")).Post("/customers", customerH.Create)

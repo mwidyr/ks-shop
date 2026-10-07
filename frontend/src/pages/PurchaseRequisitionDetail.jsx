@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   getPurchaseRequisition, addRequisitionItem, removeRequisitionItem,
   updateRequisitionSupplierGroup, submitForConfirmation, confirmOrder,
   updatePurchaseRequisition, deletePurchaseRequisition,
+  addRequisitionNote, updateRequisitionNote, deleteRequisitionNote,
 } from '../api/purchaseRequisitions'
-import { getPurchase, receivePurchase } from '../api/purchases'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
@@ -25,7 +25,64 @@ const requisitionStatusColors = {
   completed: 'bg-green-100 text-green-700',
 }
 
-function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
+// Supplier notes: a log (added one by one, like Supplier Profile > Notes). Always editable, in
+// every requisition status - including after the supplier group is confirmed and the PO exists.
+function NotesLog({ groupId, notes, onChanged }) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [error, setError] = useState('')
+
+  async function run(fn) {
+    setError('')
+    try { await fn(); onChanged() } catch (err) { setError(err.response?.data?.error || t('page_purchase_requisitions.notes_save_failed')) }
+  }
+  const add = (e) => { e.preventDefault(); if (!draft.trim()) return; run(async () => { await addRequisitionNote(groupId, draft.trim()); setDraft('') }) }
+  const save = (id) => { if (!editText.trim()) return; run(async () => { await updateRequisitionNote(id, editText.trim()); setEditingId(null) }) }
+
+  return (
+    <div className="p-4 border-t border-[var(--table-divider)] space-y-2">
+      <label className="block text-[11px] text-gray-500">{t('page_purchase_requisitions.group_notes')}</label>
+      <form onSubmit={add} className="flex gap-2">
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('page_purchase_requisitions.notes_add_placeholder')}
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+        <button type="submit" disabled={!draft.trim()} className="bg-gray-800 text-white text-sm font-semibold px-4 rounded-lg disabled:opacity-40">{t('page_purchase_requisitions.notes_add_button')}</button>
+      </form>
+      {notes.length === 0 ? (
+        <p className="text-xs text-gray-400">{t('page_purchase_requisitions.notes_empty')}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {notes.map((n) => (
+            <li key={n.id} className="text-sm border border-[var(--table-divider)] rounded-lg px-3 py-2">
+              {editingId === n.id ? (
+                <div className="flex gap-2">
+                  <input value={editText} onChange={(e) => setEditText(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm" autoFocus />
+                  <button onClick={() => save(n.id)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
+                  <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-gray-700 whitespace-pre-line break-words">{n.note}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{n.created_by_name} · {new Date(n.created_at).toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-3 shrink-0 text-xs">
+                    <button onClick={() => { setEditingId(n.id); setEditText(n.note) }} className="text-gray-500 hover:text-brand-600">{t('page_purchase_requisitions.notes_edit')}</button>
+                    <button onClick={() => run(() => deleteRequisitionNote(n.id))} className="text-gray-400 hover:text-red-600">{t('page_purchase_requisitions.notes_delete')}</button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
   const { t } = useTranslation()
   // translateColor is deliberately NOT used in handleCopy's grouping below - that text is sent
   // to the (Chinese-speaking) supplier and must always show the Chinese color name, regardless
@@ -52,36 +109,18 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
       return changed ? next : prev
     })
   }, [group.items])
-  const [notes, setNotes] = useState(group.notes || '')
+  // Notes are a log (added one by one, editable in every status) - see NotesLog below.
   const [saving, setSaving] = useState(false)
-  const [po, setPo] = useState(null)
-  const [actualQty, setActualQty] = useState({})
   const [expanded, setExpanded] = useState(true)
   const [copied, setCopied] = useState(false)
 
   const isPendingContact = requisitionStatus === 'pending_contact'
-  const isOrdered = requisitionStatus === 'ordered'
   const canEditPlanned = requisitionStatus === 'draft' || isPendingContact
-  const canEditNotes = requisitionStatus === 'draft' || isPendingContact
   const canConfirm = isPendingContact
-  const canReceive = isOrdered && po && (po.status === 'ordered' || po.status === 'pending_arrival')
 
-  useEffect(() => {
-    if (group.purchase_id && (isOrdered || requisitionStatus === 'completed')) {
-      getPurchase(group.purchase_id).then((p) => {
-        setPo(p)
-        setActualQty((prev) => {
-          const next = { ...prev }
-          for (const it of p.items) if (next[it.variant_id] === undefined) next[it.variant_id] = it.qty
-          return next
-        })
-      })
-    }
-  }, [group.purchase_id, requisitionStatus])
-
-  function poItemFor(variantId) {
-    return po?.items.find((it) => it.variant_id === variantId)
-  }
+  // Tell the page what is being typed so its header totals (Total Quantity / Total Amount) move
+  // instantly too, not only after the save-on-blur round trip.
+  useEffect(() => { onLive?.(group.id, items) }, [items]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function savePlannedQty(item) {
     const planned = Number(items[item.id]?.planned_qty)
@@ -103,7 +142,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
         confirmed_qty: v.confirmed_qty === '' ? null : Number(v.confirmed_qty),
         unit_cost: v.unit_cost === '' ? null : Number(v.unit_cost),
       }))
-      await updateRequisitionSupplierGroup(group.id, { notes, items: itemsPayload, ...(status ? { status } : {}) })
+      await updateRequisitionSupplierGroup(group.id, { items: itemsPayload, ...(status ? { status } : {}) })
       onChanged()
     } finally {
       setSaving(false)
@@ -113,18 +152,6 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   async function removeItem(itemId) {
     await removeRequisitionItem(itemId)
     onChanged()
-  }
-
-  async function confirmReceived() {
-    if (!po) return
-    setSaving(true)
-    try {
-      const payload = po.items.map((it) => ({ id: it.id, received_qty: Number(actualQty[it.variant_id] ?? it.qty) }))
-      await receivePurchase(group.purchase_id, payload)
-      onChanged()
-    } finally {
-      setSaving(false)
-    }
   }
 
   const total = group.items.reduce((sum, it) => {
@@ -250,7 +277,6 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
               <th className="p-2">{t('page_purchase_requisitions.col_planned_qty')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_unit_cost')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_amount')}</th>
-              <th className="p-2">{t('page_purchase_requisitions.col_actual_qty')}</th>
               <th className="p-2 pr-4"></th>
             </tr>
           </thead>
@@ -258,7 +284,6 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
             {group.items.map((it) => {
               const v = items[it.id] || {}
               const amount = (Number(v.confirmed_qty ?? it.planned_qty) || 0) * (Number(v.unit_cost) || 0)
-              const poItem = poItemFor(it.variant_id)
               return (
                 <tr key={it.id}>
                   <td className="p-2 pl-4 font-mono text-xs text-brand-600">{it.product_sku}</td>
@@ -268,7 +293,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
                     {canEditPlanned ? (
                       <input
                         type="number" min="0" value={v.planned_qty ?? ''}
-                        onChange={(e) => setItems((s) => ({ ...s, [it.id]: { ...s[it.id], planned_qty: e.target.value } }))}
+                        onChange={(e) => setItems((s) => ({ ...s, [it.id]: { ...s[it.id], planned_qty: e.target.value, confirmed_qty: e.target.value } }))}
                         onBlur={() => savePlannedQty(it)}
                         className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm"
                       />
@@ -298,19 +323,6 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
                     )}
                   </td>
                   <td className="p-2 font-semibold text-[var(--text-primary)]">{formatCNY(amount)}</td>
-                  <td className="p-2">
-                    {canReceive ? (
-                      <input
-                        type="number" min="0" value={actualQty[it.variant_id] ?? poItem?.qty ?? ''}
-                        onChange={(e) => setActualQty((s) => ({ ...s, [it.variant_id]: e.target.value }))}
-                        className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                      />
-                    ) : requisitionStatus === 'completed' ? (
-                      <span className="text-green-600 font-semibold">{poItem?.received_qty ?? '-'}</span>
-                    ) : (
-                      <input type="number" value="" disabled placeholder="-" className="w-20 border border-gray-200 bg-gray-50 rounded-lg px-2 py-1 text-sm text-gray-300" />
-                    )}
-                  </td>
                   <td className="p-2 pr-4 text-right">
                     {canEditPlanned && (
                       <button onClick={() => removeItem(it.id)} className="text-gray-400 hover:text-red-600"><IconTrash width={14} height={14} /></button>
@@ -323,26 +335,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
         </table>
       </div>
 
-      <div className="p-4 border-t border-[var(--table-divider)] space-y-3">
-        {(canEditNotes || group.notes) && (
-          <div>
-            <label className="block text-[11px] text-gray-500 mb-1">{t('page_purchase_requisitions.group_notes')}</label>
-            {canEditNotes ? (
-              <textarea
-                value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => saveConfirmation(null)} rows={2}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-              />
-            ) : (
-              <p className="text-sm text-gray-600">{group.notes}</p>
-            )}
-          </div>
-        )}
-        {canReceive && (
-          <button onClick={confirmReceived} disabled={saving} className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg">
-            {t('page_purchase_requisitions.confirm_received_button')}
-          </button>
-        )}
-      </div>
+      <NotesLog groupId={group.id} notes={group.notes_log || []} onChanged={onChanged} />
       </>
       )}
     </div>
@@ -360,6 +353,10 @@ export default function PurchaseRequisitionDetail() {
   const [editingNote, setEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  // What is currently typed in each supplier section, keyed by group id - lets the header totals
+  // follow Planned QTY / Unit Cost instantly instead of waiting for the save-on-blur reload.
+  const [live, setLive] = useState({})
+  const onLive = useCallback((groupId, items) => setLive((cur) => (cur[groupId] === items ? cur : { ...cur, [groupId]: items })), [])
 
   function reload() {
     getPurchaseRequisition(id).then(setDetail)
@@ -431,8 +428,16 @@ export default function PurchaseRequisitionDetail() {
   const allConfirmed = detail.suppliers.length > 0 && detail.suppliers.every((g) => g.status === 'confirmed')
 
   const totalProducts = new Set(detail.suppliers.flatMap((g) => g.items.map((it) => it.product_sku))).size
-  const totalQty = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + (it.confirmed_qty ?? it.planned_qty), 0), 0)
-  const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + (it.confirmed_qty ?? it.planned_qty) * (it.unit_cost || 0), 0), 0)
+  const liveQty = (g, it) => {
+    const v = live[g.id]?.[it.id]
+    return v ? (Number(v.confirmed_qty ?? v.planned_qty) || 0) : (it.confirmed_qty ?? it.planned_qty)
+  }
+  const liveCost = (g, it) => {
+    const v = live[g.id]?.[it.id]
+    return v && v.unit_cost !== '' && v.unit_cost != null ? (Number(v.unit_cost) || 0) : (it.unit_cost || 0)
+  }
+  const totalQty = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it), 0), 0)
+  const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it) * liveCost(g, it), 0), 0)
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-6xl space-y-4">
@@ -513,7 +518,7 @@ export default function PurchaseRequisitionDetail() {
       )}
 
       {detail.suppliers.map((g) => (
-        <SupplierGroupCard key={g.id} group={{ ...g, requisition_id: detail.id }} requisitionStatus={detail.status} onChanged={reload} />
+        <SupplierGroupCard key={g.id} group={{ ...g, requisition_id: detail.id }} requisitionStatus={detail.status} onChanged={reload} onLive={onLive} />
       ))}
 
       {detail.suppliers.length === 0 && (

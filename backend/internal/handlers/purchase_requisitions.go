@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"net/http"
 	"strconv"
 
@@ -95,12 +96,21 @@ type requisitionItemView struct {
 	RuleWarning  string   `json:"rule_warning,omitempty"`
 }
 
+type requisitionNoteView struct {
+	ID            int    `json:"id"`
+	Note          string `json:"note"`
+	CreatedByName string `json:"created_by_name"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+}
+
 type requisitionSupplierView struct {
 	ID           int                   `json:"id"`
 	SupplierID   int                   `json:"supplier_id"`
 	SupplierName string                `json:"supplier_name"`
 	Status       string                `json:"status"`
 	Notes        string                `json:"notes"`
+	NotesLog     []requisitionNoteView `json:"notes_log"`
 	PurchaseID   *int                  `json:"purchase_id"`
 	PONumber     *string               `json:"po_number"`
 	Items        []requisitionItemView `json:"items"`
@@ -167,6 +177,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 		sv.Items = []requisitionItemView{}
+		sv.NotesLog = []requisitionNoteView{}
 		d.Suppliers = append(d.Suppliers, sv)
 	}
 	supRows.Close()
@@ -193,6 +204,29 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 		}
 		for i := range d.Suppliers {
 			d.Suppliers[i].Items = byGroup[d.Suppliers[i].ID]
+		}
+	}
+
+	// Supplier notes log (added one by one, editable in every status - see AddGroupNote etc).
+	if noteRows, err := h.DB.Query(ctx, `
+		SELECT n.group_id, n.id, n.note, COALESCE(u.name,'-'), n.created_at::text, n.updated_at::text
+		FROM purchase_requisition_supplier_notes n
+		JOIN purchase_requisition_suppliers prs ON prs.id = n.group_id
+		LEFT JOIN users u ON u.id = n.created_by
+		WHERE prs.requisition_id = $1 ORDER BY n.created_at`, id); err == nil {
+		defer noteRows.Close()
+		byGroup := map[int][]requisitionNoteView{}
+		for noteRows.Next() {
+			var gid int
+			var n requisitionNoteView
+			if noteRows.Scan(&gid, &n.ID, &n.Note, &n.CreatedByName, &n.CreatedAt, &n.UpdatedAt) == nil {
+				byGroup[gid] = append(byGroup[gid], n)
+			}
+		}
+		for i := range d.Suppliers {
+			if l := byGroup[d.Suppliers[i].ID]; l != nil {
+				d.Suppliers[i].NotesLog = l
+			}
 		}
 	}
 
@@ -302,6 +336,9 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Changing Planned QTY also clears any previously saved Confirmed QTY (confirmed_qty = NULL on
+	// conflict below): totals and Amount read `confirmed_qty ?? planned_qty`, so a stale confirmed
+	// value made them ignore the new Planned QTY (planned 34 still showing 14 PCS / 14 x cost).
 	// Unit Cost defaults from the product's current cost price immediately on add (item 054),
 	// instead of staying blank until the group is confirmed - still freely editable afterward.
 	// Only set on first insert; a conflict (re-adding/adjusting qty on the same variant) leaves
@@ -309,7 +346,7 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 	if _, err := h.DB.Exec(ctx, `
 		INSERT INTO purchase_requisition_items (requisition_supplier_id, variant_id, planned_qty, unit_cost)
 		VALUES ($1,$2,$3,$4)
-		ON CONFLICT (requisition_supplier_id, variant_id) DO UPDATE SET planned_qty = EXCLUDED.planned_qty`,
+		ON CONFLICT (requisition_supplier_id, variant_id) DO UPDATE SET planned_qty = EXCLUDED.planned_qty, confirmed_qty = NULL`,
 		groupID, req.VariantID, req.PlannedQty, costPrice); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to add item")
 		return
@@ -578,6 +615,60 @@ func (h *PurchaseRequisitionHandler) Delete(w http.ResponseWriter, r *http.Reque
 	}
 	if _, err := h.DB.Exec(r.Context(), `DELETE FROM purchase_requisitions WHERE id=$1`, id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete requisition")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type noteRequest struct {
+	Note string `json:"note"`
+}
+
+// AddGroupNote appends one note to a supplier group's notes log. Allowed in every requisition
+// status (notes stay editable after confirmation), like Supplier Profile > Notes.
+func (h *PurchaseRequisitionHandler) AddGroupNote(w http.ResponseWriter, r *http.Request) {
+	groupID, err := strconv.Atoi(chi.URLParam(r, "supplierGroupId"))
+	var req noteRequest
+	if err != nil || decodeJSON(r, &req) != nil || strings.TrimSpace(req.Note) == "" {
+		respondError(w, http.StatusBadRequest, "note is required")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	var id int
+	if err := h.DB.QueryRow(r.Context(), `
+		INSERT INTO purchase_requisition_supplier_notes (group_id, note, created_by)
+		SELECT $1, $2, $3 WHERE EXISTS (SELECT 1 FROM purchase_requisition_suppliers WHERE id=$1) RETURNING id`,
+		groupID, strings.TrimSpace(req.Note), claims.UserID).Scan(&id); err != nil {
+		respondError(w, http.StatusNotFound, "supplier group not found")
+		return
+	}
+	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
+}
+
+func (h *PurchaseRequisitionHandler) UpdateGroupNote(w http.ResponseWriter, r *http.Request) {
+	noteID, err := strconv.Atoi(chi.URLParam(r, "noteId"))
+	var req noteRequest
+	if err != nil || decodeJSON(r, &req) != nil || strings.TrimSpace(req.Note) == "" {
+		respondError(w, http.StatusBadRequest, "note is required")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `UPDATE purchase_requisition_supplier_notes SET note=$1, updated_at=now() WHERE id=$2`, strings.TrimSpace(req.Note), noteID)
+	if err != nil || ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "note not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *PurchaseRequisitionHandler) DeleteGroupNote(w http.ResponseWriter, r *http.Request) {
+	noteID, err := strconv.Atoi(chi.URLParam(r, "noteId"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid note id")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `DELETE FROM purchase_requisition_supplier_notes WHERE id=$1`, noteID)
+	if err != nil || ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "note not found")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})

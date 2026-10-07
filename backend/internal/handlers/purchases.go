@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -22,32 +23,83 @@ type PurchaseHandler struct {
 	DB *pgxpool.Pool
 }
 
-var validPurchaseStatuses = map[string]bool{"ordered": true, "pending_arrival": true, "received": true, "cancelled": true}
+var validPurchaseStatuses = map[string]bool{"ordered": true, "pending_arrival": true, "partially_received": true, "received": true, "cancelled": true}
 
-type purchaseListItem struct {
-	ID                  int     `json:"id"`
-	PONumber            string  `json:"po_number"`
-	SupplierName        string  `json:"supplier_name"`
-	OrderDate           string  `json:"order_date"`
-	ExpectedArrivalDate *string `json:"expected_arrival_date"`
-	Status              string  `json:"status"`
-	ItemCount           int     `json:"item_count"`
-	TotalQty            int     `json:"total_qty"`
-	TotalCost           float64 `json:"total_cost"`
-	CreatedAt           string  `json:"created_at"`
+// A PO is "open" (still has goods to receive, qty/dates editable) in these statuses.
+// ordered/pending_arrival = Waiting for Delivery; partially_received is set automatically once a
+// delivery batch has been confirmed but some quantity is still outstanding in Incoming.
+func isOpenPurchaseStatus(s string) bool {
+	return s == "ordered" || s == "pending_arrival" || s == "partially_received"
 }
 
+type purchaseBatchView struct {
+	ID          int     `json:"id"`
+	BatchNo     int     `json:"batch_no"`
+	PlannedQty  int     `json:"planned_qty"`
+	ReceivedQty *int    `json:"received_qty"`
+	IsReceived  bool    `json:"is_received"`
+	ReceivedAt  *string `json:"received_at"`
+}
+
+type purchaseListItemLine struct {
+	ID          int                 `json:"id"`
+	ProductSKU  string              `json:"product_sku"`
+	ProductName string              `json:"product_name"`
+	Color       string              `json:"color"`
+	Size        string              `json:"size"`
+	Qty         int                 `json:"qty"`
+	ReceivedQty int                 `json:"received_qty"`
+	Batches     []purchaseBatchView `json:"batches"`
+}
+
+type purchaseListItem struct {
+	ID                  int                    `json:"id"`
+	PONumber            string                 `json:"po_number"`
+	SourcePRNo          *string                `json:"source_pr_no"`
+	SupplierName        string                 `json:"supplier_name"`
+	OrderDate           string                 `json:"order_date"`
+	ExpectedArrivalDate *string                `json:"expected_arrival_date"`
+	Status              string                 `json:"status"`
+	ItemCount           int                    `json:"item_count"`
+	TotalQty            int                    `json:"total_qty"`
+	ReceivedQty         int                    `json:"received_qty"`
+	TotalCost           float64                `json:"total_cost"`
+	CreatedAt           string                 `json:"created_at"`
+	Items               []purchaseListItemLine `json:"items"`
+}
+
+// List supports ?status, ?search (supplier name, internal product code - product or variant
+// SKU - partial/case-insensitive; also PO and source PR number) and ?date=YYYY-MM-DD (POs created
+// that day, Jakarta time). Search and date combine. Each row carries its items with delivery
+// batches so the page can expand a PO without another request.
 func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	where := " WHERE 1=1 "
 	args := []interface{}{}
-	if status := r.URL.Query().Get("status"); status != "" {
-		where += " AND p.status = $1 "
-		args = append(args, status)
+	add := func(v interface{}) string { args = append(args, v); return "$" + strconv.Itoa(len(args)) }
+	q := r.URL.Query()
+	if status := q.Get("status"); status != "" {
+		where += " AND p.status = " + add(status)
+	}
+	if search := strings.TrimSpace(q.Get("search")); search != "" {
+		like := add("%" + search + "%")
+		where += ` AND (s.name ILIKE ` + like + ` OR p.po_number ILIKE ` + like + `
+			OR EXISTS (SELECT 1 FROM purchase_requisition_suppliers prs JOIN purchase_requisitions pq ON pq.id = prs.requisition_id
+			           WHERE prs.purchase_id = p.id AND pq.requisition_no ILIKE ` + like + `)
+			OR EXISTS (SELECT 1 FROM purchase_items pi
+			           JOIN product_variants pv ON pv.id = pi.variant_id JOIN products pr ON pr.id = pv.product_id
+			           WHERE pi.purchase_id = p.id AND (pr.sku ILIKE ` + like + ` OR pv.sku ILIKE ` + like + `)))`
+	}
+	if date := strings.TrimSpace(q.Get("date")); date != "" {
+		where += " AND (p.created_at AT TIME ZONE 'Asia/Jakarta')::date = " + add(date) + "::date"
 	}
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, p.po_number, s.name, p.order_date::text, p.expected_arrival_date::text, p.status,
+		SELECT p.id, p.po_number,
+		       (SELECT pq.requisition_no FROM purchase_requisition_suppliers prs
+		        JOIN purchase_requisitions pq ON pq.id = prs.requisition_id WHERE prs.purchase_id = p.id LIMIT 1),
+		       s.name, p.order_date::text, p.expected_arrival_date::text, p.status,
 		       COALESCE((SELECT COUNT(*) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
 		       COALESCE((SELECT SUM(pi.qty) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
+		       COALESCE((SELECT SUM(COALESCE(pi.received_qty,0)) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
 		       COALESCE((SELECT SUM(pi.qty * pi.unit_cost) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
 		       p.created_at::text
 		FROM purchases p
@@ -60,13 +112,61 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	list := []purchaseListItem{}
+	ids := []int{}
+	idx := map[int]int{}
 	for rows.Next() {
 		var p purchaseListItem
-		if err := rows.Scan(&p.ID, &p.PONumber, &p.SupplierName, &p.OrderDate, &p.ExpectedArrivalDate, &p.Status,
-			&p.ItemCount, &p.TotalQty, &p.TotalCost, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.PONumber, &p.SourcePRNo, &p.SupplierName, &p.OrderDate, &p.ExpectedArrivalDate, &p.Status,
+			&p.ItemCount, &p.TotalQty, &p.ReceivedQty, &p.TotalCost, &p.CreatedAt); err != nil {
 			continue
 		}
+		p.Items = []purchaseListItemLine{}
+		idx[p.ID] = len(list)
+		ids = append(ids, p.ID)
 		list = append(list, p)
+	}
+	rows.Close()
+
+	if len(ids) > 0 {
+		lineIdx := map[int][2]int{} // item id -> [list idx, line idx]
+		itemRows, err := h.DB.Query(r.Context(), `
+			SELECT pi.purchase_id, pi.id, COALESCE(pr.sku,''), `+productNameSQL(r, "pr")+`, pv.color, pv.size, pi.qty, COALESCE(pi.received_qty,0)
+			FROM purchase_items pi
+			JOIN product_variants pv ON pv.id = pi.variant_id
+			JOIN products pr ON pr.id = pv.product_id
+			WHERE pi.purchase_id = ANY($1) ORDER BY pi.id`, ids)
+		if err == nil {
+			for itemRows.Next() {
+				var pid int
+				var l purchaseListItemLine
+				if itemRows.Scan(&pid, &l.ID, &l.ProductSKU, &l.ProductName, &l.Color, &l.Size, &l.Qty, &l.ReceivedQty) != nil {
+					continue
+				}
+				l.Batches = []purchaseBatchView{}
+				i := idx[pid]
+				lineIdx[l.ID] = [2]int{i, len(list[i].Items)}
+				list[i].Items = append(list[i].Items, l)
+			}
+			itemRows.Close()
+		}
+		itemIDs := make([]int, 0, len(lineIdx))
+		for id := range lineIdx {
+			itemIDs = append(itemIDs, id)
+		}
+		if bRows, err := h.DB.Query(r.Context(), `
+			SELECT purchase_item_id, id, batch_no, planned_qty, received_qty, is_received, received_at::text
+			FROM purchase_item_batches WHERE purchase_item_id = ANY($1) ORDER BY purchase_item_id, batch_no`, itemIDs); err == nil {
+			for bRows.Next() {
+				var itemID int
+				var b purchaseBatchView
+				if bRows.Scan(&itemID, &b.ID, &b.BatchNo, &b.PlannedQty, &b.ReceivedQty, &b.IsReceived, &b.ReceivedAt) != nil {
+					continue
+				}
+				pos := lineIdx[itemID]
+				list[pos[0]].Items[pos[1]].Batches = append(list[pos[0]].Items[pos[1]].Batches, b)
+			}
+			bRows.Close()
+		}
 	}
 	respondJSON(w, http.StatusOK, list)
 }
@@ -78,9 +178,17 @@ type purchaseItemView struct {
 	Color       string  `json:"color"`
 	Size        string  `json:"size"`
 	SKU         string  `json:"sku"`
+	ProductSKU  string  `json:"product_sku"` // the internal Product Code (e.g. C011), not the variant SKU
 	Qty         int     `json:"qty"`
 	UnitCost    float64 `json:"unit_cost"`
 	ReceivedQty *int    `json:"received_qty"`
+	// Remaining is what is still outstanding in Incoming for this line (qty - received).
+	Remaining int                 `json:"remaining"`
+	Batches   []purchaseBatchView `json:"batches"`
+	// PlanTotal is the sum of all batch planned qty; PlanMismatch warns (never blocks) when it
+	// differs from the order qty.
+	PlanTotal    int  `json:"plan_total"`
+	PlanMismatch bool `json:"plan_mismatch"`
 }
 
 type purchaseChangeView struct {
@@ -97,6 +205,8 @@ type purchaseDetailView struct {
 	PONumber            string               `json:"po_number"`
 	SupplierID          int                  `json:"supplier_id"`
 	SupplierName        string               `json:"supplier_name"`
+	SourcePRID          *int                 `json:"source_pr_id"`
+	SourcePRNo          *string              `json:"source_pr_no"`
 	OrderDate           string               `json:"order_date"`
 	ExpectedArrivalDate *string              `json:"expected_arrival_date"`
 	Status              string               `json:"status"`
@@ -127,9 +237,13 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.ReceivedAt = receivedAt
+	h.DB.QueryRow(ctx, `
+		SELECT pq.id, pq.requisition_no FROM purchase_requisition_suppliers prs
+		JOIN purchase_requisitions pq ON pq.id = prs.requisition_id WHERE prs.purchase_id = $1 LIMIT 1`, id).
+		Scan(&p.SourcePRID, &p.SourcePRNo)
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, pi.qty, pi.unit_cost, pi.received_qty
+		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, COALESCE(pr.sku,''), pi.qty, pi.unit_cost, pi.received_qty
 		FROM purchase_items pi
 		JOIN product_variants pv ON pv.id = pi.variant_id
 		JOIN products pr ON pr.id = pv.product_id
@@ -139,10 +253,45 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 		for rows.Next() {
 			var it purchaseItemView
-			if err := rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.Color, &it.Size, &it.SKU, &it.Qty, &it.UnitCost, &it.ReceivedQty); err != nil {
+			if err := rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.UnitCost, &it.ReceivedQty); err != nil {
 				continue
 			}
+			it.Batches = []purchaseBatchView{}
+			it.Remaining = it.Qty
+			if it.ReceivedQty != nil {
+				it.Remaining = it.Qty - *it.ReceivedQty
+			}
+			if it.Remaining < 0 || p.Status == "received" || p.Status == "cancelled" {
+				it.Remaining = 0
+			}
 			p.Items = append(p.Items, it)
+		}
+		rows.Close()
+	}
+	if len(p.Items) > 0 {
+		itemPos := map[int]int{}
+		itemIDs := []int{}
+		for i, it := range p.Items {
+			itemPos[it.ID] = i
+			itemIDs = append(itemIDs, it.ID)
+		}
+		if bRows, err := h.DB.Query(ctx, `
+			SELECT purchase_item_id, id, batch_no, planned_qty, received_qty, is_received, received_at::text
+			FROM purchase_item_batches WHERE purchase_item_id = ANY($1) ORDER BY purchase_item_id, batch_no`, itemIDs); err == nil {
+			for bRows.Next() {
+				var itemID int
+				var b purchaseBatchView
+				if bRows.Scan(&itemID, &b.ID, &b.BatchNo, &b.PlannedQty, &b.ReceivedQty, &b.IsReceived, &b.ReceivedAt) != nil {
+					continue
+				}
+				i := itemPos[itemID]
+				p.Items[i].Batches = append(p.Items[i].Batches, b)
+				p.Items[i].PlanTotal += b.PlannedQty
+			}
+			bRows.Close()
+		}
+		for i := range p.Items {
+			p.Items[i].PlanMismatch = p.Items[i].PlanTotal != p.Items[i].Qty
 		}
 	}
 
@@ -202,10 +351,15 @@ func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate 
 		return 0, fmt.Errorf("failed to assign PO number: %w", err)
 	}
 	for _, it := range items {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost) VALUES ($1,$2,$3,$4)`,
-			purchaseID, it.VariantID, it.Qty, it.UnitCost); err != nil {
+		var itemID int
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost) VALUES ($1,$2,$3,$4) RETURNING id`,
+			purchaseID, it.VariantID, it.Qty, it.UnitCost).Scan(&itemID); err != nil {
 			return 0, fmt.Errorf("failed to add purchase item: %w", err)
+		}
+		// Every item starts with one delivery batch for the full qty; "Split Delivery" adds more.
+		if _, err := tx.Exec(ctx, `INSERT INTO purchase_item_batches (purchase_item_id, batch_no, planned_qty) VALUES ($1, 1, $2)`, itemID, it.Qty); err != nil {
+			return 0, fmt.Errorf("failed to add delivery batch: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock + $1 WHERE variant_id=$2`, it.Qty, it.VariantID); err != nil {
 			return 0, fmt.Errorf("failed to reserve incoming stock: %w", err)
@@ -297,8 +451,8 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "purchase not found")
 		return
 	}
-	if status != "ordered" && status != "pending_arrival" {
-		respondError(w, http.StatusBadRequest, "purchase can only be edited before it's received or cancelled")
+	if !isOpenPurchaseStatus(status) {
+		respondError(w, http.StatusBadRequest, "purchase can only be edited before it's fully received or cancelled")
 		return
 	}
 
@@ -326,8 +480,9 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	for _, itUpdate := range req.Items {
 		var oldQty int
 		var oldUnitCost float64
-		if err := tx.QueryRow(ctx, `SELECT qty, unit_cost FROM purchase_items WHERE id=$1 AND purchase_id=$2`, itUpdate.ID, id).
-			Scan(&oldQty, &oldUnitCost); err != nil {
+		var alreadyReceived int
+		if err := tx.QueryRow(ctx, `SELECT qty, unit_cost, COALESCE(received_qty,0) FROM purchase_items WHERE id=$1 AND purchase_id=$2`, itUpdate.ID, id).
+			Scan(&oldQty, &oldUnitCost, &alreadyReceived); err != nil {
 			continue
 		}
 		if itUpdate.Qty != nil && *itUpdate.Qty != oldQty {
@@ -335,11 +490,21 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusBadRequest, "qty must be greater than 0")
 				return
 			}
+			if *itUpdate.Qty < alreadyReceived {
+				respondError(w, http.StatusBadRequest, fmt.Sprintf("qty cannot be lower than the %d already received", alreadyReceived))
+				return
+			}
 			var variantID int
 			tx.QueryRow(ctx, `SELECT variant_id FROM purchase_items WHERE id=$1`, itUpdate.ID).Scan(&variantID)
 			delta := *itUpdate.Qty - oldQty
 			tx.Exec(ctx, `UPDATE purchase_items SET qty=$1 WHERE id=$2`, *itUpdate.Qty, itUpdate.ID)
 			tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock + $1 WHERE variant_id=$2`, delta, variantID)
+			// A line that was never split (exactly one, still-open batch) keeps that batch in step
+			// with the new order qty, so receiving it defaults to the right amount.
+			tx.Exec(ctx, `
+				UPDATE purchase_item_batches SET planned_qty=$1
+				WHERE purchase_item_id=$2 AND NOT is_received
+				  AND (SELECT COUNT(*) FROM purchase_item_batches WHERE purchase_item_id=$2) = 1`, *itUpdate.Qty, itUpdate.ID)
 			tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'qty',$2,$3,$4,$5)`,
 				id, strconv.Itoa(oldQty), strconv.Itoa(*itUpdate.Qty), claims.UserID, req.Reason)
 		}
@@ -354,6 +519,11 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Lowering a partially received line's qty to what was already received resolves it.
+	if _, err := recomputePurchaseStatus(ctx, tx, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update purchase status")
+		return
+	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
@@ -375,8 +545,8 @@ func (h *PurchaseHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req updatePurchaseStatusRequest
-	if err := decodeJSON(r, &req); err != nil || !validPurchaseStatuses[req.Status] || req.Status == "received" {
-		respondError(w, http.StatusBadRequest, "status must be one of: ordered, pending_arrival, cancelled")
+	if err := decodeJSON(r, &req); err != nil || !validPurchaseStatuses[req.Status] || req.Status == "received" || req.Status == "partially_received" {
+		respondError(w, http.StatusBadRequest, "status must be one of: ordered, pending_arrival, cancelled (received / partially received follow the receiving progress automatically)")
 		return
 	}
 	claims := appmw.GetClaims(r)
@@ -398,15 +568,17 @@ func (h *PurchaseHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "purchase is already "+oldStatus)
 		return
 	}
+	if oldStatus == "partially_received" && req.Status != "cancelled" {
+		respondError(w, http.StatusBadRequest, "a partially received purchase can only be cancelled")
+		return
+	}
 	if req.Status == "cancelled" {
-		rows, _ := tx.Query(ctx, `SELECT variant_id, qty FROM purchase_items WHERE purchase_id=$1`, id)
-		for rows.Next() {
-			var variantID, qty int
-			if rows.Scan(&variantID, &qty) == nil {
-				tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock - $1 WHERE variant_id=$2`, qty, variantID)
-			}
+		// Release only what is still outstanding in Incoming - batches already received have
+		// already moved to Actual Stock and stay there.
+		if err := releaseIncomingTx(ctx, tx, id); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to release incoming stock")
+			return
 		}
-		rows.Close()
 	}
 	tx.Exec(ctx, `UPDATE purchases SET status=$1 WHERE id=$2`, req.Status, id)
 	tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'status',$2,$3,$4,$5)`,
@@ -428,10 +600,10 @@ type receivePurchaseRequest struct {
 	Items []receiveItem `json:"items"`
 }
 
-// Receive confirms goods received: incoming_stock is released for the full ordered qty (the PO
-// is resolved either way), available_stock increases by the actual received qty (which may be
-// less than ordered - supplier shortages etc, reviewable/editable before confirming), and each
-// variant's cost_price is refreshed to the purchase's unit_cost.
+// Receive is the legacy "whole PO" receive endpoint, kept for compatibility: it confirms every
+// open delivery batch (at its planned qty, or the item's override when the line has a single open
+// batch). Receiving is really per batch now (ConfirmBatch) - a PO becomes Received only when no
+// quantity is left outstanding in Incoming.
 func (h *PurchaseHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -439,14 +611,13 @@ func (h *PurchaseHandler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req receivePurchaseRequest
-	decodeJSON(r, &req) // optional body - omitted/empty items means "received exactly as ordered"
-	receivedByItem := map[int]int{}
+	decodeJSON(r, &req) // optional body
+	override := map[int]int{}
 	for _, it := range req.Items {
 		if it.ReceivedQty != nil {
-			receivedByItem[it.ID] = *it.ReceivedQty
+			override[it.ID] = *it.ReceivedQty
 		}
 	}
-
 	claims := appmw.GetClaims(r)
 	ctx := r.Context()
 
@@ -462,56 +633,42 @@ func (h *PurchaseHandler) Receive(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "purchase not found")
 		return
 	}
-	if status != "ordered" && status != "pending_arrival" {
+	if !isOpenPurchaseStatus(status) {
 		respondError(w, http.StatusBadRequest, "purchase is not awaiting receipt")
 		return
 	}
-
-	rows, err := tx.Query(ctx, `SELECT id, variant_id, qty, unit_cost FROM purchase_items WHERE purchase_id=$1`, id)
+	rows, err := tx.Query(ctx, `
+		SELECT b.id, b.purchase_item_id, b.planned_qty,
+		       (SELECT COUNT(*) FROM purchase_item_batches x WHERE x.purchase_item_id = b.purchase_item_id AND NOT x.is_received)
+		FROM purchase_item_batches b JOIN purchase_items pi ON pi.id = b.purchase_item_id
+		WHERE pi.purchase_id=$1 AND NOT b.is_received ORDER BY b.purchase_item_id, b.batch_no`, id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to load purchase items")
+		respondError(w, http.StatusInternalServerError, "failed to load delivery batches")
 		return
 	}
-	type item struct {
-		ID        int
-		VariantID int
-		Qty       int
-		UnitCost  float64
-	}
-	var items []item
+	type open struct{ batchID, itemID, planned, openOnLine int }
+	var batches []open
 	for rows.Next() {
-		var it item
-		rows.Scan(&it.ID, &it.VariantID, &it.Qty, &it.UnitCost)
-		items = append(items, it)
+		var o open
+		if rows.Scan(&o.batchID, &o.itemID, &o.planned, &o.openOnLine) == nil {
+			batches = append(batches, o)
+		}
 	}
 	rows.Close()
-
-	for _, it := range items {
-		receivedQty := it.Qty
-		if v, ok := receivedByItem[it.ID]; ok {
-			receivedQty = v
+	for _, o := range batches {
+		qty := o.planned
+		if v, ok := override[o.itemID]; ok && o.openOnLine == 1 {
+			qty = v
 		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE stock_buckets SET available_stock = available_stock + $1, incoming_stock = incoming_stock - $2 WHERE variant_id=$3`,
-			receivedQty, it.Qty, it.VariantID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to update stock")
+		if qty <= 0 {
+			continue
+		}
+		if msg := confirmBatchTx(ctx, tx, o.batchID, qty, claims.UserID); msg != "" {
+			respondError(w, http.StatusBadRequest, msg)
 			return
 		}
-		if _, err := tx.Exec(ctx, `UPDATE purchase_items SET received_qty=$1 WHERE id=$2`, receivedQty, it.ID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to record received qty")
-			return
-		}
-		if _, err := tx.Exec(ctx, `UPDATE product_variants SET cost_price=$1 WHERE id=$2`, it.UnitCost, it.VariantID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to update cost price")
-			return
-		}
-		tx.Exec(ctx, `
-			INSERT INTO stock_movements (variant_id, bucket_from, bucket_to, qty, event_type, user_id, note)
-			VALUES ($1,'(supplier)','available_stock',$2,'purchase_received',$3,$4)`,
-			it.VariantID, receivedQty, claims.UserID, fmt.Sprintf("purchase #%d received", id))
 	}
-
-	if _, err := tx.Exec(ctx, `UPDATE purchases SET status='received', received_at=now() WHERE id=$1`, id); err != nil {
+	if _, err := recomputePurchaseStatus(ctx, tx, id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update purchase status")
 		return
 	}
@@ -520,6 +677,308 @@ func (h *PurchaseHandler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// releaseIncomingTx gives back to Incoming-reservations whatever a PO still has outstanding
+// (qty - received) when it is cancelled or deleted. The rows are read fully BEFORE any UPDATE:
+// running tx.Exec while a tx.Query result is still open is "conn busy" in pgx, and the earlier
+// inline loops ignored that error, so a cancelled/deleted PO never actually released its Incoming.
+func releaseIncomingTx(ctx context.Context, tx pgx.Tx, purchaseID int) error {
+	rows, err := tx.Query(ctx, `SELECT variant_id, GREATEST(qty - COALESCE(received_qty,0), 0) FROM purchase_items WHERE purchase_id=$1`, purchaseID)
+	if err != nil {
+		return err
+	}
+	type line struct{ variantID, qty int }
+	var lines []line
+	for rows.Next() {
+		var l line
+		if err := rows.Scan(&l.variantID, &l.qty); err != nil {
+			rows.Close()
+			return err
+		}
+		lines = append(lines, l)
+	}
+	rows.Close()
+	for _, l := range lines {
+		if _, err := tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock - $1 WHERE variant_id=$2`, l.qty, l.variantID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// recomputePurchaseStatus derives the PO status from receiving progress: nothing received yet ->
+// unchanged (Waiting for Delivery); something received and nothing left outstanding in Incoming ->
+// received; otherwise partially_received. Never touches cancelled/received POs' other fields.
+func recomputePurchaseStatus(ctx context.Context, tx pgx.Tx, purchaseID int) (string, error) {
+	var status string
+	if err := tx.QueryRow(ctx, `SELECT status FROM purchases WHERE id=$1`, purchaseID).Scan(&status); err != nil {
+		return "", err
+	}
+	if !isOpenPurchaseStatus(status) {
+		return status, nil
+	}
+	var remaining, received int
+	if err := tx.QueryRow(ctx, `
+		SELECT COALESCE(SUM(GREATEST(qty - COALESCE(received_qty,0), 0)), 0), COALESCE(SUM(COALESCE(received_qty,0)), 0)
+		FROM purchase_items WHERE purchase_id=$1`, purchaseID).Scan(&remaining, &received); err != nil {
+		return "", err
+	}
+	switch {
+	case received > 0 && remaining == 0:
+		status = "received"
+		if _, err := tx.Exec(ctx, `UPDATE purchases SET status='received', received_at=COALESCE(received_at, now()) WHERE id=$1`, purchaseID); err != nil {
+			return "", err
+		}
+	case received > 0:
+		status = "partially_received"
+		if _, err := tx.Exec(ctx, `UPDATE purchases SET status='partially_received' WHERE id=$1`, purchaseID); err != nil {
+			return "", err
+		}
+	}
+	return status, nil
+}
+
+// confirmBatchTx marks one delivery batch received with the actual quantity and moves stock:
+// Incoming -= actual, Actual Stock += actual (+ a stock movement, and the variant's cost_price is
+// refreshed to the PO unit cost as before). Anything not received stays in Incoming - it is never
+// removed automatically. The caller holds the PO row lock and recomputes the PO status. Returns a
+// user-facing error message ("" on success).
+func confirmBatchTx(ctx context.Context, tx pgx.Tx, batchID, actual, userID int) string {
+	var itemID, purchaseID, variantID, qty int
+	var unitCost float64
+	var isReceived bool
+	if err := tx.QueryRow(ctx, `
+		SELECT b.purchase_item_id, pi.purchase_id, pi.variant_id, pi.qty, pi.unit_cost, b.is_received
+		FROM purchase_item_batches b JOIN purchase_items pi ON pi.id = b.purchase_item_id
+		WHERE b.id=$1 FOR UPDATE OF b`, batchID).Scan(&itemID, &purchaseID, &variantID, &qty, &unitCost, &isReceived); err != nil {
+		return "delivery batch not found"
+	}
+	if isReceived {
+		return "this delivery batch is already confirmed as received"
+	}
+	if actual <= 0 {
+		return "actual received qty must be greater than 0"
+	}
+	var receivedSoFar int
+	tx.QueryRow(ctx, `SELECT COALESCE(SUM(received_qty),0) FROM purchase_item_batches WHERE purchase_item_id=$1 AND is_received`, itemID).Scan(&receivedSoFar)
+	if remaining := qty - receivedSoFar; actual > remaining {
+		return fmt.Sprintf("actual received qty %d is more than the %d still outstanding on this order line - raise the order quantity first", actual, max(remaining, 0))
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE stock_buckets SET available_stock = available_stock + $1, incoming_stock = incoming_stock - $1 WHERE variant_id=$2`,
+		actual, variantID); err != nil {
+		return "failed to update stock"
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE purchase_item_batches SET received_qty=$1, is_received=true, received_at=now(), received_by=$2 WHERE id=$3`,
+		actual, userID, batchID); err != nil {
+		return "failed to record received batch"
+	}
+	if _, err := tx.Exec(ctx, `UPDATE purchase_items SET received_qty=$1 WHERE id=$2`, receivedSoFar+actual, itemID); err != nil {
+		return "failed to record received qty"
+	}
+	tx.Exec(ctx, `UPDATE product_variants SET cost_price=$1 WHERE id=$2`, unitCost, variantID)
+	tx.Exec(ctx, `
+		INSERT INTO stock_movements (variant_id, bucket_from, bucket_to, qty, event_type, user_id, note)
+		VALUES ($1,'(supplier)','available_stock',$2,'purchase_received',$3,$4)`,
+		variantID, actual, userID, fmt.Sprintf("purchase #%d batch received", purchaseID))
+	return ""
+}
+
+type batchRequest struct {
+	PlannedQty  *int `json:"planned_qty"`
+	ReceivedQty *int `json:"received_qty"`
+}
+
+// batchPurchase loads the open PO that owns an item/batch (locking it) - ("" status = not found).
+func (h *PurchaseHandler) lockPurchaseFor(ctx context.Context, tx pgx.Tx, query string, arg int) (int, string) {
+	var purchaseID int
+	if err := tx.QueryRow(ctx, query, arg).Scan(&purchaseID); err != nil {
+		return 0, ""
+	}
+	var status string
+	if err := tx.QueryRow(ctx, `SELECT status FROM purchases WHERE id=$1 FOR UPDATE`, purchaseID).Scan(&status); err != nil {
+		return 0, ""
+	}
+	return purchaseID, status
+}
+
+// AddBatch ("Split Delivery" / "+ Add Batch") appends a delivery batch to an order line. The
+// planned qty is typed by hand; a total that differs from the order qty is only a warning.
+func (h *PurchaseHandler) AddBatch(w http.ResponseWriter, r *http.Request) {
+	itemID, err := strconv.Atoi(chi.URLParam(r, "itemId"))
+	var req batchRequest
+	decodeJSON(r, &req)
+	if err != nil || (req.PlannedQty != nil && *req.PlannedQty < 0) {
+		respondError(w, http.StatusBadRequest, "invalid item or planned qty")
+		return
+	}
+	planned := 0
+	if req.PlannedQty != nil {
+		planned = *req.PlannedQty
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	_, status := h.lockPurchaseFor(ctx, tx, `SELECT purchase_id FROM purchase_items WHERE id=$1`, itemID)
+	if status == "" {
+		respondError(w, http.StatusNotFound, "order line not found")
+		return
+	}
+	if !isOpenPurchaseStatus(status) {
+		respondError(w, http.StatusBadRequest, "delivery batches can only be changed on an open purchase")
+		return
+	}
+	var id int
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO purchase_item_batches (purchase_item_id, batch_no, planned_qty)
+		SELECT $1, COALESCE(MAX(batch_no),0)+1, $2 FROM purchase_item_batches WHERE purchase_item_id=$1 RETURNING id`,
+		itemID, planned).Scan(&id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to add batch")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
+}
+
+// UpdateBatch edits an unreceived batch's planned qty.
+func (h *PurchaseHandler) UpdateBatch(w http.ResponseWriter, r *http.Request) {
+	batchID, err := strconv.Atoi(chi.URLParam(r, "batchId"))
+	var req batchRequest
+	if err != nil || decodeJSON(r, &req) != nil || req.PlannedQty == nil || *req.PlannedQty < 0 {
+		respondError(w, http.StatusBadRequest, "planned_qty (0 or more) is required")
+		return
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	_, status := h.lockPurchaseFor(ctx, tx, `SELECT pi.purchase_id FROM purchase_item_batches b JOIN purchase_items pi ON pi.id=b.purchase_item_id WHERE b.id=$1`, batchID)
+	if status == "" {
+		respondError(w, http.StatusNotFound, "delivery batch not found")
+		return
+	}
+	if !isOpenPurchaseStatus(status) {
+		respondError(w, http.StatusBadRequest, "delivery batches can only be changed on an open purchase")
+		return
+	}
+	ct, err := tx.Exec(ctx, `UPDATE purchase_item_batches SET planned_qty=$1 WHERE id=$2 AND NOT is_received`, *req.PlannedQty, batchID)
+	if err != nil || ct.RowsAffected() == 0 {
+		respondError(w, http.StatusBadRequest, "a received batch can't be edited")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DeleteBatch removes an unreceived batch (a line always keeps at least one).
+func (h *PurchaseHandler) DeleteBatch(w http.ResponseWriter, r *http.Request) {
+	batchID, err := strconv.Atoi(chi.URLParam(r, "batchId"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid batch id")
+		return
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	_, status := h.lockPurchaseFor(ctx, tx, `SELECT pi.purchase_id FROM purchase_item_batches b JOIN purchase_items pi ON pi.id=b.purchase_item_id WHERE b.id=$1`, batchID)
+	if status == "" {
+		respondError(w, http.StatusNotFound, "delivery batch not found")
+		return
+	}
+	if !isOpenPurchaseStatus(status) {
+		respondError(w, http.StatusBadRequest, "delivery batches can only be changed on an open purchase")
+		return
+	}
+	var itemID, count int
+	var received bool
+	tx.QueryRow(ctx, `SELECT purchase_item_id, is_received FROM purchase_item_batches WHERE id=$1`, batchID).Scan(&itemID, &received)
+	tx.QueryRow(ctx, `SELECT COUNT(*) FROM purchase_item_batches WHERE purchase_item_id=$1`, itemID).Scan(&count)
+	if received {
+		respondError(w, http.StatusBadRequest, "a received batch can't be deleted")
+		return
+	}
+	if count <= 1 {
+		respondError(w, http.StatusBadRequest, "an order line needs at least one delivery batch")
+		return
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM purchase_item_batches WHERE id=$1`, batchID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete batch")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ConfirmBatch is the "Received" checkbox: confirms one batch with its actual received qty
+// (defaults to the batch's planned qty, editable) and updates Incoming / Actual Stock and the PO
+// status (Waiting for Delivery -> Partially Received -> Received) in one transaction.
+func (h *PurchaseHandler) ConfirmBatch(w http.ResponseWriter, r *http.Request) {
+	batchID, err := strconv.Atoi(chi.URLParam(r, "batchId"))
+	var req batchRequest
+	decodeJSON(r, &req)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid batch id")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	purchaseID, status := h.lockPurchaseFor(ctx, tx, `SELECT pi.purchase_id FROM purchase_item_batches b JOIN purchase_items pi ON pi.id=b.purchase_item_id WHERE b.id=$1`, batchID)
+	if status == "" {
+		respondError(w, http.StatusNotFound, "delivery batch not found")
+		return
+	}
+	if !isOpenPurchaseStatus(status) {
+		respondError(w, http.StatusBadRequest, "this purchase is already received or cancelled")
+		return
+	}
+	actual := 0
+	if req.ReceivedQty != nil {
+		actual = *req.ReceivedQty
+	} else {
+		tx.QueryRow(ctx, `SELECT planned_qty FROM purchase_item_batches WHERE id=$1`, batchID).Scan(&actual)
+	}
+	if msg := confirmBatchTx(ctx, tx, batchID, actual, claims.UserID); msg != "" {
+		respondError(w, http.StatusBadRequest, msg)
+		return
+	}
+	newStatus, err := recomputePurchaseStatus(ctx, tx, purchaseID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update purchase status")
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": newStatus})
 }
 
 // Delete removes a purchase still in 'ordered'/'pending_arrival' status, releasing its
@@ -545,18 +1004,18 @@ func (h *PurchaseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "purchase not found")
 		return
 	}
+	if status == "partially_received" {
+		respondError(w, http.StatusBadRequest, "part of this purchase is already received - cancel it instead of deleting")
+		return
+	}
 	if status != "ordered" && status != "pending_arrival" {
 		respondError(w, http.StatusBadRequest, "purchase already received or cancelled")
 		return
 	}
-	rows, _ := tx.Query(ctx, `SELECT variant_id, qty FROM purchase_items WHERE purchase_id=$1`, id)
-	for rows.Next() {
-		var variantID, qty int
-		if rows.Scan(&variantID, &qty) == nil {
-			tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock - $1 WHERE variant_id=$2`, qty, variantID)
-		}
+	if err := releaseIncomingTx(ctx, tx, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to release incoming stock")
+		return
 	}
-	rows.Close()
 	if _, err := tx.Exec(ctx, `DELETE FROM purchases WHERE id=$1`, id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete purchase")
 		return

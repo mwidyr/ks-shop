@@ -39,3 +39,16 @@ export function submitForConfirmation(id) {
 export function confirmOrder(id) {
   return client.post(`/purchase-requisitions/${id}/confirm-order`).then((res) => res.data)
 }
+
+// Supplier-group notes log: added one by one, editable in every requisition status.
+export function addRequisitionNote(groupId, note) {
+  return client.post(`/purchase-requisitions/supplier-groups/${groupId}/notes`, { note }).then((res) => res.data)
+}
+
+export function updateRequisitionNote(noteId, note) {
+  return client.patch(`/purchase-requisitions/notes/${noteId}`, { note }).then((res) => res.data)
+}
+
+export function deleteRequisitionNote(noteId) {
+  return client.delete(`/purchase-requisitions/notes/${noteId}`).then((res) => res.data)
+}

@@ -23,12 +23,13 @@ type RolePermissionHandler struct {
 var tabKeys = []string{
 	"dashboard",
 	"panel_siaran", "orders", "picking", "shipping", "chat", "customers", "reviews",
-	"products", "categories", "inventory", "warehouses", "suppliers", "purchases", "purchase_alert",
+	"products", "categories", "colors", "inventory", "warehouses", "suppliers", "purchases", "purchase_requisitions", "replenishment_planning", "purchase_alert",
 	"returns", "refunds",
 	"promotions", "campaigns", "advertising",
-	"sales_analytics", "product_analytics", "profit",
+	"sales_analytics", "product_analytics", "product_performance", "product_color_pair", "host_category_leaderboard",
+	"performance_dashboard", "host_performance_analytics", "heatmap", "profit",
 	"transactions", "payouts", "fees", "reports",
-	"store_profile", "shipping_settings", "hosts", "store_design", "team",
+	"store_profile", "shipping_settings", "hosts", "affiliates", "store_design", "team",
 	"notifications", "integrations", "roles", "audit_logs",
 	"settings",
 }
