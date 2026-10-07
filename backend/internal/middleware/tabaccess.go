@@ -19,6 +19,35 @@ func RequireTabEdit(db *pgxpool.Pool, tabKey string) func(http.Handler) http.Han
 	return requireTabLevel(db, tabKey, "edit")
 }
 
+// RequireAnyTabView allows the request if the caller can view (or edit) ANY of tabKeys, or is
+// super_user. For read-only lookup data (e.g. pickup chains) needed by more than one tab, so a
+// role that can use Orders isn't also forced to be granted the admin tab that owns the data.
+func RequireAnyTabView(db *pgxpool.Pool, tabKeys ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r)
+			if claims == nil {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+			if claims.Role == "super_user" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			var n int
+			err := db.QueryRow(r.Context(), `
+				SELECT COUNT(*) FROM role_tab_access
+				WHERE role_name=$1 AND tab_key = ANY($2) AND access_level IN ('view','edit')`,
+				claims.Role, tabKeys).Scan(&n)
+			if err != nil || n == 0 {
+				http.Error(w, `{"error":"forbidden: no access to this section"}`, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func requireTabLevel(db *pgxpool.Pool, tabKey string, minLevel string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@ import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 
-// The left block (Host | QTY | Shift) is its own fixed, non-scrolling table next to the
+// The left block (Shift | Host | QTY) is its own fixed, non-scrolling table next to the
 // horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
 // paint over it. Because they are two tables, every row must have the same fixed height.
 const HOST_COL_WIDTH = 120
@@ -280,30 +280,30 @@ export default function Heatmap() {
             <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-1 mr-1" style={{ borderSpacing: CELL_GAP }}>
               <thead>
                 <tr style={{ height: HEAD_ROW_H }}>
+                  <th className="p-1 text-left whitespace-nowrap" style={{ width: SHIFT_COL_WIDTH, minWidth: SHIFT_COL_WIDTH }}>{t('page_heatmap.col_shift')}</th>
                   <th className="p-1 text-left whitespace-nowrap" style={{ width: HOST_COL_WIDTH, minWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
                   {/* Always literal "QTY" in all 3 languages per the client spec - no t() call. */}
                   <th className="p-1 text-right whitespace-nowrap" style={{ width: QTY_COL_WIDTH, minWidth: QTY_COL_WIDTH }}>QTY</th>
-                  <th className="p-1 text-left whitespace-nowrap" style={{ width: SHIFT_COL_WIDTH, minWidth: SHIFT_COL_WIDTH }}>{t('page_heatmap.col_shift')}</th>
                 </tr>
               </thead>
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
+                    <td className="p-1 font-medium text-gray-500 whitespace-nowrap">{SHIFT_LABELS[host.shift] || ''}</td>
                     <td className="p-1 font-medium text-gray-700" title={host.host_name}>
                       <div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{host.host_name}</div>
                     </td>
                     <td className="p-1 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtNum(host.total_qty)}</td>
-                    <td className="p-1 font-medium text-gray-500 whitespace-nowrap">{SHIFT_LABELS[host.shift] || ''}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
+                  <td className="p-1"></td>
                   <td className="p-1 font-bold text-gray-800">ALL</td>
                   <td className="p-1 text-right font-bold text-gray-800 whitespace-nowrap">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
-                  <td className="p-1"></td>
                 </tr>
                 <tr style={{ height: BODY_ROW_H }}>
-                  <td className="p-1 font-bold text-gray-500"><div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</div></td>
                   <td className="p-1"></td>
+                  <td className="p-1 font-bold text-gray-500"><div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</div></td>
                   <td className="p-1"></td>
                 </tr>
               </tbody>

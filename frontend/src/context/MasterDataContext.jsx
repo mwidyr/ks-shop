@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from './AuthContext'
 import { listCategories } from '../api/categories'
 import { listColors } from '../api/colors'
 
@@ -15,13 +16,18 @@ const MasterDataContext = createContext({
 
 export function MasterDataProvider({ children }) {
   const { i18n } = useTranslation()
+  const { user } = useAuth()
   const [categories, setCategories] = useState([])
   const [colors, setColors] = useState([])
 
+  // Only for a logged-in user: this provider wraps the whole app, including public no-login pages
+  // (/live-data-upload, /pickup/:token), where these authenticated calls 401 and the shared client
+  // would hard-redirect the visitor to /login.
   useEffect(() => {
+    if (!user) return
     listCategories().then(setCategories)
     listColors().then(setColors)
-  }, [])
+  }, [user])
 
   // Matches on EITHER name_zh or name_id - not just name_zh. Data entered before this master
   // list existed has no governance on which language it was typed in (confirmed by the client:

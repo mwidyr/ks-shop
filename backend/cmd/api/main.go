@@ -113,6 +113,7 @@ func main() {
 	allStaffRoles := []string{"sales", "spv", "management", "cs", "warehouse", "super_user"}
 
 	view := func(tab string) func(http.Handler) http.Handler { return appmw.RequireTabView(pool, tab) }
+	viewAny := func(tabs ...string) func(http.Handler) http.Handler { return appmw.RequireAnyTabView(pool, tabs...) }
 	edit := func(tab string) func(http.Handler) http.Handler { return appmw.RequireTabEdit(pool, tab) }
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +216,7 @@ func main() {
 			r.With(view("profit")).Get("/dashboard/profit", dashboardH.Profit)
 			r.With(view("dashboard")).Get("/dashboard/alerts", dashboardH.Alerts)
 
-			r.With(view("hosts")).Get("/hosts", hostH.List)
+			r.With(viewAny("hosts", "orders")).Get("/hosts", hostH.List)
 			r.With(edit("hosts")).Post("/hosts", hostH.Create)
 			r.With(edit("hosts")).Patch("/hosts/{id}", hostH.Update)
 			r.With(edit("hosts")).Delete("/hosts/{id}", hostH.Delete)
@@ -229,12 +230,12 @@ func main() {
 
 			// Affiliates (Sales Channel Attribution, items 040-045) - same minimal reference-list
 			// pattern as Location Tags above, own tab_key (migration 069).
-			r.With(view("affiliates")).Get("/affiliates", affiliateH.List)
+			r.With(viewAny("affiliates", "orders")).Get("/affiliates", affiliateH.List)
 			r.With(edit("affiliates")).Post("/affiliates", affiliateH.Create)
 			r.With(edit("affiliates")).Patch("/affiliates/{id}", affiliateH.Update)
 			r.With(edit("affiliates")).Delete("/affiliates/{id}", affiliateH.Delete)
 
-			r.With(view("shipping_settings")).Get("/pickup-chains", pickupChainH.List)
+			r.With(viewAny("shipping_settings", "orders")).Get("/pickup-chains", pickupChainH.List)
 			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
 			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
 			r.With(edit("shipping_settings")).Delete("/pickup-chains/{id}", pickupChainH.Delete)
