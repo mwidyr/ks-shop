@@ -883,8 +883,8 @@
     "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:",
     "variant_sku_hint": "Auto-filled from the Product Code - editable if you need to fix it manually",
     "names_by_language": "Names by language",
-    "names_by_language_hint": "Optional. Empty = the Chinese name above is used. The Chinese name is always used for Purchase Requisition copy.",
-    "chinese_name_hint": "Main name (Chinese)"
+    "names_by_language_hint": "Optional. Empty = the main (Indonesian) name is used. Purchase Requisition copy always uses the Chinese name; if empty, it uses the main name.",
+    "main_name_hint": "Main name (Indonesian)"
   },
   "page_products": {
     "activate": "Activate",

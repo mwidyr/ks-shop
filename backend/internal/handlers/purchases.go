@@ -617,7 +617,7 @@ func (h *PurchaseHandler) History(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT p.po_number, s.name, p.order_date::text, COALESCE(pr.sku,''), pr.name, pi.qty, pi.unit_cost,
+		SELECT p.po_number, s.name, p.order_date::text, COALESCE(pr.sku,''), `+chineseNameSQL("pr")+`, pi.qty, pi.unit_cost,
 		       pi.qty*pi.unit_cost, p.received_at::text
 		FROM purchase_items pi
 		JOIN purchases p ON p.id = pi.purchase_id

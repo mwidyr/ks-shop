@@ -136,8 +136,9 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
   const totalQty = group.items.reduce((sum, it) => sum + (Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0), 0)
 
   // WeChat-ready copy text (item 056, format updated per item 077): grouped by the supplier's
-  // own vendor_sku prefix (still shown when present) plus our own Product Code - not the product
-  // NAME, since name translation isn't available yet and the supplier reads Chinese. Color uses
+  // product (vendor_sku + Product Code only decide the grouping now), headed by the product NAME -
+  // it.product_name is the Chinese name from the backend (falling back to the main name when no
+  // Chinese name was entered), regardless of the staff member's UI language. Color uses
   // toChineseColor (NOT translateColor, which follows the staff member's current UI locale) so
   // the copied text always shows the Chinese name from Color Master, even for legacy items whose
   // raw stored color is actually Indonesian text entered before Color Master existed - confirmed
@@ -151,7 +152,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
       const key = (it.vendor_sku || '') + '\u0000' + it.product_sku
       let g = byKey.get(key)
       if (!g) {
-        g = { vendorSku: it.vendor_sku || '', productCode: it.product_sku, lines: [] }
+        g = { name: it.product_name, lines: [] }
         byKey.set(key, g)
         groups.push(g)
       }
@@ -160,7 +161,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged }) {
     }
     const parts = ['姓名 : ', '地址 : ', '']
     groups.forEach((g, idx) => {
-      parts.push(g.vendorSku ? `${g.vendorSku}# ${g.productCode}` : g.productCode)
+      parts.push(g.name)
       parts.push(...g.lines)
       if (idx < groups.length - 1) parts.push('')
     })

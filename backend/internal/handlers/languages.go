@@ -16,17 +16,17 @@ import (
 var langCodeRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
 
 // requestLang returns the UI language the client asked for via the X-Lang header, or "" (use the
-// canonical Chinese name) when absent, invalid or "zh".
+// canonical Indonesian products.name) when absent, invalid or "id".
 func requestLang(r *http.Request) string {
 	l := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Lang")))
-	if l == "zh" || !langCodeRe.MatchString(l) {
+	if l == "id" || !langCodeRe.MatchString(l) {
 		return ""
 	}
 	return l
 }
 
 // productNameSQL is the SQL expression for a product's display name in the request's language,
-// falling back to the canonical products.name when that language has no translation. alias is
+// falling back to the canonical (Indonesian) products.name when that language has no name. alias is
 // the products table alias in the caller's query.
 func productNameSQL(r *http.Request, alias string) string {
 	l := requestLang(r)
@@ -34,6 +34,13 @@ func productNameSQL(r *http.Request, alias string) string {
 		return alias + ".name"
 	}
 	return "COALESCE(NULLIF(" + alias + ".names->>'" + l + "',''), " + alias + ".name)"
+}
+
+// chineseNameSQL is the product name for contexts that must always be Chinese regardless of the UI
+// language (Purchase Requisition copy, supplier PO export): the optional Chinese name, falling
+// back to the canonical products.name when none was entered.
+func chineseNameSQL(alias string) string {
+	return "COALESCE(NULLIF(" + alias + ".names->>'zh',''), " + alias + ".name)"
 }
 
 // namesSearchText joins every non-empty name value into the searchable names_search column.
@@ -68,7 +75,7 @@ func encodeNames(in map[string]string) (string, string) {
 	for code, v := range in {
 		code = strings.ToLower(strings.TrimSpace(code))
 		v = strings.TrimSpace(v)
-		if code != "zh" && langCodeRe.MatchString(code) && v != "" {
+		if code != "id" && langCodeRe.MatchString(code) && v != "" {
 			clean[code] = v
 		}
 	}
@@ -131,7 +138,7 @@ func (h *LanguageHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]string{"code": req.Code})
 }
 
-// Update renames or (de)activates a language. Chinese is the canonical name language and can't
+// Update renames or (de)activates a language. Indonesian is the canonical name language and can't
 // be deactivated.
 func (h *LanguageHandler) Update(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
@@ -143,8 +150,8 @@ func (h *LanguageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if code == "zh" && req.IsActive != nil && !*req.IsActive {
-		respondError(w, http.StatusBadRequest, "Chinese is the canonical language and can't be deactivated")
+	if code == "id" && req.IsActive != nil && !*req.IsActive {
+		respondError(w, http.StatusBadRequest, "Indonesian is the canonical language and can't be deactivated")
 		return
 	}
 	ct, err := h.DB.Exec(r.Context(), `

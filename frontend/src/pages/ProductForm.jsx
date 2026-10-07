@@ -298,13 +298,13 @@ export default function ProductForm() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               required
             />
-            <p className="text-xs text-gray-400 mt-1">{t('page_product_form.chinese_name_hint')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('page_product_form.main_name_hint')}</p>
           </div>
-          {languages.filter((l) => l.code !== 'zh').length > 0 && (
+          {languages.filter((l) => l.code !== 'id').length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.names_by_language')}</label>
               <div className="space-y-2">
-                {languages.filter((l) => l.code !== 'zh').map((l) => (
+                {languages.filter((l) => l.code !== 'id').map((l) => (
                   <div key={l.code} className="flex items-center gap-2">
                     <span className="w-28 shrink-0 text-xs text-gray-500">{l.label}</span>
                     <input

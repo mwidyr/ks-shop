@@ -883,8 +883,8 @@
     "product_saved_variant_failed_prefix": "Data produk sudah tersimpan, tapi salah satu varian gagal:",
     "variant_sku_hint": "Terisi otomatis dari Kode Produk - bisa diedit manual kalau perlu",
     "names_by_language": "Nama per bahasa",
-    "names_by_language_hint": "Opsional. Kosong = pakai nama Mandarin di atas. Nama Mandarin selalu dipakai untuk salin teks Purchase Requisition.",
-    "chinese_name_hint": "Nama utama (Mandarin)"
+    "names_by_language_hint": "Opsional. Kosong = memakai nama utama (Indonesia). Salin teks Purchase Requisition selalu memakai nama Mandarin; jika kosong, memakai nama utama.",
+    "main_name_hint": "Nama utama (Bahasa Indonesia)"
   },
   "page_products": {
     "activate": "Aktifkan",

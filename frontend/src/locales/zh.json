@@ -883,8 +883,8 @@
     "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗：",
     "variant_sku_hint": "依商品代碼自動帶入 - 如有需要可手動修改",
     "names_by_language": "各語言名稱",
-    "names_by_language_hint": "選填。留空則使用上方的中文名稱。採購請求的一鍵複製一律使用中文名稱。",
-    "chinese_name_hint": "主要名稱（中文）"
+    "names_by_language_hint": "選填。留空則使用主要名稱（印尼文）。採購請求的一鍵複製一律使用中文名稱；若未填寫，則使用主要名稱。",
+    "main_name_hint": "主要名稱（印尼文）"
   },
   "page_products": {
     "activate": "上架",

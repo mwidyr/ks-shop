@@ -1,4 +1,4 @@
-// Display name of a product in the current UI language, falling back to the canonical (Chinese)
+// Display name of a product in the current UI language, falling back to the canonical (Indonesian)
 // name when that language has no translation. Only needed for data the backend returns with the
 // raw name + names map (the products list); other endpoints already localize server-side.
 export function localizedProductName(product, lang) {

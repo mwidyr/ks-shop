@@ -107,7 +107,7 @@ type Product struct {
 	ID                      int               `json:"id"`
 	SKU                     string            `json:"sku"` // master product code, distinct from each variant's own sku
 	VendorSKU               string            `json:"vendor_sku"`
-	Name                    string            `json:"name"`  // canonical (Chinese) name - never localized here, the edit form saves it back as-is
+	Name                    string            `json:"name"`  // canonical (Indonesian) name - never localized here, the edit form saves it back as-is
 	Names                   map[string]string `json:"names"` // optional per-language overrides, keyed by language code
 	Description             string            `json:"description"`
 	Category                string            `json:"category"`

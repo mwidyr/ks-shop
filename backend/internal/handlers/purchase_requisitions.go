@@ -172,7 +172,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	supRows.Close()
 
 	itemRows, err := h.DB.Query(ctx, `
-		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), COALESCE(p.vendor_sku,''), p.name, pv.color, pv.size, pv.sku,
+		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), COALESCE(p.vendor_sku,''), ` + chineseNameSQL("p") + `, pv.color, pv.size, pv.sku,
 		       pri.planned_qty, pri.confirmed_qty, pri.unit_cost
 		FROM purchase_requisition_items pri
 		JOIN purchase_requisition_suppliers prs ON prs.id = pri.requisition_supplier_id

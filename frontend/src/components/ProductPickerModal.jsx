@@ -6,11 +6,16 @@ import { resolveUrl } from '../utils/image'
 import { formatCurrency } from '../utils/format'
 import { IconChevronDown } from './icons'
 import { useMasterData } from '../context/MasterDataContext'
+import { allProductNames } from '../utils/productName'
 
-// Same product-search predicate as Inventory.jsx, so "find a product" behaves identically
-// everywhere in the app. Exported for reuse by PurchaseRequisitionDetail.jsx's inline picker.
+// Product-search predicate for the picker. A short letters-only query (1-2 letters, e.g. "U") is
+// treated as a product-code prefix - it lists every code starting with it (U001, U002, ...)
+// instead of every product whose name/color merely contains that letter. Anything else (digits
+// like "005", a full code "U005", or a name/color word) matches anywhere in the code, names,
+// colors or sizes, so "005" finds C005, J005 and U005.
 export function productMatches(product, q) {
-  if (product.name.toLowerCase().includes(q)) return true
+  if (/^[a-z]{1,2}$/.test(q)) return (product.sku || '').toLowerCase().startsWith(q)
+  if (allProductNames(product).includes(q)) return true
   if (product.sku && product.sku.toLowerCase().includes(q)) return true
   if (product.vendor_sku && product.vendor_sku.toLowerCase().includes(q)) return true
   return product.variants.some((v) =>
@@ -47,9 +52,10 @@ function PickerVariantRow({ product, variant, qty, onChangeQty }) {
   )
 }
 
-function PickerProductCard({ product, forceOpen, pending, setQty }) {
+function PickerProductCard({ product, pending, setQty }) {
+  // Always starts collapsed, search results included - variants only show once the product is clicked.
   const [open, setOpen] = useState(false)
-  const isOpen = forceOpen || open
+  const isOpen = open
   const selectedInProduct = product.variants.filter((v) => pending[v.id] > 0).length
 
   return (
@@ -179,7 +185,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
             <p className="text-center text-gray-400 py-8">{t('page_order_create.picker_empty')}</p>
           ) : (
             filtered.map((product) => (
-              <PickerProductCard key={product.id} product={product} forceOpen={Boolean(q)} pending={pending} setQty={setQty} />
+              <PickerProductCard key={product.id} product={product} pending={pending} setQty={setQty} />
             ))
           )}
         </div>
