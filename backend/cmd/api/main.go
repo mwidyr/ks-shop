@@ -100,6 +100,12 @@ func main() {
 	liveSessionH := &handlers.LiveSessionHandler{DB: pool}
 	liveSessionScreenshotH := &handlers.LiveSessionScreenshotHandler{DB: pool}
 	affiliateH := &handlers.AffiliateHandler{DB: pool}
+	liveDataH := &handlers.LiveDataHandler{
+		DB:                   pool,
+		OpenAIAPIKey:         cfg.OpenAIAPIKey,
+		OpenAIVisionModel:    cfg.OpenAIVisionModel,
+		LiveDataAccessSecret: cfg.LiveDataAccessSecret,
+	}
 
 	// Any authenticated staff role may reach this outer gate; the real per-section
 	// restriction happens per-route below via view()/edit() (backed by role_tab_access -
@@ -126,6 +132,17 @@ func main() {
 		r.Post("/auth/accept-invite", authH.AcceptInvite)
 		r.Get("/auth/tokens/{token}", authH.ValidateToken)
 		r.Get("/public/pickup/{token}", pickupLinkH.PublicGet)
+
+		// LIVE Data Upload (public, no-login wizard - replaces the client's old Google Form).
+		// locations/hosts/upload reuse the same handlers the authenticated dashboard uses (they
+		// do nothing permission-sensitive internally); verify-code is the only ungated entry
+		// point, recognize/submit require the session token it issues (see live_data_recognition.go).
+		r.Post("/public/live-data/verify-code", liveDataH.VerifyCode)
+		r.Get("/public/live-data/locations", hostLocationH.List)
+		r.Get("/public/live-data/hosts", hostH.List)
+		r.Post("/public/live-data/upload", uploadH.UploadImage)
+		r.Post("/public/live-data/recognize", liveDataH.Recognize)
+		r.Post("/public/live-data/submit", liveDataH.Submit)
 
 		r.Group(func(r chi.Router) {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
@@ -286,6 +303,7 @@ func main() {
 			r.With(edit("panel_siaran")).Delete("/live-sessions/{id}/products/{productId}", liveSessionH.RemoveProduct)
 			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/live-data", liveSessionH.SubmitLiveData)
 			r.With(view("panel_siaran")).Get("/live-sessions/{id}/screenshots", liveSessionScreenshotH.List)
+			r.With(view("panel_siaran")).Get("/live-data-upload/current-code", liveDataH.CurrentCode)
 			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/screenshots", liveSessionScreenshotH.Create)
 
 			r.With(view("returns")).Get("/returns", returnH.List)

@@ -45,6 +45,17 @@ type Config struct {
 	ECPayLogisticsHashKey    string
 	ECPayLogisticsHashIV     string
 	ECPayLogisticsBaseURL    string
+
+	// LIVE Data Upload (public, no-login wizard - item "LIVE Data Upload"). OpenAIAPIKey is left
+	// empty until the client provides one; the recognition call fails with a clear "not
+	// configured yet" error rather than crashing when it's unset, so the rest of the feature can
+	// be built/tested without it. LiveDataAccessSecret seeds the hourly-rotating access code
+	// (HMAC of the secret + current hour) and the short-lived session token issued once a host
+	// enters a valid code - deliberately separate from JWTSecret since this token carries no
+	// staff identity at all, just "this browser passed the code gate recently".
+	OpenAIAPIKey         string
+	OpenAIVisionModel    string
+	LiveDataAccessSecret string
 }
 
 func Load() Config {
@@ -81,6 +92,10 @@ func Load() Config {
 		ECPayLogisticsHashKey:    getEnv("ECPAY_LOGISTICS_HASH_KEY", defaultHashKey),
 		ECPayLogisticsHashIV:     getEnv("ECPAY_LOGISTICS_HASH_IV", defaultHashIV),
 		ECPayLogisticsBaseURL:    getEnv("ECPAY_LOGISTICS_BASE_URL", defaultBaseURL),
+
+		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", ""),
+		OpenAIVisionModel:    getEnv("OPENAI_VISION_MODEL", "gpt-4o-mini"),
+		LiveDataAccessSecret: getEnv("LIVE_DATA_ACCESS_SECRET", "dev-live-data-secret-change-me"),
 	}
 }
 

@@ -2,8 +2,36 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { listHosts } from '../api/hosts'
-import { listLiveSessions, createLiveSession, updateLiveSession, goLiveSession } from '../api/liveSessions'
+import { listLiveSessions, createLiveSession, updateLiveSession, goLiveSession, getLiveDataCurrentCode } from '../api/liveSessions'
 import SessionStatusPill from '../components/SessionStatusPill'
+
+function LiveDataCodeCard() {
+  const { t } = useTranslation()
+  const [data, setData] = useState(null)
+
+  function reload() {
+    getLiveDataCurrentCode().then(setData).catch(() => setData(null))
+  }
+
+  // Refetched every minute, not just on mount - the code rotates hourly, and staff may leave
+  // this page open across a rotation boundary.
+  useEffect(() => {
+    reload()
+    const id = setInterval(reload, 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (!data) return null
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
+      <p className="text-sm text-amber-800">
+        🔑 <span className="font-semibold">{t('page_panel_siaran.live_data_code_label')}:</span>{' '}
+        <span className="font-mono font-bold text-base">{data.code}</span>
+        {' '}<span className="text-amber-700">{t('page_panel_siaran.live_data_code_rotates', { minutes: data.minutes_until_rotate })}</span>
+      </p>
+    </div>
+  )
+}
 
 export default function PanelSiaran() {
   const { t } = useTranslation()
@@ -69,6 +97,8 @@ export default function PanelSiaran() {
           {t('page_panel_siaran.history_link', { count: total })}
         </Link>
       </div>
+
+      <LiveDataCodeCard />
 
       {current && (
         <div className="bg-white rounded-2xl shadow-sm p-5 mb-4">

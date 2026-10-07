@@ -49,3 +49,9 @@ export function listLiveSessionScreenshots(id) {
 export function addLiveSessionScreenshot(id, imageUrl) {
   return client.post(`/live-sessions/${id}/screenshots`, { image_url: imageUrl }).then((res) => res.data)
 }
+
+// Current hourly-rotating access code for the public LIVE Data Upload wizard (/live-data-upload)
+// - staff share this with hosts as needed.
+export function getLiveDataCurrentCode() {
+  return client.get('/live-data-upload/current-code').then((res) => res.data)
+}

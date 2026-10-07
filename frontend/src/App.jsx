@@ -41,6 +41,7 @@ const LiveSessionHistory = lazy(() => import('./pages/LiveSessionHistory'))
 const LiveSessionNew = lazy(() => import('./pages/LiveSessionNew'))
 const LiveSessionDetail = lazy(() => import('./pages/LiveSessionDetail'))
 const PickupPublic = lazy(() => import('./pages/PickupPublic'))
+const LiveDataUpload = lazy(() => import('./pages/LiveDataUpload'))
 const Returns = lazy(() => import('./pages/Returns'))
 const Refunds = lazy(() => import('./pages/Refunds'))
 const Promotions = lazy(() => import('./pages/Promotions'))
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
         <Route path="/pickup/:token" element={<PickupPublic />} />
+        <Route path="/live-data-upload" element={<LiveDataUpload />} />
 
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
