@@ -331,6 +331,7 @@ func main() {
 			r.With(edit("roles")).Post("/users", userH.Create)
 			r.With(edit("roles")).Patch("/users/{id}", userH.Update)
 			r.With(edit("roles")).Post("/users/{id}/resend-invite", userH.ResendInvite)
+			r.With(edit("roles")).Post("/users/{id}/set-password", userH.SetPassword)
 			r.With(edit("roles")).Delete("/users/{id}", userH.Delete)
 			r.Get("/my-access", rolePermH.MyAccess)
 			r.With(view("roles")).Get("/tabs", rolePermH.Tabs)

@@ -1225,7 +1225,17 @@
     "role_warehouse": "倉管",
     "saved_label": "已儲存",
     "saving": "儲存中...",
-    "staff_section_title": "員工"
+    "staff_section_title": "員工",
+    "set_password_button": "設定密碼",
+    "set_password_title": "設定密碼",
+    "set_password_desc": "為 {{name}} 設定新密碼，完全取代邀請/重設密碼信件流程。",
+    "set_password_new_label": "新密碼",
+    "set_password_confirm_label": "確認新密碼",
+    "set_password_mismatch": "密碼不一致",
+    "set_password_failed": "設定密碼失敗",
+    "set_password_busy": "儲存中...",
+    "set_password_submit": "儲存",
+    "email_update_failed": "更新電子郵件失敗"
   },
   "page_sales_analytics": {
     "aov": "平均客單價",

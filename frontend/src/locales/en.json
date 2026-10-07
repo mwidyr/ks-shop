@@ -1225,7 +1225,17 @@
     "role_warehouse": "Warehouse",
     "saved_label": "Saved",
     "saving": "Saving...",
-    "staff_section_title": "Staff"
+    "staff_section_title": "Staff",
+    "set_password_button": "Set Password",
+    "set_password_title": "Set Password",
+    "set_password_desc": "Set a new password for {{name}}. This replaces the invite/reset email flow entirely.",
+    "set_password_new_label": "New password",
+    "set_password_confirm_label": "Confirm new password",
+    "set_password_mismatch": "Passwords do not match",
+    "set_password_failed": "Failed to set password",
+    "set_password_busy": "Saving...",
+    "set_password_submit": "Save",
+    "email_update_failed": "Failed to update email"
   },
   "page_sales_analytics": {
     "aov": "AOV",

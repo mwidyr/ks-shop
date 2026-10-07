@@ -1225,7 +1225,17 @@
     "role_warehouse": "Warehouse",
     "saved_label": "Tersimpan",
     "saving": "Menyimpan...",
-    "staff_section_title": "Staf"
+    "staff_section_title": "Staf",
+    "set_password_button": "Atur Password",
+    "set_password_title": "Atur Password",
+    "set_password_desc": "Atur password baru untuk {{name}}. Ini menggantikan alur email undangan/reset sepenuhnya.",
+    "set_password_new_label": "Password baru",
+    "set_password_confirm_label": "Konfirmasi password baru",
+    "set_password_mismatch": "Password tidak cocok",
+    "set_password_failed": "Gagal mengatur password",
+    "set_password_busy": "Menyimpan...",
+    "set_password_submit": "Simpan",
+    "email_update_failed": "Gagal mengubah email"
   },
   "page_sales_analytics": {
     "aov": "AOV",

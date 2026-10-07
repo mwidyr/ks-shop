@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 
 	"ordermgmt/internal/auth"
 	"ordermgmt/internal/config"
@@ -114,6 +116,7 @@ func sendInvite(ctx context.Context, db *pgxpool.Pool, cfg config.Config, userID
 type updateUserRequest struct {
 	Role     *string `json:"role"`
 	IsActive *bool   `json:"is_active"`
+	Email    *string `json:"email"`
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +154,72 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		logActivity(r.Context(), h.DB, "user", id, "active_changed", actorID, fmt.Sprintf("is_active -> %v", *req.IsActive))
 	}
+	if req.Email != nil {
+		email := strings.TrimSpace(*req.Email)
+		if email == "" {
+			respondError(w, http.StatusBadRequest, "email is required")
+			return
+		}
+		if _, err := h.DB.Exec(r.Context(), `UPDATE users SET email=$1 WHERE id=$2`, email, id); err != nil {
+			if isUniqueViolation(err) {
+				respondError(w, http.StatusConflict, "email sudah dipakai oleh akun lain")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "failed to update email")
+			return
+		}
+		logActivity(r.Context(), h.DB, "user", id, "email_changed", actorID, fmt.Sprintf("email -> %s", email))
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type setPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// SetPassword lets an admin directly set a user's password, bypassing the email-link flow
+// entirely - both a workaround for when invite/reset emails don't arrive, and a direct "change
+// this person's password" tool. Also clears is_active=true, so it doubles as a way to unlock a
+// still-pending invite (never accepted) without needing that invite email to ever arrive.
+// isAdmin(r) is checked here specifically (not just the route's edit("roles") tab gate) since
+// setting someone else's password is more sensitive than the other actions on this handler -
+// same "real authorization boundary, not just a UI-level restriction" pattern used for
+// DeleteVariant/product force-delete elsewhere in this codebase.
+func (h *UserHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		respondError(w, http.StatusForbidden, "only an admin can set another user's password")
+		return
+	}
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var req setPasswordRequest
+	if err := decodeJSON(r, &req); err != nil || len(req.Password) < 6 {
+		respondError(w, http.StatusBadRequest, "password must be at least 6 characters")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `UPDATE users SET password_hash=$1, is_active=true WHERE id=$2`, string(hash), id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to set password")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	var actorID *int
+	if claims != nil {
+		actorID = &claims.UserID
+	}
+	logActivity(r.Context(), h.DB, "user", id, "password_set_by_admin", actorID, "password diatur ulang oleh admin")
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

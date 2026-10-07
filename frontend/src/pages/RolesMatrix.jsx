@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listUsers, createUser, updateUser, deleteUser, resendInvite } from '../api/users'
+import { listUsers, createUser, updateUser, deleteUser, resendInvite, setUserPassword } from '../api/users'
 import { listTabs, getRoleTabAccess, updateRoleTabAccess } from '../api/rolePermissions'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
+import PasswordInput from '../components/PasswordInput'
 
 const roleOptions = [
   { key: 'super_user' },
@@ -25,6 +26,59 @@ const TAB_GROUPS = [
   { titleKey: 'nav.groups.store', tabs: ['store_profile', 'shipping_settings', 'hosts', 'store_design', 'team'] },
   { titleKey: 'nav.groups.system', tabs: ['notifications', 'integrations', 'roles', 'audit_logs'] },
 ]
+
+// Lets an admin set a password directly for someone else's account - a workaround for when the
+// invite/reset emails don't arrive, and a direct "change this person's password" tool. Separate
+// from the password-input-only "confirm your OWN password" pattern used elsewhere (components/
+// PasswordConfirmModal.jsx) - this one collects a NEW password for a DIFFERENT account.
+function SetPasswordModal({ user, onClose, onDone }) {
+  const { t } = useTranslation()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (password !== confirm) {
+      setError(t('page_roles.set_password_mismatch'))
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await setUserPassword(user.id, password)
+      onDone()
+      onClose()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_roles.set_password_failed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-bold text-gray-800 mb-1">{t('page_roles.set_password_title')}</h2>
+        <p className="text-sm text-gray-500 mb-4">{t('page_roles.set_password_desc', { name: user.name })}</p>
+        <label className="block text-[11px] text-gray-500 mb-1">{t('page_roles.set_password_new_label')}</label>
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required autoFocus
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3" />
+        <label className="block text-[11px] text-gray-500 mb-1">{t('page_roles.set_password_confirm_label')}</label>
+        <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={6} required
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+        {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose} className="text-sm text-gray-500 px-3 py-2 hover:underline">{t('common.cancel')}</button>
+          <button type="submit" disabled={busy} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">
+            {busy ? t('page_roles.set_password_busy') : t('page_roles.set_password_submit')}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
 
 function tabLabel(t, tab) {
   if (tab === 'dashboard') return t('nav.dashboard')
@@ -98,6 +152,9 @@ export default function RolesMatrix() {
   const [matrixSaved, setMatrixSaved] = useState(false)
   const [rowError, setRowError] = useState({})
   const [resentId, setResentId] = useState(null)
+  const [editingEmailId, setEditingEmailId] = useState(null)
+  const [editEmailValue, setEditEmailValue] = useState('')
+  const [passwordModalUser, setPasswordModalUser] = useState(null)
 
   function reload() {
     listUsers().then((data) => { setUsers(data); setLoading(false) })
@@ -166,6 +223,23 @@ export default function RolesMatrix() {
     }
   }
 
+  function startEditEmail(u) {
+    setEditingEmailId(u.id)
+    setEditEmailValue(u.email)
+  }
+
+  async function saveEmail(u) {
+    setEditingEmailId(null)
+    if (!editEmailValue.trim() || editEmailValue.trim() === u.email) return
+    setRowError((e) => ({ ...e, [u.id]: '' }))
+    try {
+      await updateUser(u.id, { email: editEmailValue.trim() })
+      reload()
+    } catch (err) {
+      setRowError((e) => ({ ...e, [u.id]: err.response?.data?.error || t('page_roles.email_update_failed') }))
+    }
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6 space-y-6">
       <div className={`${cardClasses} p-5`}>
@@ -180,7 +254,21 @@ export default function RolesMatrix() {
                 <div className="flex items-center justify-between text-sm">
                   <div>
                     <p className="font-medium text-gray-800">{u.name}</p>
-                    <p className="text-xs text-gray-500">{u.email}</p>
+                    {editingEmailId === u.id ? (
+                      <input
+                        autoFocus
+                        type="email"
+                        value={editEmailValue}
+                        onChange={(e) => setEditEmailValue(e.target.value)}
+                        onBlur={() => saveEmail(u)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEmail(u) } }}
+                        className="text-xs border border-gray-300 rounded-lg px-1.5 py-0.5"
+                      />
+                    ) : (
+                      <button type="button" onClick={() => startEditEmail(u)} className="text-xs text-gray-500 hover:underline">
+                        {u.email}
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1">
@@ -197,6 +285,9 @@ export default function RolesMatrix() {
                         {resentId === u.id ? t('page_roles.resend_invite_sent') : t('page_roles.resend_invite_button')}
                       </button>
                     )}
+                    <button onClick={() => setPasswordModalUser(u)} className="text-xs font-semibold text-brand-600 hover:underline">
+                      {t('page_roles.set_password_button')}
+                    </button>
                     <button onClick={() => handleDelete(u)} className="text-xs font-semibold text-red-600 hover:underline">
                       {t('page_roles.delete_button')}
                     </button>
@@ -206,6 +297,9 @@ export default function RolesMatrix() {
               </div>
             ))}
           </div>
+        )}
+        {passwordModalUser && (
+          <SetPasswordModal user={passwordModalUser} onClose={() => setPasswordModalUser(null)} onDone={reload} />
         )}
       </div>
 

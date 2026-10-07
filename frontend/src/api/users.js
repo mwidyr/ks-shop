@@ -19,3 +19,7 @@ export function deleteUser(id) {
 export function resendInvite(id) {
   return client.post(`/users/${id}/resend-invite`).then((res) => res.data)
 }
+
+export function setUserPassword(id, password) {
+  return client.post(`/users/${id}/set-password`, { password }).then((res) => res.data)
+}
