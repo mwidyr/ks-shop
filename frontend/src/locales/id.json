@@ -1793,7 +1793,8 @@
     "notes_empty": "Belum ada catatan.",
     "notes_edit": "Ubah",
     "notes_delete": "Hapus",
-    "notes_save_failed": "Gagal menyimpan catatan"
+    "notes_save_failed": "Gagal menyimpan catatan",
+    "qty_save_failed": "Gagal menyimpan Qty Rencana"
   },
   "page_colors": {
     "add_button": "+ Tambah",

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  getPurchaseRequisition, addRequisitionItem, removeRequisitionItem,
+  getPurchaseRequisition, addRequisitionItem, removeRequisitionItem, updateRequisitionItemQty,
   updateRequisitionSupplierGroup, submitForConfirmation, confirmOrder,
   updatePurchaseRequisition, deletePurchaseRequisition,
   addRequisitionNote, updateRequisitionNote, deleteRequisitionNote,
@@ -89,7 +89,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
   // of the staff member's current UI locale. It's only applied to the on-screen items table.
   const { translateColor, toChineseColor } = useMasterData()
   const [items, setItems] = useState(() => Object.fromEntries(group.items.map((it) => [it.id, {
-    planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '',
+    planned_qty: it.planned_qty, unit_cost: it.unit_cost ?? '',
   }])))
   // group.items only seeds local state once (useState initializer) - without this, an item
   // added to this SAME group later (item 076) never gets an entry here, so its Planned/Confirmed
@@ -102,7 +102,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
       const next = { ...prev }
       for (const it of group.items) {
         if (!(it.id in next)) {
-          next[it.id] = { planned_qty: it.planned_qty, confirmed_qty: it.confirmed_qty ?? it.planned_qty, unit_cost: it.unit_cost ?? '' }
+          next[it.id] = { planned_qty: it.planned_qty, unit_cost: it.unit_cost ?? '' }
           changed = true
         }
       }
@@ -113,9 +113,12 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [qtyError, setQtyError] = useState('')
 
   const isPendingContact = requisitionStatus === 'pending_contact'
-  const canEditPlanned = requisitionStatus === 'draft' || isPendingContact
+  // Planned QTY stays editable after the order is confirmed (purchasing is in-house); the change
+  // flows into the supplier PO and Incoming on the backend. Only a completed requisition is locked.
+  const canEditPlanned = requisitionStatus === 'draft' || isPendingContact || requisitionStatus === 'ordered'
   const canConfirm = isPendingContact
 
   // Tell the page what is being typed so its header totals (Total Quantity / Total Amount) move
@@ -127,8 +130,13 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
     if (!planned || planned <= 0) return
     setSaving(true)
     try {
-      await addRequisitionItem(group.requisition_id, { variant_id: item.variant_id, planned_qty: planned })
+      await updateRequisitionItemQty(item.id, planned)
+      setQtyError('')
       onChanged()
+    } catch (err) {
+      // e.g. below what the supplier PO has already received - show why and restore the saved qty.
+      setQtyError(err.response?.data?.error || t('page_purchase_requisitions.qty_save_failed'))
+      setItems((s) => ({ ...s, [item.id]: { ...s[item.id], planned_qty: item.planned_qty } }))
     } finally {
       setSaving(false)
     }
@@ -139,7 +147,6 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
     try {
       const itemsPayload = Object.entries(items).map(([id, v]) => ({
         id: Number(id),
-        confirmed_qty: v.confirmed_qty === '' ? null : Number(v.confirmed_qty),
         unit_cost: v.unit_cost === '' ? null : Number(v.unit_cost),
       }))
       await updateRequisitionSupplierGroup(group.id, { items: itemsPayload, ...(status ? { status } : {}) })
@@ -156,11 +163,11 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
 
   const total = group.items.reduce((sum, it) => {
     const v = items[it.id] || {}
-    const q = Number(v.confirmed_qty ?? it.planned_qty) || 0
+    const q = Number(v.planned_qty ?? it.planned_qty) || 0
     const c = Number(v.unit_cost) || 0
     return sum + q * c
   }, 0)
-  const totalQty = group.items.reduce((sum, it) => sum + (Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0), 0)
+  const totalQty = group.items.reduce((sum, it) => sum + (Number(items[it.id]?.planned_qty ?? it.planned_qty) || 0), 0)
 
   // WeChat-ready copy text (item 056, format updated per item 077): grouped by the supplier's
   // product (vendor_sku + Product Code only decide the grouping now), headed by the product NAME -
@@ -183,7 +190,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
         byKey.set(key, g)
         groups.push(g)
       }
-      const qty = Number(items[it.id]?.confirmed_qty ?? it.planned_qty) || 0
+      const qty = Number(items[it.id]?.planned_qty ?? it.planned_qty) || 0
       g.lines.push(`${toChineseColor(it.color)} : ${qty}`)
     }
     const parts = ['姓名 : ', '地址 : ', '']
@@ -283,7 +290,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
           <tbody className={tbodyClasses}>
             {group.items.map((it) => {
               const v = items[it.id] || {}
-              const amount = (Number(v.confirmed_qty ?? it.planned_qty) || 0) * (Number(v.unit_cost) || 0)
+              const amount = (Number(v.planned_qty ?? it.planned_qty) || 0) * (Number(v.unit_cost) || 0)
               return (
                 <tr key={it.id}>
                   <td className="p-2 pl-4 font-mono text-xs text-brand-600">{it.product_sku}</td>
@@ -293,21 +300,12 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
                     {canEditPlanned ? (
                       <input
                         type="number" min="0" value={v.planned_qty ?? ''}
-                        onChange={(e) => setItems((s) => ({ ...s, [it.id]: { ...s[it.id], planned_qty: e.target.value, confirmed_qty: e.target.value } }))}
+                        onChange={(e) => setItems((s) => ({ ...s, [it.id]: { ...s[it.id], planned_qty: e.target.value } }))}
                         onBlur={() => savePlannedQty(it)}
                         className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm"
                       />
                     ) : (
                       <span className="text-[var(--text-secondary)]">{it.planned_qty}</span>
-                    )}
-                    {canConfirm && (
-                      <input
-                        type="number" min="0" placeholder={t('page_purchase_requisitions.confirmed_qty_placeholder')}
-                        value={v.confirmed_qty ?? ''}
-                        onChange={(e) => setItems((s) => ({ ...s, [it.id]: { ...s[it.id], confirmed_qty: e.target.value } }))}
-                        onBlur={() => saveConfirmation(null)}
-                        className="w-24 mt-1 border border-gray-300 rounded-lg px-2 py-1 text-xs block"
-                      />
                     )}
                   </td>
                   <td className="p-2">
@@ -335,6 +333,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
         </table>
       </div>
 
+      {qtyError && <p className="px-4 pb-2 text-xs text-red-600">{qtyError}</p>}
       <NotesLog groupId={group.id} notes={group.notes_log || []} onChanged={onChanged} />
       </>
       )}
@@ -430,7 +429,7 @@ export default function PurchaseRequisitionDetail() {
   const totalProducts = new Set(detail.suppliers.flatMap((g) => g.items.map((it) => it.product_sku))).size
   const liveQty = (g, it) => {
     const v = live[g.id]?.[it.id]
-    return v ? (Number(v.confirmed_qty ?? v.planned_qty) || 0) : (it.confirmed_qty ?? it.planned_qty)
+    return v ? (Number(v.planned_qty) || 0) : it.planned_qty
   }
   const liveCost = (g, it) => {
     const v = live[g.id]?.[it.id]
@@ -511,7 +510,7 @@ export default function PurchaseRequisitionDetail() {
           <IconPlus width={14} height={14} /> {t('page_purchase_requisitions.add_product_button')}
         </button>
       )}
-      {pickerOpen && <ProductPickerModal onClose={() => setPickerOpen(false)} onAdd={handleAddProducts} />}
+      {pickerOpen && <ProductPickerModal onClose={() => setPickerOpen(false)} onAdd={handleAddProducts} nameLang="zh" />}
 
       {(isPendingContact || isOrdered || detail.status === 'completed') && (
         <p className="text-xs text-gray-400">{t('page_purchase_requisitions.completes_hint')}</p>

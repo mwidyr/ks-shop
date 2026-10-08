@@ -1793,7 +1793,8 @@
     "notes_empty": "No notes yet.",
     "notes_edit": "Edit",
     "notes_delete": "Delete",
-    "notes_save_failed": "Failed to save the note"
+    "notes_save_failed": "Failed to save the note",
+    "qty_save_failed": "Failed to save the Planned QTY"
   },
   "page_colors": {
     "add_button": "+ Add",

@@ -707,6 +707,37 @@ func releaseIncomingTx(ctx context.Context, tx pgx.Tx, purchaseID int) error {
 	return nil
 }
 
+// setPurchaseItemQtyTx changes a PO line's ordered qty and carries it through: the delta goes to
+// incoming_stock, a never-split line's single open batch follows the new qty, and the change is
+// written to the PO's change log. Refuses to go below what has already been received. Returns a
+// user-facing error message ("" on success). The caller holds the PO lock.
+func setPurchaseItemQtyTx(ctx context.Context, tx pgx.Tx, purchaseID, variantID, newQty, userID int, reason string) string {
+	var itemID, oldQty, received int
+	if err := tx.QueryRow(ctx, `SELECT id, qty, COALESCE(received_qty,0) FROM purchase_items WHERE purchase_id=$1 AND variant_id=$2`, purchaseID, variantID).
+		Scan(&itemID, &oldQty, &received); err != nil {
+		return "the purchase order has no line for this product"
+	}
+	if newQty == oldQty {
+		return ""
+	}
+	if newQty < received {
+		return fmt.Sprintf("qty cannot be lower than the %d already received", received)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE purchase_items SET qty=$1 WHERE id=$2`, newQty, itemID); err != nil {
+		return "failed to update the purchase order quantity"
+	}
+	if _, err := tx.Exec(ctx, `UPDATE stock_buckets SET incoming_stock = incoming_stock + $1 WHERE variant_id=$2`, newQty-oldQty, variantID); err != nil {
+		return "failed to update incoming stock"
+	}
+	tx.Exec(ctx, `
+		UPDATE purchase_item_batches SET planned_qty=$1
+		WHERE purchase_item_id=$2 AND NOT is_received
+		  AND (SELECT COUNT(*) FROM purchase_item_batches WHERE purchase_item_id=$2) = 1`, newQty, itemID)
+	tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'qty',$2,$3,$4,$5)`,
+		purchaseID, strconv.Itoa(oldQty), strconv.Itoa(newQty), userID, reason)
+	return ""
+}
+
 // recomputePurchaseStatus derives the PO status from receiving progress: nothing received yet ->
 // unchanged (Waiting for Delivery); something received and nothing left outstanding in Incoming ->
 // received; otherwise partially_received. Never touches cancelled/received POs' other fields.

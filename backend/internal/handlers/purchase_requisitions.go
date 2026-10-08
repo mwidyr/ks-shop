@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"strings"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -56,7 +56,7 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 		SELECT pr.id, pr.requisition_no, pr.status, pr.created_at::text, pr.completed_at::text,
 		       COALESCE((SELECT COUNT(*) FROM purchase_requisition_suppliers prs WHERE prs.requisition_id = pr.id), 0),
 		       COALESCE((
-		           SELECT SUM(COALESCE(pri.confirmed_qty, pri.planned_qty) * COALESCE(pri.unit_cost, pv.cost_price, 0))
+		           SELECT SUM(pri.planned_qty * COALESCE(pri.unit_cost, pv.cost_price, 0))
 		           FROM purchase_requisition_suppliers prs
 		           JOIN purchase_requisition_items pri ON pri.requisition_supplier_id = prs.id
 		           JOIN product_variants pv ON pv.id = pri.variant_id
@@ -82,18 +82,17 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 }
 
 type requisitionItemView struct {
-	ID           int      `json:"id"`
-	VariantID    int      `json:"variant_id"`
-	ProductSKU   string   `json:"product_sku"`
-	VendorSKU    string   `json:"vendor_sku"`
-	ProductName  string   `json:"product_name"`
-	Color        string   `json:"color"`
-	Size         string   `json:"size"`
-	SKU          string   `json:"sku"`
-	PlannedQty   int      `json:"planned_qty"`
-	ConfirmedQty *int     `json:"confirmed_qty"`
-	UnitCost     *float64 `json:"unit_cost"`
-	RuleWarning  string   `json:"rule_warning,omitempty"`
+	ID          int      `json:"id"`
+	VariantID   int      `json:"variant_id"`
+	ProductSKU  string   `json:"product_sku"`
+	VendorSKU   string   `json:"vendor_sku"`
+	ProductName string   `json:"product_name"`
+	Color       string   `json:"color"`
+	Size        string   `json:"size"`
+	SKU         string   `json:"sku"`
+	PlannedQty  int      `json:"planned_qty"`
+	UnitCost    *float64 `json:"unit_cost"`
+	RuleWarning string   `json:"rule_warning,omitempty"`
 }
 
 type requisitionNoteView struct {
@@ -117,15 +116,15 @@ type requisitionSupplierView struct {
 }
 
 type requisitionDetailView struct {
-	ID              int                       `json:"id"`
-	RequisitionNo   string                    `json:"requisition_no"`
-	Status          string                    `json:"status"`
-	CreatedAt       string                    `json:"created_at"`
-	UpdatedAt       string                    `json:"updated_at"`
-	CompletedAt     *string                   `json:"completed_at"`
-	CreatedByName   string                    `json:"created_by_name"`
-	Note            string                    `json:"note"`
-	Suppliers       []requisitionSupplierView `json:"suppliers"`
+	ID            int                       `json:"id"`
+	RequisitionNo string                    `json:"requisition_no"`
+	Status        string                    `json:"status"`
+	CreatedAt     string                    `json:"created_at"`
+	UpdatedAt     string                    `json:"updated_at"`
+	CompletedAt   *string                   `json:"completed_at"`
+	CreatedByName string                    `json:"created_by_name"`
+	Note          string                    `json:"note"`
+	Suppliers     []requisitionSupplierView `json:"suppliers"`
 }
 
 func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Request) {
@@ -183,8 +182,8 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	supRows.Close()
 
 	itemRows, err := h.DB.Query(ctx, `
-		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), COALESCE(p.vendor_sku,''), ` + chineseNameSQL("p") + `, pv.color, pv.size, pv.sku,
-		       pri.planned_qty, pri.confirmed_qty, pri.unit_cost
+		SELECT pri.requisition_supplier_id, pri.id, pri.variant_id, COALESCE(p.sku,''), COALESCE(p.vendor_sku,''), `+chineseNameSQL("p")+`, pv.color, pv.size, pv.sku,
+		       pri.planned_qty, pri.unit_cost
 		FROM purchase_requisition_items pri
 		JOIN purchase_requisition_suppliers prs ON prs.id = pri.requisition_supplier_id
 		JOIN product_variants pv ON pv.id = pri.variant_id
@@ -197,7 +196,7 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 			var groupID int
 			var it requisitionItemView
 			if err := itemRows.Scan(&groupID, &it.ID, &it.VariantID, &it.ProductSKU, &it.VendorSKU, &it.ProductName, &it.Color, &it.Size, &it.SKU,
-				&it.PlannedQty, &it.ConfirmedQty, &it.UnitCost); err != nil {
+				&it.PlannedQty, &it.UnitCost); err != nil {
 				continue
 			}
 			byGroup[groupID] = append(byGroup[groupID], it)
@@ -336,9 +335,6 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Changing Planned QTY also clears any previously saved Confirmed QTY (confirmed_qty = NULL on
-	// conflict below): totals and Amount read `confirmed_qty ?? planned_qty`, so a stale confirmed
-	// value made them ignore the new Planned QTY (planned 34 still showing 14 PCS / 14 x cost).
 	// Unit Cost defaults from the product's current cost price immediately on add (item 054),
 	// instead of staying blank until the group is confirmed - still freely editable afterward.
 	// Only set on first insert; a conflict (re-adding/adjusting qty on the same variant) leaves
@@ -346,7 +342,7 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 	if _, err := h.DB.Exec(ctx, `
 		INSERT INTO purchase_requisition_items (requisition_supplier_id, variant_id, planned_qty, unit_cost)
 		VALUES ($1,$2,$3,$4)
-		ON CONFLICT (requisition_supplier_id, variant_id) DO UPDATE SET planned_qty = EXCLUDED.planned_qty, confirmed_qty = NULL`,
+		ON CONFLICT (requisition_supplier_id, variant_id) DO UPDATE SET planned_qty = EXCLUDED.planned_qty`,
 		groupID, req.VariantID, req.PlannedQty, costPrice); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to add item")
 		return
@@ -381,9 +377,8 @@ func (h *PurchaseRequisitionHandler) RemoveItem(w http.ResponseWriter, r *http.R
 }
 
 type confirmItemUpdate struct {
-	ID           int      `json:"id"`
-	ConfirmedQty *int     `json:"confirmed_qty"`
-	UnitCost     *float64 `json:"unit_cost"`
+	ID       int      `json:"id"`
+	UnitCost *float64 `json:"unit_cost"`
 }
 
 type updateSupplierGroupRequest struct {
@@ -392,9 +387,10 @@ type updateSupplierGroupRequest struct {
 	Items  []confirmItemUpdate `json:"items"`
 }
 
-// UpdateSupplierGroup is the Supplier Confirmation step: per-item Confirmed QTY/Unit Cost, plus
-// the group's note/status. Setting status='confirmed' without an explicit confirmed_qty/unit_cost
-// for an item defaults it to planned_qty / the product's current cost_price. The frontend only
+// UpdateSupplierGroup is the Supplier Confirmation step: per-item Unit Cost, plus the group's
+// status. (There is a single quantity per line - Planned QTY - edited via UpdateItemQty.) Setting
+// status='confirmed' without an explicit unit_cost for an item defaults it to the product's
+// current cost_price. The frontend only
 // exposes this while the requisition is Pending Contact (per the Adjustments PDF), but the
 // backend doesn't need its own extra gate beyond the existing status enum check.
 func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, r *http.Request) {
@@ -415,9 +411,6 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 	ctx := r.Context()
 
 	for _, it := range req.Items {
-		if it.ConfirmedQty != nil {
-			h.DB.Exec(ctx, `UPDATE purchase_requisition_items SET confirmed_qty=$1 WHERE id=$2 AND requisition_supplier_id=$3`, *it.ConfirmedQty, it.ID, groupID)
-		}
 		if it.UnitCost != nil {
 			h.DB.Exec(ctx, `UPDATE purchase_requisition_items SET unit_cost=$1 WHERE id=$2 AND requisition_supplier_id=$3`, *it.UnitCost, it.ID, groupID)
 		}
@@ -429,9 +422,6 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 
 	if req.Status != nil && *req.Status == "confirmed" {
 		// Default any still-unset Confirmed QTY/Unit Cost before locking the group in.
-		h.DB.Exec(ctx, `
-			UPDATE purchase_requisition_items SET confirmed_qty = planned_qty
-			WHERE requisition_supplier_id=$1 AND confirmed_qty IS NULL`, groupID)
 		h.DB.Exec(ctx, `
 			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(NULLIF(p.cost, 0), pv.cost_price)
 			FROM product_variants pv JOIN products p ON p.id = pv.product_id
@@ -554,7 +544,7 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 
 	for _, g := range groups {
 		itemRows, err := tx.Query(ctx, `
-			SELECT variant_id, COALESCE(confirmed_qty, planned_qty), COALESCE(unit_cost, 0)
+			SELECT variant_id, planned_qty, COALESCE(unit_cost, 0)
 			FROM purchase_requisition_items WHERE requisition_supplier_id=$1`, g.ID)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to load requisition items")
@@ -672,4 +662,79 @@ func (h *PurchaseRequisitionHandler) DeleteGroupNote(w http.ResponseWriter, r *h
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type itemQtyRequest struct {
+	PlannedQty int `json:"planned_qty"`
+}
+
+// UpdateItemQty edits a line's Planned QTY - the one and only quantity field. Editable in Draft,
+// Pending Contact AND after the order is confirmed (purchasing is handled in-house, so
+// adjustments must stay possible). Once the supplier PO exists the change is carried into it: the
+// PO line quantity moves with it, the delta goes to Incoming (never below what is already
+// received), and the PO status is recomputed - so Inventory > Incoming always matches.
+func (h *PurchaseRequisitionHandler) UpdateItemQty(w http.ResponseWriter, r *http.Request) {
+	itemID, err := strconv.Atoi(chi.URLParam(r, "itemId"))
+	var req itemQtyRequest
+	if err != nil || decodeJSON(r, &req) != nil || req.PlannedQty <= 0 {
+		respondError(w, http.StatusBadRequest, "planned_qty must be greater than 0")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	var requisitionID, variantID int
+	var oldQty int
+	var reqStatus string
+	var purchaseID *int
+	if err := tx.QueryRow(ctx, `
+		SELECT pr.id, pr.status, pri.variant_id, pri.planned_qty, prs.purchase_id
+		FROM purchase_requisition_items pri
+		JOIN purchase_requisition_suppliers prs ON prs.id = pri.requisition_supplier_id
+		JOIN purchase_requisitions pr ON pr.id = prs.requisition_id
+		WHERE pri.id=$1 FOR UPDATE OF pri`, itemID).Scan(&requisitionID, &reqStatus, &variantID, &oldQty, &purchaseID); err != nil {
+		respondError(w, http.StatusNotFound, "item not found")
+		return
+	}
+	if reqStatus != "draft" && reqStatus != "pending_contact" && reqStatus != "ordered" {
+		respondError(w, http.StatusBadRequest, "this requisition is completed - its quantities can no longer be changed")
+		return
+	}
+
+	if reqStatus == "ordered" && purchaseID != nil && req.PlannedQty != oldQty {
+		var poStatus string
+		if err := tx.QueryRow(ctx, `SELECT status FROM purchases WHERE id=$1 FOR UPDATE`, *purchaseID).Scan(&poStatus); err != nil {
+			respondError(w, http.StatusNotFound, "linked purchase order not found")
+			return
+		}
+		if !isOpenPurchaseStatus(poStatus) {
+			respondError(w, http.StatusBadRequest, "the linked purchase order is already "+poStatus+" - its quantity can no longer be changed")
+			return
+		}
+		if msg := setPurchaseItemQtyTx(ctx, tx, *purchaseID, variantID, req.PlannedQty, claims.UserID, "changed from Purchase Requisition"); msg != "" {
+			respondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		if _, err := recomputePurchaseStatus(ctx, tx, *purchaseID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update purchase status")
+			return
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE purchase_requisition_items SET planned_qty=$1 WHERE id=$2`, req.PlannedQty, itemID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update planned qty")
+		return
+	}
+	tx.Exec(ctx, `UPDATE purchase_requisitions SET updated_at=now() WHERE id=$1`, requisitionID)
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]int{"planned_qty": req.PlannedQty})
 }

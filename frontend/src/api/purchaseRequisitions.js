@@ -24,6 +24,12 @@ export function addRequisitionItem(requisitionId, payload) {
   return client.post(`/purchase-requisitions/${requisitionId}/items`, payload).then((res) => res.data)
 }
 
+// Planned QTY is the only quantity on a line; editable in every open status, incl. after the
+// order is confirmed (the backend carries the change into the supplier PO and Incoming).
+export function updateRequisitionItemQty(itemId, plannedQty) {
+  return client.patch(`/purchase-requisitions/items/${itemId}/planned-qty`, { planned_qty: plannedQty }).then((res) => res.data)
+}
+
 export function removeRequisitionItem(itemId) {
   return client.delete(`/purchase-requisitions/items/${itemId}`).then((res) => res.data)
 }

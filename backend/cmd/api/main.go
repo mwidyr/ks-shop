@@ -298,6 +298,7 @@ func main() {
 			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/{id}", purchaseRequisitionH.Delete)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/items", purchaseRequisitionH.AddItem)
 			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/items/{itemId}", purchaseRequisitionH.RemoveItem)
+			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/items/{itemId}/planned-qty", purchaseRequisitionH.UpdateItemQty)
 			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/supplier-groups/{supplierGroupId}", purchaseRequisitionH.UpdateSupplierGroup)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/submit-for-confirmation", purchaseRequisitionH.SubmitForConfirmation)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/confirm-order", purchaseRequisitionH.ConfirmOrder)

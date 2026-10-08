@@ -52,7 +52,13 @@ function PickerVariantRow({ product, variant, qty, onChangeQty }) {
   )
 }
 
-function PickerProductCard({ product, pending, setQty }) {
+// Product name shown in the picker. nameLang="zh" (Purchase Requisition: staff talk to Chinese
+// suppliers) shows the Chinese name, falling back to the main name when none was entered.
+export function pickerProductName(product, nameLang) {
+  return (nameLang === 'zh' && product.names?.zh) || product.name
+}
+
+function PickerProductCard({ product, pending, setQty, nameLang }) {
   // Always starts collapsed, search results included - variants only show once the product is clicked.
   const [open, setOpen] = useState(false)
   const isOpen = open
@@ -68,7 +74,7 @@ function PickerProductCard({ product, pending, setQty }) {
         <img src={resolveUrl(product.images[0]?.url)} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" />
         <div className="flex-1 min-w-0">
           {product.sku && <p className="text-xs font-bold text-brand-600">{product.sku}</p>}
-          <p className="font-semibold text-gray-800 truncate">{product.name}</p>
+          <p className="font-semibold text-gray-800 truncate">{pickerProductName(product, nameLang)}</p>
         </div>
         {selectedInProduct > 0 && (
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 shrink-0">{selectedInProduct}</span>
@@ -98,7 +104,7 @@ function PickerProductCard({ product, pending, setQty }) {
 // real available stock, set quantities across as many products as needed, then commit them all
 // at once with "Simpan" - mirrors Inventory.jsx's card/row pattern but with qty inputs instead
 // of stock-editing controls.
-export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
+export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLang }) {
   const { translateColor, translateCategory } = useMasterData()
   const { t } = useTranslation()
   const [products, setProducts] = useState([])
@@ -144,7 +150,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
       const { product, variant } = variantIndex[variantId]
       return {
         variantId: Number(variantId), qty,
-        productName: product.name, variantLabel: `${translateColor(variant.color)}/${variant.size}`,
+        productName: pickerProductName(product, nameLang), variantLabel: `${translateColor(variant.color)}/${variant.size}`,
         imageUrl: product.images[0]?.url || '', price: variant.price, sku: product.sku,
       }
     })
@@ -185,7 +191,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId }) {
             <p className="text-center text-gray-400 py-8">{t('page_order_create.picker_empty')}</p>
           ) : (
             filtered.map((product) => (
-              <PickerProductCard key={product.id} product={product} pending={pending} setQty={setQty} />
+              <PickerProductCard key={product.id} product={product} pending={pending} setQty={setQty} nameLang={nameLang} />
             ))
           )}
         </div>

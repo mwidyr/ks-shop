@@ -1793,7 +1793,8 @@
     "notes_empty": "尚無備註。",
     "notes_edit": "編輯",
     "notes_delete": "刪除",
-    "notes_save_failed": "儲存備註失敗"
+    "notes_save_failed": "儲存備註失敗",
+    "qty_save_failed": "儲存計畫數量失敗"
   },
   "page_colors": {
     "add_button": "+ 新增",
