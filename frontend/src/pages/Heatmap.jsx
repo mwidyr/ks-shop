@@ -111,9 +111,8 @@ const TIME_BLOCK_LABELS = [
   '12:00-14:30', '15:00-17:30', '18:00-20:30', '21:00-23:30',
 ]
 
-// Real-time NOW indicator: Jakarta time -> matching 30-minute slot index (same floor(minute/30)
-// rule as the backend's slotIndexExpr in heatmap.go), plus how far into that slot we are (0..1) so
-// the vertical line sits at the actual current time rather than at the slot's edge.
+// NOW indicator: Jakarta time -> matching 30-minute slot index (same floor(minute/30) rule as the
+// backend's slotIndexExpr in heatmap.go).
 function jakartaNow() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Jakarta', hour: 'numeric', minute: 'numeric', hour12: false,
@@ -122,7 +121,6 @@ function jakartaNow() {
   const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
   return {
     slot: hour * 2 + Math.floor(minute / 30),
-    frac: (minute % 30) / 30,
   }
 }
 
@@ -165,10 +163,14 @@ function allRowCell(qty, cutoffs) {
   return levelStyle(cutoffs.filter((c) => qty > c).length, ALL_COLORS, 3)
 }
 
-// 2px vertical line in the primary colour, placed at the actual current time within the NOW slot.
-function NowLine({ frac }) {
-  return <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${frac * 100}%`, width: 2, marginLeft: -1, background: 'var(--primary)' }} />
+// 2px vertical line on the right edge of the NOW slot's column (body cells only, so it never
+// covers the header text); not tied to the real-time minute.
+function NowLine() {
+  return <div className="absolute top-0 bottom-0 pointer-events-none" style={{ right: -(CELL_GAP / 2) - 1, width: 2, background: 'var(--primary)' }} />
 }
+
+// Whole numbers (e.g. a single day's QTY) have no decimals; true averages show one decimal.
+function fmtAvg(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1) }
 
 function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString() }
 function fmtMoney(n) { return n == null ? '—' : formatCurrency(n) }
@@ -265,7 +267,6 @@ export default function Heatmap() {
   void nowTick
   const now = activePreset === 'today' ? jakartaNow() : null
   const nowSlot = now ? now.slot : null
-  const nowFrac = now ? now.frac : 0
 
   useEffect(() => {
     setLoading(true)
@@ -350,7 +351,6 @@ export default function Heatmap() {
                           )}
                           <span className={`px-1 ${i === nowSlot ? 'font-bold' : ''}`} style={i === nowSlot ? { color: 'var(--table-accent)' } : undefined}>{slotLabel(i)}</span>
                         </div>
-                        {i === nowSlot && <NowLine frac={nowFrac} />}
                       </th>
                     ))}
                   </tr>
@@ -371,8 +371,8 @@ export default function Heatmap() {
                             style={color.style}
                             title={avg == null ? undefined : `${fmtNum(qty)} QTY / ${host.sessions?.[i] ?? 0}`}
                           >
-                            {avg == null ? '—' : avg.toFixed(1)}
-                            {i === nowSlot && <NowLine frac={nowFrac} />}
+                            {avg == null ? '—' : fmtAvg(avg)}
+                            {i === nowSlot && <NowLine />}
                           </td>
                         )
                       })}
@@ -384,7 +384,7 @@ export default function Heatmap() {
                       return (
                         <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
                           {qty || ''}
-                          {i === nowSlot && <NowLine frac={nowFrac} />}
+                          {i === nowSlot && <NowLine />}
                         </td>
                       )
                     })}
@@ -395,7 +395,7 @@ export default function Heatmap() {
                       return (
                         <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
                           {v == null ? '—' : v.toFixed(1)}
-                          {i === nowSlot && <NowLine frac={nowFrac} />}
+                          {i === nowSlot && <NowLine />}
                         </td>
                       )
                     })}

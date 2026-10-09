@@ -204,7 +204,13 @@ func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range hosts {
 		for slot := 0; slot < numSlots; slot++ {
-			if n := hosts[i].Sessions[slot]; n > 0 {
+			n := hosts[i].Sessions[slot]
+			// Sales without a recorded LIVE session (e.g. LIVE data not uploaded yet) must still
+			// show in the host's row: treat it as a single session.
+			if n == 0 && hosts[i].Slots[slot] > 0 {
+				n = 1
+			}
+			if n > 0 {
 				v := float64(hosts[i].Slots[slot]) / float64(n)
 				hosts[i].AvgQty[slot] = &v
 			}
