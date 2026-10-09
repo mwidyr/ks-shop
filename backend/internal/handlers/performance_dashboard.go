@@ -39,6 +39,16 @@ func hostsCTEFilter(r *http.Request) (whereSQL string, args []interface{}) {
 	return whereSQL, args
 }
 
+// includeWebsiteSales reports whether the headline totals should also count Website orders:
+// ALL = LIVE + WEBSITE and WEBSITE itself, but never under the LIVE channel, and not when the
+// view is narrowed to one Location / Host (those are LIVE concepts a Website order has none of).
+// Website order items carry no host_id, so without this the host-keyed sales queries silently
+// dropped every Website sale - the totals were LIVE-only even for "ALL".
+func includeWebsiteSales(r *http.Request) bool {
+	q := r.URL.Query()
+	return q.Get("channel") != "live" && q.Get("location_id") == "" && q.Get("host_id") == ""
+}
+
 // validHostsCTE builds the "WITH valid_hosts AS (...)" fragment shared by every endpoint below:
 // every host with at least one valid LIVE Session whose started_at falls in [from, to), narrowed
 // to one Location Tag and/or one Host when ?location_id=/?host_id= are given. Args always start
@@ -109,6 +119,10 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 	args := append([]interface{}{from, to}, extraArgs...)
 	channelWhere, channelArgs := salesChannelWhere(r, "o", len(args)+1)
 	args = append(args, channelArgs...)
+	websiteOr := ""
+	if includeWebsiteSales(r) {
+		websiteOr = " OR o.sales_channel = 'website'"
+	}
 
 	query := `WITH ` + cte + `,
 		sales AS (
@@ -116,7 +130,7 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 			       COALESCE(SUM(oi.qty * oi.price_at_order),0) AS gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
-			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
+			WHERE (oi.host_id IN (SELECT host_id FROM valid_hosts)` + websiteOr + `)
 			  AND o.created_at >= $1 AND o.created_at < $2
 			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
 		),
@@ -136,7 +150,8 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 	}
 
 	res := performanceSummary{Qty: qty, Ord: ord, GMV: gmv}
-	if sessionCount > 0 {
+	// AVG QTY / AVG ORD are per LIVE session, which a Website-only view has none of.
+	if sessionCount > 0 && r.URL.Query().Get("channel") != "website" {
 		avgQty := float64(qty) / float64(sessionCount)
 		avgOrd := float64(ord) / float64(sessionCount)
 		res.AvgQty = &avgQty

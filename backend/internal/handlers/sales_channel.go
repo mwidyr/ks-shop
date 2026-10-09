@@ -6,7 +6,7 @@ import (
 )
 
 // salesChannelWhere builds "AND {alias}.sales_channel = ... [AND {alias}.affiliate_id ...]"
-// from ?channel=all|live|website (default "all") and ?affiliate_id=<id>|none, for handlers
+// from ?channel=all|live|website (default "all") and, for Website, ?affiliate_id=<id>|cs|self_service|none, for handlers
 // that aggregate plain orders/order_items data (items 040-045, Sales Channel Attribution).
 // "all" (the default) adds no restriction at all - deliberately not gated on LIVE Data, per
 // spec, unlike the LIVE-only "valid session" gate Performance Dashboard/Host Analytics use.
@@ -19,11 +19,18 @@ func salesChannelWhere(r *http.Request, alias string, startArg int) (whereSQL st
 		whereSQL = " AND " + alias + ".sales_channel = 'live'"
 	case "website":
 		whereSQL = " AND " + alias + ".sales_channel = 'website'"
+		// Every Website order is in exactly one category: an Affiliate, "Website - Created by CS"
+		// (cs) or "Website - Self-Service" (self_service). "none" (= cs + self_service, no affiliate)
+		// is kept for old links.
 		switch aff := r.URL.Query().Get("affiliate_id"); aff {
 		case "":
-			// no affiliate filter
+			// all Website sales
 		case "none":
 			whereSQL += " AND " + alias + ".affiliate_id IS NULL"
+		case "cs":
+			whereSQL += " AND " + alias + ".affiliate_id IS NULL AND COALESCE(" + alias + ".website_source, 'cs') = 'cs'"
+		case "self_service":
+			whereSQL += " AND " + alias + ".affiliate_id IS NULL AND " + alias + ".website_source = 'self_service'"
 		default:
 			args = append(args, aff)
 			whereSQL += " AND " + alias + ".affiliate_id = $" + strconv.Itoa(n)

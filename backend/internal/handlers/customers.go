@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -99,91 +102,389 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
 
+// ---- Customer Management (Customer Management PDF) ---------------------------------------------
+//
+// One customer = one PHONE NUMBER: customers table rows that share a (digits-only) phone are merged
+// into a single entry (staff-created and website-created records used to duplicate people). A
+// VALID order is any order that is not cancelled / returned; spending is the goods revenue of valid
+// orders (items - discounts + additional charges, shipping excluded) minus completed refunds
+// against them. All KPI/list figures are derived here from ERP order records, never stored.
+
+const vipThreshold = 3000.0 // NT$ cumulative valid spending that makes a customer VIP
+
 type customerStats struct {
-	ID          int        `json:"id"`
+	ID          int        `json:"id"` // representative customer record (most recent order's customer)
 	Name        string     `json:"name"`
 	Phone       string     `json:"phone"`
 	Address     string     `json:"address"`
 	OrderCount  int        `json:"order_count"`
 	TotalSpend  float64    `json:"total_spend"`
 	LastOrderAt *time.Time `json:"last_order_at"`
-	Segment     string     `json:"segment"`
-	Labels      []string   `json:"labels"`
+	// AvgRepurchaseCycleDays is the average gap between this customer's purchase DAYS (several
+	// orders on one day = one purchase event); null with fewer than two purchase days.
+	AvgRepurchaseCycleDays *float64 `json:"avg_repurchase_cycle_days"`
+	Tier                   string   `json:"tier"` // "regular" | "vip"
+	Labels                 []string `json:"labels"`
 }
 
-// Stats returns every customer with order count, total spend, last order date, and a
-// computed CRM segment (New/Returning/VIP/High Value/Inactive), for the Customers page.
+type customerKPI struct {
+	TotalCustomers     int      `json:"total_customers"`
+	ReturningCustomers int      `json:"returning_customers"`
+	RepeatPurchaseRate *float64 `json:"repeat_purchase_rate"`  // percent
+	RepurchaseCycle    *float64 `json:"repurchase_cycle_days"` // median gap, days
+	AOV                *float64 `json:"aov"`
+	LTV                *float64 `json:"ltv"`
+}
+
+type customerStatsResponse struct {
+	KPI       customerKPI     `json:"kpi"`
+	Customers []customerStats `json:"customers"`
+}
+
+var nonDigits = regexp.MustCompile(`[^0-9]`)
+
+func phoneKey(phone string, id int) string {
+	if d := nonDigits.ReplaceAllString(phone, ""); d != "" {
+		return d
+	}
+	return "id:" + strconv.Itoa(id)
+}
+
+// validOrderRevenueSQL is a lateral subquery giving each order's goods revenue and the completed
+// refund amount against it (store credit counts as money returned; replacement does not).
+const validOrderRevenueSQL = `
+	JOIN LATERAL (
+		SELECT COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount - o.promotion_discount_amount + o.additional_amount AS revenue
+		FROM order_items oi WHERE oi.order_id = o.id
+	) rev ON true
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(SUM(r.amount),0) AS refunded FROM returns r
+		WHERE r.order_id = o.id AND r.status = 'completed' AND r.refund_type IN ('full','store_credit')
+	) rf ON true`
+
+// Stats returns the KPI cards and every customer (merged by phone) with order count, spending,
+// last purchase, average repurchase cycle and automatic tier, for the Customers page.
 func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.Query(r.Context(), `
-		SELECT c.id, c.name, c.phone, COALESCE(c.address,''),
-		       COALESCE(stats.order_count, 0), COALESCE(stats.total_spend, 0), stats.last_order_at
-		FROM customers c
-		LEFT JOIN LATERAL (
-			SELECT COUNT(*) AS order_count,
-			       SUM(item_totals.total) AS total_spend,
-			       MAX(o.created_at) AS last_order_at
-			FROM orders o
-			JOIN LATERAL (
-				SELECT COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount + o.additional_amount AS total
-				FROM order_items oi WHERE oi.order_id = o.id
-			) item_totals ON true
-			WHERE o.customer_id = c.id
-		) stats ON true
-		ORDER BY c.name`)
+	ctx := r.Context()
+
+	custRows, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,'') FROM customers ORDER BY id`)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch customer stats")
+		respondError(w, http.StatusInternalServerError, "failed to fetch customers")
 		return
 	}
-	defer rows.Close()
-
-	list := []customerStats{}
-	idIndex := map[int]int{}
-	for rows.Next() {
-		var s customerStats
-		if err := rows.Scan(&s.ID, &s.Name, &s.Phone, &s.Address, &s.OrderCount, &s.TotalSpend, &s.LastOrderAt); err != nil {
+	groups := map[string]*customerStats{}
+	groupOf := map[int]string{}
+	var order []string
+	for custRows.Next() {
+		var id int
+		var name, phone, addr string
+		if custRows.Scan(&id, &name, &phone, &addr) != nil {
 			continue
 		}
-		s.Segment = segmentFor(s.OrderCount, s.TotalSpend, s.LastOrderAt)
-		s.Labels = []string{}
-		idIndex[s.ID] = len(list)
-		list = append(list, s)
+		key := phoneKey(phone, id)
+		groupOf[id] = key
+		if g, ok := groups[key]; ok {
+			g.ID, g.Name, g.Address = id, name, addr // later record wins until an order picks the representative
+			continue
+		}
+		groups[key] = &customerStats{ID: id, Name: name, Phone: phone, Address: addr, Labels: []string{}, Tier: "regular"}
+		order = append(order, key)
+	}
+	custRows.Close()
+
+	orderRows, err := h.DB.Query(ctx, `
+		SELECT o.id, o.customer_id, o.created_at, rev.revenue, rf.refunded
+		FROM orders o`+validOrderRevenueSQL+`
+		WHERE o.status NOT IN ('cancelled','return')
+		ORDER BY o.created_at`)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch customer orders")
+		return
+	}
+	type agg struct {
+		days    map[string]time.Time // Jakarta calendar day -> that day (midnight)
+		lastRep int
+	}
+	aggs := map[string]*agg{}
+	var totalRevenue float64
+	totalOrders := 0
+	for orderRows.Next() {
+		var oid, cid int
+		var at time.Time
+		var rev, refunded float64
+		if orderRows.Scan(&oid, &cid, &at, &rev, &refunded) != nil {
+			continue
+		}
+		key, ok := groupOf[cid]
+		if !ok {
+			continue
+		}
+		net := rev - refunded
+		if net < 0 {
+			net = 0
+		}
+		g := groups[key]
+		g.OrderCount++
+		g.TotalSpend += net
+		a := aggs[key]
+		if a == nil {
+			a = &agg{days: map[string]time.Time{}}
+			aggs[key] = a
+		}
+		local := at.In(businessTZ)
+		day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
+		a.days[day.Format("2006-01-02")] = day
+		if g.LastOrderAt == nil || at.After(*g.LastOrderAt) {
+			t := at
+			g.LastOrderAt = &t
+			g.ID = cid // the customer record of the most recent order represents the person
+		}
+		totalRevenue += net
+		totalOrders++
+	}
+	orderRows.Close()
+
+	// Name / phone / address come from the representative record (the most recent order's customer).
+	repName := map[int]struct{ name, phone, addr string }{}
+	if rr, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,'') FROM customers`); err == nil {
+		for rr.Next() {
+			var id int
+			var n, p, a string
+			if rr.Scan(&id, &n, &p, &a) == nil {
+				repName[id] = struct{ name, phone, addr string }{n, p, a}
+			}
+		}
+		rr.Close()
 	}
 
-	labelRows, err := h.DB.Query(r.Context(), `SELECT customer_id, label FROM customer_labels`)
-	if err == nil {
-		defer labelRows.Close()
+	kpi := customerKPI{}
+	var gaps []float64
+	for _, key := range order {
+		g := groups[key]
+		if rn, ok := repName[g.ID]; ok {
+			g.Name, g.Phone, g.Address = rn.name, rn.phone, rn.addr
+		}
+		if g.TotalSpend >= vipThreshold {
+			g.Tier = "vip"
+		}
+		if g.OrderCount > 0 {
+			kpi.TotalCustomers++
+		}
+		a := aggs[key]
+		if a == nil || len(a.days) < 2 {
+			continue
+		}
+		kpi.ReturningCustomers++
+		days := make([]time.Time, 0, len(a.days))
+		for _, d := range a.days {
+			days = append(days, d)
+		}
+		sort.Slice(days, func(i, j int) bool { return days[i].Before(days[j]) })
+		var sum float64
+		for i := 1; i < len(days); i++ {
+			gap := days[i].Sub(days[i-1]).Hours() / 24
+			gaps = append(gaps, gap)
+			sum += gap
+		}
+		avg := sum / float64(len(days)-1)
+		g.AvgRepurchaseCycleDays = &avg
+	}
+	if kpi.TotalCustomers > 0 {
+		rate := float64(kpi.ReturningCustomers) / float64(kpi.TotalCustomers) * 100
+		kpi.RepeatPurchaseRate = &rate
+		ltv := totalRevenue / float64(kpi.TotalCustomers)
+		kpi.LTV = &ltv
+	}
+	if totalOrders > 0 {
+		aov := totalRevenue / float64(totalOrders)
+		kpi.AOV = &aov
+	}
+	if len(gaps) > 0 {
+		sort.Float64s(gaps)
+		m := gaps[len(gaps)/2]
+		if len(gaps)%2 == 0 {
+			m = (gaps[len(gaps)/2-1] + gaps[len(gaps)/2]) / 2
+		}
+		kpi.RepurchaseCycle = &m
+	}
+
+	if labelRows, err := h.DB.Query(ctx, `SELECT customer_id, label FROM customer_labels`); err == nil {
+		seen := map[string]map[string]bool{}
 		for labelRows.Next() {
 			var customerID int
 			var label string
-			if err := labelRows.Scan(&customerID, &label); err != nil {
+			if labelRows.Scan(&customerID, &label) != nil {
 				continue
 			}
-			if idx, ok := idIndex[customerID]; ok {
-				list[idx].Labels = append(list[idx].Labels, label)
+			key, ok := groupOf[customerID]
+			if !ok || label == "vip" { // the old manual VIP label is superseded by the automatic tier
+				continue
+			}
+			if seen[key] == nil {
+				seen[key] = map[string]bool{}
+			}
+			if !seen[key][label] {
+				seen[key][label] = true
+				groups[key].Labels = append(groups[key].Labels, label)
 			}
 		}
+		labelRows.Close()
 	}
 
-	respondJSON(w, http.StatusOK, list)
+	list := make([]customerStats, 0, len(order))
+	for _, key := range order {
+		list = append(list, *groups[key])
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		a, b := list[i].LastOrderAt, list[j].LastOrderAt
+		switch {
+		case a == nil && b == nil:
+			return list[i].Name < list[j].Name
+		case a == nil:
+			return false
+		case b == nil:
+			return true
+		}
+		return a.After(*b)
+	})
+	respondJSON(w, http.StatusOK, customerStatsResponse{KPI: kpi, Customers: list})
 }
 
-func segmentFor(orderCount int, totalSpend float64, lastOrderAt *time.Time) string {
-	if orderCount == 0 {
-		return "inactive"
+// phoneGroupIDs returns every customers.id sharing the given customer's phone number, so label and
+// delete actions apply to the merged person rather than only one duplicate record.
+func (h *CustomerHandler) phoneGroupIDs(ctx context.Context, id int) []int {
+	var phone string
+	if err := h.DB.QueryRow(ctx, `SELECT phone FROM customers WHERE id=$1`, id).Scan(&phone); err != nil {
+		return nil
 	}
-	if lastOrderAt != nil && time.Since(*lastOrderAt) > 90*24*time.Hour {
-		return "inactive"
+	digits := nonDigits.ReplaceAllString(phone, "")
+	if digits == "" {
+		return []int{id}
 	}
-	if totalSpend >= 10_000_000 || orderCount >= 20 {
-		return "vip"
+	ids := []int{}
+	rows, err := h.DB.Query(ctx, `SELECT id FROM customers WHERE regexp_replace(phone, '[^0-9]', '', 'g') = $1`, digits)
+	if err != nil {
+		return []int{id}
 	}
-	if totalSpend >= 3_000_000 {
-		return "high_value"
+	defer rows.Close()
+	for rows.Next() {
+		var x int
+		if rows.Scan(&x) == nil {
+			ids = append(ids, x)
+		}
 	}
-	if orderCount >= 2 {
-		return "returning"
+	if len(ids) == 0 {
+		return []int{id}
 	}
-	return "new"
+	return ids
+}
+
+type deliveryEntry struct {
+	ChainName  string `json:"chain_name"`
+	ChainType  string `json:"chain_type"`
+	StoreName  string `json:"store_name"`
+	StoreCode  string `json:"store_code"`
+	Address    string `json:"address"`
+	LastUsedAt string `json:"last_used_at"`
+	TimesUsed  int    `json:"times_used"`
+}
+
+type customerOrderEntry struct {
+	ID        int     `json:"id"`
+	OrderNo   string  `json:"order_no"`
+	Status    string  `json:"status"`
+	Total     float64 `json:"total"`
+	CreatedAt string  `json:"created_at"`
+}
+
+type hostHistoryEntry struct {
+	Host   string `json:"host"`
+	Orders int    `json:"orders"`
+}
+
+// Detail returns the extra Customer Detail sections: delivery history (latest first, each
+// store/address once) and host purchase history (orders per host, Website as a virtual host).
+func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid customer id")
+		return
+	}
+	ctx := r.Context()
+	ids := h.phoneGroupIDs(ctx, id)
+	if ids == nil {
+		respondError(w, http.StatusNotFound, "customer not found")
+		return
+	}
+
+	delivery := []deliveryEntry{}
+	if rows, err := h.DB.Query(ctx, `
+		SELECT pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
+		       CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE '' END,
+		       MAX(o.created_at), COUNT(*)
+		FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.customer_id = ANY($1) AND o.status <> 'cancelled'
+		GROUP BY pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
+		         CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE '' END
+		ORDER BY MAX(o.created_at) DESC`, ids); err == nil {
+		for rows.Next() {
+			var d deliveryEntry
+			var last time.Time
+			if rows.Scan(&d.ChainName, &d.ChainType, &d.StoreName, &d.StoreCode, &d.Address, &last, &d.TimesUsed) == nil {
+				d.LastUsedAt = last.Format(time.RFC3339)
+				delivery = append(delivery, d)
+			}
+		}
+		rows.Close()
+	}
+
+	hosts := []hostHistoryEntry{}
+	if rows, err := h.DB.Query(ctx, `
+		SELECT name, COUNT(DISTINCT order_id) AS n FROM (
+			SELECT oi.order_id, h.name FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id JOIN hosts h ON h.id = oi.host_id
+			WHERE o.customer_id = ANY($1) AND o.status NOT IN ('cancelled','return')
+			UNION
+			SELECT o.id, 'Website' FROM orders o
+			WHERE o.customer_id = ANY($1) AND o.status NOT IN ('cancelled','return') AND o.sales_channel = 'website'
+		) x GROUP BY name ORDER BY n DESC, name`, ids); err == nil {
+		for rows.Next() {
+			var e hostHistoryEntry
+			if rows.Scan(&e.Host, &e.Orders) == nil {
+				hosts = append(hosts, e)
+			}
+		}
+		rows.Close()
+	}
+
+	// Order history across every record of this person (a plain search by phone missed orders
+	// kept under the same number written differently, e.g. "0900-111-222" vs "0900111222"). Total
+	// uses the same figure as Order Management (goods - discounts + additional + shipping, with the
+	// shipping fee charged once for a merged shipment).
+	orders := []customerOrderEntry{}
+	if rows, err := h.DB.Query(ctx, `
+		SELECT o.id, o.order_no, o.status, o.created_at,
+		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order) FROM order_items oi WHERE oi.order_id = o.id),0)
+		         - o.discount_amount - o.promotion_discount_amount + o.additional_amount +
+		       CASE WHEN EXISTS (
+		           SELECT 1 FROM order_shipment_group_members gm
+		           JOIN order_shipment_groups g ON g.id = gm.group_id
+		           WHERE gm.order_id = o.id AND g.shipping_fee_order_id != o.id
+		       ) THEN 0 ELSE o.shipping_fee END
+		FROM orders o WHERE o.customer_id = ANY($1)
+		ORDER BY o.created_at DESC LIMIT 50`, ids); err == nil {
+		for rows.Next() {
+			var e customerOrderEntry
+			var at time.Time
+			if rows.Scan(&e.ID, &e.OrderNo, &e.Status, &at, &e.Total) == nil {
+				e.CreatedAt = at.Format(time.RFC3339)
+				orders = append(orders, e)
+			}
+		}
+		rows.Close()
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{"delivery_history": delivery, "host_history": hosts, "orders": orders})
 }
 
 type setLabelRequest struct {
@@ -205,17 +506,24 @@ func (h *CustomerHandler) SetLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := "label_added"
+	ids := h.phoneGroupIDs(r.Context(), customerID)
+	if ids == nil {
+		respondError(w, http.StatusNotFound, "customer not found")
+		return
+	}
 	if req.Enabled {
-		if _, err := h.DB.Exec(r.Context(), `
-			INSERT INTO customer_labels (customer_id, label) VALUES ($1,$2)
-			ON CONFLICT (customer_id, label) DO NOTHING`, customerID, req.Label); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to set label")
-			return
+		for _, cid := range ids {
+			if _, err := h.DB.Exec(r.Context(), `
+				INSERT INTO customer_labels (customer_id, label) VALUES ($1,$2)
+				ON CONFLICT (customer_id, label) DO NOTHING`, cid, req.Label); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to set label")
+				return
+			}
 		}
 	} else {
 		action = "label_removed"
 		if _, err := h.DB.Exec(r.Context(), `
-			DELETE FROM customer_labels WHERE customer_id=$1 AND label=$2`, customerID, req.Label); err != nil {
+			DELETE FROM customer_labels WHERE customer_id = ANY($1) AND label=$2`, ids, req.Label); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to remove label")
 			return
 		}
@@ -237,7 +545,13 @@ func (h *CustomerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid customer id")
 		return
 	}
-	_, err = h.DB.Exec(r.Context(), `DELETE FROM customers WHERE id=$1`, id)
+	// The "customer" on screen is every record sharing this phone number - delete them together
+	// (any one with order history blocks the whole delete, via the foreign key).
+	ids := h.phoneGroupIDs(r.Context(), id)
+	if ids == nil {
+		ids = []int{id}
+	}
+	_, err = h.DB.Exec(r.Context(), `DELETE FROM customers WHERE id = ANY($1)`, ids)
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "violates") {
 			respondError(w, http.StatusConflict, "pelanggan pernah memiliki order; tidak bisa dihapus")

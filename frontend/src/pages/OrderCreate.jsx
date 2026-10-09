@@ -192,7 +192,7 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shipp
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.affiliate_label')}</label>
           <select value={order.affiliateId} onChange={(e) => onUpdate('affiliateId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">{t('shared.no_affiliate')}</option>
+            <option value="">{t('shared.website_created_by_cs')}</option>
             {affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </div>

@@ -309,6 +309,7 @@ func main() {
 			r.With(view("customers")).Get("/customers", customerH.Search)
 			r.With(edit("customers")).Post("/customers", customerH.Create)
 			r.With(view("customers")).Get("/customers/stats", customerH.Stats)
+			r.With(view("customers")).Get("/customers/{id}/detail", customerH.Detail)
 			r.With(edit("customers")).Patch("/customers/{id}/labels", customerH.SetLabel)
 			r.With(edit("customers")).Delete("/customers/{id}", customerH.Delete)
 

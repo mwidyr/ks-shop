@@ -40,7 +40,8 @@ export default function SalesChannelFilter({
       {channel === 'website' && affiliates && onAffiliateChange && (
         <select value={affiliateId ?? ''} onChange={(e) => onAffiliateChange(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">{t('shared.all_affiliates')}</option>
-          <option value="none">{t('shared.no_affiliate')}</option>
+          <option value="cs">{t('shared.website_created_by_cs')}</option>
+          <option value="self_service">{t('shared.website_self_service')}</option>
           {affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       )}

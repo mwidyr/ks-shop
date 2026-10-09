@@ -559,8 +559,8 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code,
 		                    discount_amount, additional_amount, internal_notes, sales_channel, shipping_fee, free_shipping_override,
-		                    promotion_id, promotion_discount_amount)
-		VALUES ($1,$2,NULL,'pending',$3,$4,$5,$6,0,0,$7,'website',$8,$9,$10,$11) RETURNING id`,
+		                    promotion_id, promotion_discount_amount, website_source)
+		VALUES ($1,$2,NULL,'pending',$3,$4,$5,$6,0,0,$7,'website',$8,$9,$10,$11,'self_service') RETURNING id`,
 		orderNo, customerID, address, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		notes, quote.ShippingFee, quote.ShippingFee == 0, quote.promotionID, quote.Discount).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")

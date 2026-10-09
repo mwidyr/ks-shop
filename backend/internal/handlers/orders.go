@@ -473,7 +473,7 @@ type createOrderRequest struct {
 	IsUrgent             bool                `json:"is_urgent"`
 	NotesDeadline        *string             `json:"notes_deadline"`
 	SalesChannel         string              `json:"sales_channel"` // "live" (default) | "website" - item 040-045
-	AffiliateID          *int                `json:"affiliate_id"`  // website only, optional ("No Affiliate" when nil)
+	AffiliateID          *int                `json:"affiliate_id"`  // website only, optional (nil = "Website - Created by CS")
 }
 
 var cvsStoreCodePattern = regexp.MustCompile(`^\d{6}$`)
@@ -578,14 +578,20 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		customerID = &newID
 	}
 
+	// Website - Created by CS: a staff-keyed Website order with no Affiliate. (An Affiliate order
+	// belongs to that affiliate only, so website_source stays NULL; LIVE orders never have one.)
+	var websiteSource interface{}
+	if req.SalesChannel == "website" && req.AffiliateID == nil {
+		websiteSource = "cs"
+	}
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id, website_source)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
-		req.SalesChannel, req.AffiliateID).Scan(&orderID); err != nil {
+		req.SalesChannel, req.AffiliateID, websiteSource).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}
