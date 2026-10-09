@@ -257,7 +257,31 @@
     "sort_ltv_desc": "LTV：高到低",
     "sort_ltv_asc": "LTV：低到高",
     "results_count": "{{count}} 位客戶",
-    "no_results": "沒有符合的客戶。"
+    "no_results": "沒有符合的客戶。",
+    "export": "匯出",
+    "exporting": "匯出中...",
+    "table_last_store": "最近門市 / 地址",
+    "export_cols": {
+      "store_name": "門市名稱",
+      "store_code": "門市店號",
+      "address": "地址",
+      "city": "縣市",
+      "district": "鄉鎮市區",
+      "avg_cycle": "平均回購週期（天）",
+      "lo_order_no": "最近訂單編號",
+      "lo_date": "最近訂單日期",
+      "lo_status": "最近訂單狀態",
+      "lo_total": "最近訂單金額",
+      "lo_items": "最近訂單商品",
+      "lo_chain": "最近訂單配送方式",
+      "lo_store": "最近訂單門市",
+      "lo_store_code": "最近訂單店號",
+      "lo_address": "最近訂單地址",
+      "chain": "配送方式",
+      "verified": "門市已驗證",
+      "yes": "是",
+      "no": "否"
+    }
   },
   "page_dashboard": {
     "active_hosts": "活躍主播數",

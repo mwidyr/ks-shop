@@ -257,7 +257,31 @@
     "sort_ltv_desc": "LTV: highest first",
     "sort_ltv_asc": "LTV: lowest first",
     "results_count": "{{count}} customers",
-    "no_results": "No customers match."
+    "no_results": "No customers match.",
+    "export": "Export",
+    "exporting": "Exporting...",
+    "table_last_store": "Last Store / Address",
+    "export_cols": {
+      "store_name": "Store Name",
+      "store_code": "Store Number",
+      "address": "Address",
+      "city": "City / County",
+      "district": "District",
+      "avg_cycle": "Avg. Repurchase Cycle (days)",
+      "lo_order_no": "Last Order No.",
+      "lo_date": "Last Order Date",
+      "lo_status": "Last Order Status",
+      "lo_total": "Last Order Total",
+      "lo_items": "Last Order Items",
+      "lo_chain": "Last Order Delivery",
+      "lo_store": "Last Order Store",
+      "lo_store_code": "Last Order Store Number",
+      "lo_address": "Last Order Address",
+      "chain": "Delivery Method",
+      "verified": "Store Verified",
+      "yes": "Yes",
+      "no": "No"
+    }
   },
   "page_dashboard": {
     "active_hosts": "Active Hosts",

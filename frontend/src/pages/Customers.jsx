@@ -22,6 +22,12 @@ const fmtDate = (iso) => {
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`
 }
+// Where the parcel goes: "store name #code" for a store (unverified stores show as typed), else the address.
+const deliveryText = (d) => {
+  if (!d) return ''
+  if (d.store_name || d.store_code) return `${d.store_name || ''}${d.store_code ? ` #${d.store_code}` : ''}`.trim()
+  return d.address || ''
+}
 const fmtDays = (n) => (n == null ? '—' : `${Number.isInteger(n) ? n : n.toFixed(1)}`)
 
 function TierBadge({ tier }) {
@@ -277,6 +283,51 @@ export default function Customers() {
     })
   }, [data.customers, search, filters, sort])
 
+  const [exporting, setExporting] = useState(false)
+  // Exports the rows currently shown (search / filters / sort applied): same columns as the table,
+  // plus the average cycle, the delivery destination split into city/county and the LAST order only.
+  async function exportExcel() {
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const c = (key) => t(`page_customers.export_cols.${key}`)
+      const rows = list.map((r) => {
+        const d = r.last_delivery
+        const lo = r.last_order
+        return {
+          [t('page_customers.table.name')]: r.name,
+          [t('page_customers.table.phone')]: r.phone,
+          [t('page_customers.table.orders')]: r.order_count,
+          [t('page_customers.table.total_spending')]: r.total_spend,
+          [t('page_customers.table.last_order')]: fmtDate(r.last_order_at),
+          [t('page_customers.table.segment')]: t(`page_customers.tier_${r.tier}`),
+          [c('avg_cycle')]: r.avg_repurchase_cycle_days == null ? '' : Number(r.avg_repurchase_cycle_days.toFixed(1)),
+          [c('chain')]: d?.chain_name || '',
+          [c('store_name')]: d?.store_name || '',
+          [c('store_code')]: d?.store_code || '',
+          [c('verified')]: d && (d.store_name || d.store_code) ? (d.store_verified ? c('yes') : c('no')) : '',
+          [c('address')]: d?.address || '',
+          [c('city')]: d?.city || '',
+          [c('district')]: d?.district || '',
+          [c('lo_order_no')]: lo?.order_no || '',
+          [c('lo_date')]: lo ? fmtDate(lo.created_at) : '',
+          [c('lo_status')]: lo?.status || '',
+          [c('lo_total')]: lo ? lo.total : '',
+          [c('lo_items')]: lo?.items || '',
+          [c('lo_chain')]: lo?.chain_name || '',
+          [c('lo_store')]: lo?.store_name || '',
+          [c('lo_store_code')]: lo?.store_code || '',
+          [c('lo_address')]: lo?.address || '',
+        }
+      })
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Customers')
+      XLSX.writeFile(wb, `customers-${jakartaIsoDate(new Date())}.xlsx`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Desktop header click: same column toggles direction, a new column starts at its natural order.
   function headerSort(key) {
     const cur = SORTS[sort]
@@ -313,6 +364,13 @@ export default function Customers() {
             className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${filterOpen || activeFilterCount ? 'border-brand-600 text-brand-700 bg-brand-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
           >
             {t('page_customers.filter_button')}{activeFilterCount ? ` (${activeFilterCount})` : ''}
+          </button>
+          <button
+            onClick={exportExcel}
+            disabled={exporting || list.length === 0}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {exporting ? t('page_customers.exporting') : t('page_customers.export')}
           </button>
           {/* Mobile: a plain "Sort By" dropdown (desktop sorts via the column headers) */}
           <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label={t('page_customers.sort_by')} className="md:hidden border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full">
@@ -375,6 +433,7 @@ export default function Customers() {
                   <th className="p-3.5 cursor-pointer select-none" onClick={() => headerSort('ltv')}>{t('page_customers.table.total_spending')}{arrow('ltv')}</th>
                   <th className="p-3.5 cursor-pointer select-none" onClick={() => headerSort('last')}>{t('page_customers.table.last_order')}{arrow('last')}</th>
                   <th className="p-3.5">{t('page_customers.table.segment')}</th>
+                  <th className="p-3.5">{t('page_customers.table_last_store')}</th>
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
@@ -386,6 +445,7 @@ export default function Customers() {
                     <td className="p-3.5 font-semibold text-brand-600">{nt(c.total_spend)}</td>
                     <td className="p-3.5 text-[var(--text-secondary)]">{fmtDate(c.last_order_at)}</td>
                     <td className="p-3.5"><TierBadge tier={c.tier} /></td>
+                    <td className="p-3.5 text-[var(--text-secondary)] max-w-[260px] truncate" title={deliveryText(c.last_delivery)}>{deliveryText(c.last_delivery) || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -401,6 +461,7 @@ export default function Customers() {
                   <TierBadge tier={c.tier} />
                 </div>
                 <p className="text-xs text-[var(--text-secondary)] mt-0.5">{c.phone}</p>
+                {deliveryText(c.last_delivery) && <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{deliveryText(c.last_delivery)}</p>}
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-[var(--text-secondary)]">{c.order_count} {t('page_customers.table.orders').toLowerCase()} · {fmtDate(c.last_order_at)}</span>
                   <span className="font-bold text-brand-600 text-sm">{nt(c.total_spend)}</span>

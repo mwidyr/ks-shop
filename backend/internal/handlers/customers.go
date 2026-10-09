@@ -125,6 +125,10 @@ type customerStats struct {
 	AvgRepurchaseCycleDays *float64 `json:"avg_repurchase_cycle_days"`
 	Tier                   string   `json:"tier"` // "regular" | "vip"
 	Labels                 []string `json:"labels"`
+	// LastDelivery is the latest known delivery destination: the most recent valid order that has
+	// store/address info (older orders fill in when the latest one has none, e.g. unverified code).
+	LastDelivery *customerDelivery  `json:"last_delivery"`
+	LastOrder    *customerLastOrder `json:"last_order"`
 }
 
 type customerKPI struct {
@@ -331,6 +335,76 @@ func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		labelRows.Close()
 	}
 
+	// Latest order + latest known delivery destination per person (newest valid order first).
+	withCode := map[string]*customerDelivery{} // person|chain|store name -> newest order of that store that has a code
+	if dRows, err := h.DB.Query(ctx, `
+		SELECT o.customer_id, o.order_no, o.status, o.created_at,
+		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order) FROM order_items oi WHERE oi.order_id = o.id),0)
+		         - o.discount_amount - o.promotion_discount_amount + o.additional_amount +
+		       CASE WHEN EXISTS (
+		           SELECT 1 FROM order_shipment_group_members gm
+		           JOIN order_shipment_groups sg ON sg.id = gm.group_id
+		           WHERE gm.order_id = o.id AND sg.shipping_fee_order_id != o.id
+		       ) THEN 0 ELSE o.shipping_fee END,
+		       COALESCE((SELECT string_agg(p.sku || COALESCE(' ' || NULLIF(pv.color,''),'') || ' x' || oi.qty, ', ' ORDER BY oi.id)
+		                 FROM order_items oi JOIN product_variants pv ON pv.id = oi.variant_id
+		                 JOIN products p ON p.id = pv.product_id WHERE oi.order_id = o.id),''),
+		       COALESCE(pc.name,''), COALESCE(pc.chain_type,''),
+		       COALESCE(cs.store_name, o.pickup_store_name, ''), COALESCE(o.pickup_store_code,''),
+		       CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE COALESCE(cs.store_addr,'') END,
+		       cs.store_code IS NOT NULL
+		FROM orders o
+		LEFT JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		LEFT JOIN cvs_stores cs ON cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code
+		WHERE o.status NOT IN ('cancelled','return')
+		ORDER BY o.created_at DESC, o.id DESC`); err == nil {
+		for dRows.Next() {
+			var cid int
+			var at time.Time
+			var lo customerLastOrder
+			var d customerDelivery
+			if dRows.Scan(&cid, &lo.OrderNo, &lo.Status, &at, &lo.Total, &lo.Items,
+				&d.ChainName, &d.ChainType, &d.StoreName, &d.StoreCode, &d.Address, &d.StoreVerified) != nil {
+				continue
+			}
+			key, ok := groupOf[cid]
+			if !ok {
+				continue
+			}
+			g := groups[key]
+			if g.LastOrder == nil {
+				lo.CreatedAt = at.Format(time.RFC3339)
+				lo.ChainName, lo.StoreName, lo.StoreCode, lo.Address = d.ChainName, d.StoreName, d.StoreCode, d.Address
+				g.LastOrder = &lo
+			}
+			if d.StoreCode != "" && d.StoreName != "" {
+				if _, seen := withCode[key+"|"+d.ChainName+"|"+d.StoreName]; !seen {
+					dc := d
+					withCode[key+"|"+d.ChainName+"|"+d.StoreName] = &dc
+				}
+			}
+			if g.LastDelivery == nil && (d.StoreName != "" || d.StoreCode != "" || d.Address != "") {
+				dd := d
+				g.LastDelivery = &dd
+			}
+		}
+		dRows.Close()
+		for key, g := range groups {
+			d := g.LastDelivery
+			if d == nil {
+				continue
+			}
+			// Latest order typed the store name without a code: reuse the code (and verified store
+			// details) from an earlier order of the same store.
+			if d.StoreCode == "" && d.StoreName != "" {
+				if prev := withCode[key+"|"+d.ChainName+"|"+d.StoreName]; prev != nil {
+					d.StoreCode, d.Address, d.StoreVerified = prev.StoreCode, prev.Address, prev.StoreVerified
+				}
+			}
+			d.City, d.District = taiwanCityFromAddress(d.Address)
+		}
+	}
+
 	list := make([]customerStats, 0, len(order))
 	for _, key := range order {
 		list = append(list, *groups[key])
@@ -385,6 +459,7 @@ type deliveryEntry struct {
 	StoreName  string `json:"store_name"`
 	StoreCode  string `json:"store_code"`
 	Address    string `json:"address"`
+	Verified   bool   `json:"store_verified"`
 	LastUsedAt string `json:"last_used_at"`
 	TimesUsed  int    `json:"times_used"`
 }
@@ -419,23 +494,51 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	delivery := []deliveryEntry{}
 	if rows, err := h.DB.Query(ctx, `
-		SELECT pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
-		       CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE '' END,
-		       MAX(o.created_at), COUNT(*)
+		SELECT pc.name, pc.chain_type, COALESCE(cs.store_name, o.pickup_store_name, ''), COALESCE(o.pickup_store_code,''),
+		       CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE COALESCE(cs.store_addr,'') END,
+		       cs.store_code IS NOT NULL, MAX(o.created_at), COUNT(*)
 		FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		LEFT JOIN cvs_stores cs ON cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code
 		WHERE o.customer_id = ANY($1) AND o.status <> 'cancelled'
-		GROUP BY pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
-		         CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE '' END
+		GROUP BY pc.name, pc.chain_type, COALESCE(cs.store_name, o.pickup_store_name, ''), COALESCE(o.pickup_store_code,''),
+		         CASE WHEN pc.chain_type = 'courier' THEN COALESCE(o.shipping_address,'') ELSE COALESCE(cs.store_addr,'') END,
+		         cs.store_code IS NOT NULL
 		ORDER BY MAX(o.created_at) DESC`, ids); err == nil {
+		lastAt := map[int]time.Time{}
 		for rows.Next() {
 			var d deliveryEntry
 			var last time.Time
-			if rows.Scan(&d.ChainName, &d.ChainType, &d.StoreName, &d.StoreCode, &d.Address, &last, &d.TimesUsed) == nil {
-				d.LastUsedAt = last.Format(time.RFC3339)
+			if rows.Scan(&d.ChainName, &d.ChainType, &d.StoreName, &d.StoreCode, &d.Address, &d.Verified, &last, &d.TimesUsed) != nil {
+				continue
+			}
+			// Same store typed once with a code and once without = one entry (keep the code).
+			merged := false
+			if d.ChainType != "courier" {
+				for i := range delivery {
+					e := &delivery[i]
+					if e.ChainName == d.ChainName && e.StoreName == d.StoreName && e.StoreName != "" && (e.StoreCode == "" || d.StoreCode == "") {
+						if e.StoreCode == "" {
+							e.StoreCode, e.Address, e.Verified = d.StoreCode, d.Address, d.Verified
+						}
+						e.TimesUsed += d.TimesUsed
+						if last.After(lastAt[i]) {
+							lastAt[i] = last
+						}
+						merged = true
+						break
+					}
+				}
+			}
+			if !merged {
+				lastAt[len(delivery)] = last
 				delivery = append(delivery, d)
 			}
 		}
 		rows.Close()
+		for i := range delivery {
+			delivery[i].LastUsedAt = lastAt[i].Format(time.RFC3339)
+		}
+		sort.SliceStable(delivery, func(a, b int) bool { return delivery[a].LastUsedAt > delivery[b].LastUsedAt })
 	}
 
 	hosts := []hostHistoryEntry{}

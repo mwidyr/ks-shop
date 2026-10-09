@@ -102,7 +102,7 @@ Alur `OrderHandler.List`:
    halaman.
 
 **Aksi di halaman ini yang memanggil backend:**
-- **Terima/Tolak order** (tombol muncul untuk order `pending`) → `PATCH
+- **Terima/Batalkan order** (tombol muncul untuk order `pending`) → `PATCH
   /orders/:id/status` dengan `status=confirm` atau `status=cancelled`.
 - **Cetak Invoice (bulk)** → tidak memanggil endpoint baru, hanya membuka route
   `/orders/print/invoice?ids=...` yang lalu memanggil `GET /orders/:id` untuk tiap order
@@ -156,7 +156,7 @@ pending → confirm → packing → picking → shipped → delivered → return
 cancelled  cancelled  cancelled  cancelled  cancelled
 ```
 
-(Untuk order `pending`, tombolnya diberi label khusus "Terima Order"/"Tolak Order" di frontend,
+(Untuk order `pending`, tombolnya diberi label khusus "Terima Order"/"Batalkan Order" di frontend,
 tapi secara teknis tetap request yang sama: transisi ke `confirm` atau `cancelled`.)
 
 Setiap transisi memindahkan stok secara berbeda, semua dalam satu transaction bareng update
