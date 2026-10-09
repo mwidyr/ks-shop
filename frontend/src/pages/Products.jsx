@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
 import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct, setProductActive } from '../api/products'
@@ -15,11 +15,10 @@ import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { useAuth } from '../context/AuthContext'
 
-const statusLabels = { active: 'Active', low_stock: 'Low Stock', out_of_stock: 'Out of Stock', nonaktif: 'Inactive' }
-const statusColors = {
-  active: 'bg-green-100 text-green-700', low_stock: 'bg-yellow-100 text-yellow-700',
-  out_of_stock: 'bg-red-100 text-red-700', nonaktif: 'bg-gray-100 text-gray-500',
-}
+// A product only has two statuses: Published (is_active) / Unpublished. Stock is shown as its own
+// number next to it and is deliberately NOT a status (no more Low Stock / Out of Stock badges).
+const publishStatus = (p) => (p.is_active ? 'published' : 'unpublished')
+const publishColors = { published: 'bg-green-100 text-green-700', unpublished: 'bg-gray-100 text-gray-500' }
 
 function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { t, i18n } = useTranslation()
@@ -136,8 +135,8 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
       <td className="p-3.5 text-[var(--text-secondary)]">{p.units_sold}</td>
       <td className="p-3.5">
         <div className="flex flex-col gap-1 items-start">
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
-            {t(`page_products.status_${p.status_label}`, statusLabels[p.status_label])}
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${publishColors[publishStatus(p)]}`}>
+            {t(`page_products.status_${publishStatus(p)}`)}
           </span>
           {p.is_oversell && (
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{t('page_products.oversell_badge')}</span>
@@ -193,13 +192,17 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
 
 export default function Products() {
   const { t, i18n } = useTranslation()
-  const { translateCategory } = useMasterData()
+  const { translateCategory, translateColor, colors: masterColors } = useMasterData()
+  // Category / Color Management link here with ?category=<name> or ?color=<name_zh> (the product
+  // count there is clickable) - the list opens already filtered.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const colorFilter = searchParams.get('color') || ''
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('all')
   const [search, setSearch] = useState('')
   const [stockFilter, setStockFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '')
   const [sortBy, setSortBy] = useState('newest')
   const [categories, setCategories] = useState([])
 
@@ -237,6 +240,11 @@ export default function Products() {
         if (!matchesName && !matchesSku) return false
       }
       if (categoryFilter && p.category !== categoryFilter) return false
+      if (colorFilter) {
+        // A variant color is stored as the Chinese name (canonical) or, for legacy data, Indonesian.
+        const idName = masterColors.find((c) => c.name_zh === colorFilter)?.name_id
+        if (!p.variants.some((v) => v.color === colorFilter || (idName && v.color === idName))) return false
+      }
       if (stockFilter !== 'all') {
         const total = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
         if (stockFilter === 'has_stock' && !(total > 0)) return false
@@ -256,7 +264,7 @@ export default function Products() {
     else if (sortBy === 'price_desc') sorted.sort((a, b) => priceOf(b) - priceOf(a))
     else if (sortBy === 'price_asc') sorted.sort((a, b) => priceOf(a) - priceOf(b))
     return sorted
-  }, [products, tab, search, categoryFilter, stockFilter, sortBy])
+  }, [products, tab, search, categoryFilter, colorFilter, masterColors, stockFilter, sortBy])
 
   function toggleSelect(id) {
     setSelected((s) => {
@@ -478,6 +486,14 @@ export default function Products() {
         </div>
       )}
       {bulkResult && <p className="text-sm text-gray-600 mb-4">{bulkResult}</p>}
+      {colorFilter && (
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <span className="px-3 py-1 rounded-full bg-brand-50 text-brand-700 font-semibold">
+            {t('page_products.color_filter_label', { color: translateColor(colorFilter) })}
+          </span>
+          <button onClick={() => { const next = new URLSearchParams(searchParams); next.delete('color'); setSearchParams(next) }} className="text-gray-500 underline text-xs">{t('page_products.color_filter_clear')}</button>
+        </div>
+      )}
 
       <div className={`${cardClasses} overflow-hidden`}>
         <div className="flex gap-6 px-5 pt-4 border-b border-[var(--table-divider)]">
@@ -558,28 +574,48 @@ export default function Products() {
           <div className="md:hidden divide-y divide-[var(--table-divider)]">
             {filtered.map((p) => {
               const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
+              const mobileColors = [...new Set(p.variants.map((v) => v.color).filter(Boolean))]
+              const mobileSizes = [...new Set(p.variants.map((v) => v.size).filter(Boolean))]
               const prices = p.variants.map((v) => v.price)
               const priceLabel = prices.length ? (Math.min(...prices) === Math.max(...prices)
                 ? formatCurrency(Math.min(...prices))
                 : `${formatCurrency(Math.min(...prices))} - ${formatCurrency(Math.max(...prices))}`) : '-'
               return (
-                <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-center gap-3 p-3.5 hover:bg-[var(--table-row-hover)]">
+                <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-start gap-3 p-3.5 hover:bg-[var(--table-row-hover)]">
                   <img
                     src={resolveUrl(p.images[0]?.url)}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewProduct(p) }}
-                    className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
+                    className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
                   />
                   <div className="min-w-0 flex-1">
-                    {p.sku && <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>}
-                    <p className="font-semibold text-[var(--text-primary)] text-sm truncate">{localizedProductName(p, i18n.language)}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusColors[p.status_label]}`}>
-                        {t(`page_products.status_${p.status_label}`, statusLabels[p.status_label])}
+                    {/* Code + Published/Unpublished (top right), name, color/size chips, then stock and price */}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] font-bold text-brand-600">{p.sku}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${publishColors[publishStatus(p)]}`}>
+                        {t(`page_products.status_${publishStatus(p)}`)}
                       </span>
-                      <span className="text-xs text-[var(--text-secondary)]">{t('page_products.col_stock')}: {totalStock}</span>
+                    </div>
+                    <p className="font-semibold text-[var(--text-primary)] text-sm leading-snug">{localizedProductName(p, i18n.language)}</p>
+                    {(mobileColors.length > 0 || mobileSizes.length > 0) && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {mobileColors.map((c) => (
+                          <span key={`c-${c}`} className="text-[11px] px-2 py-0.5 rounded-md border border-[var(--table-divider)] text-[var(--text-secondary)]">{translateColor(c)}</span>
+                        ))}
+                        {(mobileSizes.length <= 1 ? [t('page_products.one_size')] : mobileSizes).map((sz) => (
+                          <span key={`s-${sz}`} className="text-[11px] px-2 py-0.5 rounded-md border border-[var(--table-divider)] text-[var(--text-secondary)]">{sz}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                        <span>{t('page_products.col_stock')} {totalStock}</span>
+                        {p.is_oversell && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-red-300 text-red-600 bg-red-50">{t('page_products.oversell_badge')}</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-[var(--text-primary)] whitespace-nowrap">NT$ {priceLabel}</p>
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-[var(--text-primary)] whitespace-nowrap">{priceLabel}</p>
                 </Link>
               )
             })}

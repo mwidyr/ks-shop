@@ -31,6 +31,20 @@ const sortOptions = [
   { value: 'total_asc', labelKey: 'page_orders.sort_total_asc' },
 ]
 
+// 2026/10/08 20:53 (same order as the reference card: date, then time, no seconds)
+function fmtOrderDate(iso) {
+  const d = new Date(iso)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// Small colored chip per pickup chain, like the reference (7-Eleven orange, FamilyMart green).
+function chainChipClass(name = '') {
+  if (/7[- ]?(11|eleven)/i.test(name)) return 'bg-orange-100 text-orange-700'
+  if (/family|全家/i.test(name)) return 'bg-green-100 text-green-700'
+  return 'bg-gray-100 text-gray-600'
+}
+
 export default function Orders() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -316,7 +330,7 @@ export default function Orders() {
                   </th>
                   <th className="p-3.5">{t('page_orders.col_order_no')}</th>
                   <th className="p-3.5">{t('page_orders.col_customer')}</th>
-                  <th className="p-3.5">{t('page_orders.col_host')}</th>
+                  <th className="p-3.5">{t('page_orders.col_phone')}</th>
                   <th className="p-3.5">{t('page_orders.col_pickup')}</th>
                   <th className="p-3.5">{t('page_orders.col_qty')}</th>
                   <th className="p-3.5">{t('page_orders.col_total')}</th>
@@ -350,18 +364,22 @@ export default function Orders() {
                           <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">{t('page_orders.blacklist_badge')}</span>
                         )}
                       </p>
+                    </td>
+                    <td className="p-3.5">
                       <button
                         type="button"
                         onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
-                        className="text-xs text-[var(--text-secondary)] hover:text-brand-600 hover:underline"
+                        className="text-[var(--text-secondary)] hover:text-brand-600 hover:underline"
                       >
                         {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
                       </button>
                     </td>
-                    <td className="p-3.5 text-[var(--text-primary)] font-medium">{o.host_names}</td>
                     <td className="p-3.5 text-[var(--text-secondary)]">
                       {o.pickup_chain_name}
                       {o.pickup_store_code && <span className="font-mono text-xs text-[var(--text-secondary)]"> #{o.pickup_store_code}</span>}
+                      {o.store_unverified && (
+                        <p className="mt-0.5 text-[10px] font-semibold text-orange-600">● {t('page_orders.store_unverified')}</p>
+                      )}
                     </td>
                     <td className="p-3.5"><Metric type="qty">{o.total_qty}</Metric></td>
                     <td className="p-3.5"><Metric type="gmv">{formatCurrency(o.total)}</Metric></td>
@@ -379,6 +397,7 @@ export default function Orders() {
                 onClick={() => navigate(`/orders/${o.id}`)}
                 className={`${cardClasses} p-3.5 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
               >
+                {/* Top: order number + status */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <input type="checkbox" checked={selected.has(o.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(o.id)} />
@@ -394,16 +413,48 @@ export default function Orders() {
                   </div>
                   <StatusPill status={o.status} />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <div className="min-w-0">
-                    <p className="text-[var(--text-primary)] truncate">{o.customer_name}</p>
-                    <p className="text-xs text-[var(--text-secondary)] truncate">{o.host_names}</p>
-                  </div>
-                  <div className="text-right shrink-0 ml-2">
-                    <Metric type="qty" className="text-xs">{o.total_qty}×</Metric>{' '}
-                    <Metric type="gmv">{formatCurrency(o.total)}</Metric>
-                  </div>
+                {/* Customer name left, phone right */}
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                  <p className="text-[var(--text-primary)] font-medium truncate flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{o.customer_name}</span>
+                    {o.customer_blacklisted && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600 shrink-0">{t('page_orders.blacklist_badge')}</span>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
+                    className="text-xs text-[var(--text-secondary)] shrink-0"
+                  >
+                    {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
+                  </button>
                 </div>
+                {/* Created date/time + item count on the left, amount on the right (one row) */}
+                <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+                  <span className="text-[var(--text-secondary)]">
+                    {fmtOrderDate(o.created_at)}
+                    <span> · </span>
+                    <Metric type="qty" className="text-xs">{t('page_orders.item_count', { count: o.total_qty })}</Metric>
+                  </span>
+                  <span className="shrink-0 text-right font-bold text-[var(--text-primary)] text-sm">NT$ {formatCurrency(o.total)}</span>
+                </div>
+                {/* Bottom: shipping method chip + pickup store (name + #code), or the delivery address
+                    for home delivery; plus a warning when a CVS store code isn't in ECPay's directory. */}
+                <div className="mt-2 flex items-center gap-2 text-xs min-w-0">
+                  <span className={`shrink-0 font-bold px-1.5 py-0.5 rounded-md ${chainChipClass(o.pickup_chain_name)}`}>{o.pickup_chain_name}</span>
+                  {(o.pickup_store_name || o.pickup_store_code) ? (
+                    <span className="text-[var(--text-secondary)] truncate">
+                      {o.pickup_store_name}{o.pickup_store_code && <span className="font-mono text-[var(--text-secondary)]"> #{o.pickup_store_code}</span>}
+                    </span>
+                  ) : o.pickup_chain_type === 'courier' && o.shipping_address ? (
+                    <span className="text-[var(--text-secondary)] truncate">{o.shipping_address}</span>
+                  ) : null}
+                </div>
+                {o.store_unverified && (
+                  <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-orange-300 bg-orange-50 text-orange-700">
+                    <span aria-hidden>●</span> {t('page_orders.store_unverified')}
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -158,7 +158,8 @@
     "merge_button": "合併至...",
     "merge_target_placeholder": "選擇目標分類",
     "merge_confirm_button": "確認",
-    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的商品將移至「{{target}}」，並刪除「{{source}}」。"
+    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的商品將移至「{{target}}」，並刪除「{{source}}」。",
+    "view_products": "查看此分類的商品"
   },
   "page_chat": {
     "ai_suggestion_label": "AI 建議",
@@ -336,7 +337,8 @@
     "tab_current": "目前庫存",
     "tab_history": "異動紀錄",
     "variant_count": "{{count}} 個款式",
-    "inventory_value": "庫存價值"
+    "inventory_value": "庫存價值",
+    "eta_label": "預計到貨：{{date}}"
   },
   "page_live_session_detail": {
     "add_product_button": "新增商品",
@@ -736,7 +738,10 @@
     "phone_copied": "✓ 已複製",
     "created_at_label": "建立於",
     "merge_all_result_none": "沒有勾選要合併的訂單。",
-    "merge_all_hint": "（勾選上方特定訂單即可只合併該訂單。）"
+    "merge_all_hint": "（勾選上方特定訂單即可只合併該訂單。）",
+    "col_phone": "電話",
+    "item_count": "{{count}} 件",
+    "store_unverified": "門市尚未驗證"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",
@@ -949,7 +954,11 @@
     "toggle_active_failed": "變更商品狀態失敗",
     "force_delete_link": "此商品有訂單紀錄。仍要永久刪除嗎（管理員）？",
     "force_delete_title": "永久刪除",
-    "force_delete_message": "「{{name}}」有訂單紀錄，將改為封存（在所有畫面中隱藏，但歷史訂單/報表資料不受影響），而非真正刪除。請輸入密碼確認。"
+    "force_delete_message": "「{{name}}」有訂單紀錄，將改為封存（在所有畫面中隱藏，但歷史訂單/報表資料不受影響），而非真正刪除。請輸入密碼確認。",
+    "status_published": "上架中",
+    "status_unpublished": "未上架",
+    "color_filter_label": "顏色：{{color}}",
+    "color_filter_clear": "清除篩選"
   },
   "page_profit": {
     "ad_cost": "廣告成本",
@@ -1672,7 +1681,7 @@
     "period_all_time": "全部時間"
   },
   "page_heatmap": {
-    "average_row": "平均",
+    "average_row": "本月平均 (Monthly AVG)",
     "col_host": "主播",
     "now_badge": "NOW",
     "order_breakdown": "訂單列表",
@@ -1805,11 +1814,12 @@
     "loading_colors": "顏色載入中...",
     "name_zh_placeholder": "中文名稱",
     "name_id_placeholder": "印尼文名稱",
-    "used_count": "{{count}} 個款式",
+    "used_count": "{{count}} 款商品",
     "merge_button": "合併至...",
     "merge_target_placeholder": "選擇目標顏色",
     "merge_confirm_button": "確認",
-    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的款式將移至「{{target}}」，並刪除「{{source}}」。"
+    "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的款式將移至「{{target}}」，並刪除「{{source}}」。",
+    "view_products": "查看使用此顏色的商品"
   },
   "page_live_data_upload": {
     "awt_hint": "請以 MM:SS 格式輸入（例如：1:06 或 14:49）",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { listColors, createColor, updateColor, deleteColor, mergeColor } from '../api/colors'
 
 export default function ColorManagement() {
@@ -140,7 +141,7 @@ export default function ColorManagement() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">{t('page_colors.used_count', { count: c.used_count })}</span>
+                  <Link to={`/products?color=${encodeURIComponent(c.name_zh)}`} title={t('page_colors.view_products')} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-600 hover:bg-brand-100 hover:underline">{t('page_colors.used_count', { count: c.used_count })}</Link>
                   <button onClick={() => startMerge(c.id)} className="text-xs font-semibold text-gray-500 hover:underline">{t('page_colors.merge_button')}</button>
                   <button onClick={() => handleDelete(c.id)} className="text-xs font-semibold text-red-600 hover:underline">{t('common.delete')}</button>
                 </div>

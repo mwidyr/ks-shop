@@ -10,7 +10,7 @@ import StatTile from '../components/StatTile'
 import BigStatCard from '../components/BigStatCard'
 import DateRangePicker from '../components/DateRangePicker'
 
-const seriesColors = ['#2563eb', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#4338ca']
+const seriesColors = ['#9E1B46', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#4338ca']
 const avatarColors = ['bg-blue-500', 'bg-cyan-500', 'bg-violet-500', 'bg-green-500', 'bg-pink-500', 'bg-indigo-500']
 const medals = ['🥇', '🥈', '🥉']
 

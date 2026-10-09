@@ -13,9 +13,11 @@
         theme: {
           extend: {
             colors: {
+              // Ralulu Hub primary: 600 = #9E1B46 (Primary), 700 = #86163B (Primary Hover). Every
+              // bg-/text-/border-brand-* class in the app resolves through this one scale.
               brand: {
-                50: '#eff6ff', 100: '#dbeafe', 400: '#60a5fa',
-                500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a'
+                50: '#FBF1F4', 100: '#F8E8ED', 200: '#EBC1CC', 300: '#E2A5B6', 400: '#D7899F',
+                500: '#BC4E70', 600: '#9E1B46', 700: '#86163B', 800: '#6E1230', 900: '#5C0F29'
               }
             }
           }
@@ -27,84 +29,98 @@
     <style>
       :root {
         --font-scale: 1;
-        /* Data Table design tokens (client-specified Apple-inspired palette). Scoped to table
-           markup only via arbitrary-value Tailwind classes like bg-[var(--table-card-bg)] -
-           deliberately NOT merged into the broader html.dark overrides below, which already
-           drive every other bg-white/bg-gray-* surface in the app (modals, forms, etc.) and
-           must stay untouched by this table-specific redesign. */
-        --table-page-bg: #F5F5F7;
+        /* Global theme tokens (client-specified, items 091/092). Pages read these variables via
+           arbitrary-value Tailwind classes like bg-[var(--table-card-bg)] instead of hardcoding
+           colors; the Tailwind `brand` scale above carries Primary / Primary Hover. */
+        --primary: #9E1B46;
+        --primary-hover: #86163B;
+        --table-page-bg: #F7F6F3;
         --table-card-bg: #FFFFFF;
-        --table-header-bg: #F5F5F7;
-        --table-row-hover: #F2F7FF;
-        --table-divider: #D2D2D7;
-        --text-primary: #1D1D1F;
-        --text-secondary: #6E6E73;
-        --qty-color: #FF3B30;
-        --ord-color: #248A3D;
-        --gmv-color: #007AFF;
-        --table-accent: #007AFF;
+        --table-header-bg: #F3F2EE;
+        --table-row-hover: #FBF1F4;
+        --table-divider: #E5E7EB;
+        --text-primary: #1F2937;
+        --text-secondary: #6B7280;
+        --text-muted: #9CA3AF;
+        --qty-color: #9E1B46;
+        --ord-color: #6F8F7B;
+        --gmv-color: #4F6F96;
+        --table-accent: #9E1B46;
       }
       html.dark {
-        --table-page-bg: #000000;
-        --table-card-bg: #1C1C1E;
-        --table-header-bg: #2C2C2E;
-        --table-row-hover: #1C2D41;
-        --table-divider: #38383A;
-        --text-primary: #F5F5F7;
-        --text-secondary: #98989D;
-        --qty-color: #FF453A;
-        --ord-color: #30D158;
-        --gmv-color: #0A84FF;
-        --table-accent: #0A84FF;
+        --primary: #9E1B46;
+        --primary-hover: #86163B;
+        --table-page-bg: #14161B;
+        --table-card-bg: #202329;
+        --table-header-bg: #24272E;
+        --table-row-hover: rgba(158, 27, 70, 0.14);
+        --table-divider: #393D47;
+        --text-primary: #F1F2F4;
+        --text-secondary: #9CA3AF;
+        --text-muted: #6B7280;
+        --sidebar-bg: #1B1E24;
+        --input-bg: #24272E;
+        --qty-color: #E17A93;
+        --ord-color: #8FBFA2;
+        --gmv-color: #89AEDC;
+        --table-accent: #E17A93;
       }
       html { font-size: calc(16px * var(--font-scale)); }
-      body { font-family: 'Poppins', sans-serif; }
+      body { font-family: 'Poppins', sans-serif; background-color: var(--table-page-bg); }
+      html:not(.dark) .bg-gray-50 { background-color: var(--table-page-bg); }
       ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb { background: #D7899F; border-radius: 4px; }
 
       /* Dark mode: manual overrides (not Tailwind's dark: variant, since the CDN build has no
          dark: classes anywhere in the app) targeting the exact utility classes actually used
          across the codebase, scoped under a .dark class on <html> toggled by Preferensi. */
       html.dark { color-scheme: dark; }
-      html.dark body { background-color: #0f172a; }
-      html.dark ::-webkit-scrollbar-thumb { background: #475569; }
+      html.dark body { background-color: #14161B; }
+      html.dark ::-webkit-scrollbar-thumb { background: #393D47; }
 
-      html.dark .bg-white { background-color: #1e293b; }
-      html.dark .bg-gray-50 { background-color: #0f172a; }
-      html.dark .bg-gray-100 { background-color: #334155; }
-      html.dark .bg-gray-200 { background-color: #475569; }
-      html.dark .bg-gray-300 { background-color: #64748b; }
-      html.dark .bg-gray-800 { background-color: #475569; }
-      html.dark .bg-gray-800:hover { background-color: #64748b; }
-      html.dark .bg-black:hover { background-color: #1e293b; }
+      html.dark .bg-white { background-color: #202329; }
+      html.dark aside.bg-white { background-color: #1B1E24; }
+      html.dark .bg-gray-50 { background-color: #14161B; }
+      html.dark .bg-gray-100 { background-color: #24272E; }
+      html.dark .bg-gray-200 { background-color: #393D47; }
+      html.dark .bg-gray-300 { background-color: #4A4F5B; }
+      html.dark .bg-gray-800 { background-color: #393D47; }
+      html.dark .bg-gray-800:hover { background-color: #4A4F5B; }
+      html.dark .bg-black:hover { background-color: #24272E; }
+      /* Inputs / secondary buttons: #24272E */
+      html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+      html.dark select, html.dark textarea { background-color: #24272E; color: #F1F2F4; border-color: #393D47; }
 
       /* hover:bg-* generates its own distinct class (not affected by the .bg-gray-50 override
          above), so without these, row/button hover states stayed at their bright light-mode
          color in dark mode and made the (light-colored) dark-mode text unreadable on hover. */
-      html.dark .hover\:bg-gray-50:hover { background-color: #334155; }
-      html.dark .hover\:bg-gray-100:hover { background-color: #475569; }
-      html.dark .hover\:bg-brand-50:hover { background-color: rgba(37, 99, 235, 0.25); }
+      html.dark .hover\:bg-gray-50:hover { background-color: #2A2D35; }
+      html.dark .hover\:bg-gray-100:hover { background-color: #31353E; }
+      html.dark .hover\:bg-brand-50:hover { background-color: rgba(158, 27, 70, 0.25); }
       html.dark .hover\:bg-red-50:hover { background-color: rgba(220, 38, 38, 0.25); }
       html.dark .hover\:bg-red-100:hover { background-color: rgba(220, 38, 38, 0.35); }
       html.dark .hover\:bg-green-100:hover { background-color: rgba(22, 163, 74, 0.35); }
       html.dark .hover\:bg-amber-100:hover { background-color: rgba(217, 119, 6, 0.35); }
 
-      html.dark .text-gray-800 { color: #f1f5f9; }
-      html.dark .text-gray-700 { color: #e2e8f0; }
-      html.dark .text-gray-600 { color: #cbd5e1; }
-      html.dark .text-gray-500 { color: #a1a1aa; }
-      html.dark .text-gray-400 { color: #71717a; }
-      html.dark .text-gray-300 { color: #52525b; }
+      html.dark .text-gray-800 { color: #F1F2F4; }
+      html.dark .text-gray-700 { color: #E5E7EB; }
+      html.dark .text-gray-600 { color: #C5C9D1; }
+      html.dark .text-gray-500 { color: #9CA3AF; }
+      html.dark .text-gray-400 { color: #7C828D; }
+      html.dark .text-gray-300 { color: #4B5563; }
 
-      html.dark .border-gray-50 { border-color: #1e293b; }
-      html.dark .border-gray-100 { border-color: #1e293b; }
-      html.dark .border-gray-200 { border-color: #334155; }
-      html.dark .border-gray-300 { border-color: #475569; }
+      html.dark .border-gray-50 { border-color: #25272E; }
+      html.dark .border-gray-100 { border-color: #2B2E36; }
+      html.dark .border-gray-200 { border-color: #393D47; }
+      html.dark .border-gray-300 { border-color: #4A4F5B; }
 
-      html.dark .bg-brand-50 { background-color: rgba(37, 99, 235, 0.15); }
-      html.dark .bg-brand-100 { background-color: rgba(37, 99, 235, 0.25); }
-      html.dark .text-brand-700 { color: #93c5fd; }
-      html.dark .text-brand-800 { color: #bfdbfe; }
+      /* Primary #9E1B46 on dark surfaces: fills keep the real primary, tints are translucent, and
+         brand-coloured TEXT lifts to a lighter tone so it stays readable on #202329. */
+      html.dark .bg-brand-50 { background-color: rgba(158, 27, 70, 0.15); }
+      html.dark .bg-brand-100 { background-color: rgba(158, 27, 70, 0.25); }
+      html.dark .text-brand-500, html.dark .text-brand-600, html.dark .text-brand-700 { color: #E17A93; }
+      html.dark .text-brand-800 { color: #F0A9BA; }
+      html.dark .border-brand-200, html.dark .border-brand-300 { border-color: rgba(225, 122, 147, 0.45); }
 
       /* Status/badge colors (StatusPill and various inline badges): light-bg/dark-text pairs
          need inverting to dark-bg/light-text so they stay legible on a dark page. */

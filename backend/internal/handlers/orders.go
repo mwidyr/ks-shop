@@ -37,14 +37,23 @@ var validTransitions = map[string][]string{
 }
 
 type orderListItem struct {
-	ID              int     `json:"id"`
-	OrderNo         string  `json:"order_no"`
-	Status          string  `json:"status"`
-	CustomerName    string  `json:"customer_name"`
-	CustomerPhone   string  `json:"customer_phone"`
-	PickupChainName string  `json:"pickup_chain_name"`
-	PickupStoreName string  `json:"pickup_store_name"`
-	PickupStoreCode string  `json:"pickup_store_code"`
+	ID              int    `json:"id"`
+	OrderNo         string `json:"order_no"`
+	Status          string `json:"status"`
+	CustomerName    string `json:"customer_name"`
+	CustomerPhone   string `json:"customer_phone"`
+	PickupChainName string `json:"pickup_chain_name"`
+	PickupStoreName string `json:"pickup_store_name"`
+	PickupStoreCode string `json:"pickup_store_code"`
+	// ShippingAddress is the delivery address; shown on the order card for home delivery (CVS
+	// orders carry only the store, whose "address" is just its composed name + code).
+	ShippingAddress string `json:"shipping_address"`
+	PickupChainType string `json:"pickup_chain_type"`
+	// StoreUnverified: a 7-Eleven/FamilyMart store code that is NOT in the cached ECPay store
+	// directory. Only ever true when that directory has data for the chain (cache empty = ECPay
+	// not configured / not yet loaded = unknown, never flagged), same rule as the order form's
+	// "store code not found" check.
+	StoreUnverified bool    `json:"store_unverified"`
 	HostNames       string  `json:"host_names"`
 	TotalQty        int     `json:"total_qty"`
 	Total           float64 `json:"total"`
@@ -160,14 +169,18 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist'),
 		       o.is_urgent,
 		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id),
-		       pm.code
+		       pm.code,
+		       COALESCE(o.shipping_address,''), pc.chain_type,
+		       (pc.chain_type IN ('cvs_711','cvs_familymart') AND COALESCE(o.pickup_store_code,'') <> ''
+		        AND EXISTS (SELECT 1 FROM cvs_stores cs0 WHERE cs0.chain_type = pc.chain_type)
+		        AND NOT EXISTS (SELECT 1 FROM cvs_stores cs WHERE cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code))
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_items oi ON oi.order_id = o.id
 		LEFT JOIN promotions pm ON pm.id = o.promotion_id` +
 		baseWhere +
-		" GROUP BY o.id, c.name, c.phone, pc.name, pm.code ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		" GROUP BY o.id, c.name, c.phone, pc.name, pc.chain_type, pm.code ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {
@@ -181,7 +194,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var o orderListItem
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged, &o.PromotionCode); err != nil {
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged, &o.PromotionCode,
+			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)

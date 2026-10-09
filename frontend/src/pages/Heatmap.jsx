@@ -11,11 +11,12 @@ import { jakartaIsoDate } from '../utils/jakartaDate'
 // The left block (Shift | Host | QTY) is its own fixed, non-scrolling table next to the
 // horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
 // paint over it. Because they are two tables, every row must have the same fixed height.
-const HOST_COL_WIDTH = 120
 const QTY_COL_WIDTH = 56
 const SHIFT_COL_WIDTH = 80
 const CELL_GAP = 2
-const HEAD_ROW_H = 36
+// Header height is FIXED on both tables (the left block and the scrolling grid are separate tables,
+// so their rows must match exactly); the NOW badge stack lives in a wrapper of exactly this height.
+const HEAD_ROW_H = 44
 const BODY_ROW_H = 28
 // Fixed-English display labels (deliberately separate from the page_hosts.shift_* i18n keys
 // used elsewhere in the app, which stay correctly translated per locale) - the client explicitly
@@ -110,42 +111,63 @@ const TIME_BLOCK_LABELS = [
   '12:00-14:30', '15:00-17:30', '18:00-20:30', '21:00-23:30',
 ]
 
-// Real-time NOW indicator (item 058): Jakarta time -> matching 30-minute slot index, same
-// floor(minute/30) rule as the backend's slotIndexExpr (heatmap.go).
-function jakartaNowSlot() {
+// Real-time NOW indicator: Jakarta time -> matching 30-minute slot index (same floor(minute/30)
+// rule as the backend's slotIndexExpr in heatmap.go), plus how far into that slot we are (0..1) so
+// the vertical line sits at the actual current time rather than at the slot's edge.
+function jakartaNow() {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Jakarta', hour: 'numeric', minute: 'numeric', hour12: false,
   }).formatToParts(new Date())
   const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24
   const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  return hour * 2 + Math.floor(minute / 30)
+  return {
+    slot: hour * 2 + Math.floor(minute / 30),
+    frac: (minute % 30) / 30,
+  }
 }
 
-// Fixed QTY thresholds per level, keyed by how many days are in the selected range - client spec
-// (item 029-033): the busier the period, the higher the bar for each color level has to be.
-// Three separate 5-step palettes so the main grid, ALL row, and AVERAGE row read as visually
-// distinct at a glance: green (main grid), pink -> dark red (ALL), light yellow -> dark orange
-// (AVERAGE) - same 5 threshold levels underneath, just a different ramp per row.
-const MAIN_COLORS = ['#E8F3E9', '#C5E3C8', '#81C784', '#43A047', '#196B24']
-const ALL_COLORS = ['#FCE4E9', '#F5B8C4', '#E8748C', '#C62E45', '#7A0F1F']
-const AVG_COLORS = ['#FFF6DA', '#FFE29A', '#FFC14D', '#F57C1F', '#B84A00']
-const THRESHOLD_TABLES = [
-  { maxDays: 1, levels: [2, 5, 8, 12] },
-  { maxDays: 7, levels: [3, 8, 15, 25] },
-  { maxDays: 14, levels: [4, 10, 20, 35] },
-  { maxDays: 31, levels: [5, 15, 30, 50] },
-]
+// ---- Color scales (client spec items 093-095) ----------------------------------------------
+// Host cells show AVERAGE QTY (total QTY / valid LIVE sessions in that slot) on a FIXED 5-level
+// green scale: 0-3, >3-6, >6-9, >9-12, >12 - the same thresholds for every date range, custom
+// included. The Monthly AVG row uses the same fixed thresholds on a muted amber ramp. The ALL row
+// is different: its levels are quantiles of the ALL row's own non-zero values, so they are
+// recomputed whenever the period changes.
+const HOST_AVG_COLORS = ['#EAF3EC', '#CDE2D3', '#9BC6A8', '#66A47A', '#34734C']
+const MONTHLY_AVG_COLORS = ['#F8F1DF', '#F1DFB7', '#E6C68D', '#D5A55D', '#B97935']
+const ALL_COLORS = ['#F8E8ED', '#EBC1CC', '#D7899F', '#BC4E70', '#9E1B46']
+const FIXED_LEVELS = [3, 6, 9, 12]
+const NEUTRAL_CELL = 'bg-gray-50 text-gray-300'
 
-function getThresholdTable(rangeDays) {
-  const table = THRESHOLD_TABLES.find((t) => rangeDays <= t.maxDays)
-  return table ? table.levels : THRESHOLD_TABLES[THRESHOLD_TABLES.length - 1].levels
+function fixedLevel(v) {
+  return FIXED_LEVELS.filter((max) => v > max).length
 }
 
-function cellColor(qty, rangeDays, colors = MAIN_COLORS) {
-  if (!qty) return { className: 'bg-gray-50 text-gray-300' }
-  const levels = getThresholdTable(rangeDays)
-  const level = levels.filter((max) => qty > max).length
-  return { style: { background: colors[level], color: level >= 3 ? '#fff' : '#1f2937' } }
+// Style for a value on one of the 5-colour ramps; `darkFrom` is the first level that needs white text.
+function levelStyle(level, colors, darkFrom) {
+  return { style: { background: colors[level], color: level >= darkFrom ? '#fff' : '#1f2937' } }
+}
+
+function fixedScaleCell(v, colors, darkFrom) {
+  if (v == null) return { className: NEUTRAL_CELL }
+  return levelStyle(fixedLevel(v), colors, darkFrom)
+}
+
+// Quantile cut-offs (4 of them -> 5 levels) over the non-zero ALL-row values, lowest to highest.
+function quantileCutoffs(values) {
+  const sorted = values.filter((v) => v > 0).sort((a, b) => a - b)
+  if (sorted.length === 0) return []
+  return [1, 2, 3, 4].map((k) => sorted[Math.max(Math.ceil((sorted.length * k) / 5) - 1, 0)])
+}
+
+function allRowCell(qty, cutoffs) {
+  if (!qty) return { className: NEUTRAL_CELL }
+  // Equal values always land on the same level (comparison against fixed cut-offs).
+  return levelStyle(cutoffs.filter((c) => qty > c).length, ALL_COLORS, 3)
+}
+
+// 2px vertical line in the primary colour, placed at the actual current time within the NOW slot.
+function NowLine({ frac }) {
+  return <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${frac * 100}%`, width: 2, marginLeft: -1, background: 'var(--primary)' }} />
 }
 
 function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString() }
@@ -232,7 +254,7 @@ export default function Heatmap() {
   useEffect(() => { listLocations().then(setLocations) }, [])
 
   // Keeps the NOW indicator (item 058) actually moving as time passes while the page stays open,
-  // without re-fetching data - just forces a re-render to recompute jakartaNowSlot().
+  // without re-fetching data - just forces a re-render to recompute jakartaNow().
   useEffect(() => {
     const id = setInterval(() => setNowTick((n) => n + 1), 60000)
     return () => clearInterval(id)
@@ -241,7 +263,9 @@ export default function Heatmap() {
   // nowTick (unused directly) exists purely to force this re-render every 60s, so nowSlot below
   // stays current as time passes while the page is open.
   void nowTick
-  const nowSlot = activePreset === 'today' ? jakartaNowSlot() : null
+  const now = activePreset === 'today' ? jakartaNow() : null
+  const nowSlot = now ? now.slot : null
+  const nowFrac = now ? now.frac : 0
 
   useEffect(() => {
     setLoading(true)
@@ -251,9 +275,7 @@ export default function Heatmap() {
     })
   }, [locationId, range])
 
-  const rangeDays = useMemo(() => {
-    return Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1
-  }, [range])
+  const allCutoffs = useMemo(() => (grid ? quantileCutoffs(grid.all_row) : []), [grid])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -278,13 +300,15 @@ export default function Heatmap() {
 
           <div className={`${cardClasses} p-5 flex`}>
             {/* Left block: fixed, opaque, never scrolls. */}
-            <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-1 mr-1" style={{ borderSpacing: CELL_GAP }}>
+            {/* Host / QTY stay grouped (Host is only as wide as its content, capped); the gap goes
+                after QTY so it reads as part of the Host block, not part of the grid. */}
+            <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-2 mr-3" style={{ borderSpacing: CELL_GAP }}>
               <thead>
                 <tr style={{ height: HEAD_ROW_H }}>
                   <th className="p-1 text-left whitespace-nowrap" style={{ width: SHIFT_COL_WIDTH, minWidth: SHIFT_COL_WIDTH }}>{t('page_heatmap.col_shift')}</th>
-                  <th className="p-1 text-left whitespace-nowrap" style={{ width: HOST_COL_WIDTH, minWidth: HOST_COL_WIDTH }}>{t('page_heatmap.col_host')}</th>
+                  <th className="p-1 text-left whitespace-nowrap">{t('page_heatmap.col_host')}</th>
                   {/* Always literal "QTY" in all 3 languages per the client spec - no t() call. */}
-                  <th className="p-1 text-right whitespace-nowrap" style={{ width: QTY_COL_WIDTH, minWidth: QTY_COL_WIDTH }}>QTY</th>
+                  <th className="py-1 pl-0 pr-1 text-right whitespace-nowrap" style={{ width: QTY_COL_WIDTH, minWidth: QTY_COL_WIDTH }}>QTY</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,9 +316,9 @@ export default function Heatmap() {
                   <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
                     <td className="p-1 font-medium text-gray-500 whitespace-nowrap">{SHIFT_LABELS[host.shift] || ''}</td>
                     <td className="p-1 font-medium text-gray-700" title={host.host_name}>
-                      <div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{host.host_name}</div>
+                      <div className="truncate max-w-[84px] sm:max-w-[120px]">{host.host_name}</div>
                     </td>
-                    <td className="p-1 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtNum(host.total_qty)}</td>
+                    <td className="py-1 pl-0 pr-1 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtNum(host.total_qty)}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
@@ -304,7 +328,7 @@ export default function Heatmap() {
                 </tr>
                 <tr style={{ height: BODY_ROW_H }}>
                   <td className="p-1"></td>
-                  <td className="p-1 font-bold text-gray-500"><div className="truncate" style={{ maxWidth: HOST_COL_WIDTH }}>{t('page_heatmap.average_row')}</div></td>
+                  <td className="p-1 font-bold text-gray-500"><div className="truncate max-w-[84px] sm:max-w-[120px]">{t('page_heatmap.average_row')}</div></td>
                   <td className="p-1"></td>
                 </tr>
               </tbody>
@@ -316,15 +340,17 @@ export default function Heatmap() {
                 <thead>
                   <tr style={{ height: HEAD_ROW_H }}>
                     {Array.from({ length: NUM_SLOTS }).map((_, i) => (
-                      <th key={i} className="p-1 font-normal text-gray-400 whitespace-nowrap relative">
-                        {i === nowSlot && (
-                          <div className="flex flex-col items-center leading-none mb-0.5">
-                            <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded-full">{t('page_heatmap.now_badge')}</span>
-                            <span className="text-red-600 text-[7px] -mt-px">▼</span>
-                          </div>
-                        )}
-                        <span className={i === nowSlot ? 'font-bold text-black' : ''}>{slotLabel(i)}</span>
-                        {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                      <th key={i} className="p-0 font-normal text-gray-400 whitespace-nowrap relative" style={{ height: HEAD_ROW_H }}>
+                        <div className="flex flex-col items-center justify-end pb-1" style={{ height: HEAD_ROW_H }}>
+                          {i === nowSlot && (
+                            <div className="flex flex-col items-center leading-none mb-0.5">
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full" style={{ background: '#F8E8ED', color: '#9E1B46' }}>{t('page_heatmap.now_badge')}</span>
+                              <span className="text-[7px] -mt-px" style={{ color: 'var(--table-accent)' }}>▼</span>
+                            </div>
+                          )}
+                          <span className={`px-1 ${i === nowSlot ? 'font-bold' : ''}`} style={i === nowSlot ? { color: 'var(--table-accent)' } : undefined}>{slotLabel(i)}</span>
+                        </div>
+                        {i === nowSlot && <NowLine frac={nowFrac} />}
                       </th>
                     ))}
                   </tr>
@@ -333,16 +359,20 @@ export default function Heatmap() {
                   {grid.hosts.map((host) => (
                     <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
                       {host.slots.map((qty, i) => {
-                        const color = cellColor(qty, rangeDays)
+                        // Average QTY = total QTY / valid LIVE sessions in the slot; "—" (neutral)
+                        // when the host had no valid session in it.
+                        const avg = host.avg_qty?.[i] ?? null
+                        const color = fixedScaleCell(avg, HOST_AVG_COLORS, 3)
                         return (
                           <td
                             key={i}
                             onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
-                            className={`p-1 text-center rounded cursor-pointer relative ${color.className || ''}`}
+                            className={`p-1 text-center rounded relative ${qty > 0 ? 'cursor-pointer' : ''} ${color.className || ''}`}
                             style={color.style}
+                            title={avg == null ? undefined : `${fmtNum(qty)} QTY / ${host.sessions?.[i] ?? 0}`}
                           >
-                            {qty || ''}
-                            {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                            {avg == null ? '—' : avg.toFixed(1)}
+                            {i === nowSlot && <NowLine frac={nowFrac} />}
                           </td>
                         )
                       })}
@@ -350,22 +380,22 @@ export default function Heatmap() {
                   ))}
                   <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
                     {grid.all_row.map((qty, i) => {
-                      const color = cellColor(qty, rangeDays, ALL_COLORS)
+                      const color = allRowCell(qty, allCutoffs)
                       return (
                         <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
                           {qty || ''}
-                          {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                          {i === nowSlot && <NowLine frac={nowFrac} />}
                         </td>
                       )
                     })}
                   </tr>
                   <tr style={{ height: BODY_ROW_H }}>
                     {grid.avg_row.map((v, i) => {
-                      const color = cellColor(v == null ? 0 : Math.round(v), rangeDays, AVG_COLORS)
+                      const color = fixedScaleCell(v, MONTHLY_AVG_COLORS, 4)
                       return (
                         <td key={i} className={`p-1 text-center rounded relative ${color.className || ''}`} style={color.style}>
                           {v == null ? '—' : v.toFixed(1)}
-                          {i === nowSlot && <div className="absolute right-0 top-0 bottom-0 w-px bg-red-500 pointer-events-none" />}
+                          {i === nowSlot && <NowLine frac={nowFrac} />}
                         </td>
                       )
                     })}

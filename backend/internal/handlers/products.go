@@ -95,7 +95,11 @@ type Variant struct {
 	BrokenStock    int     `json:"broken_stock"`
 	IncomingStock  int     `json:"incoming_stock"`
 	MinimumStock   int     `json:"minimum_stock"`
-	TotalStock     int     `json:"total_stock"` // computed: available_stock + incoming_stock - order_stock (sellable headroom, gates picking)
+	// IncomingETA is the earliest expected arrival date among this variant's Purchase Orders that
+	// are not fully received (Inventory shows it when hovering/tapping the Incoming number). Null
+	// when there is no incoming PO or none of them has an expected arrival date.
+	IncomingETA *string `json:"incoming_eta"`
+	TotalStock  int     `json:"total_stock"` // computed: available_stock + incoming_stock - order_stock (sellable headroom, gates picking)
 }
 
 type ProductImage struct {
@@ -237,6 +241,16 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	etas := incomingETAs(r.Context(), h.DB, nil)
+	for i := range products {
+		for j := range products[i].Variants {
+			if eta, ok := etas[products[i].Variants[j].ID]; ok {
+				e := eta
+				products[i].Variants[j].IncomingETA = &e
+			}
+		}
+	}
+
 	for i := range products {
 		products[i].StatusLabel = statusLabelFor(products[i].IsActive, totalAvailable[products[i].ID], totalMinimum[products[i].ID])
 		for _, v := range products[i].Variants {
@@ -329,6 +343,19 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock)
 		v.TotalStock = v.AvailableStock + v.IncomingStock - v.OrderStock
 		p.Variants = append(p.Variants, v)
+	}
+	{
+		ids := make([]int, 0, len(p.Variants))
+		for _, v := range p.Variants {
+			ids = append(ids, v.ID)
+		}
+		etas := incomingETAs(r.Context(), h.DB, ids)
+		for i := range p.Variants {
+			if eta, ok := etas[p.Variants[i].ID]; ok {
+				e := eta
+				p.Variants[i].IncomingETA = &e
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, p)
@@ -1041,4 +1068,37 @@ func (h *ProductHandler) InventoryValue(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]float64{"inventory_value": value})
+}
+
+// incomingETAs maps variant id -> earliest expected arrival date (yyyy-mm-dd) across Purchase
+// Orders that still have quantity outstanding (not fully received, not cancelled) and have an
+// expected arrival date set. Only POs awaiting delivery count, so a received PO never shows an
+// ETA. variantIDs == nil means every variant.
+func incomingETAs(ctx context.Context, db *pgxpool.Pool, variantIDs []int) map[int]string {
+	out := map[int]string{}
+	q := `
+		SELECT pi.variant_id, MIN(p.expected_arrival_date)::text
+		FROM purchase_items pi
+		JOIN purchases p ON p.id = pi.purchase_id
+		WHERE p.status IN ('ordered','pending_arrival','partially_received')
+		  AND pi.qty > COALESCE(pi.received_qty, 0)
+		  AND p.expected_arrival_date IS NOT NULL`
+	args := []interface{}{}
+	if variantIDs != nil {
+		q += ` AND pi.variant_id = ANY($1)`
+		args = append(args, variantIDs)
+	}
+	rows, err := db.Query(ctx, q+` GROUP BY pi.variant_id`, args...)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		var eta string
+		if rows.Scan(&id, &eta) == nil {
+			out[id] = eta
+		}
+	}
+	return out
 }

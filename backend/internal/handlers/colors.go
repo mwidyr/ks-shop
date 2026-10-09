@@ -17,17 +17,21 @@ type ColorHandler struct {
 }
 
 type colorView struct {
-	ID        int    `json:"id"`
-	NameZh    string `json:"name_zh"`
-	NameID    string `json:"name_id"`
-	UsedCount int    `json:"used_count"`
+	ID     int    `json:"id"`
+	NameZh string `json:"name_zh"`
+	NameID string `json:"name_id"`
+	// UsedCount = number of different PRODUCTS (styles) with at least one variant in this color -
+	// not variants and not stock. Matches the variant color stored as either the Chinese name
+	// (canonical) or the Indonesian name (legacy free-text entered before Color Master existed).
+	UsedCount int `json:"used_count"`
 }
 
 func (h *ColorHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT c.id, c.name_zh, c.name_id, COUNT(v.id)
+		SELECT c.id, c.name_zh, c.name_id, COUNT(DISTINCT p.id)
 		FROM colors c
-		LEFT JOIN product_variants v ON v.color = c.name_zh
+		LEFT JOIN product_variants v ON v.color = c.name_zh OR v.color = c.name_id
+		LEFT JOIN products p ON p.id = v.product_id AND p.deleted_at IS NULL
 		GROUP BY c.id, c.name_zh, c.name_id ORDER BY c.name_zh`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch colors")

@@ -158,7 +158,8 @@
     "merge_button": "Merge into...",
     "merge_target_placeholder": "Choose target category",
     "merge_confirm_button": "Confirm",
-    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every product using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed."
+    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every product using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed.",
+    "view_products": "View products in this category"
   },
   "page_chat": {
     "ai_suggestion_label": "AI Suggestion",
@@ -336,7 +337,8 @@
     "tab_current": "Current Stock",
     "tab_history": "Change History",
     "variant_count": "{{count}} variants",
-    "inventory_value": "Inventory Value"
+    "inventory_value": "Inventory Value",
+    "eta_label": "ETA {{date}}"
   },
   "page_live_session_detail": {
     "add_product_button": "Add Product",
@@ -736,7 +738,10 @@
     "phone_copied": "✓ Copied",
     "created_at_label": "Created",
     "merge_all_result_none": "No ticked orders to merge.",
-    "merge_all_hint": "(Tick specific orders above to merge only those.)"
+    "merge_all_hint": "(Tick specific orders above to merge only those.)",
+    "col_phone": "Phone",
+    "item_count": "{{count}} item",
+    "store_unverified": "Store not verified"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",
@@ -941,15 +946,19 @@
     "stock_filter_out_of_stock": "Out of Stock",
     "stock_filter_oversell": "Oversell Active",
     "stock_placeholder": "Stock",
-    "tab_active": "Active ({{count}})",
+    "tab_active": "Published ({{count}})",
     "tab_all": "All Products ({{count}})",
-    "tab_inactive": "Inactive ({{count}})",
+    "tab_inactive": "Unpublished ({{count}})",
     "update_price": "Update Price",
     "variant_count": "{{count}} variants",
     "toggle_active_failed": "Failed to change product status",
     "force_delete_link": "This product has order history. Delete permanently anyway (Admin)?",
     "force_delete_title": "Delete Permanently",
-    "force_delete_message": "\"{{name}}\" has order history. It will be archived (hidden everywhere, but historical orders/reports stay intact) rather than truly erased. Confirm your password to continue."
+    "force_delete_message": "\"{{name}}\" has order history. It will be archived (hidden everywhere, but historical orders/reports stay intact) rather than truly erased. Confirm your password to continue.",
+    "status_published": "Published",
+    "status_unpublished": "Unpublished",
+    "color_filter_label": "Color: {{color}}",
+    "color_filter_clear": "Clear filter"
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -1672,7 +1681,7 @@
     "period_all_time": "All Time"
   },
   "page_heatmap": {
-    "average_row": "AVERAGE",
+    "average_row": "Monthly AVG",
     "col_host": "Host",
     "now_badge": "NOW",
     "order_breakdown": "Orders",
@@ -1805,11 +1814,12 @@
     "loading_colors": "Loading colors...",
     "name_zh_placeholder": "Chinese name",
     "name_id_placeholder": "Indonesian name",
-    "used_count": "{{count}} variants",
+    "used_count": "{{count}} products",
     "merge_button": "Merge into...",
     "merge_target_placeholder": "Choose target color",
     "merge_confirm_button": "Confirm",
-    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every variant using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed."
+    "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every variant using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed.",
+    "view_products": "View products using this color"
   },
   "page_live_data_upload": {
     "awt_hint": "Format MM:SS (example: 1:06 or 14:49)",

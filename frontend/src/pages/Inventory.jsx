@@ -11,7 +11,39 @@ import { useMasterData } from '../context/MasterDataContext'
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
 // exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
 // then fixed-width status and actions columns matching the variant rows' extra content.
+// One look for every stock number (desktop + mobile, summary + variant rows): same size, tabular
+// digits, centered under its column header.
+const NUM_CLASS = 'text-sm tabular-nums text-center'
 const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,88px] gap-2'
+
+// The Incoming number. When the variant has incoming stock with an expected arrival date, the
+// earliest ETA among its not-fully-received Purchase Orders shows on hover (native tooltip on
+// desktop) and on tap (a small inline note, since touch screens have no hover).
+function IncomingNumber({ variant }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const hasEta = variant.incoming_stock > 0 && variant.incoming_eta
+  const etaText = hasEta
+    ? t('page_inventory.eta_label', { date: new Date(`${variant.incoming_eta}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) })
+    : ''
+  if (!hasEta) {
+    return <span className={`inline-block px-2 py-1 border border-transparent ${NUM_CLASS}`}>{variant.incoming_stock}</span>
+  }
+  return (
+    <span className="inline-block relative">
+      <button
+        type="button" title={etaText} aria-label={etaText}
+        onClick={() => setOpen((o) => !o)} onBlur={() => setOpen(false)}
+        className={`px-2 py-1 border border-transparent underline decoration-dotted underline-offset-4 cursor-help ${NUM_CLASS}`}
+      >
+        {variant.incoming_stock}
+      </button>
+      {open && (
+        <span role="status" className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded-lg bg-gray-800 text-white text-[11px] font-medium px-2 py-1 shadow-lg">{etaText}</span>
+      )}
+    </span>
+  )
+}
 
 function VariantRow({ product, variant, onSaved }) {
   const { t } = useTranslation()
@@ -49,7 +81,7 @@ function VariantRow({ product, variant, onSaved }) {
       className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm tabular-nums"
     />
   ) : (
-    <span className={`inline-block px-2 py-1 border border-transparent text-sm tabular-nums ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
+    <span className={`inline-block px-2 py-1 border border-transparent ${NUM_CLASS} ${isOversell ? 'text-red-600 font-bold' : lowStock ? 'text-yellow-700 font-bold' : ''}`}>{variant.available_stock}</span>
   )
   const incomingField = editing ? (
     <input
@@ -58,7 +90,7 @@ function VariantRow({ product, variant, onSaved }) {
       className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm tabular-nums"
     />
   ) : (
-    <span className="inline-block px-2 py-1 border border-transparent text-sm tabular-nums">{variant.incoming_stock}</span>
+    <IncomingNumber variant={variant} />
   )
   const badge = (
     <>
@@ -81,10 +113,10 @@ function VariantRow({ product, variant, onSaved }) {
       <div className="hidden sm:block">
         <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
           <p className="text-sm text-gray-700 min-w-0 truncate">{translateColor(variant.color)}/{variant.size}</p>
-          <span className="text-center font-semibold tabular-nums">{variant.total_stock}</span>
+          <span className={`font-semibold ${NUM_CLASS}`}>{variant.total_stock}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{availableField}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{incomingField}</span>
-          <span className="text-center tabular-nums">{variant.order_stock}</span>
+          <span className={NUM_CLASS}>{variant.order_stock}</span>
           <span className="text-center">{badge}</span>
           <span className="text-right">{actions}</span>
         </div>
@@ -97,10 +129,10 @@ function VariantRow({ product, variant, onSaved }) {
           <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{translateColor(variant.color)}/{variant.size}</p>
           {badge}
         </div>
-        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs mb-2">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-center mb-2">
           <div>
             <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
-            <p className="font-semibold tabular-nums">{variant.total_stock}</p>
+            <p className={`font-semibold ${NUM_CLASS}`}>{variant.total_stock}</p>
           </div>
           <div>
             <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
@@ -112,7 +144,7 @@ function VariantRow({ product, variant, onSaved }) {
           </div>
           <div>
             <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
-            <p className="tabular-nums">{variant.order_stock}</p>
+            <p className={NUM_CLASS}>{variant.order_stock}</p>
           </div>
         </div>
         {actions}
@@ -158,10 +190,10 @@ function ProductCard({ product, forceOpen, onSaved }) {
           <span></span>
           <span></span>
           <span></span>
-          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.total}</span>
-          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.available}</span>
-          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.incoming}</span>
-          <span className="text-center font-bold text-gray-800 tabular-nums">{totals.order}</span>
+          <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.total}</span>
+          <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.available}</span>
+          <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.incoming}</span>
+          <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.order}</span>
           <span></span>
           <span></span>
         </div>
@@ -170,22 +202,22 @@ function ProductCard({ product, forceOpen, onSaved }) {
       {/* Mobile: label/value pairs, same fix as VariantRow below (item 007). */}
       <div className="sm:hidden px-4 pb-3">
         <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
-        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs text-center">
           <div>
             <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
-            <p className="font-bold text-gray-800 tabular-nums">{totals.total}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.total}</p>
           </div>
           <div>
             <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
-            <p className="font-bold text-gray-800 tabular-nums">{totals.available}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.available}</p>
           </div>
           <div>
             <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_incoming')}</p>
-            <p className="font-bold text-gray-800 tabular-nums">{totals.incoming}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.incoming}</p>
           </div>
           <div>
             <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
-            <p className="font-bold text-gray-800 tabular-nums">{totals.order}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.order}</p>
           </div>
         </div>
       </div>

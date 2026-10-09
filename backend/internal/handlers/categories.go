@@ -28,7 +28,7 @@ func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT c.id, c.name, c.name_zh, c.name_id, COUNT(p.id)
 		FROM categories c
-		LEFT JOIN products p ON p.category = c.name
+		LEFT JOIN products p ON p.category = c.name AND p.deleted_at IS NULL
 		GROUP BY c.id, c.name, c.name_zh, c.name_id ORDER BY c.name`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch categories")

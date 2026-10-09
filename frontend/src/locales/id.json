@@ -158,7 +158,8 @@
     "merge_button": "Gabung ke...",
     "merge_target_placeholder": "Pilih kategori tujuan",
     "merge_confirm_button": "Konfirmasi",
-    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua produk yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus."
+    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua produk yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus.",
+    "view_products": "Lihat produk di kategori ini"
   },
   "page_chat": {
     "ai_suggestion_label": "Saran AI",
@@ -336,7 +337,8 @@
     "tab_current": "Stok Saat Ini",
     "tab_history": "Riwayat Perubahan",
     "variant_count": "{{count}} varian",
-    "inventory_value": "Nilai Persediaan"
+    "inventory_value": "Nilai Persediaan",
+    "eta_label": "Estimasi tiba: {{date}}"
   },
   "page_live_session_detail": {
     "add_product_button": "Tambah Produk",
@@ -736,7 +738,10 @@
     "phone_copied": "✓ Disalin",
     "created_at_label": "Dibuat",
     "merge_all_result_none": "Tidak ada order yang dicentang untuk digabung.",
-    "merge_all_hint": "(Centang order tertentu di atas untuk hanya menggabungkan itu.)"
+    "merge_all_hint": "(Centang order tertentu di atas untuk hanya menggabungkan itu.)",
+    "col_phone": "No. HP",
+    "item_count": "{{count}} item",
+    "store_unverified": "Toko belum diverifikasi"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",
@@ -941,15 +946,19 @@
     "stock_filter_out_of_stock": "Habis",
     "stock_filter_oversell": "Oversell Aktif",
     "stock_placeholder": "Stok",
-    "tab_active": "Aktif ({{count}})",
+    "tab_active": "Published ({{count}})",
     "tab_all": "Semua Produk ({{count}})",
-    "tab_inactive": "Nonaktif ({{count}})",
+    "tab_inactive": "Unpublished ({{count}})",
     "update_price": "Update Harga",
     "variant_count": "{{count}} varian",
     "toggle_active_failed": "Gagal mengubah status produk",
     "force_delete_link": "Produk ini punya histori order. Hapus permanen saja (Admin)?",
     "force_delete_title": "Hapus Permanen",
-    "force_delete_message": "\"{{name}}\" punya histori order. Produk akan diarsipkan (hilang dari semua tampilan, tapi order/laporan lama tetap utuh), bukan benar-benar dihapus. Konfirmasi password Anda untuk lanjut."
+    "force_delete_message": "\"{{name}}\" punya histori order. Produk akan diarsipkan (hilang dari semua tampilan, tapi order/laporan lama tetap utuh), bukan benar-benar dihapus. Konfirmasi password Anda untuk lanjut.",
+    "status_published": "Published",
+    "status_unpublished": "Unpublished",
+    "color_filter_label": "Warna: {{color}}",
+    "color_filter_clear": "Hapus filter"
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -1672,7 +1681,7 @@
     "period_all_time": "Sepanjang Waktu"
   },
   "page_heatmap": {
-    "average_row": "RATA-RATA",
+    "average_row": "Monthly AVG",
     "col_host": "Host",
     "now_badge": "NOW",
     "order_breakdown": "Daftar Order",
@@ -1805,11 +1814,12 @@
     "loading_colors": "Memuat warna...",
     "name_zh_placeholder": "Nama Mandarin",
     "name_id_placeholder": "Nama Indonesia",
-    "used_count": "{{count}} varian",
+    "used_count": "{{count}} produk",
     "merge_button": "Gabung ke...",
     "merge_target_placeholder": "Pilih warna tujuan",
     "merge_confirm_button": "Konfirmasi",
-    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua varian yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus."
+    "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua varian yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus.",
+    "view_products": "Lihat produk dengan warna ini"
   },
   "page_live_data_upload": {
     "awt_hint": "Harap isi dengan format MM:SS (contoh: 1:06 atau 14:49)",

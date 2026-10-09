@@ -25,6 +25,10 @@ type HeatmapHandler struct {
 
 const numSlots = 48
 
+// monthlyAvgMinDays is how many completed operating days the current month needs before the
+// Monthly AVG baseline uses it; below that it falls back to the previous 30 completed days.
+const monthlyAvgMinDays = 3
+
 // slotBounds returns [startHour, startMinute] for slot i (0-indexed).
 func slotBounds(i int) (hour, minute int) {
 	return i / 2, (i % 2) * 30
@@ -32,14 +36,14 @@ func slotBounds(i int) (hour, minute int) {
 
 // timeBlockSlots maps each of the 8 Time Blocks to its 5 slot indices (see doc comment above).
 var timeBlockSlots = [8][5]int{
-	{0, 1, 2, 3, 4},          // 00:00-02:30
-	{6, 7, 8, 9, 10},         // 03:00-05:30
-	{12, 13, 14, 15, 16},     // 06:00-08:30
-	{18, 19, 20, 21, 22},     // 09:00-11:30
-	{24, 25, 26, 27, 28},     // 12:00-14:30
-	{30, 31, 32, 33, 34},     // 15:00-17:30
-	{36, 37, 38, 39, 40},     // 18:00-20:30
-	{42, 43, 44, 45, 46},     // 21:00-23:30
+	{0, 1, 2, 3, 4},      // 00:00-02:30
+	{6, 7, 8, 9, 10},     // 03:00-05:30
+	{12, 13, 14, 15, 16}, // 06:00-08:30
+	{18, 19, 20, 21, 22}, // 09:00-11:30
+	{24, 25, 26, 27, 28}, // 12:00-14:30
+	{30, 31, 32, 33, 34}, // 15:00-17:30
+	{36, 37, 38, 39, 40}, // 18:00-20:30
+	{42, 43, 44, 45, 46}, // 21:00-23:30
 }
 
 type heatmapSummary struct {
@@ -88,6 +92,11 @@ type heatmapHostRow struct {
 	Shift    *string       `json:"shift"`
 	TotalQty int           `json:"total_qty"`
 	Slots    [numSlots]int `json:"slots"`
+	// Sessions is how many VALID LIVE sessions (live data recorded) the host actually had running
+	// during each 30-minute slot within the selected Period; AvgQty = Slots / Sessions, null when
+	// the host had no valid session in that slot (the grid shows "-" for those).
+	Sessions [numSlots]int      `json:"sessions"`
+	AvgQty   [numSlots]*float64 `json:"avg_qty"`
 }
 
 type heatmapGridResponse struct {
@@ -105,7 +114,7 @@ const slotIndexExpr = `
 
 // Grid returns every active host in the Location (even with zero sales), grouped by Shift
 // (Morning -> Middle -> Evening -> unassigned), each with its 35 half-hour QTY buckets, plus the
-// ALL row (total across hosts per slot), the AVG row (monthly per-slot benchmark), and the 6
+// ALL row (total across hosts per slot), the Monthly AVG row (per-slot baseline), and the 8
 // Time Block totals.
 func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
@@ -163,27 +172,55 @@ func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 	}
 	slotRows.Close()
 
-	// AVG row: this calendar month's per-slot QTY (across the same active-host set) divided by
-	// its count of "valid operating days" (days with at least one order for these hosts) -
-	// spec's "monthly benchmark", independent of the selected Period.
-	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	monthEnd := to
-	if monthEnd.Before(monthStart) {
-		monthEnd = monthStart
+	// Valid LIVE sessions per host per 30-minute slot (a session counts for a slot only while the
+	// host was actually live in it: [started_at, ended_at) overlapping the slot, in Jakarta time),
+	// then AvgQty = total QTY / valid sessions for the slot. Same Period as the QTY grid: a
+	// session belongs to the Period when it started inside it.
+	sessQuery := `
+		SELECT ls.host_id, s.slot, COUNT(DISTINCT ls.id)
+		FROM live_sessions ls
+		JOIN hosts h ON h.id = ls.host_id
+		CROSS JOIN LATERAL generate_series(
+			((ls.started_at AT TIME ZONE 'Asia/Jakarta')::date)::timestamp,
+			((COALESCE(ls.ended_at, ls.started_at) AT TIME ZONE 'Asia/Jakarta')::date)::timestamp,
+			interval '1 day') AS d(day)
+		CROSS JOIN generate_series(0, ` + strconv.Itoa(numSlots-1) + `) AS s(slot)
+		WHERE ls.live_data_recorded_at IS NOT NULL
+		  AND ls.started_at >= $1 AND ls.started_at < $2` + hostsWhere + `
+		  AND ((d.day + s.slot * interval '30 minutes') AT TIME ZONE 'Asia/Jakarta') < COALESCE(ls.ended_at, ls.started_at + interval '1 minute')
+		  AND ((d.day + (s.slot + 1) * interval '30 minutes') AT TIME ZONE 'Asia/Jakarta') > ls.started_at
+		GROUP BY ls.host_id, s.slot`
+	if sessRows, err := h.DB.Query(r.Context(), sessQuery, args...); err == nil {
+		for sessRows.Next() {
+			var hostID, slot, n int
+			if sessRows.Scan(&hostID, &slot, &n) != nil {
+				continue
+			}
+			if idx, ok := hostIndex[hostID]; ok && slot >= 0 && slot < numSlots {
+				hosts[idx].Sessions[slot] = n
+			}
+		}
+		sessRows.Close()
 	}
-	avgQuery := `
-		SELECT ` + slotIndexExpr + ` AS slot, SUM(oi.qty), COUNT(DISTINCT DATE(o.created_at AT TIME ZONE 'Asia/Jakarta'))
-		FROM order_items oi
-		JOIN orders o ON o.id = oi.order_id
-		JOIN hosts h ON h.id = oi.host_id
-		WHERE o.status NOT IN ('cancelled','return')
-		  AND o.created_at >= $1 AND o.created_at < $2` + hostsWhere + `
-		GROUP BY slot
-		HAVING ` + slotIndexExpr + ` BETWEEN 0 AND ` + strconv.Itoa(numSlots-1)
-	avgArgs := append([]interface{}{monthStart, monthEnd}, hostArgs...)
+	for i := range hosts {
+		for slot := 0; slot < numSlots; slot++ {
+			if n := hosts[i].Sessions[slot]; n > 0 {
+				v := float64(hosts[i].Slots[slot]) / float64(n)
+				hosts[i].AvgQty[slot] = &v
+			}
+		}
+	}
 
-	var avgRow [numSlots]*float64
+	// Monthly AVG row: a fixed baseline, independent of the selected Period (custom included) -
+	// total QTY across the same active-host set per slot / number of valid operating days (days
+	// with at least one order) in the CURRENT month, today excluded. When the current month does
+	// not have enough completed days yet (fewer than monthlyAvgMinDays), fall back to the
+	// previous 30 completed days instead.
+	nowLocal := time.Now().In(businessTZ)
+	todayStart := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, businessTZ)
+	monthStart := time.Date(nowLocal.Year(), nowLocal.Month(), 1, 0, 0, 0, 0, businessTZ)
+	baseFrom, baseTo := monthStart, todayStart
+
 	daysQuery := `
 		SELECT COUNT(DISTINCT DATE(o.created_at AT TIME ZONE 'Asia/Jakarta'))
 		FROM order_items oi
@@ -192,14 +229,28 @@ func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 		WHERE o.status NOT IN ('cancelled','return')
 		  AND o.created_at >= $1 AND o.created_at < $2` + hostsWhere
 	var validDays int
-	h.DB.QueryRow(r.Context(), daysQuery, avgArgs...).Scan(&validDays)
+	h.DB.QueryRow(r.Context(), daysQuery, append([]interface{}{baseFrom, baseTo}, hostArgs...)...).Scan(&validDays)
+	if validDays < monthlyAvgMinDays {
+		baseFrom, baseTo = todayStart.AddDate(0, 0, -30), todayStart
+		validDays = 0
+		h.DB.QueryRow(r.Context(), daysQuery, append([]interface{}{baseFrom, baseTo}, hostArgs...)...).Scan(&validDays)
+	}
 
+	var avgRow [numSlots]*float64
 	if validDays > 0 {
-		avgRows, err := h.DB.Query(r.Context(), avgQuery, avgArgs...)
-		if err == nil {
+		avgQuery := `
+			SELECT ` + slotIndexExpr + ` AS slot, SUM(oi.qty)
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			JOIN hosts h ON h.id = oi.host_id
+			WHERE o.status NOT IN ('cancelled','return')
+			  AND o.created_at >= $1 AND o.created_at < $2` + hostsWhere + `
+			GROUP BY slot
+			HAVING ` + slotIndexExpr + ` BETWEEN 0 AND ` + strconv.Itoa(numSlots-1)
+		if avgRows, err := h.DB.Query(r.Context(), avgQuery, append([]interface{}{baseFrom, baseTo}, hostArgs...)...); err == nil {
 			for avgRows.Next() {
-				var slot, qty, _days int
-				if err := avgRows.Scan(&slot, &qty, &_days); err != nil {
+				var slot, qty int
+				if avgRows.Scan(&slot, &qty) != nil {
 					continue
 				}
 				if slot >= 0 && slot < numSlots {
