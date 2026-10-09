@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { createOrder, img } from '../lib/api'
+import { createOrder, img, onImgError } from '../lib/api'
 import { useCart } from '../lib/cart'
 import { useQuote } from '../lib/useQuote'
 import { useStore } from '../lib/useSettings'
@@ -101,7 +101,7 @@ export default function Checkout() {
           <ul className="divide-y max-h-64 overflow-y-auto">
             {cart.items.map((i) => (
               <li key={i.variantId} className="flex gap-3 py-3 text-sm">
-                <div className="w-14 h-[70px] bg-gray-100 shrink-0 overflow-hidden">{i.image && <img src={img(i.image)} alt="" className="w-full h-full object-cover" />}</div>
+                <div className="w-14 h-[70px] bg-gray-100 shrink-0 overflow-hidden"><img src={img(i.image)} alt="" onError={onImgError} className="w-full h-full object-cover" /></div>
                 <div className="flex-1 min-w-0"><p className="line-clamp-2">{i.name}</p><p className="text-xs text-gray-500">{[i.color, i.size].filter(Boolean).join(' / ')} × {i.qty}</p></div>
                 <p className="font-medium">{money(i.price * i.qty)}</p>
               </li>

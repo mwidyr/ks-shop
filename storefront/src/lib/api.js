@@ -34,7 +34,12 @@ export const trackOrder = (orderNo, phone) => request(`/orders/track${qs({ order
 export const subscribeNewsletter = (email) => request('/newsletter', { method: 'POST', body: JSON.stringify({ email }) })
 
 // Product images are either absolute URLs (Cloudinary/seed) or relative /uploads/... paths.
+export const PLACEHOLDER_IMG = '/placeholder.svg'
 export function img(url) {
-  if (!url) return ''
-  return url.startsWith('http') || url.startsWith('//') ? url : url
+  return url || PLACEHOLDER_IMG
+}
+
+// <img onError>: a broken/missing product photo falls back to the placeholder (once).
+export function onImgError(e) {
+  if (!e.currentTarget.src.endsWith(PLACEHOLDER_IMG)) e.currentTarget.src = PLACEHOLDER_IMG
 }

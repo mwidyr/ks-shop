@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getProducts } from '../lib/api'
 import { useStore } from '../lib/useSettings'
-import { img } from '../lib/api'
+import { img, onImgError } from '../lib/api'
 import { money } from '../lib/format'
 import HeroSlider from '../components/HeroSlider'
 import VoucherCard from '../components/VoucherCard'
@@ -128,7 +128,7 @@ function CategoryTile({ c }) {
   }, [c.name])
   return (
     <Link to={`/kategori/${encodeURIComponent(c.name)}`} className="group relative block aspect-[4/5] md:aspect-[3/2] bg-gray-200 overflow-hidden">
-      {p?.images[0] && <img src={img(p.images[0])} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500" />}
+      {p && <img src={img(p.images[0])} alt="" loading="lazy" onError={onImgError} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500" />}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
       <div className="absolute bottom-4 left-4 right-4 text-white">
         <p className="font-display text-3xl tracking-wide leading-none">{c.display.toUpperCase()}</p>

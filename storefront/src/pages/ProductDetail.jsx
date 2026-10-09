@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getProduct, getProducts, img } from '../lib/api'
+import { getProduct, getProducts, img, onImgError } from '../lib/api'
 import { useCart } from '../lib/cart'
 import { useStore } from '../lib/useSettings'
 import { discountPct, money } from '../lib/format'
@@ -75,13 +75,13 @@ export default function ProductDetail() {
             <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:max-h-[640px] no-scrollbar">
               {p.images.map((u, idx) => (
                 <button key={u + idx} onClick={() => setActive(idx)} className={`w-16 h-20 shrink-0 bg-gray-100 overflow-hidden border-2 ${idx === active ? 'border-black' : 'border-transparent'}`}>
-                  <img src={img(u)} alt="" className="w-full h-full object-cover" />
+                  <img src={img(u)} alt="" onError={onImgError} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
           )}
           <div className="relative flex-1 aspect-[3/4] bg-gray-100 overflow-hidden">
-            {p.images[active] && <img src={img(p.images[active])} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />}
+            <img src={img(p.images[active])} alt={p.name} onError={onImgError} className="absolute inset-0 w-full h-full object-cover" />
             {pct > 0 && <span className="absolute top-3 left-3 bg-red-600 text-white text-xs font-semibold px-2.5 py-1">-{pct}%</span>}
           </div>
         </div>

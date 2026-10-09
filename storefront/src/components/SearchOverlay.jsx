@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getProducts, img } from '../lib/api'
+import { getProducts, img, onImgError } from '../lib/api'
 import { useStore } from '../lib/useSettings'
 import { money } from '../lib/format'
 import { CloseIcon, SearchIcon } from './Icons'
@@ -64,7 +64,7 @@ export default function SearchOverlay({ onClose }) {
             {list.map((p) => (
               <li key={p.id}>
                 <Link to={`/produk/${p.id}`} onClick={onClose} className="flex gap-3 items-center hover:bg-gray-50 p-2">
-                  <div className="w-14 h-[72px] bg-gray-100 shrink-0 overflow-hidden">{p.images[0] && <img src={img(p.images[0])} alt="" className="w-full h-full object-cover" />}</div>
+                  <div className="w-14 h-[72px] bg-gray-100 shrink-0 overflow-hidden"><img src={img(p.images[0])} alt="" onError={onImgError} className="w-full h-full object-cover" /></div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium line-clamp-2">{p.name}</p>
                     <p className="text-sm text-gray-600">{money(p.price)}</p>

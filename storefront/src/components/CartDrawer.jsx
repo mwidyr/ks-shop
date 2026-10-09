@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useCart } from '../lib/cart'
 import { useStore } from '../lib/useSettings'
-import { img } from '../lib/api'
+import { img, onImgError } from '../lib/api'
 import { money } from '../lib/format'
 import { CloseIcon } from './Icons'
 
@@ -58,7 +58,7 @@ export function CartLine({ item: i, cart }) {
   return (
     <li className="flex gap-3 py-4">
       <Link to={`/produk/${i.productId}`} onClick={cart.closeDrawer} className="w-20 h-24 bg-gray-100 shrink-0 overflow-hidden">
-        {i.image && <img src={img(i.image)} alt="" className="w-full h-full object-cover" />}
+        <img src={img(i.image)} alt="" onError={onImgError} className="w-full h-full object-cover" />
       </Link>
       <div className="flex-1 min-w-0">
         <Link to={`/produk/${i.productId}`} onClick={cart.closeDrawer} className="text-sm font-medium line-clamp-2 hover:underline">{i.name}</Link>
