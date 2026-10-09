@@ -14,6 +14,11 @@ import { useMasterData } from '../context/MasterDataContext'
 // One look for every stock number (desktop + mobile, summary + variant rows): same size, tabular
 // digits, centered under its column header.
 const NUM_CLASS = 'text-sm tabular-nums text-center'
+// Mobile stat grids: labels like "AVAILABLE STOCK" wrap to two lines while "INCOMING" fits one, which
+// pushed the numbers to different heights. Every label gets the same fixed two-line box with its text
+// bottom-aligned, and every value the same padded box, so the numbers always share one baseline.
+const MOBILE_LABEL = 'text-[10px] text-gray-400 uppercase leading-tight h-[26px] flex items-end justify-center'
+const MOBILE_VALUE = 'inline-block px-2 py-1 border border-transparent'
 const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,88px] gap-2'
 
 // The Incoming number. When the variant has incoming stock with an expected arrival date, the
@@ -131,20 +136,20 @@ function VariantRow({ product, variant, onSaved }) {
         </div>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-center mb-2">
           <div>
-            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
-            <p className={`font-semibold ${NUM_CLASS}`}>{variant.total_stock}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_total')}</p>
+            <p className={`font-semibold ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{variant.total_stock}</span></p>
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_available')}</p>
             {availableField}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_incoming')}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_incoming')}</p>
             {incomingField}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
-            <p className={NUM_CLASS}>{variant.order_stock}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_ordered')}</p>
+            <p className={NUM_CLASS}><span className={MOBILE_VALUE}>{variant.order_stock}</span></p>
           </div>
         </div>
         {actions}
@@ -204,20 +209,20 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs text-center">
           <div>
-            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_total')}</p>
-            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.total}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_total')}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.total}</span></p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_available')}</p>
-            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.available}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_available')}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.available}</span></p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_incoming')}</p>
-            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.incoming}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_incoming')}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.incoming}</span></p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase min-h-[20px] leading-tight">{t('page_inventory.col_ordered')}</p>
-            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.order}</p>
+            <p className={MOBILE_LABEL}>{t('page_inventory.col_ordered')}</p>
+            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.order}</span></p>
           </div>
         </div>
       </div>
