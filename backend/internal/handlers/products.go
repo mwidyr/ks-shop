@@ -99,6 +99,9 @@ type Variant struct {
 	// are not fully received (Inventory shows it when hovering/tapping the Incoming number). Null
 	// when there is no incoming PO or none of them has an expected arrival date.
 	IncomingETA *string `json:"incoming_eta"`
+	// IncomingOpenPO is true when the variant has a Purchase Order not yet fully received, so
+	// Inventory can say "ETA not set" when no such PO has an expected arrival date yet.
+	IncomingOpenPO bool   `json:"incoming_open_po"`
 	TotalStock  int     `json:"total_stock"` // computed: available_stock + incoming_stock - order_stock (sellable headroom, gates picking)
 }
 
@@ -244,9 +247,9 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	etas := incomingETAs(r.Context(), h.DB, nil)
 	for i := range products {
 		for j := range products[i].Variants {
-			if eta, ok := etas[products[i].Variants[j].ID]; ok {
-				e := eta
-				products[i].Variants[j].IncomingETA = &e
+			if info, ok := etas[products[i].Variants[j].ID]; ok {
+				products[i].Variants[j].IncomingETA = info.ETA
+				products[i].Variants[j].IncomingOpenPO = true
 			}
 		}
 	}
@@ -351,9 +354,9 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 		etas := incomingETAs(r.Context(), h.DB, ids)
 		for i := range p.Variants {
-			if eta, ok := etas[p.Variants[i].ID]; ok {
-				e := eta
-				p.Variants[i].IncomingETA = &e
+			if info, ok := etas[p.Variants[i].ID]; ok {
+				p.Variants[i].IncomingETA = info.ETA
+				p.Variants[i].IncomingOpenPO = true
 			}
 		}
 	}
@@ -1071,18 +1074,16 @@ func (h *ProductHandler) InventoryValue(w http.ResponseWriter, r *http.Request) 
 }
 
 // incomingETAs maps variant id -> earliest expected arrival date (yyyy-mm-dd) across Purchase
-// Orders that still have quantity outstanding (not fully received, not cancelled) and have an
-// expected arrival date set. Only POs awaiting delivery count, so a received PO never shows an
+// Orders that still have quantity outstanding (not fully received, not cancelled). Only POs awaiting delivery count, so a received PO never shows an
 // ETA. variantIDs == nil means every variant.
-func incomingETAs(ctx context.Context, db *pgxpool.Pool, variantIDs []int) map[int]string {
-	out := map[int]string{}
+func incomingETAs(ctx context.Context, db *pgxpool.Pool, variantIDs []int) map[int]incomingETAInfo {
+	out := map[int]incomingETAInfo{}
 	q := `
 		SELECT pi.variant_id, MIN(p.expected_arrival_date)::text
 		FROM purchase_items pi
 		JOIN purchases p ON p.id = pi.purchase_id
 		WHERE p.status IN ('ordered','pending_arrival','partially_received')
-		  AND pi.qty > COALESCE(pi.received_qty, 0)
-		  AND p.expected_arrival_date IS NOT NULL`
+		  AND pi.qty > COALESCE(pi.received_qty, 0)`
 	args := []interface{}{}
 	if variantIDs != nil {
 		q += ` AND pi.variant_id = ANY($1)`
@@ -1095,10 +1096,14 @@ func incomingETAs(ctx context.Context, db *pgxpool.Pool, variantIDs []int) map[i
 	defer rows.Close()
 	for rows.Next() {
 		var id int
-		var eta string
+		var eta *string
 		if rows.Scan(&id, &eta) == nil {
-			out[id] = eta
+			out[id] = incomingETAInfo{ETA: eta}
 		}
 	}
 	return out
 }
+
+// incomingETAInfo: a variant present in the map has an open (not fully received) PO; ETA is the
+// earliest expected arrival among them, nil when none has a date yet.
+type incomingETAInfo struct{ ETA *string }

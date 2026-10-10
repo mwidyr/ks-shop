@@ -403,7 +403,8 @@
     "tab_history": "Riwayat Perubahan",
     "variant_count": "{{count}} varian",
     "inventory_value": "Nilai Persediaan",
-    "eta_label": "Estimasi tiba: {{date}}"
+    "eta_label": "Estimasi tiba: {{date}}",
+    "eta_not_set": "ETA belum diisi"
   },
   "page_live_session_detail": {
     "add_product_button": "Tambah Produk",

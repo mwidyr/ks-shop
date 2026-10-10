@@ -403,7 +403,8 @@
     "tab_history": "Change History",
     "variant_count": "{{count}} variants",
     "inventory_value": "Inventory Value",
-    "eta_label": "ETA {{date}}"
+    "eta_label": "ETA {{date}}",
+    "eta_not_set": "ETA not set"
   },
   "page_live_session_detail": {
     "add_product_button": "Add Product",

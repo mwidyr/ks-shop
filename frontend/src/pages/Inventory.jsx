@@ -24,27 +24,29 @@ const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,8
 // The Incoming number. When the variant has incoming stock with an expected arrival date, the
 // earliest ETA among its not-fully-received Purchase Orders shows on hover (native tooltip on
 // desktop) and on tap (a small inline note, since touch screens have no hover).
-function IncomingNumber({ variant }) {
+function IncomingNumber({ stock, eta, openPo, className = '' }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const hasEta = variant.incoming_stock > 0 && variant.incoming_eta
-  const etaText = hasEta
-    ? t('page_inventory.eta_label', { date: new Date(`${variant.incoming_eta}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) })
-    : ''
+  // Shown whenever an open (not fully received) PO exists: its earliest ETA, or "ETA not set"
+  // when none of those POs has an expected arrival date yet (set it on the Supplier Order page).
+  const hasEta = stock > 0 && (eta || openPo)
+  const etaText = !hasEta ? '' : eta
+    ? t('page_inventory.eta_label', { date: new Date(`${eta}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) })
+    : t('page_inventory.eta_not_set')
   if (!hasEta) {
-    return <span className={`inline-block px-2 py-1 border border-transparent ${NUM_CLASS}`}>{variant.incoming_stock}</span>
+    return <span className={`inline-block px-2 py-1 border border-transparent ${NUM_CLASS} ${className}`}>{stock}</span>
   }
   return (
     <span className="inline-block relative">
       <button
         type="button" title={etaText} aria-label={etaText}
-        onClick={() => setOpen((o) => !o)} onBlur={() => setOpen(false)}
-        className={`px-2 py-1 border border-transparent underline decoration-dotted underline-offset-4 cursor-help ${NUM_CLASS}`}
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }} onBlur={() => setOpen(false)}
+        className={`px-2 py-1 border border-transparent underline decoration-dotted underline-offset-4 cursor-help ${NUM_CLASS} ${className}`}
       >
-        {variant.incoming_stock}
+        {stock}
       </button>
       {open && (
-        <span role="status" className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded-lg bg-gray-800 text-white text-[11px] font-medium px-2 py-1 shadow-lg">{etaText}</span>
+        <span role="status" className="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-1 whitespace-nowrap rounded-lg bg-gray-800 text-white text-[11px] font-medium px-2 py-1 shadow-lg">{etaText}</span>
       )}
     </span>
   )
@@ -95,7 +97,7 @@ function VariantRow({ product, variant, onSaved }) {
       className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm tabular-nums"
     />
   ) : (
-    <IncomingNumber variant={variant} />
+    <IncomingNumber stock={variant.incoming_stock} eta={variant.incoming_eta} openPo={variant.incoming_open_po} />
   )
   const badge = (
     <>
@@ -169,6 +171,10 @@ function ProductCard({ product, forceOpen, onSaved }) {
     order: acc.order + v.order_stock,
     total: acc.total + v.total_stock,
   }), { available: 0, incoming: 0, order: 0, total: 0 })
+  // Product-level ETA: the earliest one among its variants (ISO dates sort as strings).
+  const etas = product.variants.map((v) => v.incoming_eta).filter(Boolean).sort()
+  const incomingEta = etas[0] || null
+  const incomingOpenPo = product.variants.some((v) => v.incoming_open_po)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm mb-4 overflow-hidden">
@@ -197,7 +203,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
           <span></span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.total}</span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.available}</span>
-          <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.incoming}</span>
+          <span className="text-center"><IncomingNumber stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.order}</span>
           <span></span>
           <span></span>
@@ -218,7 +224,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
           </div>
           <div>
             <p className={MOBILE_LABEL}>{t('page_inventory.col_incoming')}</p>
-            <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.incoming}</span></p>
+            <p className={NUM_CLASS}><IncomingNumber stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></p>
           </div>
           <div>
             <p className={MOBILE_LABEL}>{t('page_inventory.col_ordered')}</p>

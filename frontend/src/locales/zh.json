@@ -403,7 +403,8 @@
     "tab_history": "異動紀錄",
     "variant_count": "{{count}} 個款式",
     "inventory_value": "庫存價值",
-    "eta_label": "預計到貨：{{date}}"
+    "eta_label": "預計到貨：{{date}}",
+    "eta_not_set": "尚未設定預計到貨日"
   },
   "page_live_session_detail": {
     "add_product_button": "新增商品",
