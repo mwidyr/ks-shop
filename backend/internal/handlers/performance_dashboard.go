@@ -108,7 +108,10 @@ type performanceSummary struct {
 	GMV    float64  `json:"gmv"`
 	AvgQty *float64 `json:"avg_qty"`
 	AvgOrd *float64 `json:"avg_ord"`
+	AvgGMV *float64 `json:"avg_gmv"`
 	AOV    *float64 `json:"aov"`
+	// OperatingDays is the Active Operating Days divisor behind AVG QTY / ORD / GMV.
+	OperatingDays int `json:"operating_days"`
 }
 
 // Summary returns the Main KPI row (QTY/ORD/GMV, AVG QTY/AVG ORD/AOV) for the selected Location
@@ -133,29 +136,30 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 			WHERE (oi.host_id IN (SELECT host_id FROM valid_hosts)` + websiteOr + `)
 			  AND o.created_at >= $1 AND o.created_at < $2
 			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
-		),
-		sessions AS (
-			SELECT COUNT(*) AS session_count FROM live_sessions ls
-			WHERE ls.host_id IN (SELECT host_id FROM valid_hosts)
-			  AND ls.live_data_recorded_at IS NOT NULL
-			  AND ls.started_at >= $1 AND ls.started_at < $2
 		)
-		SELECT sales.qty, sales.ord, sales.gmv, sessions.session_count FROM sales, sessions`
+		SELECT sales.qty, sales.ord, sales.gmv FROM sales`
 
-	var qty, ord, sessionCount int
+	var qty, ord int
 	var gmv float64
-	if err := h.DB.QueryRow(r.Context(), query, args...).Scan(&qty, &ord, &gmv, &sessionCount); err != nil {
+	if err := h.DB.QueryRow(r.Context(), query, args...).Scan(&qty, &ord, &gmv); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch summary")
 		return
 	}
 
 	res := performanceSummary{Qty: qty, Ord: ord, GMV: gmv}
-	// AVG QTY / AVG ORD are per LIVE session, which a Website-only view has none of.
-	if sessionCount > 0 && r.URL.Query().Get("channel") != "website" {
-		avgQty := float64(qty) / float64(sessionCount)
-		avgOrd := float64(ord) / float64(sessionCount)
-		res.AvgQty = &avgQty
-		res.AvgOrd = &avgOrd
+	// AVG = total / Active Operating Days for the selected channel (LIVE days with recorded LIVE
+	// activity, Website days since launch, ALL = either, each day once).
+	days, err := computeOperatingDays(r.Context(), h.DB, r, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch operating days")
+		return
+	}
+	if n := days.ForChannel(r.URL.Query().Get("channel")); n > 0 {
+		avgQty := float64(qty) / float64(n)
+		avgOrd := float64(ord) / float64(n)
+		avgGMV := gmv / float64(n)
+		res.AvgQty, res.AvgOrd, res.AvgGMV = &avgQty, &avgOrd, &avgGMV
+		res.OperatingDays = n
 	}
 	if ord > 0 {
 		aov := gmv / float64(ord)

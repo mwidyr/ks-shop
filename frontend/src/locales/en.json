@@ -76,7 +76,8 @@
       "team": "Team",
       "transactions": "Transactions",
       "warehouses": "Warehouses",
-      "colors": "Color Management"
+      "colors": "Color Management",
+      "performance_comparison": "Performance Comparison"
     },
     "settings": "Settings"
   },
@@ -1519,7 +1520,10 @@
     "toast_save_pending": "Store profile saving is coming soon",
     "shop_name_card_title": "Shop Name",
     "shop_name_card_hint": "This name appears on the login page and app sidebar.",
-    "shop_name_saved_toast": "Shop name saved."
+    "shop_name_saved_toast": "Shop name saved.",
+    "launch_card_title": "Website Launch Date",
+    "launch_card_hint": "The day the website officially launched. Website Active Operating Days (used for AVG on the Performance pages) are counted from this date. Leave empty if not launched.",
+    "launch_saved_toast": "Launch date saved"
   },
   "page_suppliers": {
     "action_activate": "Activate",
@@ -1747,7 +1751,14 @@
     "lifetime_total": "Lifetime Total",
     "no_data_in_range": "No LIVE data in this period.",
     "performance_data_title": "Performance Data",
-    "period_all_time": "All Time"
+    "period_all_time": "All Time",
+    "summary_title": "Performance Summary",
+    "summary_total": "Total",
+    "summary_avg": "AVG",
+    "heat_title": "Sales Distribution Heatmap",
+    "heat_hint": "Number of LIVE days per daily QTY range, per host and location",
+    "heat_host": "Host",
+    "heat_live_days": "LIVE DAYS"
   },
   "page_heatmap": {
     "average_row": "Monthly AVG",
@@ -1933,5 +1944,20 @@
     "upload_failed": "Upload failed",
     "uploading": "Uploading...",
     "verifying": "Checking..."
+  },
+  "page_performance_comparison": {
+    "title": "Performance Comparison",
+    "subtitle": "Compare sales performance across periods, locations and shifts",
+    "section_location_shift": "Location & Shift Performance",
+    "section_custom": "Custom Performance Comparison",
+    "custom_placeholder": "Coming soon. Detailed requirements will follow.",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "expand_all": "Expand All",
+    "collapse_all": "Collapse All",
+    "all_locations_website": "All Locations + Website",
+    "col_location_source": "LOCATION / SOURCE",
+    "website": "Website",
+    "share_note": "Top-level Share % = share of company GMV. Child Share % = share of its parent Location or Website GMV. Website shows \"—\" for LIVE; its AVG uses Website operating days (since the launch date)."
   }
 }

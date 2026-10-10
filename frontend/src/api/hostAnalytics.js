@@ -28,3 +28,11 @@ export function getHistoricalBest(filters) {
 export function getHostAnalyticsPerformanceData(filters) {
   return client.get(`/host-analytics/performance-data${buildQuery(filters)}`).then((res) => res.data)
 }
+
+export function getPeriodSummary(filters) {
+  return client.get(`/host-analytics/period-summary${buildQuery(filters)}`).then((res) => res.data)
+}
+
+export function getSalesDistribution(filters) {
+  return client.get(`/host-analytics/sales-distribution${buildQuery(filters)}`).then((res) => res.data)
+}

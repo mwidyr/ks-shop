@@ -59,6 +59,7 @@ const navGroups = [
       { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconTrendUp },
       { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
       { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
+      { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
       { to: '/profit', key: 'profit', icon: IconWallet },
     ],
   },
@@ -103,7 +104,7 @@ const navGroups = [
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'products', 'categories', 'colors', 'inventory', 'customers',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
-  'host_performance_analytics', 'heatmap', 'hosts', 'affiliates', 'returns',
+  'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit', 'promotions',
 ])

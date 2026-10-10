@@ -92,6 +92,11 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 	// session's Views/PCU/etc are only ever meaningful once live_data_recorded_at is set,
 	// regardless of which channel is selected.
 	nextArg := 3 + len(locArgs)
+	// ALL = LIVE + Website: Website order items have no host, so without this they were dropped.
+	websiteOr := ""
+	if includeWebsiteSales(r) {
+		websiteOr = " OR o.sales_channel = 'website'"
+	}
 	salesChanWhere, salesChanArgs := salesChannelWhere(r, "o", nextArg)
 	retChanWhere, retChanArgs := salesChannelWhere(r, "ro", nextArg+len(salesChanArgs))
 	query := `
@@ -113,8 +118,9 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 			SELECT COALESCE(SUM(oi.qty),0) qty, COUNT(DISTINCT oi.order_id) ord, COALESCE(SUM(oi.qty*oi.price_at_order),0) gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
-			JOIN hosts h ON h.id = oi.host_id
+			LEFT JOIN hosts h ON h.id = oi.host_id
 			WHERE o.status NOT IN ('cancelled','return')
+			  AND (h.id IS NOT NULL` + websiteOr + `)
 			  AND o.created_at >= $1 AND o.created_at < $2` + salesWhere + salesChanWhere + `
 		),
 		return_agg AS (
@@ -209,15 +215,22 @@ func (h *HostAnalyticsHandler) Summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := summaryResponse{aggregateRow: row}
-	if sessionCount > 0 {
-		avgQty := float64(row.Qty) / float64(sessionCount)
-		avgOrd := float64(row.Ord) / float64(sessionCount)
-		avgGMV := row.GMV / float64(sessionCount)
+	// AVG QTY / ORD / GMV = total / Active Operating Days (see operating_days.go); AVG Chats stays
+	// per LIVE session.
+	days, err := computeOperatingDays(r.Context(), h.DB, r, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch operating days")
+		return
+	}
+	if n := days.ForChannel(r.URL.Query().Get("channel")); n > 0 {
+		avgQty := float64(row.Qty) / float64(n)
+		avgOrd := float64(row.Ord) / float64(n)
+		avgGMV := row.GMV / float64(n)
 		res.AvgQty, res.AvgOrd, res.AvgGMV = &avgQty, &avgOrd, &avgGMV
-		if row.Chats != nil {
-			avgChats := float64(*row.Chats) / float64(sessionCount)
-			res.AvgChats = &avgChats
-		}
+	}
+	if sessionCount > 0 && row.Chats != nil {
+		avgChats := float64(*row.Chats) / float64(sessionCount)
+		res.AvgChats = &avgChats
 	}
 	if row.UV != nil && *row.UV > 0 {
 		cvr := float64(row.Ord) / float64(*row.UV) * 100
@@ -393,4 +406,79 @@ func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Re
 		list = append(list, dailyRow{Date: d.Format("2006-01-02"), aggregateRow: row})
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"rows": list, "page": page, "page_size": pageSize})
+}
+
+type periodSummaryResponse struct {
+	Total         aggregateRow        `json:"total"`
+	Avg           map[string]*float64 `json:"avg"`
+	OperatingDays int                 `json:"operating_days"`
+}
+
+// PeriodSummary feeds the Performance Summary table: the selected Period's Total row and an AVG
+// row = additive metrics / Active Operating Days for the selected channel (LIVE / Website / ALL).
+// Non-additive metrics (AWT, PCU, ACU) stay as in Total and the ratios are recomputed or left
+// empty exactly like the old "AVG / LIVE" row.
+func (h *HostAnalyticsHandler) PeriodSummary(w http.ResponseWriter, r *http.Request) {
+	from, to, filtered := dateRange(r)
+	if !filtered {
+		from, to = time.Unix(0, 0), time.Now().Add(24*time.Hour)
+	}
+	total, _, err := h.aggregate(r, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch performance summary")
+		return
+	}
+	days, err := computeOperatingDays(r.Context(), h.DB, r, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch operating days")
+		return
+	}
+	n := days.ForChannel(r.URL.Query().Get("channel"))
+	res := periodSummaryResponse{Total: total, Avg: averageByDays(total, n, days.Live), OperatingDays: n}
+	respondJSON(w, http.StatusOK, res)
+}
+
+// averageByDays builds the AVG row: sales metrics (ORD, QTY, GMV, returns) are divided by the
+// channel's Active Operating Days n, broadcast metrics (Views, UV, Follows ...) by the LIVE
+// operating days liveDays since they only exist on LIVE days. AWT / PCU / ACU are already an
+// average / a max and stay; AOV, RET% and GPM have no meaningful per-day value (left out).
+func averageByDays(total aggregateRow, n, liveDays int) map[string]*float64 {
+	out := map[string]*float64{}
+	if liveDays > 0 {
+		d := float64(liveDays)
+		per := func(key string, v *int) {
+			if v != nil {
+				x := float64(*v) / d
+				out[key] = &x
+			}
+		}
+		per("views", total.Views)
+		per("uv", total.UV)
+		per("active", total.Active)
+		per("follows", total.Follows)
+		per("chats", total.Chats)
+		per("shares", total.Shares)
+		per("likes", total.Likes)
+		if total.AWTSeconds != nil {
+			out["awt_seconds"] = total.AWTSeconds
+		}
+		if total.PCU != nil {
+			x := float64(*total.PCU)
+			out["pcu"] = &x
+		}
+		if total.ACU != nil {
+			out["acu"] = total.ACU
+		}
+	}
+	if n > 0 {
+		d := float64(n)
+		set := func(key string, x float64) { out[key] = &x }
+		set("ord", float64(total.Ord)/d)
+		set("qty", float64(total.Qty)/d)
+		set("gmv", total.GMV/d)
+		set("ret", float64(total.Ret)/d)
+		set("ret_amount", total.RetAmount/d)
+		set("ngr", (total.GMV-total.RetAmount)/d)
+	}
+	return out
 }

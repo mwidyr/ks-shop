@@ -76,7 +76,8 @@
       "team": "團隊",
       "transactions": "交易紀錄",
       "warehouses": "倉庫",
-      "colors": "顏色管理"
+      "colors": "顏色管理",
+      "performance_comparison": "績效比較"
     },
     "settings": "設定"
   },
@@ -1519,7 +1520,10 @@
     "toast_save_pending": "商店資料儲存功能即將推出",
     "shop_name_card_title": "商店名稱",
     "shop_name_card_hint": "此名稱會顯示在登入頁面與側邊欄。",
-    "shop_name_saved_toast": "商店名稱已儲存。"
+    "shop_name_saved_toast": "商店名稱已儲存。",
+    "launch_card_title": "網站上線日期",
+    "launch_card_hint": "網站正式上線的日期。效能頁面的 AVG 以此日期起算網站有效營運日。尚未上線請留空。",
+    "launch_saved_toast": "已儲存上線日期"
   },
   "page_suppliers": {
     "action_activate": "啟用",
@@ -1747,7 +1751,14 @@
     "lifetime_total": "累積總計",
     "no_data_in_range": "此期間內沒有 LIVE 數據。",
     "performance_data_title": "績效數據",
-    "period_all_time": "全部時間"
+    "period_all_time": "全部時間",
+    "summary_title": "績效總覽",
+    "summary_total": "總計",
+    "summary_avg": "平均",
+    "heat_title": "銷售分佈熱力圖",
+    "heat_hint": "依每日銷量區間統計各主播在各地點的直播天數",
+    "heat_host": "主播",
+    "heat_live_days": "直播天數"
   },
   "page_heatmap": {
     "average_row": "本月平均 (Monthly AVG)",
@@ -1933,5 +1944,20 @@
     "upload_failed": "上傳失敗",
     "uploading": "上傳中...",
     "verifying": "驗證中..."
+  },
+  "page_performance_comparison": {
+    "title": "績效比較",
+    "subtitle": "比較不同期間、地點與班別的銷售績效",
+    "section_location_shift": "地點與班別績效",
+    "section_custom": "自訂績效比較",
+    "custom_placeholder": "即將推出，詳細需求將另行提供。",
+    "collapse": "收合",
+    "expand": "展開",
+    "expand_all": "全部展開",
+    "collapse_all": "全部收合",
+    "all_locations_website": "所有地點 + 網站",
+    "col_location_source": "地點 / 來源",
+    "website": "網站",
+    "share_note": "上層 Share % ＝ 佔公司總 GMV；下層 Share % ＝ 佔所屬地點或網站 GMV。網站的 LIVE 顯示「—」，其 AVG 以網站營運日（自上線日起）計算。"
   }
 }

@@ -56,6 +56,7 @@ const HostCategoryLeaderboard = lazy(() => import('./pages/HostCategoryLeaderboa
 const PerformanceDashboard = lazy(() => import('./pages/PerformanceDashboard'))
 const HostPerformanceAnalytics = lazy(() => import('./pages/HostPerformanceAnalytics'))
 const Heatmap = lazy(() => import('./pages/Heatmap'))
+const PerformanceComparison = lazy(() => import('./pages/PerformanceComparison'))
 const Transactions = lazy(() => import('./pages/Transactions'))
 const Payouts = lazy(() => import('./pages/Payouts'))
 const Fees = lazy(() => import('./pages/Fees'))
@@ -161,6 +162,7 @@ export default function App() {
         <Route path="/analytics/performance-dashboard" element={<ProtectedRoute><PerformanceDashboard /></ProtectedRoute>} />
         <Route path="/analytics/host-performance" element={<ProtectedRoute><HostPerformanceAnalytics /></ProtectedRoute>} />
         <Route path="/analytics/heatmap" element={<ProtectedRoute><Heatmap /></ProtectedRoute>} />
+        <Route path="/analytics/performance-comparison" element={<ProtectedRoute><PerformanceComparison /></ProtectedRoute>} />
         <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
 
         {/* Finance */}

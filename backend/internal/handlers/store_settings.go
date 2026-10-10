@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -37,6 +38,46 @@ func (h *StoreSettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO store_settings (key, value) VALUES ('shop_name', $1)
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, req.ShopName); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save shop name")
+		return
+	}
+	respondJSON(w, http.StatusOK, req)
+}
+
+type websiteLaunchSettings struct {
+	WebsiteLaunchDate string `json:"website_launch_date"` // yyyy-mm-dd, "" = not set
+}
+
+// GetWebsiteLaunch returns the manually entered website launch date (the start of the Website's
+// Active Operating Days used by the Performance AVG calculations).
+func (h *StoreSettingsHandler) GetWebsiteLaunch(w http.ResponseWriter, r *http.Request) {
+	var v string
+	_ = h.DB.QueryRow(r.Context(), `SELECT value FROM store_settings WHERE key='website_launch_date'`).Scan(&v)
+	respondJSON(w, http.StatusOK, websiteLaunchSettings{WebsiteLaunchDate: v})
+}
+
+// UpdateWebsiteLaunch saves (or clears, with "") the website launch date.
+func (h *StoreSettingsHandler) UpdateWebsiteLaunch(w http.ResponseWriter, r *http.Request) {
+	var req websiteLaunchSettings
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if req.WebsiteLaunchDate == "" {
+		if _, err := h.DB.Exec(r.Context(), `DELETE FROM store_settings WHERE key='website_launch_date'`); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to clear launch date")
+			return
+		}
+		respondJSON(w, http.StatusOK, req)
+		return
+	}
+	if _, err := time.Parse("2006-01-02", req.WebsiteLaunchDate); err != nil {
+		respondError(w, http.StatusBadRequest, "website_launch_date must be yyyy-mm-dd")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `
+		INSERT INTO store_settings (key, value) VALUES ('website_launch_date', $1)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, req.WebsiteLaunchDate); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save launch date")
 		return
 	}
 	respondJSON(w, http.StatusOK, req)

@@ -79,6 +79,7 @@ func main() {
 	returnH := &handlers.ReturnHandler{DB: pool}
 	perfDashboardH := &handlers.PerformanceDashboardHandler{DB: pool}
 	hostAnalyticsH := &handlers.HostAnalyticsHandler{DB: pool}
+	perfComparisonH := &handlers.PerformanceComparisonHandler{DB: pool}
 	heatmapH := &handlers.HeatmapHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	languageH := &handlers.LanguageHandler{DB: pool}
@@ -262,6 +263,8 @@ func main() {
 			r.With(view("shipping_settings")).Get("/settings/shipping", shippingSettingsH.Get)
 			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
 			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)
+			r.With(view("store_profile")).Get("/store-settings/website-launch", storeSettingsH.GetWebsiteLaunch)
+			r.With(edit("store_profile")).Patch("/store-settings/website-launch", storeSettingsH.UpdateWebsiteLaunch)
 
 			r.With(view("suppliers")).Get("/suppliers", supplierH.List)
 			r.With(view("suppliers")).Get("/suppliers/{id}", supplierH.Detail)
@@ -347,6 +350,9 @@ func main() {
 
 			r.With(view("host_performance_analytics")).Get("/host-analytics/lifetime", hostAnalyticsH.Lifetime)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/summary", hostAnalyticsH.Summary)
+			r.With(view("host_performance_analytics")).Get("/host-analytics/period-summary", hostAnalyticsH.PeriodSummary)
+			r.With(view("host_performance_analytics")).Get("/host-analytics/sales-distribution", hostAnalyticsH.SalesDistribution)
+			r.With(view("performance_comparison")).Get("/performance-comparison/location-shift", perfComparisonH.LocationShift)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
 

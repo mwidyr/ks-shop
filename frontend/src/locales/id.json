@@ -76,7 +76,8 @@
       "team": "Tim",
       "transactions": "Transaksi",
       "warehouses": "Gudang",
-      "colors": "Manajemen Warna"
+      "colors": "Manajemen Warna",
+      "performance_comparison": "Perbandingan Performa"
     },
     "settings": "Pengaturan"
   },
@@ -1519,7 +1520,10 @@
     "toast_save_pending": "Fitur simpan profil toko akan segera hadir",
     "shop_name_card_title": "Nama Toko",
     "shop_name_card_hint": "Nama ini tampil di halaman login dan sidebar aplikasi.",
-    "shop_name_saved_toast": "Nama toko tersimpan."
+    "shop_name_saved_toast": "Nama toko tersimpan.",
+    "launch_card_title": "Tanggal Peluncuran Website",
+    "launch_card_hint": "Tanggal website resmi diluncurkan. Hari operasi aktif Website (untuk AVG di halaman Performance) dihitung mulai tanggal ini. Kosongkan jika belum diluncurkan.",
+    "launch_saved_toast": "Tanggal peluncuran disimpan"
   },
   "page_suppliers": {
     "action_activate": "Aktifkan",
@@ -1747,7 +1751,14 @@
     "lifetime_total": "Total Sepanjang Waktu",
     "no_data_in_range": "Tidak ada data LIVE pada periode ini.",
     "performance_data_title": "Data Performa",
-    "period_all_time": "Sepanjang Waktu"
+    "period_all_time": "Sepanjang Waktu",
+    "summary_title": "Ringkasan Performa",
+    "summary_total": "Total",
+    "summary_avg": "AVG",
+    "heat_title": "Heatmap Distribusi Penjualan",
+    "heat_hint": "Jumlah hari LIVE per rentang QTY harian, per host dan lokasi",
+    "heat_host": "Host",
+    "heat_live_days": "HARI LIVE"
   },
   "page_heatmap": {
     "average_row": "Monthly AVG",
@@ -1933,5 +1944,20 @@
     "upload_failed": "Upload gagal",
     "uploading": "Mengupload...",
     "verifying": "Memeriksa..."
+  },
+  "page_performance_comparison": {
+    "title": "Perbandingan Performa",
+    "subtitle": "Bandingkan performa penjualan antar periode, lokasi, dan shift",
+    "section_location_shift": "Performa Lokasi & Shift",
+    "section_custom": "Perbandingan Performa Kustom",
+    "custom_placeholder": "Segera hadir. Detail kebutuhan akan menyusul.",
+    "collapse": "Tutup",
+    "expand": "Buka",
+    "expand_all": "Buka Semua",
+    "collapse_all": "Tutup Semua",
+    "all_locations_website": "Semua Lokasi + Website",
+    "col_location_source": "LOKASI / SUMBER",
+    "website": "Website",
+    "share_note": "Share % tingkat atas = porsi GMV perusahaan. Share % anak = porsi GMV Lokasi atau Website induknya. Website menampilkan \"—\" untuk LIVE; AVG-nya memakai hari operasi Website (sejak tanggal peluncuran)."
   }
 }

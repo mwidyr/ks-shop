@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getLifetime, getHostAnalyticsSummary, getHistoricalBest, getHostAnalyticsPerformanceData } from '../api/hostAnalytics'
+import { getPeriodSummary, getHostAnalyticsSummary, getHistoricalBest, getHostAnalyticsPerformanceData } from '../api/hostAnalytics'
 import { listLocations } from '../api/hostLocations'
 import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import SalesChannelFilter from '../components/SalesChannelFilter'
+import SalesDistributionHeatmap from '../components/SalesDistributionHeatmap'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { jakartaIsoDate } from '../utils/jakartaDate'
 
@@ -97,6 +98,9 @@ function fmtAwt(seconds) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 function fmtDec(n) { return n == null ? '—' : Number(n).toFixed(1) }
+// AVG row of the Performance Summary: counts show one decimal, money whole units.
+const fmtAvgCount = (n) => (n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
+const avgFmt = { gmv: fmtMoney, ret_amount: fmtMoney, ngr: fmtMoney, awt_seconds: fmtAwt, pcu: fmtNum, acu: fmtDec }
 
 const metricColumns = [
   { key: 'views', label: 'Views', fmt: fmtNum },
@@ -160,7 +164,7 @@ export default function HostPerformanceAnalytics() {
   const [range, setRange] = useState(daysAgoRange(6))
   const [page, setPage] = useState(1)
 
-  const [lifetime, setLifetime] = useState(null)
+  const [periodSummary, setPeriodSummary] = useState(null)
   const [summary, setSummary] = useState(null)
   const [best, setBest] = useState(null)
   const [daily, setDaily] = useState({ rows: [], page: 1, page_size: 50 })
@@ -183,12 +187,12 @@ export default function HostPerformanceAnalytics() {
       channel, affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
     }
     Promise.all([
-      getLifetime(baseFilters),
+      getPeriodSummary({ ...baseFilters, from: range.from, to: range.to }),
       getHostAnalyticsSummary({ ...baseFilters, from: range.from, to: range.to }),
       getHistoricalBest(baseFilters),
       getHostAnalyticsPerformanceData({ ...baseFilters, from: range.from, to: range.to, page }),
-    ]).then(([lt, sm, hb, pd]) => {
-      setLifetime(lt); setSummary(sm); setBest(hb); setDaily(pd)
+    ]).then(([ps, sm, hb, pd]) => {
+      setPeriodSummary(ps); setSummary(sm); setBest(hb); setDaily(pd)
       setLoading(false)
     })
   }, [locationId, hostId, range, page, channel, affiliateId])
@@ -205,12 +209,84 @@ export default function HostPerformanceAnalytics() {
         <PeriodPicker value={range} onChange={setRange} />
       </div>
 
-      {loading || !lifetime ? (
+      {loading || !periodSummary ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
         <>
-          {/* Section order per client request: Performance Data -> Key Performance -> Efficiency
-              -> Historical Best -> Lifetime (was Lifetime first, Performance Data last). */}
+          <div>
+            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.key_performance_title')}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 mb-4">
+              <StatCard label="QTY" value={fmtNum(summary.qty)} />
+              <StatCard label="ORD" value={fmtNum(summary.ord)} />
+              <StatCard label="GMV" value={fmtMoney(summary.gmv)} />
+              <StatCard label="AVG QTY" value={fmtDec(summary.avg_qty)} />
+              <StatCard label="AVG ORD" value={fmtDec(summary.avg_ord)} />
+              <StatCard label="AVG GMV" value={fmtMoney(summary.avg_gmv)} />
+            </div>
+            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.efficiency_title')}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
+              <StatCard label="AVG Chats" value={fmtNum(summary.avg_chats)} />
+              <StatCard label="ORD CVR" value={fmtPct(summary.ord_cvr)} />
+              <StatCard label={t('page_host_analytics.items_per_order')} value={fmtDec(summary.items_per_order)} />
+              <StatCard label="AOV" value={fmtMoney(summary.aov)} />
+              <StatCard label={t('page_host_analytics.gmv_per_uv')} value={fmtMoney(summary.gmv_per_uv)} />
+            </div>
+            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.historical_best_title')}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-4">
+              <BestCard t={t} label="Highest QTY" metric={best.highest_qty} />
+              <BestCard t={t} label="Highest ORD" metric={best.highest_ord} />
+              <BestCard t={t} label="Highest GMV" metric={best.highest_gmv} />
+              <BestCard t={t} label="Highest Views" metric={best.highest_views} />
+              <BestCard t={t} label="Highest PCU" metric={best.highest_pcu} />
+              <BestCard t={t} label="Best AWT" metric={best.highest_awt} />
+              <BestCard t={t} label="Best GPM" metric={best.highest_gpm} />
+            </div>
+          </div>
+
+
+          {channel === 'live' && (
+            <SalesDistributionHeatmap filters={{ locationId: locationId || undefined, hostId: hostId || undefined, from: range.from, to: range.to }} />
+          )}
+
+          <div className={`${cardClasses} p-5 overflow-x-auto`}>
+            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_host_analytics.summary_title')}</h2>
+            <table className={tableClasses}>
+              <thead>
+                <tr className={theadRowClasses}>
+                  <th className="p-2"></th>
+                  {metricColumns.map((c) => <th key={c.key} className="p-2 whitespace-nowrap">{c.label}</th>)}
+                </tr>
+              </thead>
+              <tbody className={tbodyClasses}>
+                <tr className={rowClasses}>
+                  <td className="p-2 font-semibold text-[var(--text-primary)]">{t('page_host_analytics.summary_total')}</td>
+                  {metricColumns.map((c) => {
+                    const type = metricType(c.key)
+                    return (
+                      <td key={c.key} className="p-2 text-[var(--text-secondary)] whitespace-nowrap">
+                        {type ? <Metric type={type}>{c.fmt(periodSummary.total[c.key])}</Metric> : c.fmt(periodSummary.total[c.key])}
+                      </td>
+                    )
+                  })}
+                </tr>
+                <tr className={rowClasses}>
+                  <td className="p-2 font-semibold text-[var(--text-primary)]">{t('page_host_analytics.summary_avg')}</td>
+                  {metricColumns.map((c) => {
+                    const type = metricType(c.key)
+                    const v = periodSummary.avg?.[c.key]
+                    const text = (avgFmt[c.key] || fmtAvgCount)(v)
+                    return (
+                      <td key={c.key} className="p-2 text-[var(--text-secondary)] whitespace-nowrap">
+                        {type ? <Metric type={type}>{text}</Metric> : text}
+                      </td>
+                    )
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Performance Data: very bottom of the page (client request) */}
           <div className={`${cardClasses} p-5 overflow-x-auto`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-[var(--text-primary)]">{t('page_host_analytics.performance_data_title')}</h2>
@@ -248,71 +324,6 @@ export default function HostPerformanceAnalytics() {
             </table>
           </div>
 
-          <div>
-            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.key_performance_title')}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 mb-4">
-              <StatCard label="QTY" value={fmtNum(summary.qty)} />
-              <StatCard label="ORD" value={fmtNum(summary.ord)} />
-              <StatCard label="GMV" value={fmtMoney(summary.gmv)} />
-              <StatCard label="AVG QTY" value={fmtNum(summary.avg_qty)} />
-              <StatCard label="AVG ORD" value={fmtNum(summary.avg_ord)} />
-              <StatCard label="AVG GMV" value={fmtMoney(summary.avg_gmv)} />
-            </div>
-            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.efficiency_title')}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
-              <StatCard label="AVG Chats" value={fmtNum(summary.avg_chats)} />
-              <StatCard label="ORD CVR" value={fmtPct(summary.ord_cvr)} />
-              <StatCard label={t('page_host_analytics.items_per_order')} value={fmtDec(summary.items_per_order)} />
-              <StatCard label="AOV" value={fmtMoney(summary.aov)} />
-              <StatCard label={t('page_host_analytics.gmv_per_uv')} value={fmtMoney(summary.gmv_per_uv)} />
-            </div>
-            <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.historical_best_title')}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-4">
-              <BestCard t={t} label="Highest QTY" metric={best.highest_qty} />
-              <BestCard t={t} label="Highest ORD" metric={best.highest_ord} />
-              <BestCard t={t} label="Highest GMV" metric={best.highest_gmv} />
-              <BestCard t={t} label="Highest Views" metric={best.highest_views} />
-              <BestCard t={t} label="Highest PCU" metric={best.highest_pcu} />
-              <BestCard t={t} label="Best AWT" metric={best.highest_awt} />
-              <BestCard t={t} label="Best GPM" metric={best.highest_gpm} />
-            </div>
-          </div>
-
-          <div className={`${cardClasses} p-5 overflow-x-auto`}>
-            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_host_analytics.lifetime_title')}</h2>
-            <table className={tableClasses}>
-              <thead>
-                <tr className={theadRowClasses}>
-                  <th className="p-2"></th>
-                  {metricColumns.map((c) => <th key={c.key} className="p-2 whitespace-nowrap">{c.label}</th>)}
-                </tr>
-              </thead>
-              <tbody className={tbodyClasses}>
-                <tr className={rowClasses}>
-                  <td className="p-2 font-semibold text-[var(--text-primary)]">{t('page_host_analytics.lifetime_total')}</td>
-                  {metricColumns.map((c) => {
-                    const type = metricType(c.key)
-                    return (
-                      <td key={c.key} className="p-2 text-[var(--text-secondary)] whitespace-nowrap">
-                        {type ? <Metric type={type}>{c.fmt(lifetime.total[c.key])}</Metric> : c.fmt(lifetime.total[c.key])}
-                      </td>
-                    )
-                  })}
-                </tr>
-                <tr className={rowClasses}>
-                  <td className="p-2 font-semibold text-[var(--text-primary)]">{t('page_host_analytics.lifetime_avg_live')}</td>
-                  {metricColumns.map((c) => {
-                    const type = metricType(c.key)
-                    return (
-                      <td key={c.key} className="p-2 text-[var(--text-secondary)] whitespace-nowrap">
-                        {type ? <Metric type={type}>{c.fmt(lifetime.avg_live[c.key])}</Metric> : c.fmt(lifetime.avg_live[c.key])}
-                      </td>
-                    )
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </>
       )}
     </div>

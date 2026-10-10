@@ -11,18 +11,22 @@ import PeriodPicker, { daysAgoRange } from '../components/PeriodPicker'
 
 const statMetricType = { QTY: 'qty', ORD: 'ord', GMV: 'gmv' }
 
-function StatCard({ label, value }) {
-  const type = statMetricType[label]
+function StatCard({ label, value, sub, className = '' }) {
+  const type = statMetricType[label.replace('AVG ', '')]
   return (
-    <div className={`${cardClasses} p-4`}>
+    <div className={`${cardClasses} p-4 ${className}`}>
       <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{label}</p>
       {type ? <Metric type={type} className="text-lg">{value}</Metric> : <p className="text-lg font-bold text-[var(--text-primary)]">{value}</p>}
+      {sub && <p className="text-xs text-[var(--text-secondary)] mt-1">{sub}</p>}
     </div>
   )
 }
 
 function fmtNum(n) {
   return n == null ? '—' : Number(n).toLocaleString()
+}
+function fmtDec(n) {
+  return n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 function fmtPct(n) {
   return n == null ? '—' : `${Number(n).toFixed(1)}%`
@@ -131,13 +135,14 @@ export default function PerformanceDashboard() {
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Desktop 3 + 3; mobile 2-1-2-1 (QTY|ORD, GMV, AVG QTY|AVG ORD, AVG GMV). AOV sits under ORD. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatCard label="QTY" value={fmtNum(summary.qty)} />
-            <StatCard label="ORD" value={fmtNum(summary.ord)} />
-            <StatCard label="GMV" value={fmtMoney(summary.gmv)} />
-            <StatCard label="AVG QTY" value={fmtNum(summary.avg_qty)} />
-            <StatCard label="AVG ORD" value={fmtNum(summary.avg_ord)} />
-            <StatCard label="AOV" value={fmtMoney(summary.aov)} />
+            <StatCard label="ORD" value={fmtNum(summary.ord)} sub={`AOV ${fmtMoney(summary.aov)}`} />
+            <StatCard label="GMV" value={fmtMoney(summary.gmv)} className="col-span-2 sm:col-span-1" />
+            <StatCard label="AVG QTY" value={fmtDec(summary.avg_qty)} />
+            <StatCard label="AVG ORD" value={fmtDec(summary.avg_ord)} />
+            <StatCard label="AVG GMV" value={fmtMoney(summary.avg_gmv)} className="col-span-2 sm:col-span-1" />
           </div>
 
           <div className={`${cardClasses} p-5 overflow-x-auto`}>
@@ -148,7 +153,7 @@ export default function PerformanceDashboard() {
                   <th className="p-2">#</th>
                   <th className="p-2">{t('page_performance_dashboard.col_host')}</th>
                   {showLocationColumn && <th className="p-2">{t('page_performance_dashboard.col_location')}</th>}
-                  <th className="p-2">GMV</th><th className="p-2">ORD</th><th className="p-2">QTY</th><th className="p-2">AOV</th><th className="p-2">GMV%</th>
+                  <th className="p-2">QTY</th><th className="p-2">ORD</th><th className="p-2">GMV</th><th className="p-2">AOV</th><th className="p-2">GMV%</th>
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
@@ -157,9 +162,9 @@ export default function PerformanceDashboard() {
                     <td className="p-2 text-[var(--text-secondary)]">{i + 1}</td>
                     <td className="p-2 font-medium text-[var(--text-primary)]">{row.host}</td>
                     {showLocationColumn && <td className="p-2 text-[var(--text-secondary)]">{row.location_name}</td>}
-                    <td className="p-2"><Metric type="gmv">{fmtMoney(row.gmv)}</Metric></td>
-                    <td className="p-2"><Metric type="ord">{fmtNum(row.ord)}</Metric></td>
                     <td className="p-2"><Metric type="qty">{fmtNum(row.qty)}</Metric></td>
+                    <td className="p-2"><Metric type="ord">{fmtNum(row.ord)}</Metric></td>
+                    <td className="p-2"><Metric type="gmv">{fmtMoney(row.gmv)}</Metric></td>
                     <td className="p-2 text-[var(--text-secondary)]">{fmtMoney(row.aov)}</td>
                     <td className="p-2 text-[var(--text-secondary)]">{fmtPct(row.gmv_pct)}</td>
                   </tr>

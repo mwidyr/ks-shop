@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getStoreSettings, updateStoreSettings } from '../api/storeSettings'
+import { getStoreSettings, updateStoreSettings, getWebsiteLaunch, updateWebsiteLaunch } from '../api/storeSettings'
 
 export default function StoreProfile() {
   const { t } = useTranslation()
@@ -8,6 +8,9 @@ export default function StoreProfile() {
   const [shopName, setShopName] = useState('')
   const [shopNameSaving, setShopNameSaving] = useState(false)
   const [shopNameToast, setShopNameToast] = useState('')
+  const [launchDate, setLaunchDate] = useState('')
+  const [launchSaving, setLaunchSaving] = useState(false)
+  const [launchToast, setLaunchToast] = useState('')
   const [form, setForm] = useState({
     description: t('page_store_profile.default_description'),
     url: 'ksshop.mystore.id', category: t('page_store_profile.default_category'),
@@ -16,6 +19,7 @@ export default function StoreProfile() {
 
   useEffect(() => {
     getStoreSettings().then((res) => setShopName(res.shop_name || ''))
+    getWebsiteLaunch().then((res) => setLaunchDate(res.website_launch_date || '')).catch(() => {})
   }, [])
 
   async function saveShopName(e) {
@@ -27,6 +31,18 @@ export default function StoreProfile() {
       setTimeout(() => setShopNameToast(''), 2500)
     } finally {
       setShopNameSaving(false)
+    }
+  }
+
+  async function saveLaunchDate(e) {
+    e.preventDefault()
+    setLaunchSaving(true)
+    try {
+      await updateWebsiteLaunch(launchDate)
+      setLaunchToast(t('page_store_profile.launch_saved_toast'))
+      setTimeout(() => setLaunchToast(''), 2500)
+    } finally {
+      setLaunchSaving(false)
     }
   }
 
@@ -46,6 +62,18 @@ export default function StoreProfile() {
           <input value={shopName} onChange={(e) => setShopName(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           <button type="submit" disabled={shopNameSaving || !shopName} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-lg text-sm shrink-0">
             {shopNameSaving ? t('page_order_detail.saving_button') : t('common.save')}
+          </button>
+        </div>
+      </form>
+
+      <form onSubmit={saveLaunchDate} className="bg-white rounded-2xl shadow-sm p-5 space-y-3 mb-6">
+        <h2 className="font-bold text-gray-800">{t('page_store_profile.launch_card_title')}</h2>
+        <p className="text-xs text-gray-500">{t('page_store_profile.launch_card_hint')}</p>
+        {launchToast && <div className="text-sm bg-brand-50 text-brand-700 px-4 py-2 rounded-lg">{launchToast}</div>}
+        <div className="flex gap-2">
+          <input type="date" value={launchDate} onChange={(e) => setLaunchDate(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <button type="submit" disabled={launchSaving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-lg text-sm shrink-0">
+            {launchSaving ? t('page_order_detail.saving_button') : t('common.save')}
           </button>
         </div>
       </form>
