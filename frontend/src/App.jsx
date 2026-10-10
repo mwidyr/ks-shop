@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import { useAuth } from './context/AuthContext'
+import { getMyAccess } from './api/rolePermissions'
 
 // Route-level code splitting: each page is only transformed/downloaded when actually
 // navigated to, instead of the whole ~45-page tree loading up front on every visit.
@@ -17,7 +18,6 @@ const OrderPrint = lazy(() => import('./pages/OrderPrint'))
 const Products = lazy(() => import('./pages/Products'))
 const ProductForm = lazy(() => import('./pages/ProductForm'))
 const Settings = lazy(() => import('./pages/Settings'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Customers = lazy(() => import('./pages/Customers'))
 const Inventory = lazy(() => import('./pages/Inventory'))
 const Profit = lazy(() => import('./pages/Profit'))
@@ -83,6 +83,29 @@ function RequireAuth({ children }) {
   return children
 }
 
+// Landing page after login / for "/" and the old "/dashboard": the Performance Dashboard replaces
+// the former Dashboard, so roles that may view it go there; everyone else (e.g. CS, warehouse)
+// lands on the first sidebar page their role can open.
+const HOME_CANDIDATES = [
+  ['performance_dashboard', '/analytics/performance-dashboard'], ['orders', '/orders'], ['picking', '/picking'],
+  ['returns', '/returns'], ['inventory', '/inventory'], ['panel_siaran', '/panel-siaran'], ['products', '/products'],
+  ['customers', '/customers'], ['suppliers', '/suppliers'], ['purchases', '/purchases'], ['reports', '/finance/reports'],
+]
+
+function HomeRedirect() {
+  const [target, setTarget] = useState(null)
+  useEffect(() => {
+    getMyAccess()
+      .then((res) => {
+        const ok = (key) => res.role === 'super_user' || !!res.access?.[key]
+        const hit = HOME_CANDIDATES.find(([key]) => ok(key))
+        setTarget(hit ? hit[1] : (ok('settings') ? '/settings' : '/analytics/performance-dashboard'))
+      })
+      .catch(() => setTarget('/analytics/performance-dashboard'))
+  }, [])
+  return target ? <Navigate to={target} replace /> : <PageLoading />
+}
+
 function PageLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">
@@ -105,7 +128,7 @@ export default function App() {
         <Route path="/pickup/:token" element={<PickupPublic />} />
         <Route path="/live-data-upload" element={<LiveDataUpload />} />
 
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<RequireAuth><HomeRedirect /></RequireAuth>} />
 
         {/* Sales */}
         <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />

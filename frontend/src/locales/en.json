@@ -29,11 +29,16 @@
       "marketing": "MARKETING",
       "sales": "SALES",
       "store": "STORE",
-      "system": "SYSTEM"
+      "system": "SYSTEM",
+      "operations": "OPERATIONS",
+      "sales_insights": "SALES INSIGHTS",
+      "product_performance": "PRODUCT PERFORMANCE",
+      "procurement": "PROCUREMENT",
+      "settings": "SETTINGS"
     },
     "items": {
       "advertising": "Advertising",
-      "affiliates": "Affiliates",
+      "affiliates": "Affiliate Management",
       "audit_logs": "Audit Logs",
       "campaigns": "Campaigns",
       "categories": "Category Management",
@@ -42,27 +47,27 @@
       "fees": "Fees",
       "heatmap": "Heatmap",
       "host_category_leaderboard": "Category Leaderboard",
-      "host_performance_analytics": "Performance History",
+      "host_performance_analytics": "Performance Data",
       "hosts": "Host Management",
       "integrations": "Integrations",
       "inventory": "Stock Management",
       "notifications": "Notifications",
       "orders": "Order Management",
-      "panel_siaran": "Live Panel",
+      "panel_siaran": "LIVE Data Portal",
       "payouts": "Payouts",
       "performance_dashboard": "Performance Dashboard",
       "picking": "Picking List",
-      "product_analytics": "Product Sales Analysis",
-      "product_color_pair": "Product Combo Analysis",
+      "product_analytics": "Product Sales Overview",
+      "product_color_pair": "Product Bundle Analysis",
       "product_performance": "Product Analysis",
       "products": "Product Management",
-      "profit": "Profit",
-      "promotions": "Promotions",
+      "profit": "Profit Overview",
+      "promotions": "Promotion Management",
       "purchase_alert": "Purchase Alert",
       "purchase_requisitions": "Purchase Requisitions",
-      "purchases": "Supplier Orders",
+      "purchases": "Procurement Orders",
       "refunds": "Refunds",
-      "replenishment_planning": "Replenishment Planning",
+      "replenishment_planning": "Restock Planning",
       "reports": "Reports",
       "returns": "Return Management",
       "reviews": "Reviews",
@@ -72,14 +77,15 @@
       "shipping_settings": "Shipping Settings",
       "store_design": "Store Design",
       "store_profile": "Store Settings",
-      "suppliers": "Suppliers",
+      "suppliers": "Supplier Management",
       "team": "Team",
       "transactions": "Transactions",
       "warehouses": "Warehouses",
       "colors": "Color Management",
-      "performance_comparison": "Performance Comparison"
+      "performance_comparison": "Performance Comparison",
+      "settings": "System Settings"
     },
-    "settings": "Settings"
+    "settings": "System Settings"
   },
   "page_accept_invite": {
     "error": "Something went wrong. Please try again.",
@@ -99,7 +105,7 @@
     "title": "Advertising"
   },
   "page_affiliates": {
-    "title": "Affiliates",
+    "title": "Affiliate Management",
     "hint": "Reference list used by the Website Sales Channel filter and Order Creation's Affiliate select.",
     "placeholder_name": "Affiliate name",
     "activate": "Activate",
@@ -823,7 +829,7 @@
     "start_broadcast_button": "📡 Start Broadcast",
     "step1_choose_host": "Step 1 — Choose Host",
     "step2_start_broadcast": "Step 2 — Start Broadcast",
-    "title": "Live Panel",
+    "title": "LIVE Data Portal",
     "live_data_code_label": "LIVE Data Upload code",
     "live_data_code_rotates": "(refreshes in {{minutes}} min)",
     "upload_live_data_button": "Upload LIVE Data"
@@ -1049,7 +1055,7 @@
     "waterfall_title": "Profit Waterfall"
   },
   "page_promotions": {
-    "title": "Promotions",
+    "title": "Promotion Management",
     "description": "Create coupon codes and free-shipping campaigns.",
     "empty_state": "No promotions yet.",
     "add_button": "Add Promotion",
@@ -1573,7 +1579,7 @@
     "status_active": "Active",
     "status_inactive": "Inactive",
     "status_paused": "Paused",
-    "title": "Suppliers"
+    "title": "Supplier Management"
   },
   "page_transactions": {
     "description": "History of all payment transactions & refunds.",
@@ -1656,7 +1662,7 @@
     "title_order_detail": "Order Detail",
     "title_print_order": "Print Order",
     "title_session_history": "Session History",
-    "title_settings": "Settings",
+    "title_settings": "System Settings",
     "title_shipping_export": "Shipping Data Export",
     "category_new_placeholder_zh": "New category name (Chinese)",
     "category_new_placeholder_id": "New category name (Indonesian)",
@@ -1706,7 +1712,7 @@
     "empty_pick_products": "Pick a product to see what's commonly bought with it",
     "product_a": "Product",
     "shared_orders": "Shared Orders",
-    "title": "Product Combo Analysis",
+    "title": "Product Bundle Analysis",
     "hint": "Every other product bought in the same order as this one, ranked by order count - expand one to see its color-combination breakdown.",
     "col_color_a": "Color A",
     "col_color_b": "Color B",

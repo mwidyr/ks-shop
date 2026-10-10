@@ -14,18 +14,22 @@ import {
   IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist,
 } from './icons'
 
-// Grouped into our own 8-category taxonomy (kept by deliberate choice rather than the
-// reference's flat list), but item names/icons and relative ordering within each group are
-// matched to the reference wherever a direct feature equivalent exists.
+// Sidebar structure per the client's "Sidebar Structure & Navigation Adjustments": two ungrouped
+// top items (Performance Dashboard, LIVE Data Portal - see TOP_ITEMS) followed by these sections.
+// Items that are not shipped yet stay listed here (marked `upcoming`) but are hidden by
+// VISIBLE_TAB_KEYS below.
 const navGroups = [
   {
-    title: 'sales', icon: IconTag, items: [
-      { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
+    title: 'operations', icon: IconCart, items: [
       { to: '/orders', key: 'orders', icon: IconCart },
       { to: '/picking', key: 'picking', icon: IconClipboard },
+      { to: '/returns', key: 'returns', icon: IconUndo },
+      { to: '/inventory', key: 'inventory', icon: IconMolecule },
       { to: '/shipping', key: 'shipping', icon: IconTruck },
+      { to: '/refunds', key: 'refunds', icon: IconWallet },
       { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
       { to: '/reviews', key: 'reviews', icon: IconStar, upcoming: true },
+      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
     ],
   },
   {
@@ -33,9 +37,27 @@ const navGroups = [
       { to: '/products', key: 'products', icon: IconProducts },
       { to: '/categories', key: 'categories', icon: IconTag },
       { to: '/colors', key: 'colors', icon: IconPalette },
-      { to: '/inventory', key: 'inventory', icon: IconMolecule },
+    ],
+  },
+  {
+    title: 'sales_insights', icon: IconChartLine, items: [
+      { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
+      { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
+      { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
       { to: '/customers', key: 'customers', icon: IconUsers },
-      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
+      { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
+    ],
+  },
+  {
+    title: 'product_performance', icon: IconTrendUp, items: [
+      { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
+      { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
+      { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
+      { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
+    ],
+  },
+  {
+    title: 'procurement', icon: IconTruck, items: [
       { to: '/suppliers', key: 'suppliers', icon: IconTruck },
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
       { to: '/purchase-requisitions', key: 'purchase_requisitions', icon: IconClipboard },
@@ -43,58 +65,39 @@ const navGroups = [
     ],
   },
   {
-    title: 'marketing', icon: IconMegaphone, items: [
-      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
-      { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
-      { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
-    ],
-  },
-  {
-    title: 'analytics', icon: IconChartLine, items: [
-      { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
-      { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
-      { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
-      { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
-      { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
-      { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconTrendUp },
-      { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
-      { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
-      { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
-      { to: '/profit', key: 'profit', icon: IconWallet },
-    ],
-  },
-  {
     title: 'finance', icon: IconWallet, items: [
+      { to: '/profit', key: 'profit', icon: IconWallet },
+      { to: '/finance/reports', key: 'reports', icon: IconBarChart },
       { to: '/finance/transactions', key: 'transactions', icon: IconWallet, upcoming: true },
       { to: '/finance/payouts', key: 'payouts', icon: IconWallet, upcoming: true },
       { to: '/finance/fees', key: 'fees', icon: IconWallet, upcoming: true },
-      { to: '/finance/reports', key: 'reports', icon: IconBarChart },
     ],
   },
   {
-    title: 'fulfillment', icon: IconTruck, items: [
-      { to: '/returns', key: 'returns', icon: IconUndo },
-      { to: '/refunds', key: 'refunds', icon: IconWallet },
-    ],
-  },
-  {
-    title: 'store', icon: IconStore, items: [
+    title: 'settings', icon: IconGear, items: [
+      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
       { to: '/store/profile', key: 'store_profile', icon: IconStore },
       { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
       { to: '/hosts', key: 'hosts', icon: IconUser },
       { to: '/affiliates', key: 'affiliates', icon: IconUser },
-      { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
-      { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
-    ],
-  },
-  {
-    title: 'system', icon: IconGear, items: [
-      { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
-      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
       { to: '/system/roles', key: 'roles', icon: IconUserCog },
       { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
+      { to: '/settings', key: 'settings', icon: IconSettings },
+      { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
+      { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
+      { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
+      { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
+      { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
+      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
     ],
   },
+]
+
+// The two items at the very top of the sidebar, without a section heading. The Performance
+// Dashboard replaces the old Dashboard page (/dashboard now redirects to it).
+const TOP_ITEMS = [
+  { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconDashboard },
+  { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
 ]
 
 // Product decision: only these tabs are shown in the sidebar for now. Everything else stays
@@ -102,7 +105,7 @@ const navGroups = [
 // until it's ready to ship. This is a blanket visibility gate on top of (not a replacement
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
-  'panel_siaran', 'orders', 'picking', 'products', 'categories', 'colors', 'inventory', 'customers',
+  'panel_siaran', 'orders', 'picking', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
@@ -130,6 +133,7 @@ const titleOverrides = [
 
 function buildTitleMap(t) {
   const map = titleOverrides.map((o) => ({ prefix: o.prefix, title: t(o.titleKey) }))
+  for (const item of TOP_ITEMS) map.push({ prefix: item.to, title: t(`nav.items.${item.key}`) })
   for (const group of navGroups) {
     for (const item of group.items) {
       map.push({ prefix: item.to, title: t(`nav.items.${item.key}`) })
@@ -195,6 +199,8 @@ export default function AppShell({ children }) {
   const initial = user?.name?.charAt(0)?.toUpperCase() || '?'
 
   function isActive(to) {
+    // /settings (System Settings) must not light up for its siblings like /settings/shipping.
+    if (to === '/settings') return location.pathname === '/settings'
     return location.pathname === to || location.pathname.startsWith(to + '/')
   }
 
@@ -216,14 +222,22 @@ export default function AppShell({ children }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">
-          <Link
-            to="/dashboard"
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
-              isActive('/dashboard') ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <IconDashboard width={18} height={18} /> {t('nav.dashboard')}
-          </Link>
+          <div className="space-y-0.5">
+            {TOP_ITEMS.filter((item) => canSeeTab(item.key)).map((item) => {
+              const ItemIcon = item.icon
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
+                    isActive(item.to) ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <ItemIcon width={18} height={18} className="shrink-0" /> <span className="truncate">{t(`nav.items.${item.key}`)}</span>
+                </Link>
+              )
+            })}
+          </div>
 
           {navGroups.map((group) => {
             const GroupIcon = group.icon
@@ -263,18 +277,6 @@ export default function AppShell({ children }) {
             )
           })}
 
-          {canSeeTab('settings') && (
-            <div>
-              <Link
-                to="/settings"
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
-                  isActive('/settings') ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <IconSettings width={16} height={16} /> {t('nav.settings')}
-              </Link>
-            </div>
-          )}
         </nav>
 
         <div className="p-3 border-t border-gray-200 shrink-0">

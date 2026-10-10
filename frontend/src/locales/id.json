@@ -29,11 +29,16 @@
       "marketing": "PEMASARAN",
       "sales": "PENJUALAN",
       "store": "TOKO",
-      "system": "SISTEM"
+      "system": "SISTEM",
+      "operations": "OPERASIONAL",
+      "sales_insights": "WAWASAN PENJUALAN",
+      "product_performance": "PERFORMA PRODUK",
+      "procurement": "PENGADAAN",
+      "settings": "PENGATURAN"
     },
     "items": {
       "advertising": "Iklan",
-      "affiliates": "Afiliasi",
+      "affiliates": "Manajemen Afiliasi",
       "audit_logs": "Log Audit",
       "campaigns": "Kampanye",
       "categories": "Manajemen Kategori",
@@ -42,27 +47,27 @@
       "fees": "Biaya",
       "heatmap": "Heatmap",
       "host_category_leaderboard": "Peringkat Kategori",
-      "host_performance_analytics": "Analitik Host",
+      "host_performance_analytics": "Data Performa",
       "hosts": "Manajemen Penyiar",
       "integrations": "Integrasi",
       "inventory": "Manajemen Stok",
       "notifications": "Notifikasi",
       "orders": "Manajemen Pesanan",
-      "panel_siaran": "Panel Siaran",
+      "panel_siaran": "Portal Data LIVE",
       "payouts": "Pencairan Dana",
       "performance_dashboard": "Dashboard Performa",
       "picking": "Daftar Pengambilan",
-      "product_analytics": "Analisis Penjualan Produk",
-      "product_color_pair": "Analisis Kombinasi Produk",
+      "product_analytics": "Ikhtisar Penjualan Produk",
+      "product_color_pair": "Analisis Bundel Produk",
       "product_performance": "Analisis Produk",
       "products": "Manajemen Produk",
-      "profit": "Profit",
-      "promotions": "Promosi",
+      "profit": "Ringkasan Profit",
+      "promotions": "Manajemen Promosi",
       "purchase_alert": "Purchase Alert",
       "purchase_requisitions": "Requisisi Pembelian",
-      "purchases": "Pesanan Supplier",
+      "purchases": "Pesanan Pengadaan",
       "refunds": "Refund",
-      "replenishment_planning": "Perencanaan Replenishment",
+      "replenishment_planning": "Perencanaan Restok",
       "reports": "Laporan",
       "returns": "Manajemen Retur",
       "reviews": "Ulasan",
@@ -72,14 +77,15 @@
       "shipping_settings": "Pengaturan Ongkir",
       "store_design": "Desain Toko",
       "store_profile": "Pengaturan Toko",
-      "suppliers": "Supplier",
+      "suppliers": "Manajemen Supplier",
       "team": "Tim",
       "transactions": "Transaksi",
       "warehouses": "Gudang",
       "colors": "Manajemen Warna",
-      "performance_comparison": "Perbandingan Performa"
+      "performance_comparison": "Perbandingan Performa",
+      "settings": "Pengaturan Sistem"
     },
-    "settings": "Pengaturan"
+    "settings": "Pengaturan Sistem"
   },
   "page_accept_invite": {
     "error": "Terjadi kesalahan. Silakan coba lagi.",
@@ -99,7 +105,7 @@
     "title": "Iklan"
   },
   "page_affiliates": {
-    "title": "Afiliasi",
+    "title": "Manajemen Afiliasi",
     "hint": "Daftar referensi yang digunakan filter Sales Channel Website dan pilihan Afiliasi di Buat Pesanan.",
     "placeholder_name": "Nama afiliasi",
     "activate": "Aktifkan",
@@ -823,7 +829,7 @@
     "start_broadcast_button": "📡 Mulai Siaran",
     "step1_choose_host": "Langkah 1 — Pilih Host",
     "step2_start_broadcast": "Langkah 2 — Mulai Siaran",
-    "title": "Panel Siaran",
+    "title": "Portal Data LIVE",
     "live_data_code_label": "Kode Upload Data LIVE",
     "live_data_code_rotates": "(refresh dalam {{minutes}} menit)",
     "upload_live_data_button": "Upload Data LIVE"
@@ -1049,7 +1055,7 @@
     "waterfall_title": "Profit Waterfall"
   },
   "page_promotions": {
-    "title": "Promosi",
+    "title": "Manajemen Promosi",
     "description": "Buat kode kupon dan kampanye gratis ongkir.",
     "empty_state": "Belum ada promosi.",
     "add_button": "Tambah Promosi",
@@ -1573,7 +1579,7 @@
     "status_active": "Aktif",
     "status_inactive": "Nonaktif",
     "status_paused": "Dijeda",
-    "title": "Supplier"
+    "title": "Manajemen Supplier"
   },
   "page_transactions": {
     "description": "Riwayat semua transaksi pembayaran & refund.",
@@ -1656,7 +1662,7 @@
     "title_order_detail": "Detail Order",
     "title_print_order": "Cetak Order",
     "title_session_history": "Riwayat Sesi",
-    "title_settings": "Pengaturan",
+    "title_settings": "Pengaturan Sistem",
     "title_shipping_export": "Ekspor Data Pengiriman",
     "category_new_placeholder_zh": "Nama kategori baru (Mandarin)",
     "category_new_placeholder_id": "Nama kategori baru (Indonesia)",
@@ -1706,7 +1712,7 @@
     "empty_pick_products": "Pilih produk untuk melihat apa yang sering dibeli bersamaan",
     "product_a": "Produk",
     "shared_orders": "Pesanan Bersama",
-    "title": "Analisis Kombinasi Produk",
+    "title": "Analisis Bundel Produk",
     "hint": "Setiap produk lain yang dibeli dalam pesanan yang sama, diurutkan berdasarkan jumlah pesanan - buka salah satu untuk melihat rincian kombinasi warnanya.",
     "col_color_a": "Warna A",
     "col_color_b": "Warna B",
