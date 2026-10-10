@@ -22,11 +22,13 @@ const MOBILE_VALUE = 'inline-block px-2 py-1 border border-transparent'
 const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,88px] gap-2'
 
 // The Incoming number. When the variant has incoming stock with an expected arrival date, the
-// earliest ETA among its not-fully-received Purchase Orders shows on hover (native tooltip on
-// desktop) and on tap (a small inline note, since touch screens have no hover).
+// earliest ETA among its not-fully-received Purchase Orders shows instantly on hover (desktop) and
+// on tap (touch screens have no hover).
 function IncomingNumber({ stock, eta, openPo, className = '' }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  // Mouse: the tooltip shows on hover (no click). Touch screens have no hover, so a tap toggles it.
+  const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   // Shown whenever an open (not fully received) PO exists: its earliest ETA, or "ETA not set"
   // when none of those POs has an expected arrival date yet (set it on the Supplier Order page).
   const hasEta = stock > 0 && (eta || openPo)
@@ -39,8 +41,10 @@ function IncomingNumber({ stock, eta, openPo, className = '' }) {
   return (
     <span className="inline-block relative">
       <button
-        type="button" title={etaText} aria-label={etaText}
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }} onBlur={() => setOpen(false)}
+        type="button" aria-label={etaText}
+        onMouseEnter={() => canHover && setOpen(true)} onMouseLeave={() => canHover && setOpen(false)}
+        onFocus={() => canHover && setOpen(true)}
+        onClick={(e) => { e.stopPropagation(); if (!canHover) setOpen((o) => !o) }} onBlur={() => setOpen(false)}
         className={`px-2 py-1 border border-transparent underline decoration-dotted underline-offset-4 cursor-help ${NUM_CLASS} ${className}`}
       >
         {stock}
