@@ -79,7 +79,7 @@ export default function ComparisonResults({ rows }) {
             {rows.map((r) => (
               <tr key={r.id} style={{ height: ROW_H }}>
                 <td className="pr-3 whitespace-nowrap">
-                  <span className="text-xs font-bold text-white px-2.5 py-1 rounded-md" style={{ background: r.isBaseline ? r.color : '#6B7280' }}>{r.label}</span>
+                  <span className="inline-block max-w-[120px] truncate align-middle text-xs font-bold text-white px-2.5 py-1 rounded-md" title={r.label} style={{ background: r.isBaseline ? r.color : '#6B7280' }}>{r.label}</span>
                   {r.isBaseline && <span className="block text-[10px] font-semibold text-emerald-600 mt-1">{t('page_performance_comparison.baseline')}</span>}
                 </td>
               </tr>

@@ -1979,6 +1979,7 @@
     "col_group": "Group",
     "results_title": "比較結果",
     "results_subtitle": "Group 向下排列、Metrics 橫向排列，數值與 Baseline 比較。",
-    "results_note": "Group 沒有的指標（例如 Website 的 LIVE 指標）以「—」顯示，不當作 0；若所有 Group 都沒有 LIVE 資料，LIVE 專屬欄位自動隱藏。"
+    "results_note": "Group 沒有的指標（例如 Website 的 LIVE 指標）以「—」顯示，不當作 0；若所有 Group 都沒有 LIVE 資料，LIVE 專屬欄位自動隱藏。",
+    "rename_group": "重新命名 Group"
   }
 }

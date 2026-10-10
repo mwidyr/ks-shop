@@ -29,8 +29,8 @@ function TrashIcon() {
 }
 
 let nextId = 1
-const newGroup = (n) => ({
-  id: nextId++, index: n, open: true,
+const newGroup = (n, name) => ({
+  id: nextId++, index: n, name, open: true,
   channel: 'all', locationId: '', hostId: '', affiliateId: '',
   inherited: true, presetKey: 'inherit', range: null,
 })
@@ -39,13 +39,14 @@ const newGroup = (n) => ({
 // compared against one Baseline.
 export default function CustomComparison({ pageRange }) {
   const { t } = useTranslation()
-  const [groups, setGroups] = useState(() => [newGroup(0)])
+  const [groups, setGroups] = useState(() => [newGroup(0, 'Group A')])
   const [baselineId, setBaselineId] = useState(groups[0].id)
   const [results, setResults] = useState({}) // id -> { loading, data, key }
   const [locations, setLocations] = useState([])
   const [hosts, setHosts] = useState([])
   const [affiliates, setAffiliates] = useState([])
   const counter = useRef(1)
+  const [editingId, setEditingId] = useState(null)
   const requested = useRef({}) // id -> query key already sent (avoids duplicate requests)
 
   useEffect(() => { listLocations().then(setLocations).catch(() => {}) }, [])
@@ -73,7 +74,11 @@ export default function CustomComparison({ pageRange }) {
   const allOpen = groups.every((g) => g.open)
 
   function add() {
-    const g = newGroup(counter.current++)
+    // Default name = first "Group X" letter not currently in use, so deleting then adding reuses it.
+    const used = new Set(groups.map((x) => x.name))
+    let n = 0
+    while (used.has(`${t('page_performance_comparison.group')} ${letter(n)}`)) n++
+    const g = newGroup(counter.current++, `${t('page_performance_comparison.group')} ${letter(n)}`)
     setGroups((gs) => [...gs, g])
   }
   function remove(id) {
@@ -100,7 +105,7 @@ export default function CustomComparison({ pageRange }) {
   const rangeLabel = (r) => (!r ? '' : r.allTime ? t('page_performance_comparison.date_all_time') : r.from === r.to ? r.from : `${r.from} → ${r.to}`)
 
   const rows = useMemo(() => groups.map((g) => ({
-    id: g.id, label: `${t('page_performance_comparison.group')} ${letter(g.index)}`, color: GROUP_COLORS[g.index % GROUP_COLORS.length],
+    id: g.id, label: g.name, color: GROUP_COLORS[g.index % GROUP_COLORS.length],
     loading: results[g.id]?.loading, data: results[g.id]?.data ?? null, channel: g.channel,
     isBaseline: g.id === baselineId,
   })), [groups, results, baselineId, t])
@@ -124,13 +129,30 @@ export default function CustomComparison({ pageRange }) {
           return (
             <div key={g.id} className="rounded-xl border p-3 space-y-3" style={{ borderColor: isBase ? color : 'var(--table-divider)' }}>
               <div className="flex items-center gap-2">
-                <button onClick={() => update(g.id, { open: !g.open })} className="flex items-center gap-2 min-w-0 flex-1 text-left" aria-expanded={g.open}>
+                <button onClick={() => update(g.id, { open: !g.open })} className="shrink-0 p-1" aria-expanded={g.open} aria-label={t(g.open ? 'page_performance_comparison.collapse' : 'page_performance_comparison.expand')}>
                   <Chevron open={g.open} />
-                  <span className="text-xs font-bold text-white px-2.5 py-1 rounded-md whitespace-nowrap" style={{ background: isBase ? color : '#6B7280' }}>
-                    {t('page_performance_comparison.group')} {letter(g.index)}
-                  </span>
-                  {isBase && <span className="text-xs font-semibold text-emerald-600">{t('page_performance_comparison.baseline')}</span>}
                 </button>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {editingId === g.id ? (
+                    <input
+                      ref={(el) => { if (el && document.activeElement !== el) { el.focus(); el.select() } }}
+                      defaultValue={g.name} maxLength={30}
+                      onBlur={(e) => { update(g.id, { name: e.target.value.trim() || g.name }); setEditingId(null) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') { e.target.value = g.name; e.target.blur() } }}
+                      className="text-xs font-bold border border-gray-300 rounded-md px-2 py-1 w-40 max-w-full bg-transparent text-[var(--text-primary)]"
+                    />
+                  ) : (
+                    <>
+                      <span onClick={() => update(g.id, { open: !g.open })} className="text-xs font-bold text-white px-2.5 py-1 rounded-md truncate max-w-[160px] cursor-pointer" style={{ background: isBase ? color : '#6B7280' }} title={g.name}>
+                        {g.name}
+                      </span>
+                      <button onClick={() => setEditingId(g.id)} aria-label={t('page_performance_comparison.rename_group')} title={t('page_performance_comparison.rename_group')} className="p-1 rounded text-gray-400 hover:text-gray-700 shrink-0">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M3 17h3l9-9-3-3-9 9v3zM11 6l3 3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </>
+                  )}
+                  {isBase && <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">{t('page_performance_comparison.baseline')}</span>}
+                </div>
                 {!isBase && (
                   <button onClick={() => setBaselineId(g.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 whitespace-nowrap">
                     {t('page_performance_comparison.set_baseline')}
