@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"time"
@@ -236,4 +237,104 @@ func (h *PerformanceComparisonHandler) LocationShift(w http.ResponseWriter, r *h
 
 	sort.SliceStable(out[:len(out)-1], func(i, j int) bool { return out[i].TotalGMV > out[j].TotalGMV })
 	respondJSON(w, http.StatusOK, map[string]interface{}{"company_gmv": companyGMV, "website_days": webDays, "rows": out})
+}
+
+// customGroupResult is one Custom Performance Comparison group: every metric the results table
+// shows. A null means "not available for this group" (the UI prints "—", never 0).
+type customGroupResult struct {
+	Views         *int     `json:"views"`
+	AWTSeconds    *float64 `json:"awt_seconds"`
+	ACU           *float64 `json:"acu"`
+	Chats         *int     `json:"chats"`
+	Ord           int      `json:"ord"`
+	Qty           int      `json:"qty"`
+	GMV           float64  `json:"gmv"`
+	AOV           *float64 `json:"aov"`
+	GPM           *float64 `json:"gpm"`
+	AvgQty        *float64 `json:"avg_qty"`
+	AvgOrd        *float64 `json:"avg_ord"`
+	AvgGMV        *float64 `json:"avg_gmv"`
+	OperatingDays int      `json:"operating_days"`
+}
+
+// buildCustomGroup maps one aggregate + the group's Active Operating Days onto the table metrics:
+//   - Website has no broadcast, so Views / AWT / ACU / Chats / GPM are unavailable.
+//   - ALL keeps the broadcast metrics of its LIVE sessions, but GPM (GMV / Views) is unavailable
+//     because ALL's GMV also contains Website sales that no view could have produced.
+//   - LIVE keeps everything.
+//
+// AVG QTY / ORD / GMV divide by the group's own operating days, like the Performance Dashboard.
+func buildCustomGroup(channel string, total aggregateRow, days operatingDays) customGroupResult {
+	res := customGroupResult{Ord: total.Ord, Qty: total.Qty, GMV: total.GMV, AOV: total.AOV}
+	if channel != "website" {
+		res.Views, res.AWTSeconds, res.ACU, res.Chats = total.Views, total.AWTSeconds, total.ACU, total.Chats
+	}
+	if channel == "live" {
+		res.GPM = total.GPM
+	}
+	n := days.ForChannel(channel)
+	res.OperatingDays = n
+	if n > 0 {
+		d := float64(n)
+		aq, ao, ag := float64(total.Qty)/d, float64(total.Ord)/d, total.GMV/d
+		res.AvgQty, res.AvgOrd, res.AvgGMV = &aq, &ao, &ag
+	}
+	return res
+}
+
+// Custom serves GET /performance-comparison/custom for ONE comparison group (the page calls it
+// once per group). Filters: channel=all|live|website, location_id/host_id (LIVE only),
+// affiliate_id (Website only), from/to or all_time=1.
+func (h *PerformanceComparisonHandler) Custom(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	channel := q.Get("channel")
+	if channel != "live" && channel != "website" {
+		channel = "all"
+	}
+	// Re-build the query so each channel only carries the filters that belong to it; the shared
+	// aggregate/operating-day helpers read everything straight from the request.
+	clean := url.Values{"channel": {channel}}
+	if channel == "live" {
+		for _, k := range []string{"location_id", "host_id"} {
+			if v := q.Get(k); v != "" {
+				clean.Set(k, v)
+			}
+		}
+	}
+	if channel == "website" {
+		if v := q.Get("affiliate_id"); v != "" {
+			clean.Set("affiliate_id", v)
+		}
+	}
+	var from, to time.Time
+	switch {
+	case q.Get("all_time") == "1":
+		from, to = time.Unix(0, 0), time.Now().Add(24*time.Hour)
+	default:
+		clean.Set("from", q.Get("from"))
+		clean.Set("to", q.Get("to"))
+	}
+	r2 := r.Clone(r.Context())
+	r2.URL.RawQuery = clean.Encode()
+	if q.Get("all_time") != "1" {
+		var filtered bool
+		from, to, filtered = dateRange(r2)
+		if !filtered {
+			to = time.Now()
+			from = to.AddDate(0, 0, -6)
+		}
+	}
+
+	agg := &HostAnalyticsHandler{DB: h.DB}
+	total, _, err := agg.aggregate(r2, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch comparison group")
+		return
+	}
+	days, err := computeOperatingDays(r.Context(), h.DB, r2, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch operating days")
+		return
+	}
+	respondJSON(w, http.StatusOK, buildCustomGroup(channel, total, days))
 }

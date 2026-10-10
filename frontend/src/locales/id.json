@@ -1956,7 +1956,6 @@
     "subtitle": "Bandingkan performa penjualan antar periode, lokasi, dan shift",
     "section_location_shift": "Performa Lokasi & Shift",
     "section_custom": "Perbandingan Performa Kustom",
-    "custom_placeholder": "Segera hadir. Detail kebutuhan akan menyusul.",
     "collapse": "Tutup",
     "expand": "Buka",
     "expand_all": "Buka Semua",
@@ -1964,6 +1963,22 @@
     "all_locations_website": "Semua Lokasi + Website",
     "col_location_source": "LOKASI / SUMBER",
     "website": "Website",
-    "share_note": "Share % tingkat atas = porsi GMV perusahaan. Share % anak = porsi GMV Lokasi atau Website induknya. Website menampilkan \"—\" untuk LIVE; AVG-nya memakai hari operasi Website (sejak tanggal peluncuran)."
+    "share_note": "Share % tingkat atas = porsi GMV perusahaan. Share % anak = porsi GMV Lokasi atau Website induknya. Website menampilkan \"—\" untuk LIVE; AVG-nya memakai hari operasi Website (sejak tanggal peluncuran).",
+    "custom_subtitle": "Setiap grup punya filter sendiri. Tambah grup di bawah.",
+    "use_page_date": "Pakai Tanggal Halaman",
+    "date_all_time": "Semua Waktu",
+    "page_date_short": "Tanggal halaman",
+    "group": "Grup",
+    "baseline": "Baseline",
+    "set_baseline": "Jadikan Baseline",
+    "remove_group": "Hapus grup",
+    "add_comparison": "Tambah Perbandingan",
+    "all_locations": "Semua Lokasi",
+    "all_hosts": "Semua Host",
+    "entire_company": "Seluruh Perusahaan",
+    "col_group": "Grup",
+    "results_title": "Hasil Perbandingan",
+    "results_subtitle": "Grup di baris, metrik di kolom. Perubahan dibandingkan dengan Baseline.",
+    "results_note": "Metrik yang tidak dimiliki grup (mis. metrik LIVE untuk Website) tampil \"—\", bukan 0. Jika tidak ada grup dengan data LIVE, kolom khusus LIVE disembunyikan."
   }
 }

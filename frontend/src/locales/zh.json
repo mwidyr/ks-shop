@@ -1956,7 +1956,6 @@
     "subtitle": "比較不同期間、地點與班別的銷售績效",
     "section_location_shift": "地點與班別績效",
     "section_custom": "自訂績效比較",
-    "custom_placeholder": "即將推出，詳細需求將另行提供。",
     "collapse": "收合",
     "expand": "展開",
     "expand_all": "全部展開",
@@ -1964,6 +1963,22 @@
     "all_locations_website": "所有地點 + 網站",
     "col_location_source": "地點 / 來源",
     "website": "網站",
-    "share_note": "上層 Share % ＝ 佔公司總 GMV；下層 Share % ＝ 佔所屬地點或網站 GMV。網站的 LIVE 顯示「—」，其 AVG 以網站營運日（自上線日起）計算。"
+    "share_note": "上層 Share % ＝ 佔公司總 GMV；下層 Share % ＝ 佔所屬地點或網站 GMV。網站的 LIVE 顯示「—」，其 AVG 以網站營運日（自上線日起）計算。",
+    "custom_subtitle": "每組 Filter 獨立設定，向下增加 Group",
+    "use_page_date": "使用頁面日期",
+    "date_all_time": "全部時間",
+    "page_date_short": "頁面日期",
+    "group": "Group",
+    "baseline": "Baseline",
+    "set_baseline": "設為 Baseline",
+    "remove_group": "移除 Group",
+    "add_comparison": "新增比較",
+    "all_locations": "所有地點",
+    "all_hosts": "所有主播",
+    "entire_company": "全公司",
+    "col_group": "Group",
+    "results_title": "比較結果",
+    "results_subtitle": "Group 向下排列、Metrics 橫向排列，數值與 Baseline 比較。",
+    "results_note": "Group 沒有的指標（例如 Website 的 LIVE 指標）以「—」顯示，不當作 0；若所有 Group 都沒有 LIVE 資料，LIVE 專屬欄位自動隱藏。"
   }
 }

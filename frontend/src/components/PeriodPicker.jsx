@@ -56,19 +56,27 @@ const periodPresets = [
   { key: 'last_week', labelKey: 'page_performance_dashboard.period_last_week', range: lastWeekRange },
   { key: 'this_month', labelKey: 'page_performance_dashboard.period_this_month', range: thisMonthRange },
   { key: 'last_month', labelKey: 'page_performance_dashboard.period_last_month', range: lastMonthRange },
+  { key: 'all', labelKey: 'page_performance_comparison.date_all_time', allTime: true, range: () => ({ from: '', to: '', allTime: true }) },
   { key: 'custom', labelKey: 'shared.date_custom' },
 ]
 
 // Shared period selector (Performance Dashboard layout): Today / Yesterday / 7 / 14 / 30 Days /
 // This Week / Last Week / This Month / Last Month / Custom. Emits {from, to} (ISO dates).
-export default function PeriodPicker({ value, onChange, defaultPreset = '7d' }) {
+//
+// Optional extras (used by Custom Performance Comparison groups): `allowAllTime` adds an "All Time"
+// chip, `onInherit` adds a leading "Use Page Date" chip (active while `inherited`), and
+// `onPresetChange(key)` lets the parent remember the chosen chip across unmounts.
+export default function PeriodPicker({ value, onChange, defaultPreset = '7d', allowAllTime = false, inherited = false, onInherit, onPresetChange }) {
   const { t } = useTranslation()
   const [active, setActive] = useState(defaultPreset)
   const [customFrom, setCustomFrom] = useState(value.from)
   const [customTo, setCustomTo] = useState(value.to)
+  const shown = inherited ? 'inherit' : active
+  const presets = allowAllTime ? periodPresets : periodPresets.filter((p) => !p.allTime)
 
   function selectPreset(preset) {
     setActive(preset.key)
+    onPresetChange?.(preset.key)
     if (preset.key === 'custom') return
     const range = preset.range()
     setCustomFrom(range.from)
@@ -78,18 +86,28 @@ export default function PeriodPicker({ value, onChange, defaultPreset = '7d' }) 
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {periodPresets.map((p) => (
+      {onInherit && (
+        <button
+          onClick={() => { onPresetChange?.('inherit'); onInherit() }}
+          className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
+            shown === 'inherit' ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          {t('page_performance_comparison.use_page_date')}
+        </button>
+      )}
+      {presets.map((p) => (
         <button
           key={p.key}
           onClick={() => selectPreset(p)}
           className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${
-            active === p.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+            shown === p.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
           }`}
         >
           {t(p.labelKey)}
         </button>
       ))}
-      {active === 'custom' && (
+      {shown === 'custom' && (
         <div className="flex items-center gap-2">
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
           <span className="text-gray-400 text-sm">{t('shared.date_range_separator')}</span>

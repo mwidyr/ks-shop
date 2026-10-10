@@ -32,8 +32,10 @@ func salesChannelWhere(r *http.Request, alias string, startArg int) (whereSQL st
 		case "self_service":
 			whereSQL += " AND " + alias + ".affiliate_id IS NULL AND " + alias + ".website_source = 'self_service'"
 		default:
+			// A Master Affiliate also owns the orders of its sub-affiliates (same roll-up as the
+			// Performance Comparison page).
 			args = append(args, aff)
-			whereSQL += " AND " + alias + ".affiliate_id = $" + strconv.Itoa(n)
+			whereSQL += " AND " + alias + ".affiliate_id IN (SELECT id FROM affiliates WHERE id = $" + strconv.Itoa(n) + " OR parent_affiliate_id = $" + strconv.Itoa(n) + ")"
 			n++
 		}
 	}

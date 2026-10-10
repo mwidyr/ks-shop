@@ -4,6 +4,7 @@ import { getLocationShift } from '../api/performanceComparison'
 import { formatCurrency } from '../utils/format'
 import PeriodPicker, { daysAgoRange } from '../components/PeriodPicker'
 import { cardClasses, Metric } from '../components/Table'
+import CustomComparison from '../components/CustomComparison'
 
 const fmtInt = (n) => (n == null ? '—' : Number(n).toLocaleString())
 const fmtDec = (n) => (n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
@@ -141,10 +142,7 @@ export default function PerformanceComparison() {
         )}
       </div>
 
-      <div className={`${cardClasses} p-5`}>
-        <h2 className="font-bold text-[var(--text-primary)]">{t('page_performance_comparison.section_custom')}</h2>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">{t('page_performance_comparison.custom_placeholder')}</p>
-      </div>
+      <CustomComparison pageRange={range} />
     </div>
   )
 }

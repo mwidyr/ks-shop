@@ -353,6 +353,7 @@ func main() {
 			r.With(view("host_performance_analytics")).Get("/host-analytics/period-summary", hostAnalyticsH.PeriodSummary)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/sales-distribution", hostAnalyticsH.SalesDistribution)
 			r.With(view("performance_comparison")).Get("/performance-comparison/location-shift", perfComparisonH.LocationShift)
+			r.With(view("performance_comparison")).Get("/performance-comparison/custom", perfComparisonH.Custom)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
 

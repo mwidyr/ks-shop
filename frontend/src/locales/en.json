@@ -1956,7 +1956,6 @@
     "subtitle": "Compare sales performance across periods, locations and shifts",
     "section_location_shift": "Location & Shift Performance",
     "section_custom": "Custom Performance Comparison",
-    "custom_placeholder": "Coming soon. Detailed requirements will follow.",
     "collapse": "Collapse",
     "expand": "Expand",
     "expand_all": "Expand All",
@@ -1964,6 +1963,22 @@
     "all_locations_website": "All Locations + Website",
     "col_location_source": "LOCATION / SOURCE",
     "website": "Website",
-    "share_note": "Top-level Share % = share of company GMV. Child Share % = share of its parent Location or Website GMV. Website shows \"—\" for LIVE; its AVG uses Website operating days (since the launch date)."
+    "share_note": "Top-level Share % = share of company GMV. Child Share % = share of its parent Location or Website GMV. Website shows \"—\" for LIVE; its AVG uses Website operating days (since the launch date).",
+    "custom_subtitle": "Each group has its own filters. Add groups below.",
+    "use_page_date": "Use Page Date",
+    "date_all_time": "All Time",
+    "page_date_short": "Page date",
+    "group": "Group",
+    "baseline": "Baseline",
+    "set_baseline": "Set Baseline",
+    "remove_group": "Remove group",
+    "add_comparison": "Add Comparison",
+    "all_locations": "All Locations",
+    "all_hosts": "All Hosts",
+    "entire_company": "Entire Company",
+    "col_group": "Group",
+    "results_title": "Comparison Results",
+    "results_subtitle": "Groups down the rows, metrics across the columns. Changes are compared with the Baseline.",
+    "results_note": "Metrics a group does not have (e.g. LIVE metrics for Website) show \"—\", not 0. If no group has LIVE data, the LIVE-only columns are hidden."
   }
 }
