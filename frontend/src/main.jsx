@@ -7,9 +7,11 @@ import { MasterDataProvider } from './context/MasterDataContext.jsx'
 import './i18n'
 import { applyFontScale, getFontScale } from './utils/fontScale'
 import { applyDarkMode, getDarkMode } from './utils/darkMode'
+import { startNumericCellAlignment } from './utils/numericCells'
 
 applyFontScale(getFontScale())
 applyDarkMode(getDarkMode())
+startNumericCellAlignment()
 
 // Now that tab access is real (see role_tab_access / RequireTabView/Edit), a 403 from our own
 // API is an expected outcome for a role browsing outside its allowed tabs (e.g. via a direct

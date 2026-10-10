@@ -823,7 +823,8 @@
     "step2_start_broadcast": "Langkah 2 — Mulai Siaran",
     "title": "Panel Siaran",
     "live_data_code_label": "Kode Upload Data LIVE",
-    "live_data_code_rotates": "(refresh dalam {{minutes}} menit)"
+    "live_data_code_rotates": "(refresh dalam {{minutes}} menit)",
+    "upload_live_data_button": "Upload Data LIVE"
   },
   "page_payouts": {
     "description": "Jadwal dan riwayat pencairan dana ke rekening seller.",

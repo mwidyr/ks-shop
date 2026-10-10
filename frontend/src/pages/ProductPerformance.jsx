@@ -6,7 +6,8 @@ import { listHosts } from '../api/hosts'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
-import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import { presetRange } from '../components/DateRangePicker'
+import PeriodPicker from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -49,17 +50,15 @@ export default function ProductPerformance() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className={`${cardClasses} p-4 flex items-center justify-between flex-wrap gap-3`}>
+      <div className={`${cardClasses} p-4 space-y-3`}>
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          locationId={locationId} onLocationChange={setLocationId} locations={locations}
+          hostId={hostId} onHostChange={setHostId} hosts={hosts}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
+        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
         <ProductSearchBox products={products} sku={sku} onPick={setSku} />
-        <div className="flex items-center gap-2 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <SalesChannelFilter
-            channel={channel} onChannelChange={setChannel}
-            locationId={locationId} onLocationChange={setLocationId} locations={locations}
-            hostId={hostId} onHostChange={setHostId} hosts={hosts}
-            affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
-          />
-        </div>
       </div>
 
       {!sku ? (

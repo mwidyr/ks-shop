@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getHostCategoryLeaderboard } from '../api/reports'
 import { listAffiliates } from '../api/affiliates'
-import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import { presetRange } from '../components/DateRangePicker'
+import PeriodPicker from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 
 function CategoryCard({ category }) {
@@ -56,15 +57,13 @@ export default function HostCategoryLeaderboard() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
+      <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
+        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
         <p className="text-sm text-gray-500">{t('page_host_category_leaderboard.subtitle')}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <SalesChannelFilter
-            channel={channel} onChannelChange={setChannel}
-            affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
-          />
-        </div>
       </div>
 
       {loading || !data ? (

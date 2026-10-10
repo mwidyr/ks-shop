@@ -25,7 +25,7 @@
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       :root {
         --font-scale: 1;
@@ -67,6 +67,9 @@
       }
       html { font-size: calc(16px * var(--font-scale)); }
       body { font-family: 'Poppins', sans-serif; background-color: var(--table-page-bg); }
+      /* Numeric table cells (see utils/numericCells.js): Poppins has no tabular digits, so numbers use
+         Inter with tabular-nums to line up digit-for-digit; right-aligned. Headers are unchanged. */
+      td.num-cell { text-align: right; font-family: 'Inter', 'Poppins', sans-serif; font-variant-numeric: tabular-nums; }
       html:not(.dark) .bg-gray-50 { background-color: var(--table-page-bg); }
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-thumb { background: #D7899F; border-radius: 4px; }

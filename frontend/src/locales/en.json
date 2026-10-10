@@ -823,7 +823,8 @@
     "step2_start_broadcast": "Step 2 — Start Broadcast",
     "title": "Live Panel",
     "live_data_code_label": "LIVE Data Upload code",
-    "live_data_code_rotates": "(refreshes in {{minutes}} min)"
+    "live_data_code_rotates": "(refreshes in {{minutes}} min)",
+    "upload_live_data_button": "Upload LIVE Data"
   },
   "page_payouts": {
     "description": "Schedule and history of fund payouts to the seller's account.",

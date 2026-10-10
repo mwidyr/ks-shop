@@ -4,7 +4,8 @@ import { getProductColorPair } from '../api/reports'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
-import DateRangePicker, { presetRange } from '../components/DateRangePicker'
+import { presetRange } from '../components/DateRangePicker'
+import PeriodPicker from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -95,16 +96,14 @@ export default function ProductColorPair() {
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className={`${cardClasses} p-4 flex items-center justify-between flex-wrap gap-3`}>
+      <div className={`${cardClasses} p-4 space-y-3`}>
+        <SalesChannelFilter
+          channel={channel} onChannelChange={setChannel}
+          hostId={hostId} onHostChange={setHostId} hosts={hosts}
+          affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
+        />
+        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
         <ProductSearchBox products={products} sku={skuA} onPick={setSkuA} placeholder={t('page_product_color_pair.pick_product_a')} />
-        <div className="flex items-center gap-2 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <SalesChannelFilter
-            channel={channel} onChannelChange={setChannel}
-            hostId={hostId} onHostChange={setHostId} hosts={hosts}
-            affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
-          />
-        </div>
       </div>
 
       {!skuA ? (

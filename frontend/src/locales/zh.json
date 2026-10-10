@@ -823,7 +823,8 @@
     "step2_start_broadcast": "步驟 2 — 開始直播",
     "title": "直播面板",
     "live_data_code_label": "LIVE 數據上傳驗證碼",
-    "live_data_code_rotates": "（{{minutes}} 分鐘後更新）"
+    "live_data_code_rotates": "（{{minutes}} 分鐘後更新）",
+    "upload_live_data_button": "上傳 LIVE 數據"
   },
   "page_payouts": {
     "description": "撥款至賣家帳戶的排程與紀錄。",
