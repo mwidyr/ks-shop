@@ -48,19 +48,36 @@ function unmark(td) {
 const isDash = (txt) => /^[—–-]$/.test(txt.trim())
 const isBlank = (txt) => txt.trim() === ''
 
-// Aligns the headers of one table to their columns (see the note at the top).
+// Aligns the headers of one table to their columns (see the note at the top). Columns are matched
+// by grid position, so tables with colSpan headers or expandable / "no data" rows are covered too.
+// A column counts as numeric when most of its filled cells are right-aligned (marked `num-cell`,
+// or aligned right by the page itself); its header then goes right, even if the page wrote
+// `text-left` on it. Centered headers (grids such as the Heatmap) are never touched.
+const isRightAligned = (c) => (c.classList.contains('num-cell') && !c.dataset.numDash) || getComputedStyle(c).textAlign === 'right'
+const MAX_SAMPLE = 40
+
 function alignHeaders(table) {
   const headRows = table.tHead?.rows
   if (!headRows || !headRows.length) return
   const headRow = headRows[headRows.length - 1]
-  const bodyRows = [...table.querySelectorAll('tbody > tr')].filter((r) => r.cells.length === headRow.cells.length && [...r.cells].every((c) => c.colSpan === 1))
-  if (!bodyRows.length || [...headRow.cells].some((c) => c.colSpan !== 1)) return
-  ;[...headRow.cells].forEach((th, i) => {
-    if (HAS_OWN_ALIGN.test(th.className)) return
-    const cells = bodyRows.map((r) => r.cells[i])
-    const real = cells.filter((c) => !isDash(c.textContent || '') && !isBlank(c.textContent || ''))
-    const numeric = real.filter((c) => c.classList.contains('num-cell') && !c.dataset.numDash)
-    const isNumCol = numeric.length > 0 && numeric.length === real.length
+  const columns = new Map() // grid column -> body cells that span exactly that column
+  table.querySelectorAll('tbody > tr').forEach((r) => {
+    let col = 0
+    ;[...r.cells].forEach((c) => {
+      if (c.colSpan === 1) { if (!columns.has(col)) columns.set(col, []); columns.get(col).push(c) }
+      col += c.colSpan
+    })
+  })
+  let col = 0
+  ;[...headRow.cells].forEach((th) => {
+    const start = col
+    col += th.colSpan
+    if (th.colSpan !== 1) return
+    if (/(^|\s)text-(center|right)(\s|$)/.test(th.className)) return
+    const cells = columns.get(start) || []
+    const real = cells.filter((c) => !isDash(c.textContent || '') && !isBlank(c.textContent || '')).slice(0, MAX_SAMPLE)
+    const right = real.filter(isRightAligned)
+    const isNumCol = real.length > 0 && right.length >= real.length * 0.75
     th.classList.toggle('num-head', isNumCol)
     cells.forEach((c) => {
       if (isNumCol && isDash(c.textContent || '') && !HAS_OWN_ALIGN.test(c.className) && !c.querySelector(HAS_CONTROL)) {
