@@ -69,6 +69,7 @@
       body { font-family: 'Poppins', sans-serif; background-color: var(--table-page-bg); }
       /* Numeric table cells (see utils/numericCells.js): Poppins has no tabular digits, so numbers use
          Inter with tabular-nums to line up digit-for-digit; right-aligned. Headers are unchanged. */
+      th.num-head { text-align: right; }
       td.num-cell { text-align: right; font-family: 'Inter', 'Poppins', sans-serif; font-variant-numeric: tabular-nums; }
       html:not(.dark) .bg-gray-50 { background-color: var(--table-page-bg); }
       ::-webkit-scrollbar { width: 8px; height: 8px; }

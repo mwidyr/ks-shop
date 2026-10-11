@@ -7,6 +7,7 @@ import { formatCurrency } from '../utils/format'
 import { IconClose } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { jakartaIsoDate } from '../utils/jakartaDate'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 
 // The left block (Shift | Host | QTY) is its own fixed, non-scrolling table next to the
 // horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
@@ -23,81 +24,6 @@ const BODY_ROW_H = 28
 // wants "Morning/Middle/Night" in all 3 languages here, including "Night" for what's stored as
 // 'evening' everywhere else in the schema/UI.
 const SHIFT_LABELS = { morning: 'Morning', middle: 'Middle', evening: 'Night' }
-const isoDate = jakartaIsoDate
-function startOfWeek(d) {
-  const day = d.getDay()
-  const start = new Date(d)
-  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1))
-  return start
-}
-function daysAgoRange(days) {
-  const to = new Date(); const from = new Date()
-  from.setDate(from.getDate() - days)
-  return { from: isoDate(from), to: isoDate(to) }
-}
-function singleDayRange(daysAgo) {
-  const d = new Date(); d.setDate(d.getDate() - daysAgo)
-  return { from: isoDate(d), to: isoDate(d) }
-}
-function thisWeekRange() { const now = new Date(); return { from: isoDate(startOfWeek(now)), to: isoDate(now) } }
-function lastWeekRange() {
-  const thisStart = startOfWeek(new Date())
-  const lastEnd = new Date(thisStart); lastEnd.setDate(lastEnd.getDate() - 1)
-  const lastStart = new Date(lastEnd); lastStart.setDate(lastStart.getDate() - 6)
-  return { from: isoDate(lastStart), to: isoDate(lastEnd) }
-}
-function thisMonthRange() { const now = new Date(); return { from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: isoDate(now) } }
-function lastMonthRange() {
-  const now = new Date()
-  const end = new Date(now.getFullYear(), now.getMonth(), 0)
-  return { from: isoDate(new Date(end.getFullYear(), end.getMonth(), 1)), to: isoDate(end) }
-}
-
-const periodPresets = [
-  { key: 'today', labelKey: 'shared.date_today', range: () => daysAgoRange(0) },
-  { key: 'yesterday', labelKey: 'shared.date_yesterday', range: () => singleDayRange(1) },
-  { key: '7d', labelKey: 'shared.date_7d', range: () => daysAgoRange(6) },
-  { key: '14d', labelKey: 'shared.date_14d', range: () => daysAgoRange(13) },
-  { key: '30d', labelKey: 'shared.date_30d', range: () => daysAgoRange(29) },
-  { key: 'this_week', labelKey: 'page_performance_dashboard.period_this_week', range: thisWeekRange },
-  { key: 'last_week', labelKey: 'page_performance_dashboard.period_last_week', range: lastWeekRange },
-  { key: 'this_month', labelKey: 'page_performance_dashboard.period_this_month', range: thisMonthRange },
-  { key: 'last_month', labelKey: 'page_performance_dashboard.period_last_month', range: lastMonthRange },
-  { key: 'custom', labelKey: 'shared.date_custom' },
-]
-
-function PeriodPicker({ value, onChange, active, onActiveChange }) {
-  const { t } = useTranslation()
-  const [customFrom, setCustomFrom] = useState(value.from)
-  const [customTo, setCustomTo] = useState(value.to)
-  function selectPreset(p) {
-    onActiveChange(p.key)
-    if (p.key === 'custom') return
-    const range = p.range()
-    setCustomFrom(range.from); setCustomTo(range.to)
-    onChange(range)
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {periodPresets.map((p) => (
-        <button key={p.key} onClick={() => selectPreset(p)}
-          className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${active === p.key ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}>
-          {t(p.labelKey)}
-        </button>
-      ))}
-      {active === 'custom' && (
-        <div className="flex items-center gap-2">
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          <span className="text-gray-400 text-sm">{t('shared.date_range_separator')}</span>
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          <button onClick={() => onChange({ from: customFrom, to: customTo })} className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
-            {t('shared.apply')}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
 
 const NUM_SLOTS = 48
 function slotLabel(i) {
@@ -246,12 +172,11 @@ export default function Heatmap() {
   const { t } = useTranslation()
   const [locations, setLocations] = useState([])
   const [locationId, setLocationId] = useState('')
-  const [range, setRange] = useState(daysAgoRange(0))
+  const [range, setRange] = useSharedRange()
   const [summary, setSummary] = useState(null)
   const [grid, setGrid] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeCell, setActiveCell] = useState(null)
-  const [activePreset, setActivePreset] = useState('today')
   const [nowTick, setNowTick] = useState(0)
   useEffect(() => { listLocations().then(setLocations) }, [])
 
@@ -265,7 +190,8 @@ export default function Heatmap() {
   // nowTick (unused directly) exists purely to force this re-render every 60s, so nowSlot below
   // stays current as time passes while the page is open.
   void nowTick
-  const now = activePreset === 'today' ? jakartaNow() : null
+  const todayIso = jakartaIsoDate(new Date())
+  const now = range.from === todayIso && range.to === todayIso ? jakartaNow() : null
   const nowSlot = now ? now.slot : null
 
   useEffect(() => {
@@ -285,7 +211,7 @@ export default function Heatmap() {
           <option value="">{t('page_performance_dashboard.all_locations')}</option>
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <PeriodPicker value={range} onChange={setRange} active={activePreset} onActiveChange={setActivePreset} />
+        <PeriodPicker shared value={range} onChange={setRange} />
         <p className="text-sm font-semibold text-[var(--text-primary)]">{range.from === range.to ? range.from : `${range.from} – ${range.to}`}</p>
       </div>
 

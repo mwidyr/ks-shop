@@ -95,7 +95,7 @@ export default function CustomComparison({ pageRange }) {
       parts.push(g.hostId ? hosts.find((h) => String(h.id) === String(g.hostId))?.name : t('page_performance_comparison.all_hosts'))
     } else if (g.channel === 'website') {
       const a = g.affiliateId
-      parts.push(a === '' ? t('shared.all_affiliates') : a === 'cs' ? t('shared.website_created_by_cs') : a === 'self_service' ? t('shared.website_self_service') : affiliates.find((x) => String(x.id) === String(a))?.name)
+      parts.push(a === '' ? t('shared.all_website') : a === 'affiliates' ? t('shared.all_affiliates') : a === 'cs' ? t('shared.website_created_by_cs') : a === 'self_service' ? t('shared.website_self_service') : affiliates.find((x) => String(x.id) === String(a))?.name)
     } else {
       parts.push(t('page_performance_comparison.entire_company'))
     }

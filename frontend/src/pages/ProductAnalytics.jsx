@@ -5,8 +5,7 @@ import { listHosts } from '../api/hosts'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
-import { presetRange } from '../components/DateRangePicker'
-import PeriodPicker from '../components/PeriodPicker'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -30,7 +29,7 @@ function colorBreakdownFor(byVariant, productSku, productQty) {
 export default function ProductAnalytics() {
   const { t } = useTranslation()
   const { translateColor, translateCategory } = useMasterData()
-  const [range, setRange] = useState(presetRange(29))
+  const [range, setRange] = useSharedRange()
   const [hostId, setHostId] = useState('')
   const [hosts, setHosts] = useState([])
   const [locationId, setLocationId] = useState('')
@@ -79,7 +78,7 @@ export default function ProductAnalytics() {
           hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
-        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
+        <PeriodPicker shared value={range} onChange={setRange} />
       </div>
 
       {loading || !data ? (

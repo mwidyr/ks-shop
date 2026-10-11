@@ -4,8 +4,7 @@ import { getProductColorPair } from '../api/reports'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
-import { presetRange } from '../components/DateRangePicker'
-import PeriodPicker from '../components/PeriodPicker'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import ProductSearchBox from '../components/ProductSearchBox'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -67,7 +66,7 @@ function PairedProductRow({ row, t }) {
 // breakdown, powered by the backend's productColorPairAuto (reports.go).
 export default function ProductColorPair() {
   const { t } = useTranslation()
-  const [range, setRange] = useState(presetRange(29))
+  const [range, setRange] = useSharedRange()
   const [products, setProducts] = useState([])
   const [skuA, setSkuA] = useState('')
   const [channel, setChannel] = useState('all')
@@ -102,7 +101,7 @@ export default function ProductColorPair() {
           hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
-        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
+        <PeriodPicker shared value={range} onChange={setRange} />
         <ProductSearchBox products={products} sku={skuA} onPick={setSkuA} placeholder={t('page_product_color_pair.pick_product_a')} />
       </div>
 

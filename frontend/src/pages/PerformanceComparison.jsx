@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getLocationShift } from '../api/performanceComparison'
 import { formatCurrency } from '../utils/format'
-import PeriodPicker, { daysAgoRange } from '../components/PeriodPicker'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import { cardClasses, Metric } from '../components/Table'
 import CustomComparison from '../components/CustomComparison'
 
@@ -56,7 +56,7 @@ function Row({ row, label, child, open, onToggle }) {
 
 export default function PerformanceComparison() {
   const { t } = useTranslation()
-  const [range, setRange] = useState(daysAgoRange(6))
+  const [range, setRange] = useSharedRange()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sectionOpen, setSectionOpen] = useState(false) // collapsed by default
@@ -87,7 +87,7 @@ export default function PerformanceComparison() {
           <h1 className="text-lg font-bold text-[var(--text-primary)]">{t('page_performance_comparison.title')}</h1>
           <p className="text-xs text-[var(--text-secondary)]">{t('page_performance_comparison.subtitle')}</p>
         </div>
-        <PeriodPicker value={range} onChange={setRange} />
+        <PeriodPicker shared value={range} onChange={setRange} />
       </div>
 
       <div className={`${cardClasses} overflow-hidden`}>

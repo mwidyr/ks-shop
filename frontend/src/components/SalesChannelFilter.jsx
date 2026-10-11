@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 // own list source); selecting Website reveals the Affiliate select. Any select whose list prop
 // is omitted is simply not rendered, so pages that don't have e.g. a Location filter can still
 // use this component for just the channel toggle + Affiliate select.
+const INDENT = '\u00A0\u00A0\u00A0\u00A0'
+
 export default function SalesChannelFilter({
   channel, onChannelChange,
   locationId, onLocationChange, locations,
@@ -39,10 +41,12 @@ export default function SalesChannelFilter({
       )}
       {channel === 'website' && affiliates && onAffiliateChange && (
         <select value={affiliateId ?? ''} onChange={(e) => onAffiliateChange(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-          <option value="">{t('shared.all_affiliates')}</option>
-          <option value="cs">{t('shared.website_created_by_cs')}</option>
-          <option value="self_service">{t('shared.website_self_service')}</option>
-          {affiliates.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {/* Website > (All Website | All Affiliates) > individual sources / affiliates */}
+          <option value="">{t('shared.all_website')}</option>
+          <option value="cs">{INDENT}{t('shared.website_created_by_cs')}</option>
+          <option value="self_service">{INDENT}{t('shared.website_self_service')}</option>
+          <option value="affiliates">{t('shared.all_affiliates')}</option>
+          {affiliates.map((a) => <option key={a.id} value={a.id}>{INDENT}{a.name}</option>)}
         </select>
       )}
     </div>

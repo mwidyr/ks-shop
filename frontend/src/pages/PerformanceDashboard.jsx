@@ -7,7 +7,7 @@ import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
-import PeriodPicker, { daysAgoRange } from '../components/PeriodPicker'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 
 const statMetricType = { QTY: 'qty', ORD: 'ord', GMV: 'gmv' }
 
@@ -71,7 +71,7 @@ export default function PerformanceDashboard() {
   const [channel, setChannel] = useState('all')
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
-  const [range, setRange] = useState(daysAgoRange(6))
+  const [range, setRange] = useSharedRange()
   const [summary, setSummary] = useState(null)
   const [ranking, setRanking] = useState([])
   const [perfData, setPerfData] = useState([])
@@ -124,7 +124,7 @@ export default function PerformanceDashboard() {
           hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
-        <PeriodPicker value={range} onChange={setRange} />
+        <PeriodPicker shared value={range} onChange={setRange} />
       </div>
 
       {dashboardTitle && (

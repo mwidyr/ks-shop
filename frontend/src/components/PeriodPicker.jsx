@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getSharedPeriod, setSharedPeriod } from '../utils/sharedPeriod'
 import { useTranslation } from 'react-i18next'
 import { jakartaIsoDate } from '../utils/jakartaDate'
 
@@ -56,9 +57,22 @@ const periodPresets = [
   { key: 'last_week', labelKey: 'page_performance_dashboard.period_last_week', range: lastWeekRange },
   { key: 'this_month', labelKey: 'page_performance_dashboard.period_this_month', range: thisMonthRange },
   { key: 'last_month', labelKey: 'page_performance_dashboard.period_last_month', range: lastMonthRange },
-  { key: 'all', labelKey: 'page_performance_comparison.date_all_time', allTime: true, range: () => ({ from: '', to: '', allTime: true }) },
+  { key: 'all', labelKey: 'page_performance_comparison.date_all_time', allTime: true, range: () => ({ from: '1970-01-01', to: isoDate(new Date()), allTime: true }) },
   { key: 'custom', labelKey: 'shared.date_custom' },
 ]
+
+// Initial range for a page that uses the shared filter: the stored chip re-evaluated for today
+// (so "Today" never goes stale across midnight), or "Today" when nothing was picked yet.
+export function initialSharedRange() {
+  const s = getSharedPeriod()
+  if (!s) return daysAgoRange(0)
+  if (s.key === 'custom') return { from: s.from, to: s.to }
+  const p = periodPresets.find((x) => x.key === s.key)
+  return p?.range ? p.range() : daysAgoRange(0)
+}
+export function useSharedRange() {
+  return useState(initialSharedRange)
+}
 
 // Shared period selector (Performance Dashboard layout): Today / Yesterday / 7 / 14 / 30 Days /
 // This Week / Last Week / This Month / Last Month / Custom. Emits {from, to} (ISO dates).
@@ -66,9 +80,9 @@ const periodPresets = [
 // Optional extras (used by Custom Performance Comparison groups): `allowAllTime` adds an "All Time"
 // chip, `onInherit` adds a leading "Use Page Date" chip (active while `inherited`), and
 // `onPresetChange(key)` lets the parent remember the chosen chip across unmounts.
-export default function PeriodPicker({ value, onChange, defaultPreset = '7d', allowAllTime = false, inherited = false, onInherit, onPresetChange }) {
+export default function PeriodPicker({ value, onChange, defaultPreset = '7d', shared = false, allowAllTime = false, inherited = false, onInherit, onPresetChange }) {
   const { t } = useTranslation()
-  const [active, setActive] = useState(defaultPreset)
+  const [active, setActive] = useState(shared ? (getSharedPeriod()?.key ?? 'today') : defaultPreset)
   const [customFrom, setCustomFrom] = useState(value.from)
   const [customTo, setCustomTo] = useState(value.to)
   const shown = inherited ? 'inherit' : active
@@ -81,6 +95,7 @@ export default function PeriodPicker({ value, onChange, defaultPreset = '7d', al
     const range = preset.range()
     setCustomFrom(range.from)
     setCustomTo(range.to)
+    if (shared) setSharedPeriod({ key: preset.key, ...range })
     onChange(range)
   }
 
@@ -112,7 +127,7 @@ export default function PeriodPicker({ value, onChange, defaultPreset = '7d', al
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
           <span className="text-gray-400 text-sm">{t('shared.date_range_separator')}</span>
           <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          <button onClick={() => onChange({ from: customFrom, to: customTo })} className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
+          <button onClick={() => { if (shared) setSharedPeriod({ key: 'custom', from: customFrom, to: customTo }); onChange({ from: customFrom, to: customTo }) }} className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
             {t('shared.apply')}
           </button>
         </div>

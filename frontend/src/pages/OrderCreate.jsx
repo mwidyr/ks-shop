@@ -5,7 +5,7 @@ import { createOrder } from '../api/orders'
 import { validatePromotion } from '../api/promotions'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
-import { listLiveSessions } from '../api/liveSessions'
+import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { getShippingSettings } from '../api/settings'
 import { formatCurrency } from '../utils/format'
@@ -17,8 +17,8 @@ import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 const emptyOrder = () => ({
   salesChannel: 'live',
   affiliateId: '',
+  locationId: '',
   hostId: '',
-  liveSessionId: '',
   customer: null,
   pickupChainId: '',
   pickupStoreName: '',
@@ -59,11 +59,13 @@ function customerIsResolved(customer) {
   return Boolean(customer.name && customer.phone)
 }
 
-function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shippingSettings, onUpdate, saving, onCancel }) {
+function OrderForm({ order, hosts, locations, pickupChains, affiliates, shippingSettings, onUpdate, saving, onCancel }) {
   const { t } = useTranslation()
   const [showPicker, setShowPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
+  // Hosts follow the Location chosen above (a host's Location is set in Host Management).
+  const visibleHosts = order.locationId ? hosts.filter((h) => String(h.location_id) === String(order.locationId)) : hosts
   const selectedChain = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
   const subtotal = order.items.reduce((sum, it) => sum + it.price * it.qty, 0)
@@ -173,18 +175,18 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shipp
       {order.salesChannel === 'live' ? (
         <>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
-            <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
-              <option value="">{t('page_order_create.select_host_option')}</option>
-              {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.location_label')}</label>
+            <select value={order.locationId} onChange={(e) => onUpdate('locationId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="">{t('page_order_create.all_locations_option')}</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.live_session_label')}</label>
-            <select value={order.liveSessionId} onChange={(e) => onUpdate('liveSessionId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-              <option value="">{t('page_order_create.no_session_option')}</option>
-              {liveSessions.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.host_name})</option>)}
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
+            <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+              <option value="">{t('page_order_create.select_host_option')}</option>
+              {visibleHosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
           </div>
         </>
@@ -363,7 +365,7 @@ function OrderForm({ order, hosts, pickupChains, liveSessions, affiliates, shipp
                   title={t('page_order_create.host_label')}
                   className="text-xs border border-gray-300 rounded-lg px-2 py-1 shrink-0"
                 >
-                  {hosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                  {hosts.filter((h) => !order.locationId || String(h.location_id) === String(order.locationId) || String(h.id) === String(it.hostId ?? order.hostId)).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                 </select>}
                 <span className="text-sm font-semibold text-gray-700 shrink-0">{formatCurrency(it.price * it.qty)}</span>
                 <button type="button" onClick={() => removeItem(it.variantId)} className="text-xs text-red-600 hover:underline shrink-0">{t('common.delete')}</button>
@@ -410,7 +412,7 @@ export default function OrderCreate() {
   const navigate = useNavigate()
   const [hosts, setHosts] = useState([])
   const [pickupChains, setPickupChains] = useState([])
-  const [liveSessions, setLiveSessions] = useState([])
+  const [locations, setLocations] = useState([])
   const [affiliates, setAffiliates] = useState([])
   const [shippingSettings, setShippingSettings] = useState(null)
   const [order, setOrder] = useState(emptyOrder())
@@ -420,13 +422,18 @@ export default function OrderCreate() {
   useEffect(() => {
     listHosts().then(setHosts)
     listPickupChains().then(setPickupChains)
-    listLiveSessions({ status: 'live' }).then(setLiveSessions)
+    listLocations().then(setLocations)
     listAffiliates().then(setAffiliates)
     getShippingSettings().then(setShippingSettings)
   }, [])
 
   function updateOrder(field, value) {
-    setOrder((o) => ({ ...o, [field]: value }))
+    setOrder((o) => {
+      const next = { ...o, [field]: value }
+      // Picking another Location drops a host that doesn't belong to it.
+      if (field === 'locationId' && value && o.hostId && String(hosts.find((h) => String(h.id) === String(o.hostId))?.location_id) !== String(value)) next.hostId = ''
+      return next
+    })
   }
 
   function validate() {
@@ -459,7 +466,7 @@ export default function OrderCreate() {
         pickup_chain_id: Number(order.pickupChainId),
         pickup_store_name: order.pickupStoreName,
         pickup_store_code: order.pickupStoreCode,
-        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId) || 0, variant_id: it.variantId, qty: it.qty, live_session_id: order.liveSessionId ? Number(order.liveSessionId) : null })),
+        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId) || 0, variant_id: it.variantId, qty: it.qty })),
         sales_channel: order.salesChannel,
         affiliate_id: order.salesChannel === 'website' && order.affiliateId ? Number(order.affiliateId) : null,
         discount_amount: Number(order.discountAmount) || 0,
@@ -485,8 +492,8 @@ export default function OrderCreate() {
         <OrderForm
           order={order}
           hosts={hosts}
+          locations={locations}
           pickupChains={pickupChains}
-          liveSessions={liveSessions}
           affiliates={affiliates}
           shippingSettings={shippingSettings}
           onUpdate={updateOrder}

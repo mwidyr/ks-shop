@@ -24,9 +24,11 @@ const INVENTORY_GRID_COLS = 'grid grid-cols-[1fr,repeat(4,minmax(0,1fr)),100px,8
 // The Incoming number. When the variant has incoming stock with an expected arrival date, the
 // earliest ETA among its not-fully-received Purchase Orders shows instantly on hover (desktop) and
 // on tap (touch screens have no hover).
-function IncomingNumber({ stock, eta, openPo, className = '' }) {
+// `compact` = no vertical padding / border, for the product summary row whose sibling numbers are bare text.
+function IncomingNumber({ stock, eta, openPo, className = '', compact = false }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const box = compact ? 'px-2' : 'px-2 py-1 border border-transparent'
   // Mouse: the tooltip shows on hover (no click). Touch screens have no hover, so a tap toggles it.
   const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   // Shown whenever an open (not fully received) PO exists: its earliest ETA, or "ETA not set"
@@ -36,16 +38,17 @@ function IncomingNumber({ stock, eta, openPo, className = '' }) {
     ? t('page_inventory.eta_label', { date: new Date(`${eta}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) })
     : t('page_inventory.eta_not_set')
   if (!hasEta) {
-    return <span className={`inline-block px-2 py-1 border border-transparent ${NUM_CLASS} ${className}`}>{stock}</span>
+    return <span className={`inline-flex ${box} ${NUM_CLASS} ${className}`}>{stock}</span>
   }
+  // inline-flex (no line box) so the surrounding line-height can't push this number below its siblings.
   return (
-    <span className="inline-block relative">
+    <span className="inline-flex relative align-top">
       <button
         type="button" aria-label={etaText}
         onMouseEnter={() => canHover && setOpen(true)} onMouseLeave={() => canHover && setOpen(false)}
         onFocus={() => canHover && setOpen(true)}
         onClick={(e) => { e.stopPropagation(); if (!canHover) setOpen((o) => !o) }} onBlur={() => setOpen(false)}
-        className={`px-2 py-1 border border-transparent underline decoration-dotted underline-offset-4 cursor-help ${NUM_CLASS} ${className}`}
+        className={`block ${box} underline decoration-dotted underline-offset-4 cursor-help leading-5 ${NUM_CLASS} ${className}`}
       >
         {stock}
       </button>
@@ -207,7 +210,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
           <span></span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.total}</span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.available}</span>
-          <span className="text-center"><IncomingNumber stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></span>
+          <span className="flex justify-center"><IncomingNumber compact stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></span>
           <span className={`font-bold text-gray-800 ${NUM_CLASS}`}>{totals.order}</span>
           <span></span>
           <span></span>
@@ -228,7 +231,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
           </div>
           <div>
             <p className={MOBILE_LABEL}>{t('page_inventory.col_incoming')}</p>
-            <p className={NUM_CLASS}><IncomingNumber stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></p>
+            <p className={`flex justify-center ${NUM_CLASS}`}><IncomingNumber stock={totals.incoming} eta={incomingEta} openPo={incomingOpenPo} className="font-bold text-gray-800" /></p>
           </div>
           <div>
             <p className={MOBILE_LABEL}>{t('page_inventory.col_ordered')}</p>

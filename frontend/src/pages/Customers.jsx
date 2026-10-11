@@ -11,7 +11,6 @@ import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } 
 // NT$3,000 or more), computed by the backend. The other labels stay manual.
 const availableLabels = [
   { key: 'blacklist', labelKey: 'blacklist' },
-  { key: 'sering_retur', labelKey: 'frequent_returns' },
   { key: 'pelanggan_baru', labelKey: 'new_customer' },
 ]
 
@@ -264,7 +263,8 @@ export default function Customers() {
       if (maxO != null && c.order_count > maxO) return false
       if (minL != null && c.total_spend < minL) return false
       if (maxL != null && c.total_spend > maxL) return false
-      if (filters.tier && c.tier !== filters.tier) return false
+      if (filters.tier === 'blacklist') { if (!(c.labels || []).includes('blacklist')) return false }
+      else if (filters.tier && c.tier !== filters.tier) return false
       if (filters.from || filters.to) {
         if (!c.last_order_at) return false
         const day = jakartaIsoDate(new Date(c.last_order_at))
@@ -400,6 +400,7 @@ export default function Customers() {
                 <option value="">{t('page_customers.filter_tier_all')}</option>
                 <option value="regular">{t('page_customers.tier_regular')}</option>
                 <option value="vip">{t('page_customers.tier_vip')}</option>
+                <option value="blacklist">{t('page_customers.labels.blacklist')}</option>
               </select>
             </div>
             <div>

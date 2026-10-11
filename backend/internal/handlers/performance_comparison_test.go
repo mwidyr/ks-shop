@@ -1,6 +1,10 @@
 package handlers
 
-import "testing"
+import (
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
 
 func TestBuildCustomGroup(t *testing.T) {
 	views, chats := 1000, 40
@@ -36,5 +40,25 @@ func TestBuildCustomGroup(t *testing.T) {
 	none := buildCustomGroup("website", total, operatingDays{})
 	if none.AvgQty != nil || none.AvgGMV != nil {
 		t.Error("no operating days => AVG unavailable, not 0")
+	}
+}
+
+func TestSalesChannelWhereAffiliateLevels(t *testing.T) {
+	where := func(aff string) (string, int) {
+		r := httptest.NewRequest("GET", "/x?channel=website&affiliate_id="+aff, nil)
+		w, args := salesChannelWhere(r, "o", 5)
+		return w, len(args)
+	}
+	if w, n := where(""); strings.Contains(w, "affiliate_id") || n != 0 {
+		t.Errorf("All Website must not filter by affiliate: %q", w)
+	}
+	if w, n := where("affiliates"); !strings.Contains(w, "affiliate_id IS NOT NULL") || n != 0 {
+		t.Errorf("All Affiliates: %q", w)
+	}
+	if w, n := where("cs"); !strings.Contains(w, "affiliate_id IS NULL") || n != 0 {
+		t.Errorf("CS: %q", w)
+	}
+	if w, n := where("7"); !strings.Contains(w, "parent_affiliate_id") || n != 1 {
+		t.Errorf("individual affiliate: %q", w)
 	}
 }

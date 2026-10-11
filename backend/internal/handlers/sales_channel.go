@@ -25,6 +25,9 @@ func salesChannelWhere(r *http.Request, alias string, startArg int) (whereSQL st
 		switch aff := r.URL.Query().Get("affiliate_id"); aff {
 		case "":
 			// all Website sales
+		case "affiliates":
+			// every Website order that came through an Affiliate (any master or sub-affiliate)
+			whereSQL += " AND " + alias + ".affiliate_id IS NOT NULL"
 		case "none":
 			whereSQL += " AND " + alias + ".affiliate_id IS NULL"
 		case "cs":

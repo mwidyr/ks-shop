@@ -17,6 +17,7 @@ import (
 	"ordermgmt/internal/db"
 	"ordermgmt/internal/handlers"
 	appmw "ordermgmt/internal/middleware"
+	"ordermgmt/internal/telegram"
 )
 
 //go:embed migrations/*.sql
@@ -50,6 +51,17 @@ func main() {
 	authH := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, Cfg: cfg}
 	productH := &handlers.ProductHandler{DB: pool}
 	orderH := &handlers.OrderHandler{DB: pool}
+	// Telegram celebration bot: one bot, token + chat ids managed on the Telegram Settings page
+	// (Super Admin only). The token is encrypted at rest with TELEGRAM_ENCRYPTION_KEY, else JWT_SECRET.
+	telegramSecret := os.Getenv("TELEGRAM_ENCRYPTION_KEY")
+	if telegramSecret == "" {
+		telegramSecret = cfg.JWTSecret
+	}
+	telegramStore := &telegram.Store{DB: pool, Secret: telegramSecret}
+	telegramNotifier := telegram.NewNotifier(pool, telegramStore)
+	orderH.OnOrderCreated = telegramNotifier.Kick
+	go telegramNotifier.Run(context.Background(), time.Minute)
+	telegramH := &handlers.TelegramHandler{DB: pool, Store: telegramStore}
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
 	promotionH := &handlers.PromotionHandler{DB: pool}
 	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
@@ -356,6 +368,16 @@ func main() {
 			r.With(view("performance_comparison")).Get("/performance-comparison/custom", perfComparisonH.Custom)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
 			r.With(view("host_performance_analytics")).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
+
+			// Telegram Settings: Super Admin only (no tab permission, nobody else can be granted it).
+			r.Route("/telegram", func(r chi.Router) {
+				r.Use(appmw.RequireRole("super_user"))
+				r.Get("/settings", telegramH.Get)
+				r.Put("/settings", telegramH.Save)
+				r.Post("/status", telegramH.Status)
+				r.Post("/test-message", telegramH.TestMessage)
+				r.Post("/test-notification", telegramH.TestNotification)
+			})
 
 			r.With(view("heatmap")).Get("/heatmap/summary", heatmapH.Summary)
 			r.With(view("heatmap")).Get("/heatmap/grid", heatmapH.Grid)

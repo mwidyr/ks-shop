@@ -17,9 +17,9 @@ const roleOptions = [
 // Mirrors AppShell.jsx's navGroups grouping/order, so the matrix reads like the sidebar.
 const TAB_GROUPS = [
   { titleKey: 'page_roles.group_general', tabs: ['performance_dashboard', 'panel_siaran', 'dashboard'] },
-  { titleKey: 'nav.groups.operations', tabs: ['orders', 'picking', 'returns', 'inventory', 'shipping', 'refunds', 'chat', 'reviews', 'warehouses'] },
+  { titleKey: 'nav.groups.operations', tabs: ['orders', 'picking', 'returns', 'inventory', 'customers', 'shipping', 'refunds', 'chat', 'reviews', 'warehouses'] },
   { titleKey: 'nav.groups.catalog', tabs: ['products', 'categories', 'colors'] },
-  { titleKey: 'nav.groups.sales_insights', tabs: ['heatmap', 'performance_comparison', 'host_performance_analytics', 'customers', 'sales_analytics'] },
+  { titleKey: 'nav.groups.sales_insights', tabs: ['heatmap', 'performance_comparison', 'host_performance_analytics', 'sales_analytics'] },
   { titleKey: 'nav.groups.product_performance', tabs: ['host_category_leaderboard', 'product_analytics', 'product_performance', 'product_color_pair'] },
   { titleKey: 'nav.groups.procurement', tabs: ['suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning', 'purchase_alert'] },
   { titleKey: 'nav.groups.finance', tabs: ['profit', 'reports', 'transactions', 'payouts', 'fees'] },

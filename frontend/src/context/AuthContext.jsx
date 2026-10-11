@@ -1,3 +1,4 @@
+import { resetSharedPeriod } from '../utils/sharedPeriod'
 import { createContext, useContext, useState } from 'react'
 import client from '../api/client'
 
@@ -18,10 +19,12 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const res = await client.post('/auth/login', { email, password })
+    resetSharedPeriod()
     return applySession(res.data.token, res.data.user)
   }
 
   function logout() {
+    resetSharedPeriod()
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)

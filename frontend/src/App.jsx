@@ -70,6 +70,7 @@ const AuditLog = lazy(() => import('./pages/AuditLog'))
 const HostManagement = lazy(() => import('./pages/HostManagement'))
 const Affiliates = lazy(() => import('./pages/Affiliates'))
 const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
+const TelegramSettings = lazy(() => import('./pages/TelegramSettings'))
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth()
@@ -204,6 +205,7 @@ export default function App() {
         <Route path="/system/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
         <Route path="/system/roles" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
         <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+        <Route path="/settings/telegram" element={<ProtectedRoute><TelegramSettings /></ProtectedRoute>} />
 
         <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
         <Route path="/affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />

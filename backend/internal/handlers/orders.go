@@ -26,6 +26,9 @@ type querier interface {
 
 type OrderHandler struct {
 	DB *pgxpool.Pool
+	// OnOrderCreated, when set, is called after a new order is committed (the Telegram notifier
+	// uses it to check milestones right away instead of waiting for its timer).
+	OnOrderCreated func()
 }
 
 var validTransitions = map[string][]string{
@@ -682,6 +685,9 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.OnOrderCreated != nil {
+		h.OnOrderCreated()
+	}
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"order_id": orderID, "order_no": orderNo, "status": "pending",
 	})

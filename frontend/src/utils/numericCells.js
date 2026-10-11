@@ -3,6 +3,10 @@
 // (right-aligned, tabular digits - see index.html). Text, dates, labels, phone numbers (leading 0),
 // codes and column headers are left alone, as are cells that already set their own alignment
 // (text-left/center/right, e.g. the Heatmap grid and the stock numbers) or hold form controls.
+//
+// Column headers (client item 106): a header whose column is numeric gets `num-head`
+// (right-aligned) so it sits over its values; a "—" placeholder inside such a column joins them
+// (`num-cell`) instead of hugging the left edge. Text / date / ID columns keep their alignment.
 
 const PREFIX = /^(NT\$|US\$|Rp\.?|\$|¥)\s?/
 const SUFFIX = /\s?(%|pcs|PCS)$/
@@ -34,7 +38,38 @@ function mark(td) {
 }
 
 function unmark(td) {
+  if (td.dataset.numDash) { // placeholder kept right-aligned by alignHeaders until real text arrives
+    if (isDash(td.textContent || '')) return
+    delete td.dataset.numDash
+  }
   if (td.classList.contains('num-cell') && !isNumericText(td.textContent || '')) td.classList.remove('num-cell')
+}
+
+const isDash = (txt) => /^[—–-]$/.test(txt.trim())
+const isBlank = (txt) => txt.trim() === ''
+
+// Aligns the headers of one table to their columns (see the note at the top).
+function alignHeaders(table) {
+  const headRows = table.tHead?.rows
+  if (!headRows || !headRows.length) return
+  const headRow = headRows[headRows.length - 1]
+  const bodyRows = [...table.querySelectorAll('tbody > tr')].filter((r) => r.cells.length === headRow.cells.length && [...r.cells].every((c) => c.colSpan === 1))
+  if (!bodyRows.length || [...headRow.cells].some((c) => c.colSpan !== 1)) return
+  ;[...headRow.cells].forEach((th, i) => {
+    if (HAS_OWN_ALIGN.test(th.className)) return
+    const cells = bodyRows.map((r) => r.cells[i])
+    const real = cells.filter((c) => !isDash(c.textContent || '') && !isBlank(c.textContent || ''))
+    const numeric = real.filter((c) => c.classList.contains('num-cell') && !c.dataset.numDash)
+    const isNumCol = numeric.length > 0 && numeric.length === real.length
+    th.classList.toggle('num-head', isNumCol)
+    cells.forEach((c) => {
+      if (isNumCol && isDash(c.textContent || '') && !HAS_OWN_ALIGN.test(c.className) && !c.querySelector(HAS_CONTROL)) {
+        c.dataset.numDash = '1'; c.classList.add('num-cell')
+      } else if (!isNumCol && c.dataset.numDash) {
+        delete c.dataset.numDash; c.classList.remove('num-cell')
+      }
+    })
+  })
 }
 
 function check(td) {
@@ -47,8 +82,15 @@ export function startNumericCellAlignment() {
   let scheduled = false
   const flush = () => {
     scheduled = false
-    pending.forEach((td) => { if (td.isConnected) check(td) })
+    const tables = new Set()
+    pending.forEach((td) => {
+      if (!td.isConnected) return
+      check(td)
+      const table = td.closest('table')
+      if (table) tables.add(table)
+    })
     pending.clear()
+    tables.forEach(alignHeaders)
   }
   const queue = (td) => {
     pending.add(td)

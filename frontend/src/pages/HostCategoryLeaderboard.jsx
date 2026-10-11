@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getHostCategoryLeaderboard } from '../api/reports'
 import { listAffiliates } from '../api/affiliates'
-import { presetRange } from '../components/DateRangePicker'
-import PeriodPicker from '../components/PeriodPicker'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
 
 function CategoryCard({ category }) {
@@ -35,7 +34,7 @@ function CategoryCard({ category }) {
 
 export default function HostCategoryLeaderboard() {
   const { t } = useTranslation()
-  const [range, setRange] = useState(presetRange(29))
+  const [range, setRange] = useSharedRange()
   const [channel, setChannel] = useState('all')
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
@@ -62,7 +61,7 @@ export default function HostCategoryLeaderboard() {
           channel={channel} onChannelChange={setChannel}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
-        <PeriodPicker value={range} onChange={setRange} defaultPreset="30d" />
+        <PeriodPicker shared value={range} onChange={setRange} />
         <p className="text-sm text-gray-500">{t('page_host_category_leaderboard.subtitle')}</p>
       </div>
 

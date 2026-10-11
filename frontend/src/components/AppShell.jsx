@@ -25,6 +25,7 @@ const navGroups = [
       { to: '/picking', key: 'picking', icon: IconClipboard },
       { to: '/returns', key: 'returns', icon: IconUndo },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
+      { to: '/customers', key: 'customers', icon: IconUsers },
       { to: '/shipping', key: 'shipping', icon: IconTruck },
       { to: '/refunds', key: 'refunds', icon: IconWallet },
       { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
@@ -44,7 +45,6 @@ const navGroups = [
       { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
       { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
       { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
-      { to: '/customers', key: 'customers', icon: IconUsers },
       { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
     ],
   },
@@ -82,6 +82,7 @@ const navGroups = [
       { to: '/affiliates', key: 'affiliates', icon: IconUser },
       { to: '/system/roles', key: 'roles', icon: IconUserCog },
       { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
+      { to: '/settings/telegram', key: 'telegram_settings', icon: IconSend },
       { to: '/settings', key: 'settings', icon: IconSettings },
       { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
       { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
@@ -109,7 +110,7 @@ const VISIBLE_TAB_KEYS = new Set([
   'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
-  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'profit', 'promotions',
+  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
 ])
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
@@ -187,6 +188,7 @@ export default function AppShell({ children }) {
   // missing entry means "none". Still loading (access === null) shows everything to avoid a
   // flash of a mostly-empty sidebar before the real access map arrives.
   function canSeeTab(tabKey) {
+    if (tabKey === 'telegram_settings') return access !== null && isSuperUser // Super Admin only
     if (isSuperUser || access === null) return true
     return !!access[tabKey]
   }
