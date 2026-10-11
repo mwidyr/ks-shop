@@ -97,6 +97,9 @@ func (n *Notifier) highest(ctx context.Context, typ, scope, date string) int {
 // sent and nothing is claimed; an in-memory key only stops the same line repeating every tick.
 func (n *Notifier) dispatch(ctx context.Context, cfg Config, token, typ, scope, date string, milestone int, session *int, qty int, prev *int, chat, text string, repeat int, logKey string) {
 	if !cfg.SendEnabled {
+		if chat == "" {
+			chat = "(not set)"
+		}
 		n.mu.Lock()
 		_, seen := n.logged[logKey]
 		n.logged[logKey] = struct{}{}
@@ -124,7 +127,7 @@ func (n *Notifier) Evaluate(ctx context.Context) error {
 		return nil
 	}
 	token := n.Store.Token(ctx)
-	if token == "" {
+	if cfg.SendEnabled && token == "" { // log-only needs neither a token nor chat ids
 		return nil
 	}
 	if cfg.SendEnabled { // going live: forget log-only history, the day's highest milestone still goes out
@@ -183,7 +186,7 @@ func (n *Notifier) hostMilestones(ctx context.Context, token string, cfg Config,
 	c := cfg.HostMilestone
 	for _, h := range hosts {
 		m := CurrentMilestone(h.qty, c.StartMilestone, c.Interval)
-		if m == 0 || h.chatID == "" || m <= n.highest(ctx, TypeHostMilestone, strconv.Itoa(h.hostID), date) {
+		if m == 0 || (cfg.SendEnabled && h.chatID == "") || m <= n.highest(ctx, TypeHostMilestone, strconv.Itoa(h.hostID), date) {
 			continue
 		}
 		scope := strconv.Itoa(h.hostID)
@@ -196,7 +199,7 @@ func (n *Notifier) hostMilestones(ctx context.Context, token string, cfg Config,
 func (n *Notifier) globalHostMilestones(ctx context.Context, token string, cfg Config, hosts []hostDay, date string) {
 	c := cfg.GlobalHost
 	global := cfg.GlobalChatID
-	if global == "" {
+	if cfg.SendEnabled && global == "" {
 		return
 	}
 	for _, h := range hosts {
@@ -214,7 +217,7 @@ func (n *Notifier) globalHostMilestones(ctx context.Context, token string, cfg C
 func (n *Notifier) locationMilestones(ctx context.Context, token string, cfg Config, hosts []hostDay, date string) {
 	c := cfg.LocationMilestone
 	global := cfg.GlobalChatID
-	if global == "" {
+	if cfg.SendEnabled && global == "" {
 		return
 	}
 	type loc struct {
@@ -277,7 +280,7 @@ func (n *Notifier) personalBests(ctx context.Context, token string, cfg Config, 
 	}
 	rows.Close()
 	for _, k := range cands {
-		if k.chat == "" || k.cur <= k.prev || k.cur < c.MinQty {
+		if (cfg.SendEnabled && k.chat == "") || k.cur <= k.prev || k.cur < c.MinQty {
 			continue
 		}
 		session := k.session

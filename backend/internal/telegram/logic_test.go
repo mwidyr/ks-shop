@@ -78,7 +78,9 @@ func TestDefaultConfigIsSafe(t *testing.T) {
 func TestLogOnlyDispatchDoesNotRepeat(t *testing.T) {
 	n := NewNotifier(nil, nil) // log-only never touches the DB or the network
 	cfg := DefaultConfig()
-	args := func() { n.dispatch(nil, cfg, "tok", TypeHostMilestone, "1", "2026-10-11", 30, nil, 31, nil, "-1", "hi", 3, "k") }
+	args := func() {
+		n.dispatch(nil, cfg, "tok", TypeHostMilestone, "1", "2026-10-11", 30, nil, 31, nil, "-1", "hi", 3, "k")
+	}
 	args()
 	args()
 	if len(n.logged) != 1 {
