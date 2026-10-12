@@ -52,6 +52,7 @@ const navGroups = [
     title: 'product_performance', icon: IconTrendUp, items: [
       { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
       { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
+      { to: '/analytics/product-trend', key: 'product_trend', icon: IconTrendUp },
       { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
       { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
     ],
@@ -74,22 +75,41 @@ const navGroups = [
     ],
   },
   {
+    // Two-level group: Settings -> subcategory -> pages (per the client's nested-menu spec).
     title: 'settings', icon: IconGear, items: [
-      { to: '/promotions', key: 'promotions', icon: IconMegaphone },
-      { to: '/store/profile', key: 'store_profile', icon: IconStore },
-      { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
-      { to: '/hosts', key: 'hosts', icon: IconUser },
-      { to: '/affiliates', key: 'affiliates', icon: IconUser },
-      { to: '/system/roles', key: 'roles', icon: IconUserCog },
-      { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
-      { to: '/settings/telegram', key: 'telegram_settings', icon: IconSend },
-      { to: '/settings', key: 'settings', icon: IconSettings },
       { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
       { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
       { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
       { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
       { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
       { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
+    ],
+    subgroups: [
+      {
+        title: 'business_settings', items: [
+          { to: '/promotions', key: 'promotions', icon: IconMegaphone },
+          { to: '/store/profile', key: 'store_profile', icon: IconStore },
+          { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
+        ],
+      },
+      {
+        title: 'people_access', items: [
+          { to: '/hosts', key: 'hosts', icon: IconUser },
+          { to: '/affiliates', key: 'affiliates', icon: IconUser },
+          { to: '/system/roles', key: 'roles', icon: IconUserCog },
+        ],
+      },
+      {
+        title: 'notifications', items: [
+          { to: '/settings/telegram', key: 'telegram_settings', icon: IconSend },
+        ],
+      },
+      {
+        title: 'system_logs', items: [
+          { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
+          { to: '/settings', key: 'settings', icon: IconSettings },
+        ],
+      },
     ],
   },
 ]
@@ -107,7 +127,7 @@ const TOP_ITEMS = [
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'picking', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
-  'reports', 'product_analytics', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
+  'reports', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
@@ -132,11 +152,29 @@ const titleOverrides = [
   { prefix: '/suppliers/', titleKey: 'page_suppliers.profile_title' },
 ]
 
+// Every page entry of a group, including those inside its subgroups.
+const groupItems = (group) => [...group.items, ...(group.subgroups || []).flatMap((sg) => sg.items)]
+
+// Open/closed state of the collapsible sections, remembered per browser. Top-level sections
+// start open (as before) except Settings; subcategories start closed. The section holding the
+// active page is always opened on navigation, so the highlight is never hidden.
+const NAV_STATE_KEY = 'nav_open_sections'
+const groupId = (group) => group.title
+const subgroupId = (group, sg) => `${group.title}.${sg.title}`
+
+function loadOpenSections() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(NAV_STATE_KEY) || 'null')
+    if (saved && typeof saved === 'object') return saved
+  } catch { /* storage unavailable: fall back to defaults */ }
+  return {}
+}
+
 function buildTitleMap(t) {
   const map = titleOverrides.map((o) => ({ prefix: o.prefix, title: t(o.titleKey) }))
   for (const item of TOP_ITEMS) map.push({ prefix: item.to, title: t(`nav.items.${item.key}`) })
   for (const group of navGroups) {
-    for (const item of group.items) {
+    for (const item of groupItems(group)) {
       map.push({ prefix: item.to, title: t(`nav.items.${item.key}`) })
     }
   }
@@ -164,6 +202,7 @@ export default function AppShell({ children }) {
   const [isSuperUser, setIsSuperUser] = useState(true)
   const [shopName, setShopName] = useState(t('brand.name'))
   const [clock, setClock] = useState('')
+  const [openSections, setOpenSections] = useState(loadOpenSections)
 
   useEffect(() => {
     getMyAccess().then((res) => {
@@ -208,6 +247,55 @@ export default function AppShell({ children }) {
 
   useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
 
+  const isSectionOpen = (id, fallback) => (id in openSections ? !!openSections[id] : fallback)
+
+  function setSection(id, open) {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: open }
+      try { localStorage.setItem(NAV_STATE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  // Open the section(s) holding the current page after navigation.
+  useEffect(() => {
+    for (const group of navGroups) {
+      for (const sg of group.subgroups || []) {
+        if (sg.items.some((i) => isActive(i.to))) {
+          setOpenSections((prev) => (prev[groupId(group)] && prev[subgroupId(group, sg)] ? prev : { ...prev, [groupId(group)]: true, [subgroupId(group, sg)]: true }))
+        }
+      }
+      if (group.items.some((i) => VISIBLE_TAB_KEYS.has(i.key) && isActive(i.to))) {
+        setOpenSections((prev) => (prev[groupId(group)] ? prev : { ...prev, [groupId(group)]: true }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+
+  function renderItem(item, indent = false) {
+    const ItemIcon = item.icon
+    return (
+      <Link
+        key={item.to + item.key}
+        to={item.to}
+        title={t(`nav.items.${item.key}`)}
+        className={`flex items-center gap-2 ${indent ? 'pl-6 pr-3' : 'px-3'} py-1.5 rounded-lg text-sm ${
+          item.upcoming
+            ? 'font-bold text-gray-400 hover:bg-gray-100'
+            : isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
+        }`}
+      >
+        {ItemIcon && <ItemIcon width={15} height={15} className="shrink-0" />}
+        <span className="truncate">{t(`nav.items.${item.key}`)}</span>
+        {item.upcoming && (
+          <span className="ml-auto shrink-0 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">
+            {t('common.upcoming')}
+          </span>
+        )}
+      </Link>
+    )
+  }
+
   return (
     <div className="h-screen overflow-hidden flex bg-gray-50">
       {mobileNavOpen && (
@@ -243,38 +331,47 @@ export default function AppShell({ children }) {
 
           {navGroups.map((group) => {
             const GroupIcon = group.icon
-            const visibleItems = group.items.filter((item) => VISIBLE_TAB_KEYS.has(item.key) && canSeeTab(item.key))
-            if (visibleItems.length === 0) return null
+            const visible = (list) => list.filter((item) => VISIBLE_TAB_KEYS.has(item.key) && canSeeTab(item.key))
+            const visibleItems = visible(group.items)
+            const visibleSubs = (group.subgroups || [])
+              .map((sg) => ({ sg, items: visible(sg.items) }))
+              .filter((x) => x.items.length > 0)
+            if (visibleItems.length === 0 && visibleSubs.length === 0) return null
+            const open = isSectionOpen(groupId(group), group.title !== 'settings')
             return (
               <div key={group.title}>
-                <div className="flex items-center gap-1.5 px-3 mb-1 text-[10px] font-bold text-gray-400 tracking-wider">
+                <button
+                  type="button"
+                  onClick={() => setSection(groupId(group), !open)}
+                  aria-expanded={open}
+                  className="w-full flex items-center gap-1.5 px-3 mb-1 text-[10px] font-bold text-gray-400 tracking-wider hover:text-gray-600"
+                >
                   <GroupIcon width={13} height={13} /> {t(`nav.groups.${group.title}`)}
-                </div>
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => {
-                    const ItemIcon = item.icon
-                    return (
-                      <Link
-                        key={item.to + item.key}
-                        to={item.to}
-                        title={t(`nav.items.${item.key}`)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
-                          item.upcoming
-                            ? 'font-bold text-gray-400 hover:bg-gray-100'
-                            : isActive(item.to) ? 'bg-brand-600 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {ItemIcon && <ItemIcon width={15} height={15} className="shrink-0" />}
-                        <span className="truncate">{t(`nav.items.${item.key}`)}</span>
-                        {item.upcoming && (
-                          <span className="ml-auto shrink-0 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">
-                            {t('common.upcoming')}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
+                  <IconChevronDown width={12} height={12} className={`ml-auto shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+                </button>
+                {open && (
+                  <div className="space-y-0.5">
+                    {visibleItems.map((item) => renderItem(item))}
+                    {visibleSubs.map(({ sg, items }) => {
+                      const sid = subgroupId(group, sg)
+                      const subOpen = isSectionOpen(sid, false)
+                      return (
+                        <div key={sid} className="pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setSection(sid, !subOpen)}
+                            aria-expanded={subOpen}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-100"
+                          >
+                            <span className="truncate">{t(`nav.groups.${sg.title}`)}</span>
+                            <IconChevronDown width={12} height={12} className={`ml-auto shrink-0 transition-transform ${subOpen ? '' : '-rotate-90'}`} />
+                          </button>
+                          {subOpen && <div className="space-y-0.5">{items.map((item) => renderItem(item, true))}</div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

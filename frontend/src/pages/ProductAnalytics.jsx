@@ -26,6 +26,28 @@ function colorBreakdownFor(byVariant, productSku, productQty) {
     .sort((a, b) => b.qty - a.qty)
 }
 
+// The HOST card mirrors whatever the channel filter above is set to, so it is derived from the
+// filter state (not the API summary) and stays correct while loading or with an empty range.
+function hostCardLabel({ channel, hostId, locationId, affiliateId, hosts, locations, affiliates, t }) {
+  if (channel === 'live') {
+    const host = hosts.find((h) => String(h.id) === String(hostId))
+    if (host) return host.name
+    const loc = locations.find((l) => String(l.id) === String(locationId))
+    return loc ? loc.name : t('page_product_analytics.all_hosts')
+  }
+  if (channel === 'website') {
+    if (affiliateId === 'cs') return t('shared.website_created_by_cs')
+    if (affiliateId === 'self_service') return t('shared.website_self_service')
+    if (affiliateId === 'affiliates') return t('shared.all_affiliates')
+    if (affiliateId) {
+      const aff = affiliates.find((a) => String(a.id) === String(affiliateId))
+      if (aff) return aff.name
+    }
+    return t('shared.all_website')
+  }
+  return t('page_product_analytics.all_hosts')
+}
+
 export default function ProductAnalytics() {
   const { t } = useTranslation()
   const { translateColor, translateCategory } = useMasterData()
@@ -88,7 +110,7 @@ export default function ProductAnalytics() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div className={`${cardClasses} p-4`}>
               <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.host')}</p>
-              <p className="text-lg font-bold text-[var(--text-primary)]">{data.summary.host_name || t('page_product_analytics.all_hosts')}</p>
+              <p className="text-lg font-bold text-[var(--text-primary)]">{hostCardLabel({ channel, hostId, locationId, affiliateId, hosts, locations, affiliates, t })}</p>
             </div>
             <div className={`${cardClasses} p-4`}>
               <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.total_qty')}</p>

@@ -26,7 +26,7 @@ var tabKeys = []string{
 	"products", "categories", "colors", "inventory", "warehouses", "suppliers", "purchases", "purchase_requisitions", "replenishment_planning", "purchase_alert",
 	"returns", "refunds",
 	"promotions", "campaigns", "advertising",
-	"sales_analytics", "product_analytics", "product_performance", "product_color_pair", "host_category_leaderboard",
+	"sales_analytics", "product_analytics", "product_trend", "product_performance", "product_color_pair", "host_category_leaderboard",
 	"performance_dashboard", "host_performance_analytics", "heatmap", "performance_comparison", "profit",
 	"transactions", "payouts", "fees", "reports",
 	"store_profile", "shipping_settings", "hosts", "affiliates", "store_design", "team",

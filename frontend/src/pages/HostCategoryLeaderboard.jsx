@@ -4,13 +4,15 @@ import { getHostCategoryLeaderboard } from '../api/reports'
 import { listAffiliates } from '../api/affiliates'
 import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
+import { useMasterData } from '../context/MasterDataContext'
 
 function CategoryCard({ category }) {
   const { t } = useTranslation()
+  const { translateCategory } = useMasterData()
   const top = category.hosts[0]?.qty || 0
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h2 className="font-bold text-gray-800 mb-3">{category.category}</h2>
+      <h2 className="font-bold text-gray-800 mb-3">{translateCategory(category.category)}</h2>
       <div className="space-y-1.5">
         {category.hosts.map((h, i) => (
           <div key={i} className="flex items-center gap-3">

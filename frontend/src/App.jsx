@@ -50,6 +50,7 @@ const Campaigns = lazy(() => import('./pages/Campaigns'))
 const Advertising = lazy(() => import('./pages/Advertising'))
 const SalesAnalyticsDetail = lazy(() => import('./pages/SalesAnalyticsDetail'))
 const ProductAnalytics = lazy(() => import('./pages/ProductAnalytics'))
+const ProductTrendAnalysis = lazy(() => import('./pages/ProductTrendAnalysis'))
 const ProductPerformance = lazy(() => import('./pages/ProductPerformance'))
 const ProductColorPair = lazy(() => import('./pages/ProductColorPair'))
 const HostCategoryLeaderboard = lazy(() => import('./pages/HostCategoryLeaderboard'))
@@ -180,6 +181,7 @@ export default function App() {
         {/* Analytics */}
         <Route path="/analytics/sales" element={<ProtectedRoute><SalesAnalyticsDetail /></ProtectedRoute>} />
         <Route path="/analytics/products" element={<ProtectedRoute><ProductAnalytics /></ProtectedRoute>} />
+        <Route path="/analytics/product-trend" element={<ProtectedRoute><ProductTrendAnalysis /></ProtectedRoute>} />
         <Route path="/analytics/product-performance" element={<ProtectedRoute><ProductPerformance /></ProtectedRoute>} />
         <Route path="/analytics/product-color-pair" element={<ProtectedRoute><ProductColorPair /></ProtectedRoute>} />
         <Route path="/analytics/host-category-leaderboard" element={<ProtectedRoute><HostCategoryLeaderboard /></ProtectedRoute>} />

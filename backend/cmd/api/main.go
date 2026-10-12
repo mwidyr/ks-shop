@@ -303,6 +303,8 @@ func main() {
 			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
 			r.With(view("replenishment_planning")).Get("/replenishment", replenishmentH.List)
+			r.With(view("replenishment_planning")).Get("/replenishment/settings", replenishmentH.GetSettings)
+			r.With(edit("replenishment_planning")).Put("/replenishment/settings", replenishmentH.UpdateSettings)
 
 			// Purchase Requisition (Purchase Requisition & Procurement Workflow PDF) - reuses the
 			// 'purchases' tab_key, same domain/permission scope as Purchase Orders.
@@ -334,6 +336,7 @@ func main() {
 			r.With(view("reports")).Get("/reports/products", reportsH.Products)
 			r.With(view("reports")).Get("/reports/orders", reportsH.Orders)
 			r.With(view("product_analytics")).Get("/reports/product-analysis", reportsH.ProductAnalysis)
+			r.With(view("product_trend")).Get("/reports/product-trend", reportsH.ProductTrend)
 			r.With(view("product_performance")).Get("/reports/product-performance", reportsH.ProductPerformance)
 			r.With(view("product_color_pair")).Get("/reports/product-color-pair", reportsH.ProductColorPair)
 			r.With(view("host_category_leaderboard")).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)

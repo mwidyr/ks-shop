@@ -20,7 +20,7 @@ const TAB_GROUPS = [
   { titleKey: 'nav.groups.operations', tabs: ['orders', 'picking', 'returns', 'inventory', 'customers', 'shipping', 'refunds', 'chat', 'reviews', 'warehouses'] },
   { titleKey: 'nav.groups.catalog', tabs: ['products', 'categories', 'colors'] },
   { titleKey: 'nav.groups.sales_insights', tabs: ['heatmap', 'performance_comparison', 'host_performance_analytics', 'sales_analytics'] },
-  { titleKey: 'nav.groups.product_performance', tabs: ['host_category_leaderboard', 'product_analytics', 'product_performance', 'product_color_pair'] },
+  { titleKey: 'nav.groups.product_performance', tabs: ['host_category_leaderboard', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair'] },
   { titleKey: 'nav.groups.procurement', tabs: ['suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning', 'purchase_alert'] },
   { titleKey: 'nav.groups.finance', tabs: ['profit', 'reports', 'transactions', 'payouts', 'fees'] },
   { titleKey: 'nav.groups.settings', tabs: ['promotions', 'store_profile', 'shipping_settings', 'hosts', 'affiliates', 'roles', 'audit_logs', 'settings', 'campaigns', 'advertising', 'store_design', 'team', 'notifications', 'integrations'] },

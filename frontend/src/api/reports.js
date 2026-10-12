@@ -29,3 +29,8 @@ export function getHostCategoryLeaderboard(params) {
   const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
   return client.get(`/reports/host-category-leaderboard?${q.toString()}`).then((res) => res.data)
 }
+
+export function getProductTrend(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/reports/product-trend?${q.toString()}`).then((res) => res.data)
+}

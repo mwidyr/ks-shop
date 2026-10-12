@@ -6,13 +6,6 @@ import { requestLoginOtp, verifyLoginOtp } from '../api/auth'
 import { getStoreSettings } from '../api/storeSettings'
 import PasswordInput from '../components/PasswordInput'
 
-const sampleAccounts = [
-  { roleKey: 'super_user', email: 'superuser@demo.com' },
-  { roleKey: 'management', email: 'management@demo.com' },
-  { roleKey: 'spv', email: 'spv@demo.com' },
-  { roleKey: 'sales', email: 'sales1@demo.com' },
-]
-
 const OTP_RESEND_COOLDOWN = 30
 
 function OtpLoginForm({ onBackToPassword }) {
@@ -158,7 +151,7 @@ export default function Login() {
   const { t } = useTranslation()
   const [mode, setMode] = useState('password') // 'password' | 'otp'
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('password123')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [shopName, setShopName] = useState(t('brand.name'))
@@ -192,12 +185,6 @@ export default function Login() {
           <p className="text-brand-100 text-sm leading-relaxed">
             {t('page_login.tagline')}
           </p>
-          <div className="mt-10 text-xs text-brand-100 space-y-1">
-            <p className="font-semibold text-white mb-1">{t('page_login.sample_accounts_label')}</p>
-            {sampleAccounts.map((a) => (
-              <p key={a.email}>{t(`page_login.role_${a.roleKey}`)}: <span className="font-mono">{a.email}</span></p>
-            ))}
-          </div>
         </div>
 
         <div className="p-8 sm:p-10">
@@ -253,20 +240,6 @@ export default function Login() {
             <OtpLoginForm onBackToPassword={() => { setMode('password'); setError('') }} />
           )}
 
-          {mode === 'password' && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {sampleAccounts.map((a) => (
-                <button
-                  key={a.email}
-                  type="button"
-                  onClick={() => { setEmail(a.email); setPassword('password123') }}
-                  className="text-[11px] px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50"
-                >
-                  {t(`page_login.role_${a.roleKey}`)}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>

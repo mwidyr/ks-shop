@@ -2,11 +2,14 @@ import client from './client'
 
 export function listReplenishment(filters) {
   const params = new URLSearchParams()
-  if (filters?.basis) params.set('basis', filters.basis)
-  if (filters?.targetStockDays) params.set('target_stock_days', filters.targetStockDays)
+  if (filters?.q) params.set('q', filters.q)
   if (filters?.supplierId) params.set('supplier_id', filters.supplierId)
-  if (filters?.category) params.set('category', filters.category)
-  if (filters?.stockStatus) params.set('stock_status', filters.stockStatus)
+  if (filters?.alert) params.set('alert', filters.alert)
+  if (filters?.sort) params.set('sort', filters.sort)
   const q = params.toString()
   return client.get(`/replenishment${q ? `?${q}` : ''}`).then((res) => res.data)
+}
+
+export function saveReplenishmentSettings(settings) {
+  return client.put('/replenishment/settings', settings).then((res) => res.data)
 }

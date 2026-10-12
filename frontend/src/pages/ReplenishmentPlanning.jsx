@@ -1,186 +1,289 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listReplenishment } from '../api/replenishment'
+import { listReplenishment, saveReplenishmentSettings } from '../api/replenishment'
 import { listSuppliers } from '../api/suppliers'
-import { createPurchaseRequisition, addRequisitionItem } from '../api/purchaseRequisitions'
-import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
+import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 
-const basisOptions = [7, 14, 30]
+const DEFAULTS = { stockout_days: 7, restock_days: 28, stagnant_days: 14 }
+const ALERT_OPTIONS = ['all_alerts', 'stockout', 'restock', 'stagnant', 'overdue', 'normal', 'all']
+const SORT_OPTIONS = ['risk', 'coverage', 'sales7', 'sales30']
 
-function fmtNum(n) { return n == null ? '—' : Number(n).toLocaleString() }
-function fmtDays(n) { return n == null ? '—' : Number(n).toFixed(1) }
+// One colour per alert type; text colours stay readable on both light and dark themes.
+const alertStyle = {
+  stockout: { text: 'text-red-500', bg: 'bg-red-500/10', icon: '!' },
+  restock: { text: 'text-amber-500', bg: 'bg-amber-500/10', icon: '◔' },
+  stagnant: { text: 'text-violet-400', bg: 'bg-violet-500/10', icon: '▣' },
+  overdue: { text: 'text-sky-400', bg: 'bg-sky-500/10', icon: '▤' },
+}
 
-const statusColors = {
-  critical: 'bg-red-100 text-red-700',
-  requires_replenishment: 'bg-amber-100 text-amber-700',
-  ok: 'bg-gray-100 text-gray-500',
+const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString())
+
+function coverageText(c) { return c == null ? '—' : `${Number(c).toFixed(1)}d` }
+function coverageColor(alerts = []) {
+  if (alerts.includes('stockout')) return 'text-red-500'
+  if (alerts.includes('restock')) return 'text-amber-500'
+  return 'text-emerald-500'
+}
+
+function AlertCard({ type, count, t, settings }) {
+  const s = alertStyle[type]
+  const days = { stockout: settings.stockout_days, restock: settings.restock_days, stagnant: settings.stagnant_days }[type]
+  return (
+    <div className={`${cardClasses} p-4 flex items-center gap-3`}>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${s.bg} ${s.text}`}>{s.icon}</div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-[var(--text-primary)]">{t(`page_replenishment.alert_${type}`)}</p>
+        <p className="text-2xl font-bold text-[var(--text-primary)] leading-tight">{count}</p>
+        <p className="text-[11px] text-[var(--text-secondary)] leading-snug">{t(`page_replenishment.card_${type}_desc`, { days })}</p>
+      </div>
+    </div>
+  )
+}
+
+function AlertTags({ alerts = [], t }) {
+  return (
+    <span className="flex flex-wrap gap-x-2 text-[11px] font-medium">
+      {alerts.map((a) => <span key={a} className={alertStyle[a].text}>{t(`page_replenishment.alert_${a}`)}</span>)}
+    </span>
+  )
+}
+
+function SettingsRow({ type, t, children }) {
+  const s = alertStyle[type]
+  return (
+    <div className="py-4 border-b border-[var(--table-divider)] last:border-0">
+      <p className={`font-semibold flex items-center gap-2 ${s.text}`}><span>{s.icon}</span> <span className="text-[var(--text-primary)]">{t(`page_replenishment.alert_${type}`)}</span></p>
+      {children}
+    </div>
+  )
 }
 
 export default function ReplenishmentPlanning() {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
-  const navigate = useNavigate()
-  const [rows, setRows] = useState([])
   const [suppliers, setSuppliers] = useState([])
-  const [basis, setBasis] = useState(30)
-  const [targetStockDays, setTargetStockDays] = useState(30)
-  const [supplierId, setSupplierId] = useState('')
-  const [stockStatus, setStockStatus] = useState('')
-  const [planned, setPlanned] = useState({}) // variantId -> qty, local working values only
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [creatingPO, setCreatingPO] = useState(false)
+  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('') // debounced search
+  const [supplierId, setSupplierId] = useState('')
+  const [alert, setAlert] = useState('all_alerts')
+  const [sort, setSort] = useState('risk')
+  const [expanded, setExpanded] = useState(null) // only one product open at a time
   const [previewImage, setPreviewImage] = useState(null)
+  const [form, setForm] = useState(DEFAULTS)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState(null)
 
   useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
+  useEffect(() => { const id = setTimeout(() => setQuery(search), 250); return () => clearTimeout(id) }, [search])
 
-  useEffect(() => {
+  function load() {
     setLoading(true)
-    listReplenishment({ basis, targetStockDays, supplierId: supplierId || undefined, stockStatus: stockStatus || undefined })
-      .then((data) => { setRows(data); setLoading(false) })
-  }, [basis, targetStockDays, supplierId, stockStatus])
-
-  const summary = {
-    requiresReplenishment: rows.filter((r) => r.stock_status === 'requires_replenishment').length,
-    critical: rows.filter((r) => r.stock_status === 'critical').length,
-    totalIncoming: rows.reduce((s, r) => s + r.incoming_stock, 0),
+    return listReplenishment({ q: query, supplierId: supplierId || undefined, alert, sort })
+      .then((d) => { setData(d); setLoading(false); return d })
+      .catch(() => setLoading(false))
   }
+  useEffect(() => { load() }, [query, supplierId, alert, sort]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (data?.settings) setForm(data.settings) }, [data?.settings?.stockout_days, data?.settings?.restock_days, data?.settings?.stagnant_days]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only meaningful once a single supplier is selected - a Purchase Requisition groups by
-  // supplier automatically, but starting from one supplier's planned rows here keeps this
-  // action predictable (one supplier's worth of items pre-added, ready to confirm).
-  const plannedRows = rows.filter((r) => (planned[r.variant_id] ?? r.suggested_reorder_qty) > 0)
+  function resetFilters() { setSearch(''); setQuery(''); setSupplierId(''); setAlert('all_alerts'); setSort('risk'); setExpanded(null) }
 
-  async function handleCreatePO() {
-    setCreatingPO(true)
+  async function persist(values) {
+    setSaving(true); setMsg(null)
     try {
-      const { id } = await createPurchaseRequisition()
-      for (const r of plannedRows) {
-        await addRequisitionItem(id, {
-          variant_id: r.variant_id,
-          planned_qty: planned[r.variant_id] ?? r.suggested_reorder_qty,
-        })
-      }
-      navigate(`/purchase-requisitions/${id}`)
-    } finally {
-      setCreatingPO(false)
-    }
+      await saveReplenishmentSettings(values)
+      await load() // cards and list update right after saving
+      setMsg({ ok: true, text: t('page_replenishment.settings_saved') })
+    } catch (e) {
+      setMsg({ ok: false, text: e.response?.data?.error || t('page_replenishment.settings_failed') })
+    } finally { setSaving(false) }
   }
+
+  const num = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value === '' ? '' : Number(e.target.value) }))
+  const formValid = [form.stockout_days, form.restock_days, form.stagnant_days].every((v) => Number.isInteger(v) && v >= 1) && form.restock_days > form.stockout_days
+  const settings = data?.settings || DEFAULTS
+  const cards = data?.cards || { stockout: 0, restock: 0, stagnant: 0, overdue: 0 }
+  const products = data?.products || []
+  const inputCls = 'w-24 border border-gray-300 rounded-full px-3 py-1.5 text-sm bg-transparent'
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-wrap items-center gap-3">
-        <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-          <option value="">{t('page_replenishment.all_suppliers')}</option>
-          {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <select value={stockStatus} onChange={(e) => setStockStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-          <option value="">{t('page_replenishment.all_statuses')}</option>
-          <option value="critical">{t('page_replenishment.status_critical')}</option>
-          <option value="requires_replenishment">{t('page_replenishment.status_requires_replenishment')}</option>
-          <option value="ok">{t('page_replenishment.status_ok')}</option>
-        </select>
-        <div className="flex items-center gap-1">
-          {basisOptions.map((b) => (
-            <button key={b} onClick={() => setBasis(b)} className={`text-sm font-medium px-3 py-1.5 rounded-lg border ${basis === b ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600'}`}>
-              {b}D
-            </button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
-          {t('page_replenishment.target_stock_days')}
-          <input type="number" min="1" value={targetStockDays} onChange={(e) => setTargetStockDays(Number(e.target.value) || 30)} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {['stockout', 'restock', 'stagnant', 'overdue'].map((a) => <AlertCard key={a} type={a} count={cards[a]} t={t} settings={settings} />)}
+      </div>
+
+      <div className={`${cardClasses} p-4 space-y-3`}>
+        <label className="block text-xs text-[var(--text-secondary)]">
+          {t('page_replenishment.search_label')}
+          <input
+            value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('page_replenishment.search_placeholder')}
+            className="mt-1 w-full border border-gray-300 rounded-full px-4 py-2 text-sm bg-transparent text-[var(--text-primary)]"
+          />
         </label>
-        {supplierId && plannedRows.length > 0 && (
-          <button onClick={handleCreatePO} disabled={creatingPO} className="ml-auto bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-            {creatingPO ? t('page_purchase_requisitions.creating') : t('page_replenishment.create_po_from_plan')}
-          </button>
-        )}
-      </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <label className="block text-xs text-[var(--text-secondary)]">
+            {t('page_replenishment.supplier_label')}
+            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-full px-3 py-2 text-sm bg-transparent text-[var(--text-primary)]">
+              <option value="">{t('page_replenishment.all_suppliers')}</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-[var(--text-secondary)]">
+            {t('page_replenishment.alert_status_label')}
+            <select value={alert} onChange={(e) => setAlert(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-full px-3 py-2 text-sm bg-transparent text-[var(--text-primary)]">
+              {ALERT_OPTIONS.map((o) => <option key={o} value={o}>{t(`page_replenishment.filter_${o}`)}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-[var(--text-secondary)]">
+            {t('page_replenishment.sort_label')}
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-full px-3 py-2 text-sm bg-transparent text-[var(--text-primary)]">
+              {SORT_OPTIONS.map((o) => <option key={o} value={o}>{t(`page_replenishment.sort_${o}`)}</option>)}
+            </select>
+          </label>
+        </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_replenishment.requires_replenishment')}</p><p className="text-lg font-bold text-amber-600">{summary.requiresReplenishment}</p></div>
-        <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_replenishment.critical_stock')}</p><p className="text-lg font-bold text-red-600">{summary.critical}</p></div>
-        <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_replenishment.total_incoming')}</p><p className="text-lg font-bold text-gray-800">{fmtNum(summary.totalIncoming)}</p></div>
-      </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-[var(--text-secondary)]">{t('page_replenishment.product_count', { count: products.length })}</p>
+          <button onClick={resetFilters} className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-[var(--text-secondary)] hover:bg-gray-100">↺ {t('page_replenishment.reset')}</button>
+        </div>
 
-      <div className={`${cardClasses} p-5 overflow-x-auto`}>
-        {loading ? (
-          <p className="text-center text-[var(--text-secondary)] py-8">{t('common.loading')}</p>
-        ) : (
-          <table className={tableClasses}>
-            <thead>
-              <tr className={theadRowClasses}>
-                <th className="p-2">{t('page_replenishment.col_product')}</th>
-                <th className="p-2">{t('page_replenishment.col_variant')}</th>
-                <th className="p-2">{t('page_replenishment.col_physical')}</th>
-                <th className="p-2">{t('page_replenishment.col_incoming')}</th>
-                <th className="p-2">{t('page_replenishment.col_ordered')}</th>
-                <th className="p-2">{t('page_replenishment.col_sellable')}</th>
-                <th className="p-2">{basis}D {t('page_replenishment.col_sales')}</th>
-                <th className="p-2">{t('page_replenishment.col_avg_daily')}</th>
-                <th className="p-2">{t('page_replenishment.col_stock_days')}</th>
-                <th className="p-2">{t('page_replenishment.col_suggested')}</th>
-                <th className="p-2">{t('page_replenishment.col_planned')}</th>
-                <th className="p-2">{t('page_replenishment.col_status')}</th>
-              </tr>
-            </thead>
-            <tbody className={tbodyClasses}>
-              {[...rows].sort((a, b) => (a.estimated_stock_days ?? Infinity) - (b.estimated_stock_days ?? Infinity)).map((r) => (
-                <tr key={r.variant_id} className={rowClasses}>
-                  <td className="p-2">
-                    <div className="flex items-center gap-2">
-                      {r.image_url ? (
-                        <img
-                          src={resolveUrl(r.image_url)}
-                          onClick={() => setPreviewImage(r.image_url)}
-                          className="w-8 h-8 rounded-lg object-cover bg-gray-100 shrink-0 cursor-pointer"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-medium text-[var(--text-primary)]">{r.product_sku}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">{r.product_name} · {r.supplier_name}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-2 text-[var(--text-secondary)]">{translateColor(r.color)} / {r.size}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.physical_stock)}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.incoming_stock)}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(r.ordered_qty)}</td>
-                  <td className="p-2 font-semibold text-[var(--text-primary)]">{fmtNum(r.sellable_stock)}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{fmtNum(basis === 7 ? r.sales_7d : basis === 14 ? r.sales_14d : r.sales_30d)}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{r.avg_daily_sales == null ? t('page_replenishment.no_sales_yet') : r.avg_daily_sales.toFixed(1)}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{fmtDays(r.estimated_stock_days)}</td>
-                  <td className="p-2 font-semibold text-brand-600">{fmtNum(r.suggested_reorder_qty)}</td>
-                  <td className="p-2">
-                    <input
-                      type="number" min="0"
-                      value={planned[r.variant_id] ?? r.suggested_reorder_qty}
-                      onChange={(e) => setPlanned((p) => ({ ...p, [r.variant_id]: Number(e.target.value) || 0 }))}
-                      className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                    />
-                  </td>
-                  <td className="p-2">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[r.stock_status]}`}>
-                      {t(`page_replenishment.status_${r.stock_status}`)}
-                    </span>
-                  </td>
+        <div className="overflow-x-auto">
+          {loading && !data ? (
+            <p className="text-center text-[var(--text-secondary)] py-8">{t('common.loading')}</p>
+          ) : (
+            <table className={`${tableClasses} min-w-[480px]`}>
+              <thead>
+                <tr className={theadRowClasses}>
+                  <th className="p-2">{t('page_replenishment.col_product')}</th>
+                  <th className="p-2 text-right">7D</th>
+                  <th className="p-2 text-right">14D</th>
+                  <th className="p-2 text-right">30D</th>
+                  <th className="p-2 text-right">{t('page_replenishment.col_coverage')}</th>
+                  <th className="p-2 w-8" />
                 </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan={12} className="p-6 text-center text-[var(--text-secondary)]">{t('page_replenishment.empty_state')}</td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody className={tbodyClasses}>
+                {products.map((p) => {
+                  const open = expanded === p.product_id
+                  return (
+                    <Fragment key={p.product_id}>
+                      <tr className={`${rowClasses} cursor-pointer`} onClick={() => setExpanded(open ? null : p.product_id)}>
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            {p.image_url ? (
+                              <img src={resolveUrl(p.image_url)} onClick={(e) => { e.stopPropagation(); setPreviewImage(p.image_url) }} className="w-9 h-9 rounded-lg object-cover bg-gray-100 shrink-0 cursor-pointer" />
+                            ) : <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[var(--text-primary)]">{p.name}</p>
+                              <p className="text-[11px] text-[var(--text-secondary)]">{p.sku}</p>
+                              <AlertTags alerts={p.alerts} t={t} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(p.sales_7d)}</td>
+                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(p.sales_14d)}</td>
+                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(p.sales_30d)}</td>
+                        <td className={`p-2 text-right font-bold ${p.coverage == null ? 'text-[var(--text-secondary)]' : coverageColor(p.alerts)}`}>{coverageText(p.coverage)}</td>
+                        <td className="p-2"><IconChevronDown width={14} height={14} className={`text-[var(--text-secondary)] transition-transform ${open ? 'rotate-180' : ''}`} /></td>
+                      </tr>
+                      {open && (
+                        <tr>
+                          <td colSpan={6} className="p-0">
+                            <div className="m-2 rounded-xl bg-black/5 p-3">
+                              <div className="flex items-center justify-between mb-2 text-sm">
+                                <span className="font-bold text-[var(--text-primary)]">{t('page_replenishment.color_details', { sku: p.sku })}</span>
+                                <span className="text-xs text-[var(--text-secondary)]">{p.supplier_name}</span>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className={`${tableClasses} min-w-[640px]`}>
+                                  <thead>
+                                    <tr className={theadRowClasses}>
+                                      <th className="p-2">{t('page_replenishment.col_color_status')}</th>
+                                      <th className="p-2 text-right">7D</th><th className="p-2 text-right">14D</th><th className="p-2 text-right">30D</th>
+                                      <th className="p-2 text-right">{t('page_replenishment.col_available')}</th>
+                                      <th className="p-2 text-right">{t('page_replenishment.col_share')}</th>
+                                      <th className="p-2 text-right">{t('page_replenishment.col_coverage')}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className={tbodyClasses}>
+                                    {p.variants.map((v) => (
+                                      <tr key={v.variant_id}>
+                                        <td className="p-2">
+                                          <p className="font-medium text-[var(--text-primary)]">{translateColor(v.color) || '—'}{v.size ? ` / ${v.size}` : ''}</p>
+                                          {v.alerts.length > 0 ? (
+                                            <span className="flex flex-wrap gap-x-2 text-[11px] font-medium">
+                                              {v.alerts.map((a) => (
+                                                <span key={a} className={alertStyle[a].text}>
+                                                  {t(`page_replenishment.alert_${a}`)}
+                                                  {a === 'stagnant' && v.days_without_sales != null ? ` · ${t('page_replenishment.days_no_sales', { n: v.days_without_sales })}` : ''}
+                                                  {a === 'overdue' ? ` · ${t('page_replenishment.days_overdue', { n: v.overdue_days })}` : ''}
+                                                </span>
+                                              ))}
+                                            </span>
+                                          ) : <span className="text-[11px] text-emerald-500">{t('page_replenishment.filter_normal')}</span>}
+                                        </td>
+                                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(v.sales_7d)}</td>
+                                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(v.sales_14d)}</td>
+                                        <td className="p-2 text-right text-[var(--text-primary)]">{fmtNum(v.sales_30d)}</td>
+                                        <td className="p-2 text-right font-semibold text-[var(--text-primary)]">{fmtNum(v.available)}</td>
+                                        <td className="p-2 text-right text-[var(--text-secondary)]">{v.share_pct == null ? '—' : `${v.share_pct.toFixed(1)}%`}</td>
+                                        <td className={`p-2 text-right font-bold ${v.coverage == null ? 'text-[var(--text-secondary)]' : coverageColor(v.alerts)}`}>{coverageText(v.coverage)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <p className="text-[11px] text-[var(--text-secondary)] mt-2">{t('page_replenishment.coverage_note')}</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+                {products.length === 0 && (
+                  <tr><td colSpan={6} className="p-6 text-center text-[var(--text-secondary)]">{t('page_replenishment.empty_state')}</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
-      <p className="text-xs text-gray-400">{t('page_replenishment.planned_hint')}</p>
+
+      <div className={`${cardClasses} p-4`}>
+        <h2 className="font-bold text-[var(--text-primary)]">{t('page_replenishment.settings_title')}</h2>
+        <p className="text-xs text-[var(--text-secondary)] mb-1">{t('page_replenishment.settings_subtitle')}</p>
+        <SettingsRow type="stockout" t={t}>
+          <p className="text-xs text-[var(--text-secondary)] my-1">{t('page_replenishment.stockout_desc')}</p>
+          <div className="flex items-center gap-2"><input type="number" min="1" value={form.stockout_days} onChange={num('stockout_days')} className={inputCls} /><span className="text-sm text-[var(--text-secondary)]">{t('page_replenishment.days')}</span></div>
+        </SettingsRow>
+        <SettingsRow type="restock" t={t}>
+          <p className="text-xs text-[var(--text-secondary)] my-1">{t('page_replenishment.restock_desc')}</p>
+          <div className="flex items-center gap-2"><input type="number" min="1" value={form.restock_days} onChange={num('restock_days')} className={inputCls} /><span className="text-sm text-[var(--text-secondary)]">{t('page_replenishment.days')}</span></div>
+        </SettingsRow>
+        <SettingsRow type="stagnant" t={t}>
+          <p className="text-xs text-[var(--text-secondary)] my-1">{t('page_replenishment.stagnant_desc')}</p>
+          <div className="flex items-center gap-2"><input type="number" min="1" value={form.stagnant_days} onChange={num('stagnant_days')} className={inputCls} /><span className="text-sm text-[var(--text-secondary)]">{t('page_replenishment.consecutive_days')}</span></div>
+        </SettingsRow>
+        <SettingsRow type="overdue" t={t}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-[var(--text-secondary)] my-1">{t('page_replenishment.overdue_desc')}</p>
+            <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full border border-[var(--table-divider)] text-[var(--text-secondary)]">{t('page_replenishment.automatic')}</span>
+          </div>
+          <p className="text-[11px] text-[var(--text-secondary)]">{t('page_replenishment.no_manual_config')}</p>
+        </SettingsRow>
+        {form.restock_days <= form.stockout_days && <p className="text-xs text-red-500 mt-2">{t('page_replenishment.invalid_order')}</p>}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <button onClick={() => persist(form)} disabled={saving || !formValid} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg">{t('page_replenishment.save_settings')}</button>
+          <button onClick={() => { setForm(DEFAULTS); persist(DEFAULTS) }} disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-lg border border-gray-300 text-[var(--text-secondary)] hover:bg-gray-100 disabled:opacity-50">{t('page_replenishment.reset_defaults')}</button>
+          {msg && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-500' : 'text-red-500'}`}>{msg.text}</span>}
+        </div>
+      </div>
       {previewImage && <ImagePreviewModal images={[{ url: previewImage }]} onClose={() => setPreviewImage(null)} />}
     </div>
   )
