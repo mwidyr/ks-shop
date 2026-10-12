@@ -255,11 +255,28 @@ export default function TelegramSettings() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
   const [groupTest, setGroupTest] = useState({})
+  const [saved, setSaved] = useState(null) // JSON of what the server holds, to spot unsaved edits
+  const snapshot = (tok, cfg, locs) => JSON.stringify({ tok, cfg, locs: (locs || []).map((l) => [l.id, l.chat_id || '']) })
+  const dirty = loaded && !!config && saved !== null && snapshot(token, config, locations) !== saved
+
+  // Leaving with unsaved edits (reload, close tab, or clicking a menu link) asks first.
+  useEffect(() => {
+    if (!dirty) return undefined
+    const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = '' }
+    const onClick = (e) => {
+      const a = e.target.closest?.('a[href]')
+      if (!a || a.target === '_blank' || a.getAttribute('href')?.startsWith('#')) return
+      if (!window.confirm(t('page_telegram.unsaved_confirm'))) { e.preventDefault(); e.stopPropagation() }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('click', onClick, true)
+    return () => { window.removeEventListener('beforeunload', onBeforeUnload); document.removeEventListener('click', onClick, true) }
+  }, [dirty, t])
 
   useEffect(() => {
     if (user?.role !== 'super_user') return
     getTelegramSettings().then((s) => {
-      setToken(s.bot_token || ''); setTokenSource(s.token_source || 'none'); setConfig(s.config); setLocations(s.locations || []); setLoaded(true)
+      setToken(s.bot_token || ''); setTokenSource(s.token_source || 'none'); setConfig(s.config); setLocations(s.locations || []); setSaved(snapshot(s.bot_token || '', s.config, s.locations)); setLoaded(true)
       if (s.token_source && s.token_source !== 'none') checkTelegramConnection('').then(setStatus).catch(() => {})
     }).catch(() => setLoaded(true))
     listHosts(false).then(setHosts)
@@ -290,11 +307,11 @@ export default function TelegramSettings() {
     setSaving(true); setToast(null)
     try {
       const s = await saveTelegramSettings({ bot_token: token, config, locations: locations.map((l) => ({ id: l.id, name: l.name, chat_id: l.chat_id })) })
-      setConfig(s.config); setLocations(s.locations || []); setTokenSource(s.token_source || 'none')
+      setConfig(s.config); setLocations(s.locations || []); setTokenSource(s.token_source || 'none'); setToken(s.bot_token || ''); setSaved(snapshot(s.bot_token || '', s.config, s.locations))
       setToast({ ok: true, msg: t('page_telegram.saved') })
       check()
     } catch (e) {
-      setToast({ ok: false, msg: e.response?.data?.error || t('page_telegram.save_failed') })
+      setToast({ ok: false, msg: `${t('page_telegram.save_failed')}: ${e.response?.data?.error || e.message}` })
     } finally { setSaving(false) }
   }
 
@@ -329,6 +346,7 @@ export default function TelegramSettings() {
             <Toggle on={!!config.send_enabled} onChange={(v) => setConfig((c) => ({ ...c, send_enabled: v }))} label={t('page_telegram.send_enabled')} />
           </div>
         </div>
+        <p className="text-xs text-[var(--text-secondary)]">{t('page_telegram.test_not_saved_note')}</p>
         <div className="grid gap-3 md:grid-cols-[2fr,1fr]">
           <div>
             <label className={labelCls}>{t('page_telegram.bot_token')}</label>
@@ -417,7 +435,11 @@ export default function TelegramSettings() {
       </div>
 
       <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-[var(--table-page-bg)]/95 backdrop-blur flex items-center justify-end gap-3 border-t border-[var(--table-divider)]">
-        {toast && <span className={`text-sm ${toast.ok ? 'text-emerald-600' : 'text-red-600'}`}>{toast.msg}</span>}
+        {dirty ? (
+          <span role="status" className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-300">● {t('page_telegram.unsaved_changes')}</span>
+        ) : toast && (
+          <span role="status" className={`text-sm font-semibold px-3 py-1.5 rounded-lg border ${toast.ok ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-red-100 text-red-800 border-red-300'}`}>{toast.ok ? '✓' : '✕'} {toast.msg}</span>
+        )}
         <button type="button" onClick={save} disabled={saving} className="text-sm font-semibold px-5 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60">
           {saving ? t('common.loading') : t('page_telegram.save_settings')}
         </button>

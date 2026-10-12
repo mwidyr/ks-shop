@@ -101,9 +101,24 @@ type Variant struct {
 	IncomingETA *string `json:"incoming_eta"`
 	// IncomingOpenPO is true when the variant has a Purchase Order not yet fully received, so
 	// Inventory can say "ETA not set" when no such PO has an expected arrival date yet.
-	IncomingOpenPO bool   `json:"incoming_open_po"`
-	TotalStock  int     `json:"total_stock"` // computed: available_stock + incoming_stock - order_stock (sellable headroom, gates picking)
+	IncomingOpenPO bool `json:"incoming_open_po"`
+	// ReservedForOrders is what customer orders have asked for but staff have not picked yet
+	// (SUM(qty - picked_qty) over orders that are not cancelled / returned). Creating an order raises
+	// it without touching available_stock; picking moves the quantity out of both. Shown as
+	// "Dipesan" in Stock Management.
+	ReservedForOrders int `json:"reserved_for_orders"`
+	// TotalStock is the Available Stock shown to staff: available_stock + incoming_stock - ReservedForOrders.
+	// (Picking itself is still gated separately in orders.PickItem.)
+	TotalStock int `json:"total_stock"`
 }
+
+// reservedByVariantSQL is a derived table (variant_id, qty) of the quantity reserved by open customer
+// orders - join it as `LEFT JOIN <this> rv ON rv.variant_id = pv.id` and read COALESCE(rv.qty, 0).
+const reservedByVariantSQL = `(
+	SELECT oi.variant_id, SUM(oi.qty - oi.picked_qty) AS qty
+	FROM order_items oi JOIN orders o ON o.id = oi.order_id
+	WHERE o.status NOT IN ('cancelled','return') AND oi.qty > oi.picked_qty
+	GROUP BY oi.variant_id)`
 
 type ProductImage struct {
 	ID  int    `json:"id"`
@@ -197,9 +212,11 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	vrows, err := h.DB.Query(r.Context(), `
 		SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
-		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock
+		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
+		       COALESCE(rv.qty, 0)
 		FROM product_variants pv
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
+		LEFT JOIN `+reservedByVariantSQL+` rv ON rv.variant_id = pv.id
 		ORDER BY pv.id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch variants")
@@ -213,10 +230,10 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		var v Variant
 		var productID int
 		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
-			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock); err != nil {
+			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders); err != nil {
 			continue
 		}
-		v.TotalStock = v.AvailableStock + v.IncomingStock - v.OrderStock
+		v.TotalStock = v.AvailableStock + v.IncomingStock - v.ReservedForOrders
 		if idx, ok := idIndex[productID]; ok {
 			products[idx].Variants = append(products[idx].Variants, v)
 		}
@@ -330,8 +347,10 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	vrows, err := h.DB.Query(r.Context(), `
 		SELECT pv.id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
-		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock
+		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
+		       COALESCE(rv.qty, 0)
 		FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
+		LEFT JOIN `+reservedByVariantSQL+` rv ON rv.variant_id = pv.id
 		WHERE pv.product_id = $1 ORDER BY pv.id`, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch variants")
@@ -343,8 +362,8 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	for vrows.Next() {
 		var v Variant
 		vrows.Scan(&v.ID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
-			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock)
-		v.TotalStock = v.AvailableStock + v.IncomingStock - v.OrderStock
+			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders)
+		v.TotalStock = v.AvailableStock + v.IncomingStock - v.ReservedForOrders
 		p.Variants = append(p.Variants, v)
 	}
 	{

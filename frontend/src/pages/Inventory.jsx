@@ -37,24 +37,28 @@ function IncomingNumber({ stock, eta, openPo, className = '', compact = false })
   const etaText = !hasEta ? '' : eta
     ? t('page_inventory.eta_label', { date: new Date(`${eta}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) })
     : t('page_inventory.eta_not_set')
+  // Both shapes sit in a full-width flex row that centres the number, so it lands on the column
+  // header's centre line (a bare inline-flex stretched to the cell would pin it to the left edge).
   if (!hasEta) {
-    return <span className={`inline-flex ${box} ${NUM_CLASS} ${className}`}>{stock}</span>
+    return <span className="flex justify-center"><span className={`inline-flex ${box} ${NUM_CLASS} ${className}`}>{stock}</span></span>
   }
   // inline-flex (no line box) so the surrounding line-height can't push this number below its siblings.
   return (
-    <span className="inline-flex relative align-top">
-      <button
-        type="button" aria-label={etaText}
-        onMouseEnter={() => canHover && setOpen(true)} onMouseLeave={() => canHover && setOpen(false)}
-        onFocus={() => canHover && setOpen(true)}
-        onClick={(e) => { e.stopPropagation(); if (!canHover) setOpen((o) => !o) }} onBlur={() => setOpen(false)}
-        className={`block ${box} underline decoration-dotted underline-offset-4 cursor-help leading-5 ${NUM_CLASS} ${className}`}
-      >
-        {stock}
-      </button>
-      {open && (
-        <span role="status" className="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-1 whitespace-nowrap rounded-lg bg-gray-800 text-white text-[11px] font-medium px-2 py-1 shadow-lg">{etaText}</span>
-      )}
+    <span className="flex justify-center">
+      <span className="inline-flex relative align-top">
+        <button
+          type="button" aria-label={etaText}
+          onMouseEnter={() => canHover && setOpen(true)} onMouseLeave={() => canHover && setOpen(false)}
+          onFocus={() => canHover && setOpen(true)}
+          onClick={(e) => { e.stopPropagation(); if (!canHover) setOpen((o) => !o) }} onBlur={() => setOpen(false)}
+          className={`inline-flex justify-center ${box} underline decoration-dotted underline-offset-4 cursor-help leading-5 ${NUM_CLASS} ${className}`}
+        >
+          {stock}
+        </button>
+        {open && (
+          <span role="status" className="absolute z-20 left-1/2 -translate-x-1/2 bottom-full mb-1 whitespace-nowrap rounded-lg bg-gray-800 text-white text-[11px] font-medium px-2 py-1 shadow-lg">{etaText}</span>
+        )}
+      </span>
     </span>
   )
 }
@@ -124,13 +128,13 @@ function VariantRow({ product, variant, onSaved }) {
   return (
     <>
       {/* Desktop: dense grid row (unchanged layout) */}
-      <div className="hidden sm:block">
+      <div className="hidden md:block">
         <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
           <p className="text-sm text-gray-700 min-w-0 truncate">{translateColor(variant.color)}/{variant.size}</p>
           <span className={`font-semibold ${NUM_CLASS}`}>{variant.total_stock}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{availableField}</span>
           <span className="text-center [&>*]:text-center [&>*]:w-full">{incomingField}</span>
-          <span className={NUM_CLASS}>{variant.order_stock}</span>
+          <span className={NUM_CLASS}>{variant.reserved_for_orders}</span>
           <span className="text-center">{badge}</span>
           <span className="text-right">{actions}</span>
         </div>
@@ -138,7 +142,7 @@ function VariantRow({ product, variant, onSaved }) {
 
       {/* Mobile: stacked label/value pairs instead of the cramped fixed-width grid (item 007) -
           nothing shares a column with anything else, so labels and numbers never overlap. */}
-      <div className={`sm:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+      <div className={`md:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{translateColor(variant.color)}/{variant.size}</p>
           {badge}
@@ -158,7 +162,7 @@ function VariantRow({ product, variant, onSaved }) {
           </div>
           <div>
             <p className={MOBILE_LABEL}>{t('page_inventory.col_ordered')}</p>
-            <p className={NUM_CLASS}><span className={MOBILE_VALUE}>{variant.order_stock}</span></p>
+            <p className={NUM_CLASS}><span className={MOBILE_VALUE}>{variant.reserved_for_orders}</span></p>
           </div>
         </div>
         {actions}
@@ -175,7 +179,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
   const totals = product.variants.reduce((acc, v) => ({
     available: acc.available + v.available_stock,
     incoming: acc.incoming + v.incoming_stock,
-    order: acc.order + v.order_stock,
+    order: acc.order + v.reserved_for_orders,
     total: acc.total + v.total_stock,
   }), { available: 0, incoming: 0, order: 0, total: 0 })
   // Product-level ETA: the earliest one among its variants (ISO dates sort as strings).
@@ -198,7 +202,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="hidden sm:block">
+      <div className="hidden md:block">
         <div className={`${INVENTORY_GRID_COLS} px-4 pb-3 text-xs`}>
           <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
           <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
@@ -218,7 +222,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
       </div>
 
       {/* Mobile: label/value pairs, same fix as VariantRow below (item 007). */}
-      <div className="sm:hidden px-4 pb-3">
+      <div className="md:hidden px-4 pb-3">
         <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs text-center">
           <div>
@@ -330,7 +334,7 @@ export default function Inventory() {
   const lowStockCount = allVariants.filter(({ variant }) => variant.minimum_stock > 0 && variant.available_stock <= variant.minimum_stock).length
   const oversellCount = allVariants.filter(({ variant }) => variant.available_stock < 0).length
   const totalAvailable = allVariants.reduce((sum, { variant }) => sum + variant.available_stock, 0)
-  const totalOrdered = allVariants.reduce((sum, { variant }) => sum + variant.order_stock, 0)
+  const totalOrdered = allVariants.reduce((sum, { variant }) => sum + variant.reserved_for_orders, 0)
 
   function productMatches(product, q) {
     if (product.name.toLowerCase().includes(q)) return true

@@ -1149,7 +1149,7 @@
     "th_total_cost": "總成本",
     "total_label": "總計：{{amount}}",
     "status_partially_received": "部分到貨",
-    "search_placeholder": "搜尋供應商名稱或商品編號...",
+    "search_placeholder": "搜尋供應商名稱、商品代碼或備註...",
     "date_filter_label": "建立日期",
     "clear_filters": "清除",
     "th_source_pr": "來源請購單",
@@ -1185,7 +1185,8 @@
     "batch_line": "批次 {{n}} — {{qty}} 件",
     "batch_received_suffix": "已收 {{qty}}",
     "received_vs_ordered": "已到貨 / 訂購",
-    "cancel_order_button": "取消訂單"
+    "cancel_order_button": "取消訂單",
+    "pr_notes_label": "來自採購請購單的備註"
   },
   "page_refunds": {
     "description": "退還款項給客戶的交易紀錄。",
@@ -2073,6 +2074,9 @@
     "send_on_desc": "開啟：訊息會發送到 Telegram 群組（同時寫入伺服器日誌）。",
     "send_off_desc": "關閉：僅記錄。每則訊息會依實際發送內容寫入伺服器日誌，不會發送到 Telegram。",
     "token_from_env": "使用伺服器環境變數 (TELEGRAM_BOT_TOKEN) 的 Token。僅在需要覆蓋時於此輸入。",
-    "token_from_env_placeholder": "Token 已在伺服器設定"
+    "token_from_env_placeholder": "Token 已在伺服器設定",
+    "unsaved_changes": "尚未儲存的變更",
+    "unsaved_confirm": "Telegram 設定尚未儲存，確定要離開此頁面嗎？",
+    "test_not_saved_note": "測試按鈕使用目前表單中輸入的內容，點擊「儲存設定」後才會保存。"
   }
 }

@@ -1,3 +1,4 @@
+import PRNotes from '../components/PRNotes'
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
@@ -127,6 +128,7 @@ export default function Purchases() {
                   {open && (
                     <tr>
                       <td colSpan={10} className="bg-[var(--table-header-bg)] px-4 py-3">
+                        {p.pr_notes?.length > 0 && <div className="mb-3"><PRNotes notes={p.pr_notes} compact /></div>}
                         <ul className="space-y-3">
                           {p.items.map((it) => (
                             <li key={it.id} className="text-sm">

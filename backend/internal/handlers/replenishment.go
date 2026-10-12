@@ -32,7 +32,7 @@ type replenishmentRow struct {
 	Size                string   `json:"size"`
 	PhysicalStock       int      `json:"physical_stock"`
 	IncomingStock       int      `json:"incoming_stock"`
-	OrderedQty          int      `json:"ordered_qty"` // stock already committed to unfulfilled customer orders (stock_buckets.order_stock)
+	OrderedQty          int      `json:"ordered_qty"` // stock already committed to unfulfilled customer orders (reservedByVariantSQL: qty - picked_qty on open orders)
 	SellableStock       int      `json:"sellable_stock"`
 	Sales7D             int      `json:"sales_7d"`
 	Sales14D            int      `json:"sales_14d"`
@@ -86,11 +86,12 @@ func (h *ReplenishmentHandler) List(w http.ResponseWriter, r *http.Request) {
 		SELECT pv.id, p.id, COALESCE(p.sku,''), ` + productNameSQL(r, "p") + `,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       COALESCE(p.category,''), p.supplier_id, COALESCE(s.name,'-'),
-		       pv.color, pv.size, sb.available_stock, sb.incoming_stock, sb.order_stock,
+		       pv.color, pv.size, sb.available_stock, sb.incoming_stock, COALESCE(rv.qty, 0),
 		       COALESCE(sa.sales_7d,0), COALESCE(sa.sales_14d,0), COALESCE(sa.sales_30d,0), s.default_lead_time_days
 		FROM product_variants pv
 		JOIN products p ON p.id = pv.product_id
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
+		LEFT JOIN ` + reservedByVariantSQL + ` rv ON rv.variant_id = pv.id
 		LEFT JOIN suppliers s ON s.id = p.supplier_id
 		LEFT JOIN sales_agg sa ON sa.variant_id = pv.id` + where + `
 		ORDER BY p.name, pv.color, pv.size`

@@ -1,3 +1,4 @@
+import PRNotes from '../components/PRNotes'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -221,6 +222,7 @@ export default function PurchaseDetail() {
             ? <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
             : <p className="text-gray-700 whitespace-pre-line">{purchase.notes || '–'}</p>}
         </div>
+        <PRNotes notes={purchase.pr_notes} />
 
         <div className="grid grid-cols-3 gap-3 pt-3 mt-3 border-t border-gray-100">
           <div><p className="text-lg font-bold text-gray-800">{purchase.items.length}</p><p className="text-xs text-gray-400">{t('page_purchases.items_title')}</p></div>

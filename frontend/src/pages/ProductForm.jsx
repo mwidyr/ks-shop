@@ -533,7 +533,7 @@ export default function ProductForm() {
                   {isEdit && (
                     <div>
                       <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.total_stock_label')}</label>
-                      <input type="text" value={(Number(v.available_stock) || 0) + (Number(v.incoming_stock) || 0) - (v.order_stock || 0)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
+                      <input type="text" value={(Number(v.available_stock) || 0) + (Number(v.incoming_stock) || 0) - (v.reserved_for_orders || 0)} disabled className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-sm w-full text-gray-500" />
                     </div>
                   )}
                 </div>

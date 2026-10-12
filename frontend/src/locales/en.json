@@ -1149,7 +1149,7 @@
     "th_total_cost": "Total Cost",
     "total_label": "Total: {{amount}}",
     "status_partially_received": "Partially Received",
-    "search_placeholder": "Search supplier name or product code...",
+    "search_placeholder": "Search supplier name, product code or note...",
     "date_filter_label": "Created date",
     "clear_filters": "Clear",
     "th_source_pr": "Source PR",
@@ -1185,7 +1185,8 @@
     "batch_line": "Batch {{n}} — {{qty}} PCS",
     "batch_received_suffix": "received {{qty}}",
     "received_vs_ordered": "Received / Ordered",
-    "cancel_order_button": "Cancel order"
+    "cancel_order_button": "Cancel order",
+    "pr_notes_label": "Notes from Purchase Requisition"
   },
   "page_refunds": {
     "description": "Refund transactions issued back to customers.",
@@ -2073,6 +2074,9 @@
     "send_on_desc": "On: messages are sent to the Telegram groups (and also written to the server log).",
     "send_off_desc": "Off: log only. Each message is written to the server log exactly as it would be sent; nothing goes to Telegram.",
     "token_from_env": "Using the token from the server environment (TELEGRAM_BOT_TOKEN). Enter a token here only to override it.",
-    "token_from_env_placeholder": "Token set on the server"
+    "token_from_env_placeholder": "Token set on the server",
+    "unsaved_changes": "Unsaved changes",
+    "unsaved_confirm": "You have unsaved Telegram settings. Leave this page without saving?",
+    "test_not_saved_note": "Test buttons use what is currently typed in this form. Nothing is stored until you click Save Settings."
   }
 }

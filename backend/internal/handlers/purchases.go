@@ -52,6 +52,43 @@ type purchaseListItemLine struct {
 	Batches     []purchaseBatchView `json:"batches"`
 }
 
+// purchasePRNote is one note from the source Purchase Requisition's supplier section. A PO reads
+// them live through purchase_requisition_suppliers.purchase_id, so notes added to the PR later (the
+// log stays editable in every PR status) show up on the PO too - nothing is copied.
+type purchasePRNote struct {
+	ID            int    `json:"id"`
+	Note          string `json:"note"`
+	CreatedByName string `json:"created_by_name"`
+	CreatedAt     string `json:"created_at"`
+}
+
+// loadPRNotes returns the source-PR supplier notes per purchase id (oldest first).
+func (h *PurchaseHandler) loadPRNotes(ctx context.Context, purchaseIDs []int) map[int][]purchasePRNote {
+	out := map[int][]purchasePRNote{}
+	if len(purchaseIDs) == 0 {
+		return out
+	}
+	rows, err := h.DB.Query(ctx, `
+		SELECT prs.purchase_id, n.id, n.note, COALESCE(u.name,'-'), n.created_at::text
+		FROM purchase_requisition_suppliers prs
+		JOIN purchase_requisition_supplier_notes n ON n.group_id = prs.id
+		LEFT JOIN users u ON u.id = n.created_by
+		WHERE prs.purchase_id = ANY($1)
+		ORDER BY n.created_at, n.id`, purchaseIDs)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid int
+		var n purchasePRNote
+		if rows.Scan(&pid, &n.ID, &n.Note, &n.CreatedByName, &n.CreatedAt) == nil {
+			out[pid] = append(out[pid], n)
+		}
+	}
+	return out
+}
+
 type purchaseListItem struct {
 	ID                  int                    `json:"id"`
 	PONumber            string                 `json:"po_number"`
@@ -65,11 +102,13 @@ type purchaseListItem struct {
 	ReceivedQty         int                    `json:"received_qty"`
 	TotalCost           float64                `json:"total_cost"`
 	CreatedAt           string                 `json:"created_at"`
+	PRNotes             []purchasePRNote       `json:"pr_notes"`
 	Items               []purchaseListItemLine `json:"items"`
 }
 
 // List supports ?status, ?search (supplier name, internal product code - product or variant
-// SKU - partial/case-insensitive; also PO and source PR number) and ?date=YYYY-MM-DD (POs created
+// SKU - partial/case-insensitive; also PO and source PR number, and note text: the PO's own note,
+// the source PR's note and that PR supplier section's notes) and ?date=YYYY-MM-DD (POs created
 // that day, Jakarta time). Search and date combine. Each row carries its items with delivery
 // batches so the page can expand a PO without another request.
 func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +121,11 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := strings.TrimSpace(q.Get("search")); search != "" {
 		like := add("%" + search + "%")
-		where += ` AND (s.name ILIKE ` + like + ` OR p.po_number ILIKE ` + like + `
+		where += ` AND (s.name ILIKE ` + like + ` OR p.po_number ILIKE ` + like + ` OR COALESCE(p.notes,'') ILIKE ` + like + `
+			OR EXISTS (SELECT 1 FROM purchase_requisition_suppliers prs JOIN purchase_requisitions pq ON pq.id = prs.requisition_id
+			           WHERE prs.purchase_id = p.id AND COALESCE(pq.note,'') ILIKE ` + like + `)
+			OR EXISTS (SELECT 1 FROM purchase_requisition_suppliers prs JOIN purchase_requisition_supplier_notes n ON n.group_id = prs.id
+			           WHERE prs.purchase_id = p.id AND n.note ILIKE ` + like + `)
 			OR EXISTS (SELECT 1 FROM purchase_requisition_suppliers prs JOIN purchase_requisitions pq ON pq.id = prs.requisition_id
 			           WHERE prs.purchase_id = p.id AND pq.requisition_no ILIKE ` + like + `)
 			OR EXISTS (SELECT 1 FROM purchase_items pi
@@ -121,6 +164,7 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		p.Items = []purchaseListItemLine{}
+		p.PRNotes = []purchasePRNote{}
 		idx[p.ID] = len(list)
 		ids = append(ids, p.ID)
 		list = append(list, p)
@@ -128,6 +172,9 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows.Close()
 
 	if len(ids) > 0 {
+		for pid, notes := range h.loadPRNotes(r.Context(), ids) {
+			list[idx[pid]].PRNotes = notes
+		}
 		lineIdx := map[int][2]int{} // item id -> [list idx, line idx]
 		itemRows, err := h.DB.Query(r.Context(), `
 			SELECT pi.purchase_id, pi.id, COALESCE(pr.sku,''), `+productNameSQL(r, "pr")+`, pv.color, pv.size, pi.qty, COALESCE(pi.received_qty,0)
@@ -211,6 +258,7 @@ type purchaseDetailView struct {
 	ExpectedArrivalDate *string              `json:"expected_arrival_date"`
 	Status              string               `json:"status"`
 	Notes               string               `json:"notes"`
+	PRNotes             []purchasePRNote     `json:"pr_notes"`
 	Items               []purchaseItemView   `json:"items"`
 	ChangeLog           []purchaseChangeView `json:"change_log"`
 	CreatedAt           string               `json:"created_at"`
@@ -241,6 +289,10 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT pq.id, pq.requisition_no FROM purchase_requisition_suppliers prs
 		JOIN purchase_requisitions pq ON pq.id = prs.requisition_id WHERE prs.purchase_id = $1 LIMIT 1`, id).
 		Scan(&p.SourcePRID, &p.SourcePRNo)
+	p.PRNotes = h.loadPRNotes(ctx, []int{id})[id]
+	if p.PRNotes == nil {
+		p.PRNotes = []purchasePRNote{}
+	}
 
 	rows, err := h.DB.Query(ctx, `
 		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, COALESCE(pr.sku,''), pi.qty, pi.unit_cost, pi.received_qty

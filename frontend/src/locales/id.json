@@ -1149,7 +1149,7 @@
     "th_total_cost": "Total Biaya",
     "total_label": "Total: {{amount}}",
     "status_partially_received": "Diterima Sebagian",
-    "search_placeholder": "Cari nama supplier atau kode produk...",
+    "search_placeholder": "Cari nama supplier, kode produk, atau catatan...",
     "date_filter_label": "Tanggal dibuat",
     "clear_filters": "Reset",
     "th_source_pr": "PR Sumber",
@@ -1185,7 +1185,8 @@
     "batch_line": "Batch {{n}} — {{qty}} PCS",
     "batch_received_suffix": "diterima {{qty}}",
     "received_vs_ordered": "Diterima / Dipesan",
-    "cancel_order_button": "Batalkan pesanan"
+    "cancel_order_button": "Batalkan pesanan",
+    "pr_notes_label": "Catatan dari Requisition Pembelian"
   },
   "page_refunds": {
     "description": "Transaksi pengembalian dana ke pelanggan.",
@@ -2073,6 +2074,9 @@
     "send_on_desc": "Nyala: pesan dikirim ke grup Telegram (dan juga ditulis di log server).",
     "send_off_desc": "Mati: hanya log. Setiap pesan ditulis di log server persis seperti yang akan dikirim; tidak ada yang masuk ke Telegram.",
     "token_from_env": "Memakai token dari environment server (TELEGRAM_BOT_TOKEN). Isi token di sini hanya untuk menimpanya.",
-    "token_from_env_placeholder": "Token diatur di server"
+    "token_from_env_placeholder": "Token diatur di server",
+    "unsaved_changes": "Perubahan belum disimpan",
+    "unsaved_confirm": "Pengaturan Telegram belum disimpan. Tinggalkan halaman tanpa menyimpan?",
+    "test_not_saved_note": "Tombol tes memakai isi form saat ini. Data baru tersimpan setelah Anda klik Simpan Pengaturan."
   }
 }
