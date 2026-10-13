@@ -1182,12 +1182,19 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 
 	var customerID, salesID, pickupChainID int
-	var shippingAddress, pickupStoreName, pickupStoreCode string
+	var shippingAddress, pickupStoreName, pickupStoreCode, salesChannel, internalNotes string
+	var websiteSource *string
+	var affiliateID *int
+	var keepDate, notesDeadline interface{}
+	var isUrgent bool
 	if err := tx.QueryRow(ctx, `
 		SELECT customer_id, COALESCE(sales_id,0), pickup_chain_id, shipping_address,
-		       COALESCE(pickup_store_name,''), COALESCE(pickup_store_code,'')
+		       COALESCE(pickup_store_name,''), COALESCE(pickup_store_code,''),
+		       sales_channel, website_source, affiliate_id, keep_date, is_urgent, notes_deadline,
+		       COALESCE(internal_notes,'')
 		FROM orders WHERE id=$1 FOR UPDATE`, id).
-		Scan(&customerID, &salesID, &pickupChainID, &shippingAddress, &pickupStoreName, &pickupStoreCode); err != nil {
+		Scan(&customerID, &salesID, &pickupChainID, &shippingAddress, &pickupStoreName, &pickupStoreCode,
+			&salesChannel, &websiteSource, &affiliateID, &keepDate, &isUrgent, &notesDeadline, &internalNotes); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
@@ -1202,9 +1209,11 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 	newOrderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var newOrderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, parent_order_id)
-		VALUES ($1,$2,$3,(SELECT status FROM orders WHERE id=$4),$5,$6,$7,$8,$4) RETURNING id`,
-		newOrderNo, customerID, salesID, id, shippingAddress, pickupChainID, pickupStoreName, pickupStoreCode).Scan(&newOrderID); err != nil {
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, parent_order_id,
+		                    sales_channel, website_source, affiliate_id, keep_date, is_urgent, notes_deadline, internal_notes)
+		VALUES ($1,$2,$3,(SELECT status FROM orders WHERE id=$4),$5,$6,$7,$8,$4,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+		newOrderNo, customerID, salesID, id, shippingAddress, pickupChainID, pickupStoreName, pickupStoreCode,
+		salesChannel, websiteSource, affiliateID, keepDate, isUrgent, notesDeadline, internalNotes).Scan(&newOrderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create split order")
 		return
 	}

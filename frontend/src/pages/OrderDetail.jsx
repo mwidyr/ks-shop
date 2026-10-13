@@ -48,6 +48,7 @@ const todoByStatus = {
 
 function SplitOrderModal({ order, onClose, onDone }) {
   const { t } = useTranslation()
+  const { translateColor } = useMasterData()
   const [selected, setSelected] = useState(new Set())
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)

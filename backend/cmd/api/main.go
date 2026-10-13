@@ -272,7 +272,8 @@ func main() {
 			r.Get("/languages", languageH.List)
 			r.With(edit("settings")).Post("/languages", languageH.Create)
 			r.With(edit("settings")).Patch("/languages/{code}", languageH.Update)
-			r.With(view("shipping_settings")).Get("/settings/shipping", shippingSettingsH.Get)
+			// Read-only: the order form needs the default fee/thresholds, so anyone who can open Orders may read it.
+			r.With(viewAny("shipping_settings", "orders")).Get("/settings/shipping", shippingSettingsH.Get)
 			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
 			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)
 			r.With(view("store_profile")).Get("/store-settings/website-launch", storeSettingsH.GetWebsiteLaunch)

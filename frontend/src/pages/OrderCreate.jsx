@@ -360,12 +360,13 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
                   <p className="text-xs text-gray-500">{it.sku && <span className="font-mono text-brand-600">{it.sku}</span>} · {it.variantLabel} · {t('page_order_create.qty_label')}: {it.qty}</p>
                 </div>
                 {order.salesChannel === 'live' && <select
-                  value={it.hostId ?? order.hostId}
+                  value={it.hostId || order.hostId}
                   onChange={(e) => updateItem(it.variantId, 'hostId', e.target.value)}
                   title={t('page_order_create.host_label')}
                   className="text-xs border border-gray-300 rounded-lg px-2 py-1 shrink-0"
                 >
-                  {hosts.filter((h) => !order.locationId || String(h.location_id) === String(order.locationId) || String(h.id) === String(it.hostId ?? order.hostId)).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                  {!(it.hostId || order.hostId) && <option value="">{t('page_order_create.select_host_option')}</option>}
+                  {hosts.filter((h) => !order.locationId || String(h.location_id) === String(order.locationId) || String(h.id) === String(it.hostId || order.hostId)).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                 </select>}
                 <span className="text-sm font-semibold text-gray-700 shrink-0">{formatCurrency(it.price * it.qty)}</span>
                 <button type="button" onClick={() => removeItem(it.variantId)} className="text-xs text-red-600 hover:underline shrink-0">{t('common.delete')}</button>
@@ -439,7 +440,7 @@ export default function OrderCreate() {
   function validate() {
     const isCvs = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))?.chain_type
     const cvs = isCvs === 'cvs_711' || isCvs === 'cvs_familymart'
-    if (order.salesChannel === 'live' && !order.hostId) return t('page_order_create.block_error_host', { index: 1 })
+    if (order.salesChannel === 'live' && (!order.hostId || order.items.some((it) => !(it.hostId || order.hostId)))) return t('page_order_create.block_error_host', { index: 1 })
     if (!customerIsResolved(order.customer)) return t('page_order_create.block_error_customer', { index: 1 })
     if (!order.customer.id && !TW_PHONE_REGEX.test(order.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: 1 })
     if (!order.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: 1 })
@@ -466,7 +467,7 @@ export default function OrderCreate() {
         pickup_chain_id: Number(order.pickupChainId),
         pickup_store_name: order.pickupStoreName,
         pickup_store_code: order.pickupStoreCode,
-        items: order.items.map((it) => ({ host_id: Number(it.hostId ?? order.hostId) || 0, variant_id: it.variantId, qty: it.qty })),
+        items: order.items.map((it) => ({ host_id: Number(it.hostId || order.hostId) || 0, variant_id: it.variantId, qty: it.qty })),
         sales_channel: order.salesChannel,
         affiliate_id: order.salesChannel === 'website' && order.affiliateId ? Number(order.affiliateId) : null,
         discount_amount: Number(order.discountAmount) || 0,
