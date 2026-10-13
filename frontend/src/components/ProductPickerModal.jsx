@@ -5,6 +5,7 @@ import { listCategories } from '../api/categories'
 import { resolveUrl } from '../utils/image'
 import { formatCurrency } from '../utils/format'
 import { IconChevronDown } from './icons'
+import ImagePreviewModal from './ImagePreviewModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { allProductNames } from '../utils/productName'
 
@@ -61,6 +62,7 @@ export function pickerProductName(product, nameLang) {
 function PickerProductCard({ product, pending, setQty, nameLang }) {
   // Always starts collapsed, search results included - variants only show once the product is clicked.
   const [open, setOpen] = useState(false)
+  const [zoom, setZoom] = useState(false) // tap the thumbnail to enlarge the photo (same viewer as Products / Stock)
   const isOpen = open
   const selectedInProduct = product.variants.filter((v) => pending[v.id] > 0).length
 
@@ -71,7 +73,11 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50"
       >
-        <img src={resolveUrl(product.images[0]?.url)} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" />
+        <img
+          src={resolveUrl(product.images[0]?.url)}
+          onClick={(e) => { if (product.images.some((im) => im?.url)) { e.preventDefault(); e.stopPropagation(); setZoom(true) } }}
+          className={`w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0 ${product.images.some((im) => im?.url) ? 'cursor-zoom-in' : ''}`}
+        />
         <div className="flex-1 min-w-0">
           {product.sku && <p className="text-xs font-bold text-brand-600">{product.sku}</p>}
           <p className="font-semibold text-gray-800 truncate">{pickerProductName(product, nameLang)}</p>
@@ -81,6 +87,12 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
         )}
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
+      {zoom && (
+        // wrapper keeps the viewer's backdrop click from bubbling to the picker's own overlay (which would close the picker)
+        <div className="relative z-[60]" onClick={(e) => e.stopPropagation()}>
+          <ImagePreviewModal images={product.images} onClose={() => setZoom(false)} />
+        </div>
+      )}
       {isOpen && (
         <table className="w-full text-sm border-t">
           <tbody className="divide-y">
