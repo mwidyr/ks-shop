@@ -183,6 +183,14 @@ const hostDetail = (h, o = {}) => ({
   coupons: [{ code: 'RARA100', title: 'Kupon khusus live', subtitle: 'Min. NT$990・semua produk', type: 'fixed_amount', value: 100, min_order_amount: 990, end_date: '2026-10-08T23:59:00+08:00' }],
   replays: [], journal: [], ...o.extra,
 })
+contentPages.a1 = () => ({
+  author_height_cm: 158,
+  page: { ...art(41, 'Jurnal gaya RARA: tinggi 158 cm pakai celana lebar tanpa terlihat pendek', 'Outfit sesuai bentuk tubuh', { type: 'host_article', slug: 'a1' }), author: 'RARA', author_slug: 'rara', published_at: '2026-10-06T10:00:00+08:00', tags: [] },
+  blocks: [{ type: 'p', text: 'Isi artikel ditulis host atau editor; harus berisi pengalaman & pendapat gaya asli dari host tersebut, hindari halaman duplikat yang hanya beda nama.' }, { type: 'h2', text: '1. Pinggang tinggi + atasan crop' }, { type: 'p', text: 'Isi paragraf' }, { type: 'product', product_id: 11 }],
+  products: [{ ...pcard(11, 'Kardigan rajut kotak', 790), wear_size: 'M' }, pcard(12, 'Kaos longgar motif huruf', 290), pcard(3, 'Rok asimetris suede', 690)],
+  categories: [], hosts: [hosts.rara], related: [art(42, 'Coba produk baru: 5 item favoritku minggu ini', 'x', { type: 'host_article', slug: 'a2' }), art(43, 'Sorotan live: 3 outfit paling banyak ditanya 10/05', 'x', { type: 'host_article', slug: 'a3' })],
+  seo: { title: '', description: '', canonical: '', index: true },
+})
 const routes = {
   '/public/store/content': journal,
   '/public/store/live': liveData,

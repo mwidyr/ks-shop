@@ -162,8 +162,12 @@ func (h *SiteHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 		related = h.contentCards(ctx, lang, `c.id <> $1 AND c.type = 'host_article' AND c.author_host_id = $2`, []interface{}{card.ID, *authorHost}, 4)
 	}
 
+	var authorHeight *int
+	if authorHost != nil {
+		h.DB.QueryRow(ctx, `SELECT height_cm FROM hosts WHERE id=$1`, *authorHost).Scan(&authorHeight)
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"page": card, "blocks": blocks, "products": products, "categories": cats, "hosts": hosts, "related": related,
+		"author_height_cm": authorHeight, "page": card, "blocks": blocks, "products": products, "categories": cats, "hosts": hosts, "related": related,
 		"seo": map[string]interface{}{
 			"title": pickLang(seoTitle, lang), "description": pickLang(seoDesc, lang), "canonical": canonical, "index": indexed,
 		},

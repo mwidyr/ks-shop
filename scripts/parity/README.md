@@ -15,5 +15,9 @@ Matched (≤ budget, identical text): Main, Language, Menu, Login*, Service, Mem
 Search*, Category, ProductList*, Cart, ZH_* (Info … Success, 15), Journal, Topic, Article* (top part), Live, Hosts*, HostBrand (top 1500px), Product_v2 (top part),
 WA_Handoff*, Coupon_Apply* (* = documented deviations in manifest.mjs: pay-at-store, no LINE, no data for ETA / replay length, placeholder logos).
 
-Not matched yet: Desktop_Home / Desktop_Host / Desktop_Product, Host_Live / Host_Offline / Host_States / Hosts_States, HostArticle,
-Product_Video, Product (mid sections), DL_* pieces. Legacy variants superseded by ZH_* / HostBrand / Product_v2: Checkout, OrderSuccess, Product.
+HostArticle also matches (0.2%).
+
+Not matched: Desktop_Home / Desktop_Host / Desktop_Product (the desktop artboards drop the text navigation from the header and use another grid;
+needs a product decision before changing the desktop shell), Product_Video, Host_States / Hosts_States (state matrices), DL_* pieces.
+Host_Live / Host_Offline are older status-based host layouts, superseded by HostBrand (which already has the live block).
+Legacy variants superseded by ZH_* / HostBrand / Product_v2: Checkout, OrderSuccess, Product.

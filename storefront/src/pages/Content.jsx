@@ -11,7 +11,7 @@ import { ProductCard, StripCard } from '../components/ProductCard'
 import { EmptyState, ErrorState, iconBtn, PageHeader, SectionHead, Skeleton, btnPrimary } from '../components/ui'
 
 // Topic / article / host-journal page (artboards Topic / Article). Body = blocks {type: h2|h3|p|list|image|product|products|tags}.
-function Blocks({ blocks, products, topic, toc }) {
+function Blocks({ blocks, products, topic, toc, hostName }) {
   const { t } = useTranslation()
   const byId = Object.fromEntries(products.map((p) => [p.id, p]))
   let tocDone = false
@@ -19,7 +19,7 @@ function Blocks({ blocks, products, topic, toc }) {
     <>
       {blocks.map((b, i) => {
         const out = []
-        if (b.type === 'h2') out.push(<h2 key={i} id={`s${i}`} style={{ margin: topic ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700 }}>{b.text}</h2>)
+        if (b.type === 'h2') out.push(<h2 key={i} id={`s${i}`} style={{ margin: topic || hostName ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700, lineHeight: hostName ? 1.85 : undefined }}>{b.text}</h2>)
         else if (b.type === 'h3') out.push(<h3 key={i} style={{ margin: '8px 0 0', fontSize: 17 }}>{b.text}</h3>)
         else if (b.type === 'list') out.push(<ul key={i} style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>{(b.items || []).map((x) => <li key={x}>{x}</li>)}</ul>)
         else if (b.type === 'image') out.push(
@@ -30,13 +30,13 @@ function Blocks({ blocks, products, topic, toc }) {
         else if (b.type === 'product' && byId[b.product_id]) {
           const p = byId[b.product_id]
           out.push(
-            <Link key={i} to={`/p/${p.id}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 14, background: 'var(--color-surface)', border: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
-              <img src={sized(img(p.image), 160)} alt={p.name} loading="lazy" onError={onImgError} style={{ width: 64, height: 84, borderRadius: 10, objectFit: 'cover' }} />
-              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 11, color: 'var(--color-live)', fontWeight: 700 }}>{p.live_code ? t('product.live_code_badge', { code: p.live_code }) : t('style.shop_note')}</span>
+            <Link key={i} to={`/p/${p.id}`} style={{ lineHeight: hostName ? 1.85 : undefined, display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 14, background: 'var(--color-surface)', border: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
+              <img src={sized(img(p.image), 160)} alt={hostName ? '' : p.name} loading="lazy" onError={onImgError} style={hostName ? { width: 60, height: 80, borderRadius: 10, objectFit: 'cover' } : { width: 64, height: 84, borderRadius: 10, objectFit: 'cover' }} />
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: hostName ? 0 : 3 }}>
+                <span style={{ fontSize: 11, color: 'var(--color-live)', fontWeight: 700 }}>{p.wear_size && hostName ? t('style.wears', { name: hostName, size: p.wear_size }) : p.live_code ? t('product.live_code_badge', { code: p.live_code }) : t('style.shop_note')}</span>
                 <b style={{ fontSize: 15 }}>{p.name}</b><span style={{ fontSize: 15, fontWeight: 700 }}>NT${Math.round(p.price).toLocaleString('en-US')}</span>
               </span>
-              <span style={{ flex: 'none', height: 36, padding: '0 14px', borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center' }}>{t('style.view_product')}</span>
+              <span style={{ flex: 'none', ...(hostName ? { minHeight: 36, padding: '0 12px' } : { height: 36, padding: '0 14px', fontWeight: 700 }), borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, display: 'flex', alignItems: 'center' }}>{t('style.view_product')}</span>
             </Link>)
         } else if (b.type === 'tags') out.push(<div key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{(b.items || []).map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>)
         else out.push(<p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }}>{b.text}</p>)
@@ -81,7 +81,7 @@ export default function Content() {
   const href = (c) => (c.type === 'host_article' ? `/hosts/${c.author_slug}/journal/${c.slug}` : `/style/${c.slug}`)
   const dateDots = (iso) => fullDate(iso).replace(/\//g, '.')
   const isSaved = saved.has(page.slug)
-  const right = topic
+  const right = topic || hostArt
     ? <><Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link><Link to="/menu" aria-label={t('menu.title')} style={iconBtn}><IconMenu /></Link></>
     : <>
         <button type="button" aria-label={t('style.share')} onClick={() => navigator.share?.({ title: page.title, url: window.location.href }).catch(() => {})} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconShare size={20} /></button>
@@ -89,19 +89,25 @@ export default function Content() {
       </>
   const eyebrowColor = topic ? 'var(--color-primary-strong)' : 'var(--color-secondary)'
   const catLine = (
-    <nav aria-label="Breadcrumb" style={{ padding: `12px ${px}px 0`, fontSize: 12, color: 'var(--color-disabled)' }}>
-      <Link to="/" style={{ color: 'var(--color-disabled)' }}>{t('style.home')}</Link> › {hostArt ? <Link to={`/hosts/${page.author_slug}`} style={{ color: 'var(--color-disabled)' }}>{page.author}</Link> : <Link to="/style" style={{ color: 'var(--color-disabled)' }}>{topic ? t('style.style_topics') : t('style.title')}</Link>}
-      {topic ? <> › {page.title.split(':')[0]}</> : <> › <Link to="/style" style={{ color: 'var(--color-disabled)' }}>{page.category_label}</Link></>}
+    <nav aria-label="Breadcrumb" style={{ padding: `12px ${px}px 0`, fontSize: 12, color: hostArt ? 'var(--color-text-3)' : 'var(--color-disabled)' }}>
+      {hostArt ? <><Link to="/" style={{ color: 'var(--color-text-3)' }}>{t('style.home')}</Link> › <Link to="/hosts" style={{ color: 'var(--color-text-3)' }}>{t('style.host')}</Link> › <Link to={`/hosts/${page.author_slug}`} style={{ color: 'var(--color-text-3)' }}>{page.author}</Link> › {t('style.journal')}</> : <><Link to="/" style={{ color: 'var(--color-disabled)' }}>{t('style.home')}</Link> › {hostArt ? <Link to={`/hosts/${page.author_slug}`} style={{ color: 'var(--color-disabled)' }}>{page.author}</Link> : <Link to="/style" style={{ color: 'var(--color-disabled)' }}>{topic ? t('style.style_topics') : t('style.title')}</Link>}
+      {topic ? <> › {page.title.split(':')[0]}</> : <> › <Link to="/style" style={{ color: 'var(--color-disabled)' }}>{page.category_label}</Link></>}</>}
     </nav>
   )
   return (
     <article>
-      {!desktop && <PageHeader title="" to={hostArt ? `/hosts/${page.author_slug}` : '/style'} right={right} height={topic ? 58 : 56} gap={topic ? 8 : 4} />}
+      {!desktop && <PageHeader title="" to={hostArt ? `/hosts/${page.author_slug}` : '/style'} right={right} height={topic || hostArt ? 58 : 56} gap={topic || hostArt ? 8 : 4} />}
       {catLine}
-      <header style={{ padding: `10px ${px}px 16px`, display: 'flex', flexDirection: 'column', gap: topic ? 8 : 10, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
-        <span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: eyebrowColor }}>{topic ? t('style.eyebrow_topic') : page.category_label}</span>
-        <h1 style={{ margin: 0, fontSize: desktop ? 34 : 26, fontWeight: 700, lineHeight: 1.35 }}>{page.title}</h1>
-        {topic
+      <header style={{ padding: `10px ${px}px ${hostArt ? 14 : 16}px`, display: 'flex', flexDirection: 'column', gap: topic ? 8 : 10, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
+        <span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: hostArt ? 'var(--color-primary-strong)' : eyebrowColor }}>{topic ? t('style.eyebrow_topic') : page.category_label}</span>
+        <h1 style={{ margin: 0, fontSize: desktop ? 34 : 26, fontWeight: 700, lineHeight: hostArt ? 1.4 : 1.35 }}>{page.title}</h1>
+        {hostArt ? (
+          <Link to={`/hosts/${page.author_slug}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'var(--color-text)' }}>
+            {d.hosts[0]?.avatar_url && <img src={sized(img(d.hosts[0].avatar_url), 80)} alt="" onError={onImgError} style={{ width: 40, height: 40, borderRadius: 20, objectFit: 'cover', objectPosition: '30% 15%' }} />}
+            <span style={{ display: 'flex', flexDirection: 'column' }}><b style={{ fontSize: 15 }}>{page.author}</b><span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{d.author_height_cm ? `${d.author_height_cm} cm・` : ''}{dateDots(page.published_at)}</span></span>
+            <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>{t('style.host_page')}</span>
+          </Link>
+        ) : topic
           ? <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{dateDots(page.published_at)}{page.author ? `・${t('style.by', { name: page.author })}` : ''}{page.read_minutes ? `・${t('style.read_min', { n: page.read_minutes })}` : ''}</span>
           : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--color-text-2)' }}>
@@ -110,22 +116,22 @@ export default function Content() {
             </div>
           )}
       </header>
-      {page.cover_url && <img src={sized(img(page.cover_url), 1200)} alt={page.cover_alt || page.title} fetchpriority="high" onError={onImgError} style={{ width: '100%', height: topic ? 280 : 300, objectFit: 'cover', objectPosition: 'center 30%', display: topic ? 'inline' : 'block' }} />}
-      <div style={{ padding: `20px ${px}px 0`, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
+      {page.cover_url && <img src={sized(img(page.cover_url), 1200)} alt={page.cover_alt || page.title} fetchpriority="high" onError={onImgError} style={{ width: '100%', height: topic ? 280 : 300, objectFit: 'cover', objectPosition: 'center 30%', display: topic || hostArt ? 'inline' : 'block' }} />}
+      <div style={{ padding: `${hostArt ? 18 : 20}px ${px}px 0`, display: 'flex', flexDirection: 'column', gap: hostArt ? 14 : 16, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
         {page.summary && !d.blocks.length && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85 }}>{page.summary}</p>}
-        <Blocks blocks={d.blocks} products={d.products} topic={topic} toc={toc} />
+        <Blocks blocks={d.blocks} products={d.products} topic={topic} toc={toc} hostName={hostArt ? page.author : ''} />
         {!topic && page.tags?.length > 0 && !d.blocks.some((b) => b.type === 'tags') && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{page.tags.map((x) => <Link key={x} to="/style" style={tagPill}>#{x}</Link>)}</div>}
       </div>
 
       {d.products.length > 0 && (
-        <section style={{ padding: `28px 0 0` }}>
-          <div style={{ padding: `0 ${px}px ${topic ? 14 : 0}px` }}>
+        <section style={{ padding: `${hostArt ? 24 : 28}px 0 0` }}>
+          <div style={{ padding: `0 ${px}px ${topic ? 14 : hostArt ? 12 : 0}px` }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--color-secondary)', fontWeight: 700 }}>{topic ? 'SHOP THE TOPIC' : 'SHOP THE LOOK'}</span><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{hostArt ? t('style.shop_note') : topic ? t('style.shop_topic') : t('style.shop_look')}</h2></div>
-              <Link to="/products" style={{ flex: 'none', fontSize: 13, fontWeight: 500, color: 'var(--color-text)', textDecoration: 'none', padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: 16 }}>{t('style.see_all')}</Link>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--color-secondary)', fontWeight: 700 }}>{hostArt ? 'SHOP THE NOTE' : topic ? 'SHOP THE TOPIC' : 'SHOP THE LOOK'}</span><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{hostArt ? t('style.shop_note') : topic ? t('style.shop_topic') : t('style.shop_look')}</h2></div>
+              {!hostArt && <Link to="/products" style={{ flex: 'none', fontSize: 13, fontWeight: 500, color: 'var(--color-text)', textDecoration: 'none', padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: 16 }}>{t('style.see_all')}</Link>}
             </div>
           </div>
-          {topic
+          {topic || hostArt
             ? <div className="no-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: `0 ${px}px 4px` }}>{d.products.map((p) => <StripCard key={p.id} p={p} />)}</div>
             : <div style={{ display: 'grid', gridTemplateColumns: `repeat(${desktop ? 5 : 2}, minmax(0, 1fr))`, gap: '16px 12px', padding: `14px ${px}px 0` }}>{d.products.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
         </section>
@@ -143,17 +149,17 @@ export default function Content() {
         </section>
       )}
       {d.related.length > 0 && (
-        <section style={{ padding: `${topic ? 24 : 28}px ${px}px 0` }}>
+        <section style={{ padding: `${topic || hostArt ? 24 : 28}px ${px}px 0` }}>
           {topic
             ? <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700 }}>{t('style.other_topics')}</h2>
-            : <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}><div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--color-secondary)', fontWeight: 700 }}>RELATED</span><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{hostArt ? t('style.more_from', { name: page.author }) : t('style.related')}</h2></div></div>}
-          <div style={{ marginTop: topic ? 0 : 8 }}>
+            : <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}><div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--color-secondary)', fontWeight: 700 }}>{hostArt ? `MORE FROM ${page.author}` : 'RELATED'}</span><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{hostArt ? t('style.more_from', { name: page.author }) : t('style.related')}</h2></div></div>}
+          <div style={{ marginTop: topic || hostArt ? 0 : 8 }}>
             {d.related.map((c) => (
               <Link key={c.id} to={href(c)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
                 <img src={sized(img(c.cover_url), 160)} alt="" loading="lazy" onError={onImgError} style={{ width: 72, height: 72, borderRadius: 12, objectFit: 'cover' }} />
                 {topic
                   ? <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><b style={{ fontSize: 15 }}>{c.title}</b><span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{c.summary}</span></span>
-                  : <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}><span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-secondary)' }}>{c.category_label}</span><b style={{ fontSize: 15, lineHeight: 1.45 }}>{c.title}</b></span>}
+                  : hostArt ? <b style={{ fontSize: 15 }}>{c.title}</b> : <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}><span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-secondary)' }}>{c.category_label}</span><b style={{ fontSize: 15, lineHeight: 1.45 }}>{c.title}</b></span>}
               </Link>
             ))}
           </div>
