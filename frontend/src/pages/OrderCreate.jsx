@@ -8,6 +8,7 @@ import { listPickupChains } from '../api/pickupChains'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { getShippingSettings } from '../api/settings'
+import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
 import CustomerPicker, { TW_PHONE_REGEX } from '../components/CustomerPicker'
@@ -37,21 +38,6 @@ const emptyOrder = () => ({
   notesDeadline: '',
   items: [],
 })
-
-// Mirrors backend ComputeShippingFee (shipping_fee.go): the chain's target_fee (minimarket)
-// or the flat home-delivery fee (chain_type='courier'), 0 once subtotal clears the relevant
-// threshold. Used only to seed a sensible default into the now-editable Ongkos Kirim field.
-function defaultShippingFee(chain, shippingSettings, subtotal) {
-  if (!chain || !shippingSettings) return 0
-  if (chain.chain_type === 'courier') {
-    const threshold = shippingSettings.free_shipping_threshold_pos
-    if (threshold > 0 && subtotal >= threshold) return 0
-    return shippingSettings.home_delivery_flat_fee
-  }
-  const threshold = shippingSettings.free_shipping_threshold_minimarket
-  if (threshold > 0 && subtotal >= threshold) return 0
-  return chain.target_fee
-}
 
 function customerIsResolved(customer) {
   if (!customer) return false

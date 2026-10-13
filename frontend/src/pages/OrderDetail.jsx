@@ -6,6 +6,8 @@ import {
   addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
 } from '../api/orders'
 import { listPickupChains } from '../api/pickupChains'
+import { getShippingSettings } from '../api/settings'
+import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
@@ -181,8 +183,22 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
   const [storeCode, setStoreCode] = useState(order.pickup_store_code || '')
   const [address, setAddress] = useState(order.shipping_address || '')
   const [fee, setFee] = useState(order.shipping_fee || 0)
+  const [feeDirty, setFeeDirty] = useState(false) // staff typed a fee: only then it is sent as an explicit override
+  const [shippingSettings, setShippingSettings] = useState(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  // An order merged into a shipment group keeps its fee (the group's fee holder carries it).
+  const feeLocked = Boolean(order.shipment_group_id)
+  useEffect(() => { getShippingSettings().then(setShippingSettings).catch(() => {}) }, [])
+
+  // Picking another chain re-seeds the fee like Create Order does (the old fee is kept for the chain the
+  // order already has, and for orders that staff made free by hand); typing in the field wins over that.
+  function pickChain(c) {
+    setChainId(String(c.id))
+    if (feeDirty || feeLocked || !shippingSettings) return
+    if (c.id === order.pickup_chain_id) setFee(order.shipping_fee || 0)
+    else setFee(order.free_shipping_override ? 0 : defaultShippingFee(c, shippingSettings, Number(order.subtotal) || 0))
+  }
 
   const selectedChain = pickupChains.find((c) => String(c.id) === chainId)
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
@@ -207,7 +223,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
         pickup_store_name: storeName,
         pickup_store_code: storeCode,
         shipping_address: isCvs ? '' : address,
-        shipping_fee_override: Number(fee) || 0,
+        ...(feeDirty ? { shipping_fee_override: Number(fee) || 0 } : {}),
       })
       onDone()
     } catch (err) {
@@ -232,7 +248,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setChainId(String(c.id))}
+                  onClick={() => pickChain(c)}
                   className={`text-sm font-semibold px-4 py-2 rounded-lg border ${
                     chainId === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
                   }`}
@@ -272,7 +288,8 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
           {selectedChain && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
-              <input type="number" min="0" value={fee} onChange={(e) => setFee(Number(e.target.value) || 0)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <input type="number" min="0" value={fee} onChange={(e) => { setFee(Number(e.target.value) || 0); setFeeDirty(true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              {!feeDirty && <p className="text-xs text-gray-400 mt-1">{feeLocked ? t('page_order_detail.fee_group_hint') : order.free_shipping_override ? t('page_order_detail.fee_manual_free_hint') : t('page_order_detail.fee_auto_hint')}</p>}
             </div>
           )}
 

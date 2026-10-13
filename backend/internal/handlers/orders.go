@@ -964,16 +964,51 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Current state: needed to decide what happens to the shipping fee. The fee only changes when the
+	// pickup chain changes (recomputed from the chain / free-shipping threshold, like Create Order) or
+	// when staff typed a fee on purpose (shipping_fee_override). Saving the same chain with another
+	// store code never touches it, and an order merged into a shipment group keeps its fee (the group
+	// fee holder carries it).
+	var curChain int
+	var curOverride, inGroup bool
+	var subtotal float64
+	if err := h.DB.QueryRow(ctx, `
+		SELECT o.pickup_chain_id, o.free_shipping_override,
+		       EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id),
+		       COALESCE((SELECT SUM(oi.price_at_order * oi.qty) FROM order_items oi WHERE oi.order_id = o.id), 0)
+		FROM orders o WHERE o.id=$1`, id).Scan(&curChain, &curOverride, &inGroup, &subtotal); err != nil {
+		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+
 	var ct pgconn.CommandTag
-	if req.ShippingFeeOverride != nil {
-		freeShippingOverride := *req.ShippingFeeOverride == 0
+	switch {
+	case req.ShippingFeeOverride != nil:
+		// Free-by-hand only when staff entered 0 although the rules would charge something; entering
+		// the amount the rules already give (or the threshold already waives) is not a manual waiver.
+		def, derr := ComputeShippingFee(ctx, h.DB, req.PickupChainID, subtotal, false)
+		if derr != nil {
+			respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
+			return
+		}
+		freeShippingOverride := *req.ShippingFeeOverride == 0 && def > 0
 		ct, err = h.DB.Exec(ctx, `
 			UPDATE orders SET pickup_chain_id=$1, pickup_store_name=$2, pickup_store_code=$3, shipping_address=$4,
 			       shipping_fee=$5, free_shipping_override=$6
 			WHERE id=$7`,
 			req.PickupChainID, req.PickupStoreName, req.PickupStoreCode, finalAddress,
 			*req.ShippingFeeOverride, freeShippingOverride, id)
-	} else {
+	case req.PickupChainID != curChain && !inGroup:
+		fee, ferr := ComputeShippingFee(ctx, h.DB, req.PickupChainID, subtotal, curOverride)
+		if ferr != nil {
+			respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
+			return
+		}
+		ct, err = h.DB.Exec(ctx, `
+			UPDATE orders SET pickup_chain_id=$1, pickup_store_name=$2, pickup_store_code=$3, shipping_address=$4, shipping_fee=$5
+			WHERE id=$6`,
+			req.PickupChainID, req.PickupStoreName, req.PickupStoreCode, finalAddress, fee, id)
+	default:
 		ct, err = h.DB.Exec(ctx, `
 			UPDATE orders SET pickup_chain_id=$1, pickup_store_name=$2, pickup_store_code=$3, shipping_address=$4
 			WHERE id=$5`,

@@ -698,7 +698,10 @@
     "update_status_failed_error": "更新狀態失敗",
     "upload_photo_button": "+ 上傳照片",
     "uploading_label": "上傳中...",
-    "urgent_badge": "緊急"
+    "urgent_badge": "緊急",
+    "fee_auto_hint": "依此配送方式的運費規則自動帶入，必要時可修改。",
+    "fee_manual_free_hint": "此訂單已手動免運，運費維持免費。",
+    "fee_group_hint": "此訂單已合併出貨，運費由收取運費的訂單負擔。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",

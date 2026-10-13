@@ -698,7 +698,10 @@
     "update_status_failed_error": "Failed to update status",
     "upload_photo_button": "+ Upload Photo",
     "uploading_label": "Uploading...",
-    "urgent_badge": "Urgent"
+    "urgent_badge": "Urgent",
+    "fee_auto_hint": "Follows the shipping rules of this method; change it if needed.",
+    "fee_manual_free_hint": "This order was made free by hand, shipping stays free.",
+    "fee_group_hint": "This order is merged into a shipment; the shipping fee follows the fee-holder order."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
