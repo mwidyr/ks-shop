@@ -3,48 +3,46 @@ import { getSharedPeriod, setSharedPeriod } from '../utils/sharedPeriod'
 import { useTranslation } from 'react-i18next'
 import { jakartaIsoDate } from '../utils/jakartaDate'
 
-// Business Timezone is Asia/Jakarta (confirmed by the client's own HeatMap tab) - day-boundary
-// math here follows the same plain-local-date convention every other date picker in this app
-// already uses (DateRangePicker.jsx), not a page-specific timezone conversion.
+// Business Timezone is Asia/Jakarta. All calendar math below is done on the Jakarta calendar date
+// (as a UTC-midnight Date, so the browser's own timezone can never shift a day): building
+// "1st of the month" with new Date(y, m, 1) in a browser outside UTC+7 and then formatting it in
+// Jakarta produced the previous day (e.g. This Month starting on Sep 30).
 const isoDate = jakartaIsoDate
+function jakartaToday() {
+  const [y, m, d] = jakartaIsoDate().split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d))
+}
+const iso = (d) => d.toISOString().slice(0, 10)
+const shiftDays = (d, n) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n))
 function startOfWeek(d) {
-  const day = d.getDay()
-  const diff = day === 0 ? 6 : day - 1
-  const start = new Date(d)
-  start.setDate(start.getDate() - diff)
-  return start
+  const day = d.getUTCDay()
+  return shiftDays(d, -(day === 0 ? 6 : day - 1))
 }
 export function daysAgoRange(days) {
-  const to = new Date()
-  const from = new Date()
-  from.setDate(from.getDate() - days)
-  return { from: isoDate(from), to: isoDate(to) }
+  const today = jakartaToday()
+  return { from: iso(shiftDays(today, -days)), to: iso(today) }
 }
 function singleDayRange(daysAgo) {
-  const d = new Date()
-  d.setDate(d.getDate() - daysAgo)
-  return { from: isoDate(d), to: isoDate(d) }
+  const d = iso(shiftDays(jakartaToday(), -daysAgo))
+  return { from: d, to: d }
 }
-function thisWeekRange() {
-  const now = new Date()
-  return { from: isoDate(startOfWeek(now)), to: isoDate(now) }
+export function thisWeekRange() {
+  const today = jakartaToday()
+  return { from: iso(startOfWeek(today)), to: iso(today) }
 }
 function lastWeekRange() {
-  const thisStart = startOfWeek(new Date())
-  const lastEnd = new Date(thisStart)
-  lastEnd.setDate(lastEnd.getDate() - 1)
-  const lastStart = new Date(lastEnd)
-  lastStart.setDate(lastStart.getDate() - 6)
-  return { from: isoDate(lastStart), to: isoDate(lastEnd) }
+  const thisStart = startOfWeek(jakartaToday())
+  return { from: iso(shiftDays(thisStart, -7)), to: iso(shiftDays(thisStart, -1)) }
 }
-function thisMonthRange() {
-  const now = new Date()
-  return { from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: isoDate(now) }
+export function thisMonthRange() {
+  const today = jakartaToday()
+  return { from: iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))), to: iso(today) }
 }
 function lastMonthRange() {
-  const now = new Date()
-  const end = new Date(now.getFullYear(), now.getMonth(), 0)
-  return { from: isoDate(new Date(end.getFullYear(), end.getMonth(), 1)), to: isoDate(end) }
+  const today = jakartaToday()
+  const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1))
+  const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0))
+  return { from: iso(first), to: iso(last) }
 }
 
 const periodPresets = [

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import Papa from 'papaparse'
 import { getProductReport, getOrderReport } from '../api/reports'
 import { jakartaIsoDate } from '../utils/jakartaDate'
+import { thisWeekRange, thisMonthRange } from './PeriodPicker'
 
 const isoDate = jakartaIsoDate
 function todayISO() {
@@ -15,21 +16,12 @@ function todayISO() {
 const RANGE_PRESETS = ['today', 'week', 'month', 'all', 'custom']
 
 function resolveRange(preset, customFrom, customTo) {
-  const now = new Date()
   if (preset === 'today') {
     const d = todayISO()
     return { from: d, to: d }
   }
-  if (preset === 'week') {
-    const day = (now.getDay() + 6) % 7 // Monday = 0
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - day)
-    return { from: isoDate(monday), to: todayISO() }
-  }
-  if (preset === 'month') {
-    const first = new Date(now.getFullYear(), now.getMonth(), 1)
-    return { from: isoDate(first), to: todayISO() }
-  }
+  if (preset === 'week') return thisWeekRange()
+  if (preset === 'month') return thisMonthRange()
   if (preset === 'all') {
     return { from: '1970-01-01', to: todayISO() }
   }
