@@ -262,7 +262,7 @@ func main() {
 			r.With(edit("affiliates")).Patch("/affiliates/{id}", affiliateH.Update)
 			r.With(edit("affiliates")).Delete("/affiliates/{id}", affiliateH.Delete)
 
-			r.With(viewAny("shipping_settings", "orders")).Get("/pickup-chains", pickupChainH.List)
+			r.Get("/pickup-chains", pickupChainH.List) // default fee (target_fee) is read by every role
 			r.With(edit("shipping_settings")).Post("/pickup-chains", pickupChainH.Create)
 			r.With(edit("shipping_settings")).Patch("/pickup-chains/{id}", pickupChainH.Update)
 			r.With(edit("shipping_settings")).Delete("/pickup-chains/{id}", pickupChainH.Delete)
@@ -272,8 +272,10 @@ func main() {
 			r.Get("/languages", languageH.List)
 			r.With(edit("settings")).Post("/languages", languageH.Create)
 			r.With(edit("settings")).Patch("/languages/{code}", languageH.Update)
-			// Read-only: the order form needs the default fee/thresholds, so anyone who can open Orders may read it.
-			r.With(viewAny("shipping_settings", "orders")).Get("/settings/shipping", shippingSettingsH.Get)
+			// Read-only for every signed-in role: the order form seeds its default shipping fee from
+			// this, and a role without the Shipping Settings tab used to get 403 and see 0. Only
+			// editing (PATCH below) needs the shipping_settings permission.
+			r.Get("/settings/shipping", shippingSettingsH.Get)
 			r.With(edit("shipping_settings")).Patch("/settings/shipping", shippingSettingsH.Update)
 			r.With(edit("store_profile")).Patch("/store-settings", storeSettingsH.Update)
 			r.With(view("store_profile")).Get("/store-settings/website-launch", storeSettingsH.GetWebsiteLaunch)
