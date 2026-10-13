@@ -41,6 +41,7 @@ func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COUNT(pr.id)
 		FROM promotions p
 		LEFT JOIN promotion_redemptions pr ON pr.promotion_id = p.id
+		WHERE p.member_id IS NULL
 		GROUP BY p.id
 		ORDER BY p.created_at DESC`)
 	if err != nil {
@@ -74,16 +75,16 @@ func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type promotionRequest struct {
-	Code             *string  `json:"code"`
-	Type             string   `json:"type"`
-	Value            float64  `json:"value"`
-	MinOrderAmount   float64  `json:"min_order_amount"`
-	StartDate        *string  `json:"start_date"`
-	EndDate          *string  `json:"end_date"`
-	UsageLimit       *int     `json:"usage_limit"`
-	PerCustomerLimit *int     `json:"per_customer_limit"`
-	Combinable       bool     `json:"combinable"`
-	IsActive         *bool    `json:"is_active"`
+	Code             *string `json:"code"`
+	Type             string  `json:"type"`
+	Value            float64 `json:"value"`
+	MinOrderAmount   float64 `json:"min_order_amount"`
+	StartDate        *string `json:"start_date"`
+	EndDate          *string `json:"end_date"`
+	UsageLimit       *int    `json:"usage_limit"`
+	PerCustomerLimit *int    `json:"per_customer_limit"`
+	Combinable       bool    `json:"combinable"`
+	IsActive         *bool   `json:"is_active"`
 }
 
 var validPromotionTypes = map[string]bool{"fixed_amount": true, "percentage": true, "free_shipping": true}
@@ -226,7 +227,7 @@ func (h *PromotionHandler) Validate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "code is required")
 		return
 	}
-	result, errMsg := resolvePromotionByCode(r.Context(), h.DB, strings.ToUpper(strings.TrimSpace(req.Code)), req.CustomerID, req.Subtotal)
+	result, errMsg := resolvePromotionByCode(r.Context(), h.DB, strings.ToUpper(strings.TrimSpace(req.Code)), req.CustomerID, req.Subtotal, 0)
 	if errMsg != "" {
 		respondError(w, http.StatusBadRequest, errMsg)
 		return
@@ -252,17 +253,22 @@ type promotionResolution struct {
 // leading SELECT uses FOR UPDATE so that two concurrent orders redeeming the last unit of a
 // usage_limit-capped code inside a real transaction serialize instead of racing past the count
 // check together; it is a harmless no-op lock when called outside a transaction (the preview path).
-func resolvePromotionByCode(ctx context.Context, db querier, code string, customerID *int, subtotal float64) (promotionResolution, string) {
+func resolvePromotionByCode(ctx context.Context, db querier, code string, customerID *int, subtotal float64, memberID int) (promotionResolution, string) {
 	var res promotionResolution
 	var value, minOrder float64
 	var usageLimit, perCustomerLimit *int
 	var startDate, endDate *time.Time
 	var isActive bool
+	var boundMember *int
 	err := db.QueryRow(ctx, `
-		SELECT id, type, value, min_order_amount, start_date, end_date, usage_limit, per_customer_limit, is_active
+		SELECT id, type, value, min_order_amount, start_date, end_date, usage_limit, per_customer_limit, is_active, member_id
 		FROM promotions WHERE code = $1 FOR UPDATE`, code).
-		Scan(&res.id, &res.ptype, &value, &minOrder, &startDate, &endDate, &usageLimit, &perCustomerLimit, &isActive)
+		Scan(&res.id, &res.ptype, &value, &minOrder, &startDate, &endDate, &usageLimit, &perCustomerLimit, &isActive, &boundMember)
 	if err != nil {
+		return promotionResolution{}, "promotion code not found"
+	}
+	// member-bound coupons (welcome voucher, birthday) only work for their own account
+	if boundMember != nil && *boundMember != memberID {
 		return promotionResolution{}, "promotion code not found"
 	}
 	if !isActive {

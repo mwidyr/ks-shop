@@ -21,7 +21,13 @@ import (
 // with no sales user, and go through the same pricing rules as staff-created orders (variant
 // price from the DB, coupon via resolvePromotionByCode, shipping via ComputeShippingFee).
 type StorefrontHandler struct {
-	DB *pgxpool.Pool
+	DB        *pgxpool.Pool
+	JWTSecret string // to read an optional member session on quote / checkout
+}
+
+// memberFrom reads the optional member session (0 = guest checkout).
+func (h *StorefrontHandler) memberFrom(r *http.Request) int {
+	return (&MemberHandler{DB: h.DB, JWTSecret: h.JWTSecret}).memberIDFrom(r)
 }
 
 // ---- display helpers (localized like the admin: X-Lang, default Indonesian) ----
@@ -70,6 +76,22 @@ type storeProduct struct {
 	CreatedAt       string            `json:"created_at"`
 	Variants        []storeVariant    `json:"variants,omitempty"`
 	Measurements    map[string]string `json:"measurements,omitempty"`
+	LiveCode        string            `json:"live_code,omitempty"`
+	VideoURL        string            `json:"video_url,omitempty"`
+	VideoPoster     string            `json:"video_poster_url,omitempty"`
+	Hosts           []siteHostCard    `json:"hosts,omitempty"`
+	Looks           []siteCard        `json:"looks,omitempty"`
+	// Wear: what height/weight wore which size (from the hosts who show this product) - the basis of
+	// the "recommended size" hint on the product page.
+	Wear []storeWear `json:"wear,omitempty"`
+}
+
+type storeWear struct {
+	Host     string `json:"host"`
+	Slug     string `json:"slug"`
+	HeightCM int    `json:"height_cm"`
+	WeightKG int    `json:"weight_kg"`
+	Size     string `json:"size"`
 }
 
 type storeVariant struct {
@@ -99,6 +121,9 @@ func (h *StorefrontHandler) Products(w http.ResponseWriter, r *http.Request) {
 		where += " AND (p.name ILIKE " + like + " OR p.names_search ILIKE " + like + " OR p.sku ILIKE " + like + " OR p.category ILIKE " + like + ")"
 	}
 	minExpr := `(SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active)`
+	if q.Get("live") == "true" {
+		where += " AND p.live_code IS NOT NULL AND p.live_code <> ''"
+	}
 	if q.Get("sale") == "true" {
 		where += ` AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price > v.price)`
 	}
@@ -134,7 +159,7 @@ func (h *StorefrontHandler) Products(w http.ResponseWriter, r *http.Request) {
 	listArgs := append(append([]interface{}{}, args...), limit, (page-1)*limit)
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT p.id, COALESCE(p.sku,''), `+productNameSQL(r, "p")+`, COALESCE(p.category,''), `+storeCategorySQL(r, "COALESCE(p.category,'')")+`,
-		       COALESCE(p.description,''), p.created_at,
+		       COALESCE(p.description,''), p.created_at, COALESCE(p.live_code,''),
 		       COALESCE(`+minExpr+`, 0),
 		       COALESCE((SELECT v.compare_at_price FROM product_variants v WHERE v.product_id = p.id AND v.is_active ORDER BY v.price LIMIT 1), 0),
 		       COALESCE((SELECT SUM(oi.qty) FROM order_items oi JOIN product_variants v ON v.id = oi.variant_id
@@ -153,7 +178,7 @@ func (h *StorefrontHandler) Products(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var p storeProduct
 		var created time.Time
-		if err := rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.CategoryDisplay, &p.Description, &created, &p.Price, &p.CompareAt, &p.Sold); err != nil {
+		if err := rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.CategoryDisplay, &p.Description, &created, &p.LiveCode, &p.Price, &p.CompareAt, &p.Sold); err != nil {
 			continue
 		}
 		p.CreatedAt = created.Format(time.RFC3339)
@@ -215,13 +240,16 @@ func (h *StorefrontHandler) Product(w http.ResponseWriter, r *http.Request) {
 	var p storeProduct
 	var created time.Time
 	var bust, waist, length, bottom, elasticity, note string
+	var lookIDs []int32
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT p.id, COALESCE(p.sku,''), `+productNameSQL(r, "p")+`, COALESCE(p.category,''), `+storeCategorySQL(r, "COALESCE(p.category,'')")+`,
 		       COALESCE(p.description,''), p.created_at,
 		       COALESCE(p.measurement_bust,''), COALESCE(p.measurement_waist,''), COALESCE(p.measurement_length,''),
-		       COALESCE(p.measurement_bottom_length,''), COALESCE(p.measurement_elasticity,''), COALESCE(p.measurement_note,'')
+		       COALESCE(p.measurement_bottom_length,''), COALESCE(p.measurement_elasticity,''), COALESCE(p.measurement_note,''),
+		       COALESCE(p.live_code,''), COALESCE(p.video_url,''), COALESCE(p.video_poster_url,''), p.complete_the_look
 		FROM products p WHERE p.id=$1 AND p.is_active AND p.deleted_at IS NULL`, id).
-		Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.CategoryDisplay, &p.Description, &created, &bust, &waist, &length, &bottom, &elasticity, &note)
+		Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.CategoryDisplay, &p.Description, &created, &bust, &waist, &length, &bottom, &elasticity, &note,
+			&p.LiveCode, &p.VideoURL, &p.VideoPoster, &lookIDs)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
@@ -273,6 +301,25 @@ func (h *StorefrontHandler) Product(w http.ResponseWriter, r *http.Request) {
 		if p.Price == 0 || v.Price < p.Price {
 			p.Price, p.CompareAt = v.Price, v.CompareAt
 		}
+	}
+	site := &SiteHandler{DB: h.DB}
+	p.Hosts = site.hostsForProduct(r.Context(), p.ID)
+	ids := make([]int, 0, len(lookIDs))
+	for _, v := range lookIDs {
+		ids = append(ids, int(v))
+	}
+	p.Looks = site.cards(r.Context(), r, ids)
+	if wrows, err := h.DB.Query(r.Context(), `
+		SELECT h.name, h.slug, h.height_cm, COALESCE(h.weight_kg,0), hp.wear_size
+		FROM host_products hp JOIN hosts h ON h.id = hp.host_id
+		WHERE hp.product_id=$1 AND hp.wear_size <> '' AND h.height_cm IS NOT NULL AND h.is_active AND h.is_public AND h.slug IS NOT NULL`, p.ID); err == nil {
+		for wrows.Next() {
+			var x storeWear
+			if wrows.Scan(&x.Host, &x.Slug, &x.HeightCM, &x.WeightKG, &x.Size) == nil {
+				p.Wear = append(p.Wear, x)
+			}
+		}
+		wrows.Close()
 	}
 	respondJSON(w, http.StatusOK, p)
 }
@@ -360,11 +407,29 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	site := &SiteHandler{DB: h.DB}
+	ctx := r.Context()
+	waNumber := site.setting(ctx, "whatsapp_number", "")
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"shop_name":                shop,
 		"free_shipping_minimarket": values["free_shipping_threshold_minimarket"],
 		"free_shipping_courier":    values["free_shipping_threshold_pos"],
+		"free_shipping_active":     site.setting(ctx, "free_shipping_active", "true") != "false",
+		"free_shipping_start":      site.setting(ctx, "free_shipping_start", ""),
+		"free_shipping_end":        site.setting(ctx, "free_shipping_end", ""),
 		"shipping_options":         chains,
+		"whatsapp_number":          waNumber,
+		"cs_hours":                 site.setting(ctx, "cs_hours", ""),
+		"cs_hours_note":            site.setting(ctx, "cs_hours_note", ""),
+		"rewards": func() map[string]interface{} {
+			st := (&MemberHandler{}).rewardSettings(ctx, h.DB)
+			return map[string]interface{}{"welcome_balance": st.WelcomeBalance, "referral_reward": st.ReferralReward, "point_value": st.PointValue, "refund_credit_bonus_pct": st.RefundCreditBonusPct}
+		}(),
+		"whatsapp_login": waProvider() != "off",
+		"social": map[string]string{
+			"youtube": site.setting(ctx, "social_youtube", ""), "instagram": site.setting(ctx, "social_instagram", ""),
+			"facebook": site.setting(ctx, "social_facebook", ""), "tiktok": site.setting(ctx, "social_tiktok", ""),
+		},
 	})
 }
 
@@ -380,6 +445,9 @@ type storeQuoteRequest struct {
 	PickupChainID int             `json:"pickup_chain_id"`
 	PromotionCode string          `json:"promotion_code"`
 	Phone         string          `json:"phone"`
+	UseBalance    bool            `json:"use_balance"`
+	UsePoints     bool            `json:"use_points"`
+	memberID      int
 }
 
 type storeQuote struct {
@@ -388,8 +456,11 @@ type storeQuote struct {
 	ShippingFee    float64 `json:"shipping_fee"`
 	Total          float64 `json:"total"`
 	PromotionError string  `json:"promotion_error,omitempty"`
-	promotionID    *int
-	customerID     *int
+	// Wallet (signed-in members): what balance / points this order would use, and the amount still to pay.
+	Wallet      *WalletUse `json:"wallet,omitempty"`
+	PayableNow  float64    `json:"payable_now"`
+	promotionID *int
+	customerID  *int
 }
 
 type storeDB interface {
@@ -427,7 +498,7 @@ func priceCart(ctx context.Context, db storeDB, req storeQuoteRequest, strict bo
 
 	freeShip := false
 	if code := strings.ToUpper(strings.TrimSpace(req.PromotionCode)); code != "" {
-		res, msg := resolvePromotionByCode(ctx, db, code, q.customerID, q.Subtotal)
+		res, msg := resolvePromotionByCode(ctx, db, code, q.customerID, q.Subtotal, req.memberID)
 		if msg != "" {
 			if strict {
 				return q, msg
@@ -451,6 +522,16 @@ func priceCart(ctx context.Context, db storeDB, req storeQuoteRequest, strict bo
 	if q.Total < 0 {
 		q.Total = 0
 	}
+	q.PayableNow = q.Total
+	if req.memberID > 0 && (req.UseBalance || req.UsePoints) {
+		mh := &MemberHandler{}
+		bal, pts := balancesOf(ctx, db, req.memberID)
+		u := planWalletUse(q.Total, bal, pts, mh.rewardSettings(ctx, db).PointValue, req.UseBalance, req.UsePoints)
+		if u.Total() > 0 {
+			q.Wallet = &u
+			q.PayableNow = q.Total - u.Total()
+		}
+	}
 	return q, ""
 }
 
@@ -461,6 +542,7 @@ func (h *StorefrontHandler) Quote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	req.memberID = h.memberFrom(r)
 	q, msg := priceCart(r.Context(), h.DB, req, false)
 	if msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
@@ -477,6 +559,9 @@ type storeOrderRequest struct {
 	PickupStoreName string `json:"pickup_store_name"`
 	PickupStoreCode string `json:"pickup_store_code"`
 	Notes           string `json:"notes"`
+	Source          string `json:"source"`         // self_checkout (default) | cs_assisted
+	StoreUnlisted   bool   `json:"store_unlisted"` // the customer typed a store code that the directory did not know
+	Lang            string `json:"lang"`
 }
 
 var phonePattern = regexp.MustCompile(`^[0-9+\-\s]{8,20}$`)
@@ -535,6 +620,12 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	req.memberID = h.memberFrom(r)
+	if req.memberID > 0 {
+		// serialise wallet use per member so two checkouts can't spend the same balance
+		var lock int
+		_ = tx.QueryRow(ctx, `SELECT id FROM members WHERE id=$1 FOR UPDATE`, req.memberID).Scan(&lock)
+	}
 	quote, msg := priceCart(ctx, tx, req.storeQuoteRequest, true)
 	if msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
@@ -554,15 +645,32 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 	if req.Email != "" {
 		notes = strings.TrimSpace("Email: " + req.Email + "\n" + notes)
 	}
+	source := "self_checkout"
+	if req.Source == "cs_assisted" {
+		source = "cs_assisted"
+	}
+	// A CVS store code the directory doesn't contain is accepted (the directory misses new stores) but
+	// flagged so warehouse/CS can confirm it before shipping.
+	verified := true
+	var chainType string
+	_ = tx.QueryRow(ctx, `SELECT chain_type FROM pickup_chains WHERE id=$1`, req.PickupChainID).Scan(&chainType)
+	if chainType == "cvs_711" || chainType == "cvs_familymart" {
+		var n int
+		_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM cvs_stores WHERE chain_type=$1 AND store_code=$2`, chainType, req.PickupStoreCode).Scan(&n)
+		verified = n > 0 && !req.StoreUnlisted
+		if !verified {
+			notes = strings.TrimSpace("[Nomor toko belum terverifikasi di direktori - mohon dicek CS]\n" + notes)
+		}
+	}
 	orderNo := fmt.Sprintf("WEB-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code,
 		                    discount_amount, additional_amount, internal_notes, sales_channel, shipping_fee, free_shipping_override,
-		                    promotion_id, promotion_discount_amount, website_source)
-		VALUES ($1,$2,NULL,'pending',$3,$4,$5,$6,0,0,$7,'website',$8,$9,$10,$11,'self_service') RETURNING id`,
+		                    promotion_id, promotion_discount_amount, website_source, source, pickup_store_verified, recipient_email)
+		VALUES ($1,$2,NULL,'pending',$3,$4,$5,$6,0,0,$7,'website',$8,$9,$10,$11,'self_service',$12,$13,NULLIF($14,'')) RETURNING id`,
 		orderNo, customerID, address, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
-		notes, quote.ShippingFee, quote.ShippingFee == 0, quote.promotionID, quote.Discount).Scan(&orderID); err != nil {
+		notes, quote.ShippingFee, quote.ShippingFee == 0, quote.promotionID, quote.Discount, source, verified, req.Email).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}
@@ -578,6 +686,27 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
+	if req.memberID > 0 {
+		// link the order to the account and spend the wallet (balance first, then points). The wallet value is also
+		// folded into discount_amount, so every existing total / report stays correct without touching their queries.
+		var used WalletUse
+		if quote.Wallet != nil {
+			used = *quote.Wallet
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE orders SET member_id=$2, wallet_balance_used=$3, wallet_points_used=$4, wallet_points_value=$5, discount_amount = discount_amount + $6 WHERE id=$1`,
+			orderID, req.memberID, used.Balance, used.Points, used.PointsValue, used.Total()); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to apply wallet")
+			return
+		}
+		mh := &MemberHandler{}
+		if used.Balance > 0 {
+			mh.ledgerAdd(ctx, tx, req.memberID, "balance", -used.Balance, "order_spend", fmt.Sprintf("spend-bal:%d", orderID), orderNo, &orderID)
+		}
+		if used.Points > 0 {
+			mh.ledgerAdd(ctx, tx, req.memberID, "points", -float64(used.Points), "order_spend", fmt.Sprintf("spend-pts:%d", orderID), orderNo, &orderID)
+		}
+	}
 	if quote.promotionID != nil {
 		if _, err := tx.Exec(ctx, `INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied) VALUES ($1,$2,$3,$4)`,
 			*quote.promotionID, orderID, customerID, quote.Discount); err != nil {
@@ -589,9 +718,18 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+	// WhatsApp hand-off: the order summary prefilled for the admin-configured number.
+	site := &SiteHandler{DB: h.DB}
+	lang := siteLang(r)
+	if req.Lang == "en" || req.Lang == "zh" || req.Lang == "id" {
+		lang = req.Lang
+	}
+	waText, _ := site.orderWhatsAppText(r, lang, orderNo, req.Phone)
+	waNumber := site.setting(ctx, "whatsapp_number", "")
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"order_no": orderNo, "subtotal": quote.Subtotal, "discount": quote.Discount,
-		"shipping_fee": quote.ShippingFee, "total": quote.Total,
+		"shipping_fee": quote.ShippingFee, "total": quote.PayableNow, "wallet": quote.Wallet, "store_verified": verified,
+		"whatsapp": map[string]string{"number": waNumber, "text": waText, "url": WhatsAppURL(waNumber, waText)},
 	})
 }
 
@@ -608,8 +746,15 @@ func (h *StorefrontHandler) Track(w http.ResponseWriter, r *http.Request) {
 		OrderNo   string                   `json:"order_no"`
 		Status    string                   `json:"status"`
 		CreatedAt string                   `json:"created_at"`
+		UpdatedAt string                   `json:"updated_at"`
 		Tracking  string                   `json:"tracking_number"`
+		Customer  string                   `json:"customer_name"`
 		Address   string                   `json:"shipping_address"`
+		Chain     string                   `json:"chain"`
+		ChainType string                   `json:"chain_type"`
+		StoreName string                   `json:"store_name"`
+		StoreCode string                   `json:"store_code"`
+		Verified  bool                     `json:"store_verified"`
 		ShipFee   float64                  `json:"shipping_fee"`
 		Discount  float64                  `json:"discount"`
 		Subtotal  float64                  `json:"subtotal"`
@@ -617,32 +762,39 @@ func (h *StorefrontHandler) Track(w http.ResponseWriter, r *http.Request) {
 		Items     []map[string]interface{} `json:"items"`
 	}
 	var id int
-	var created time.Time
+	var created, updated time.Time
 	err := h.DB.QueryRow(r.Context(), `
-		SELECT o.id, o.order_no, o.status, o.created_at, COALESCE(o.tracking_number,''), COALESCE(o.shipping_address,''),
-		       o.shipping_fee, o.promotion_discount_amount + o.discount_amount
-		FROM orders o JOIN customers c ON c.id = o.customer_id
+		SELECT o.id, o.order_no, o.status, o.created_at, o.updated_at, COALESCE(o.tracking_number,''), COALESCE(c.name,''), COALESCE(o.shipping_address,''),
+		       o.shipping_fee, o.promotion_discount_amount + o.discount_amount,
+		       pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.pickup_store_verified
+		FROM orders o JOIN customers c ON c.id = o.customer_id JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		WHERE o.order_no=$1 AND c.phone=$2`, orderNo, phone).
-		Scan(&id, &o.OrderNo, &o.Status, &created, &o.Tracking, &o.Address, &o.ShipFee, &o.Discount)
+		Scan(&id, &o.OrderNo, &o.Status, &created, &updated, &o.Tracking, &o.Customer, &o.Address, &o.ShipFee, &o.Discount,
+			&o.Chain, &o.ChainType, &o.StoreName, &o.StoreCode, &o.Verified)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "pesanan tidak ditemukan")
 		return
 	}
 	o.CreatedAt = created.Format(time.RFC3339)
+	o.UpdatedAt = updated.Format(time.RFC3339)
 	o.Items = []map[string]interface{}{}
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT `+productNameSQL(r, "p")+`, `+storeColorSQL(r, "pv.color")+`, pv.size, oi.qty, oi.price_at_order
+		SELECT oi.id, p.id, `+productNameSQL(r, "p")+`, `+storeColorSQL(r, "pv.color")+`, pv.size, oi.qty, oi.price_at_order,
+		       COALESCE((SELECT url FROM product_images WHERE product_id = p.id ORDER BY sort_order LIMIT 1), ''),
+		       EXISTS (SELECT 1 FROM product_reviews rv WHERE rv.order_item_id = oi.id)
 		FROM order_items oi JOIN product_variants pv ON pv.id = oi.variant_id JOIN products p ON p.id = pv.product_id
 		WHERE oi.order_id=$1 ORDER BY oi.id`, id)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var name, color, size string
+			var itemID, productID int
+			var name, color, size, image string
 			var qty int
 			var price float64
-			if rows.Scan(&name, &color, &size, &qty, &price) == nil {
+			var reviewed bool
+			if rows.Scan(&itemID, &productID, &name, &color, &size, &qty, &price, &image, &reviewed) == nil {
 				o.Subtotal += price * float64(qty)
-				o.Items = append(o.Items, map[string]interface{}{"name": name, "color": color, "size": size, "qty": qty, "price": price})
+				o.Items = append(o.Items, map[string]interface{}{"id": itemID, "product_id": productID, "image": image, "name": name, "color": color, "size": size, "qty": qty, "price": price, "reviewed": reviewed})
 			}
 		}
 	}

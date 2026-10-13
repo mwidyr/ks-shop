@@ -1,51 +1,105 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { img, onImgError, sized } from '../lib/api'
 import { useCart } from '../lib/cart'
-import { useQuote } from '../lib/useQuote'
-import { useStore } from '../lib/useSettings'
 import { money } from '../lib/format'
-import { CartLine } from '../components/CartDrawer'
+import { useSeo } from '../lib/seo'
+import { useStore } from '../lib/store'
+import { cartText, waUrl } from '../lib/wa'
+import { IconBack, IconCheck, IconMenu, IconSearch, IconWhatsApp } from '../components/Icons'
+import { btnPrimary, EmptyState, iconBtn } from '../components/ui'
+
+function Box({ on, onClick, label }) {
+  return (
+    <span role="checkbox" aria-checked={on} aria-label={label} tabIndex={0} onClick={onClick} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onClick() } }}
+      style={{ flex: 'none', width: 24, height: 24, borderRadius: 7, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', ...(on ? { background: 'var(--color-primary)', color: 'var(--color-on-primary)' } : { border: '2px solid var(--color-border-strong)' }) }}>
+      {on && <IconCheck size={14} />}
+    </span>
+  )
+}
 
 export default function Cart() {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const { desktop } = useOutletContext()
   const cart = useCart()
-  const { settings } = useStore()
-  const [code, setCode] = useState('')
-  const [applied, setApplied] = useState('')
-  const { quote } = useQuote({ items: cart.items, code: applied })
-  const free = settings?.free_shipping_minimarket || 0
+  const { settings, freeShip } = useStore()
+  useSeo({ title: t('nav.cart'), noindex: true })
+  const f = freeShip(cart.selectedSubtotal)
+  const allOn = cart.items.length > 0 && cart.items.every((i) => i.selected !== false)
+  const none = cart.selected.length === 0
+
+  const header = (
+    <header style={{ height: 58, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
+      <button type="button" aria-label={t('common.back')} onClick={() => navigate(-1)} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
+      <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{t('cart.title', { n: cart.count })}</h1>
+      <span style={{ flex: 1 }} />
+      <Link to="/search" aria-label={t('nav.search_aria')} style={iconBtn}><IconSearch size={20} /></Link>
+      <Link to="/menu" aria-label={t('nav.menu')} style={iconBtn}><IconMenu /></Link>
+    </header>
+  )
 
   if (cart.items.length === 0) {
     return (
-      <div className="max-w-xl mx-auto py-24 text-center px-4">
-        <h1 className="font-display text-4xl tracking-wide">KERANJANG KOSONG</h1>
-        <p className="text-gray-500 mt-3 text-sm">Yuk, temukan fashion favoritmu.</p>
-        <Link to="/produk" className="btn btn-dark mt-6">Mulai belanja</Link>
-      </div>
+      <div>{!desktop && header}<EmptyState title={t('cart.empty_title')} text={t('cart.empty_text')} action={<Link to="/products" style={{ ...btnPrimary, marginTop: 8 }}>{t('cart.shop')}</Link>} /></div>
     )
   }
 
+  const askCs = waUrl(settings.whatsapp_number, cartText(i18n.language, cart.selected, cart.selectedSubtotal))
+  const barBase = { position: desktop ? 'static' : 'fixed', left: 0, right: 0, bottom: 0, zIndex: 35, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: desktop ? 'none' : 560, margin: '0 auto', boxSizing: 'border-box' }
+
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-8">
-      <h1 className="font-display text-4xl tracking-wide">KERANJANG</h1>
-      <div className="grid md:grid-cols-[1fr_340px] gap-10 mt-6">
-        <ul className="divide-y border-y">
-          {cart.items.map((i) => <CartLine key={i.variantId} item={i} cart={{ ...cart, closeDrawer: () => {} }} />)}
-        </ul>
-        <aside className="border p-5 h-fit space-y-4">
-          <h2 className="font-semibold uppercase tracking-wide text-sm">Ringkasan</h2>
-          <form onSubmit={(e) => { e.preventDefault(); setApplied(code.trim().toUpperCase()) }} className="flex gap-2">
-            <input className="input uppercase" placeholder="Kode voucher" value={code} onChange={(e) => setCode(e.target.value)} />
-            <button className="btn btn-outline !px-4">Pakai</button>
-          </form>
-          {quote?.promotion_error && <p className="text-xs text-red-600">{quote.promotion_error}</p>}
-          <dl className="text-sm space-y-2">
-            <div className="flex justify-between"><dt>Subtotal</dt><dd>{money(quote?.subtotal ?? cart.subtotal)}</dd></div>
-            {quote?.discount > 0 && <div className="flex justify-between text-green-700"><dt>Voucher {applied}</dt><dd>-{money(quote.discount)}</dd></div>}
-            <div className="flex justify-between text-gray-500"><dt>Ongkir</dt><dd>dihitung saat checkout</dd></div>
-          </dl>
-          {free > 0 && <p className="text-xs text-gray-500">Gratis ongkir untuk pembelian min. {money(free)}.</p>}
-          <Link to={`/checkout${applied && !quote?.promotion_error ? `?kode=${applied}` : ''}`} className="btn btn-dark w-full">Lanjut ke checkout</Link>
-        </aside>
+    <div style={{ paddingBottom: desktop ? 40 : 220 }}>
+      {!desktop && header}
+      {desktop && <h1 style={{ margin: '32px 40px 0', fontSize: 28 }}>{t('cart.title', { n: cart.count })}</h1>}
+      <div style={{ maxWidth: desktop ? 760 : 'none', margin: desktop ? '0 auto' : 0, padding: desktop ? '0 0' : 0 }}>
+        {f.active && (
+          <div style={{ margin: '12px 16px 0', padding: '12px 14px', borderRadius: 14, background: 'var(--color-surface)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {f.reached ? <b style={{ fontSize: 15, color: 'var(--color-success)' }}>{t('cart.free_reached')}</b>
+              : <span style={{ fontSize: 15 }} dangerouslySetInnerHTML={{ __html: t('cart.free_remaining', { amount: money(f.remaining) }).replace(/<b>/g, '<b style="color:var(--color-primary-strong)">') }} />}
+            <span style={{ height: 6, borderRadius: 3, background: 'var(--color-bg-soft)' }}><span style={{ display: 'block', width: `${f.pct}%`, height: '100%', borderRadius: 3, background: 'var(--color-primary)' }} /></span>
+          </div>
+        )}
+        <section style={{ margin: '12px 16px 0', borderRadius: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--color-border)', fontSize: 15 }}>
+            <Box on={allOn} label={t('cart.select_all')} onClick={() => cart.toggleAll(!allOn)} />{t('cart.select_all')}
+            <span style={{ flex: 1 }} /><span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('cart.select_hint')}</span>
+          </div>
+          {cart.items.map((i) => (
+            <div key={i.variantId} style={{ display: 'flex', gap: 12, padding: 14, borderBottom: '1px solid var(--color-border)' }}>
+              <span style={{ marginTop: 30 }}><Box on={i.selected !== false} label={i.name} onClick={() => cart.toggle(i.variantId)} /></span>
+              <Link to={`/p/${i.productId}`} style={{ display: 'flex', flex: 'none' }}><img src={sized(img(i.image), 160)} alt={i.name} loading="lazy" onError={onImgError} style={{ flex: 'none', width: 76, height: 100, borderRadius: 12, objectFit: 'cover' }} /></Link>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Link to={`/p/${i.productId}`} style={{ fontSize: 15, lineHeight: 1.4, color: 'var(--color-text)', textDecoration: 'none' }}>{i.name}</Link>
+                <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{[i.color, i.size].filter(Boolean).join(' / ')}</span>
+                <span style={{ flex: 1 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <b style={{ fontSize: 15 }}>{money(i.price)}</b>
+                  <span style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border-strong)', borderRadius: 20 }}>
+                    <button type="button" aria-label={i.qty <= 1 ? t('cart.remove') : t('cart.dec')} onClick={() => (i.qty <= 1 ? cart.remove(i.variantId) : cart.setQty(i.variantId, i.qty - 1))} style={{ width: 36, height: 36, border: 'none', background: 'transparent', fontSize: 17, color: '#000000' }}>−</button>
+                    <span style={{ width: 24, textAlign: 'center' }}>{i.qty}</span>
+                    <button type="button" aria-label={t('cart.inc')} onClick={() => cart.setQty(i.variantId, i.qty + 1)} style={{ width: 36, height: 36, border: 'none', background: 'transparent', fontSize: 17, color: '#000000' }}>+</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+        <section style={{ margin: '16px 16px 0', padding: 16, borderRadius: 18, background: 'var(--color-primary-soft)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <b style={{ fontSize: 15 }}>{t('cart.two_ways')}</b>
+          <span style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{t('cart.two_ways_text')}</span>
+        </section>
+      </div>
+
+      <div style={{ ...barBase, padding: '12px 16px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{t('cart.selected_total', { n: cart.selectedCount })}</span><b style={{ fontSize: 20 }}>{money(cart.selectedSubtotal)}</b></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <a href={none ? undefined : askCs} target="_blank" rel="noreferrer" aria-disabled={none}
+            style={{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, background: '#1FA855', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none', textAlign: 'center', opacity: none ? 0.4 : 1, pointerEvents: none ? 'none' : 'auto' }}><IconWhatsApp size={18} stroke="#FFFFFF" />{t('cart.ask_cs_order')}</a>
+          <button type="button" disabled={none} onClick={() => navigate('/checkout')}
+            style={{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, border: 'none', background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', ...(none ? { background: 'var(--color-border)', color: 'var(--color-disabled)', cursor: 'not-allowed' } : {}) }}>{t('cart.checkout')}</button>
+        </div>
+        {none && <span role="alert" style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('cart.none_selected')}</span>}
       </div>
     </div>
   )

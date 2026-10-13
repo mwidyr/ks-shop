@@ -1,0 +1,40 @@
+export default {
+  common: {
+    loading: '載入中…', retry: '再試一次', reload: '重新載入', ask_cs: '詢問客服', back: '返回', close: '關閉',
+    apply: '套用', cancel: '取消', save: '儲存', continue: '繼續', done: '完成', see_all: '查看全部 ›',
+    all: '全部', view: '查看', add_to_cart: '加入購物車', sold_out: '已售完', stock_left: '剩 {{n}}',
+    error_generic: '發生錯誤，請再試一次。', optional: '選填', required: '必填', edit: '修改', change: '更換',
+    yes: '是', no: '否', or: '或', items: '{{n}} 件', total: '合計', subtotal: '小計', empty: '尚無內容',
+    new: '新品', live_price: '直播價', price_live: '直播價 {{price}}', off: '-{{pct}}%',
+  },
+  nav: { home: '首頁', category: '分類', cs: '客服', cart: '購物車', menu: '選單', main: '主選單', account: '帳號與更多', search_aria: '搜尋商品或主播' },
+  lang: { change: '切換語言 →', aria: '切換語言', all: '所有語言' },
+  search: {
+    placeholder: '搜尋商品、主播（例如 RARA）或直播代碼', placeholder_short: '搜尋商品、主播或直播代碼',
+    placeholder_input: '搜尋商品、主播或直播代碼',
+  },
+  strip: { cs: '✓ 客服協助下單', free_ship: '✓ 滿 {{amount}} 免運', pickup: '✓ 7-ELEVEN・全家 取貨' },
+  freebar: { remaining: '再買 {{amount}} 即可免運', reached: '恭喜！此訂單享免運。', to_cart: '前往購物車 ›' },
+  fab: { online: '客服在線', tip: '不確定尺寸？不知怎麼下單？', aria: '聯絡客服' },
+  home: {
+    hero_eyebrow: 'AUTUMN EDIT', hero_title: '秋季新品', hero_sub: '本週上架', hero_cta: '立即選購 ›',
+    hero_alt: '秋季新品主視覺',
+    live_eyebrow: 'LIVE NOW', live_area: '直播區', all_live: '全部直播 ›', live_now: '直播中', viewers: '{{n}} 人觀看',
+    worn_by_host: '主播穿搭', buy_here: '這裡就能買', perk: '看直播領 {{amount}} 優惠券', enter_live: '進入直播',
+    showing: '{{name}} 正在穿・點選喜歡的', next_live: '下一場直播', not_live: '尚未開播',
+    cat_eyebrow: 'CATEGORY', best_eyebrow: 'BEST SELLERS', new_eyebrow: 'NEW IN', hosts_eyebrow: 'HOSTS', topics_eyebrow: 'STYLE TOPICS',
+    topics_hint: '進入專題查看完整穿搭、商品與相關主播', read_topic: '閱讀專題 ›',
+    cs_title: '不確定尺寸？不知怎麼下單？', cs_sub: '截圖傳到 WhatsApp，客服直接幫你下單', cs_cta: '用 WhatsApp 詢問客服',
+  },
+  host: {
+    live_now: '直播中', viewers_short: '{{n}} 人', wearing: '正在穿', enter_live: '進入直播', see_outfit: '看她的穿搭',
+    has_replay: '有重播', not_live_at: '尚未開播・{{when}}', next_at: '下一場：{{when}}', last_replay: '上一場：重播',
+    items_n: '+{{n}} 件', host_page: '主播頁面',
+  },
+  when: { today_evening: '今晚 {{time}}', today: '今天 {{time}}', tomorrow: '明天 {{time}}', other: '{{day}} {{time}}' },
+  footer: {
+    about: '關於我們', orders: '我的訂單', returns: '退換貨政策', style: '穿搭專題', shipping: '配送與付款',
+    cs_center: '客服中心', copyright: '© ralulu', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
+  },
+  toast: { added: '✓ 已加入購物車' },
+}

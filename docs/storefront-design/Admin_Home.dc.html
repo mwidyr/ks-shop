@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Ralulu Hub 首頁模組</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;family=Noto+Serif+TC:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+:root{--color-primary:#FF8C69;--color-on-primary:#2B2B2E;--color-primary-hover:#F7795A;--color-primary-strong:#B8432D;--color-primary-soft:#FFEDE6;--color-secondary:#FFC9B8;--color-bg:#FFFFFF;--color-bg-soft:#F7F7F8;--color-surface:#FFFFFF;--color-text:#2B2B2E;--color-text-2:#5F6168;--color-text-3:#6B6E76;--color-disabled:#9AA0A6;--color-border:#ECEDEF;--color-border-strong:#8C9098;--color-success:#2E7D52;--color-success-bg:#E8F5EE;--color-warning:#9A5B00;--color-warning-bg:#FFF4E5;--color-error:#C62828;--color-error-bg:#FDECEC;--color-info:#2F6FA3;--color-live:#D32F2F;--color-live-soft:#FAD4D1;--color-coupon-bg:#FFF4EF}
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+a{color:var(--color-primary-strong)}a:hover{color:var(--color-text)}
+@keyframes csShake{0%,84%,100%{transform:rotate(0)}86%{transform:rotate(-14deg)}88%{transform:rotate(12deg)}90%{transform:rotate(-10deg)}92%{transform:rotate(8deg)}94%{transform:rotate(0)}}
+.cs-shake{animation:csShake 3.5s ease-in-out infinite;transform-origin:50% 60%}
+@keyframes csFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.cs-tip{animation:csFloat 2.4s ease-in-out infinite}
+@keyframes langMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.lang-track{display:flex;align-items:center;gap:8px;width:max-content;animation:langMarquee 22s linear infinite}
+.lang-track:hover{animation-play-state:paused}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(201,60,41,0.6)}70%{box-shadow:0 0 0 12px rgba(201,60,41,0)}100%{box-shadow:0 0 0 0 rgba(201,60,41,0)}}
+.live-pulse{animation:livePulse 1.6s ease-out infinite}
+@keyframes liveDot{50%{opacity:.25}}
+.live-dot{animation:liveDot 1s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){.cs-shake,.cs-tip,.lang-track,.live-pulse,.live-dot{animation:none}}
+
+h1,h2,.serif{font-family:'Noto Serif TC','Songti TC',serif;letter-spacing:.3px}
+</style>
+</helmet>
+<div style="width: 1180px; height: 980px; position: relative; overflow: hidden; background: var(--color-bg); font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; color: var(--color-text)">
+<header style="height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: var(--color-text); color: #FFFFFF"><b style="font-size: 17px">Ralulu Hub</b><span style="color: var(--color-border)">/ Website / Modul home</span><span style="flex: 1"></span><span style="padding: 4px 10px; border-radius: 6px; background: var(--color-live); font-size: 12px; font-weight: 700; color: #FFFFFF">Fitur perlu ditambah</span></header>
+<div style="display: grid; grid-template-columns: 1fr 360px; gap: 28px; padding: 28px">
+  <div style="display: flex; flex-direction: column; gap: 16px">
+    <div style="padding: 14px 16px; border-radius: 14px; background: var(--color-error-bg); color: var(--color-error); font-size: 15px; line-height: 1.6"><b>Catatan:</b>Dokumen Ralulu Structure & UX hanya mendefinisikan "produk, stok, pesanan, promo dikelola terpusat di Ralulu Hub", tanpa fitur pengelolaan modul home. Halaman ini adalah usulan layar admin baru.</div>
+    <div style="display: flex; justify-content: space-between; align-items: center"><h1 style="margin: 0; font-size: 26px; font-weight: 700">Modul home</h1><span style="display: flex; gap: 8px"><a href="#" style="min-height: 44px; padding: 0 18px; border-radius: 22px; border: 1.5px solid var(--color-text); color: var(--color-text); font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; box-sizing: border-box">Pratinjau frontend</a><a href="#" style="min-height: 44px; padding: 0 18px; border-radius: 22px; background: var(--color-primary); color: var(--color-on-primary); font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; box-sizing: border-box">Publikasikan perubahan</a></span></div>
+    <div style="border-radius: 18px; background: var(--color-surface); border: 1px solid var(--color-border); overflow: hidden"><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; gap: 12px; padding: 12px 16px; background: var(--color-bg-soft); font-size: 12px; font-weight: 700; color: var(--color-text-2)"><span></span><span>Modul (seret untuk mengurutkan)</span><span>Judul di frontend</span><span>Sumber konten</span><span>Aktif</span><span></span></div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); ">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">1. Area Live</b><span style="font-size: 12px; color: var(--color-text-2)">Saat tidak ada live otomatis menampilkan "live berikutnya"</span></span>
+  <input value="Area Live" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Otomatis: host yang sedang live</span>
+  <span role="switch" aria-checked="true" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-primary); position: relative; display: block; color: var(--color-on-primary)"><span style="position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); ">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">2. Kategori pilihan</b><span style="font-size: 12px; color: var(--color-text-2)">6 kotak kategori</span></span>
+  <input value="Kategori pilihan" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Manual: pilih kategori + cover</span>
+  <span role="switch" aria-checked="true" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-primary); position: relative; display: block; color: var(--color-on-primary)"><span style="position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); ">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">3. Produk terlaris</b><span style="font-size: 12px; color: var(--color-text-2)">Top 10</span></span>
+  <input value="Produk terlaris" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Otomatis: penjualan 7 hari terakhir</span>
+  <span role="switch" aria-checked="true" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-primary); position: relative; display: block; color: var(--color-on-primary)"><span style="position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); ">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">4. Produk baru minggu ini</b><span style="font-size: 12px; color: var(--color-text-2)">4–8 item</span></span>
+  <input value="Baru minggu ini" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Otomatis: tayang dalam 7 hari</span>
+  <span role="switch" aria-checked="true" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-primary); position: relative; display: block; color: var(--color-on-primary)"><span style="position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); ">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">5. Host populer</b><span style="font-size: 12px; color: var(--color-text-2)">4–8 host</span></span>
+  <input value="Host populer" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Manual: pilih host + urutan</span>
+  <span role="switch" aria-checked="true" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-primary); position: relative; display: block; color: var(--color-on-primary)"><span style="position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div><div style="display: grid; grid-template-columns: 32px 1.3fr 1.4fr 1.3fr 90px 150px; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); opacity: .55">
+  <span aria-label="Seret untuk urutan" style="color: var(--color-disabled); font-size: 17px; cursor: grab">⋮⋮</span>
+  <span style="display: flex; flex-direction: column"><b style="font-size: 15px">6. Topik gaya</b><span style="font-size: 12px; color: var(--color-text-2)">1 besar + 4 kecil</span></span>
+  <input value="Topik gaya" aria-label="Judul section" style="min-height: 40px; border-radius: 10px; border: 1px solid var(--color-border-strong); padding: 0 12px; font-size: 15px">
+  <span style="font-size: 13px; color: var(--color-text)">Manual: pilih halaman topik</span>
+  <span role="switch" aria-checked="false" style="width: 48px; height: 28px; border-radius: 14px; background: var(--color-border-strong); position: relative; display: block"><span style="position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--color-surface)"></span></span>
+  <span style="display: flex; gap: 6px"><a href="#" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--color-text); color: var(--color-text); font-size: 13px; display: flex; align-items: center; text-decoration: none">Ubah isi</a></span>
+</div></div>
+    <div style="padding: 16px; border-radius: 16px; background: var(--color-surface); border: 1px solid var(--color-border); font-size: 13px; line-height: 1.8; color: var(--color-text)"><b style="font-size: 15px">Aturan frontend</b><br>・Modul dimatikan → seluruh blok hilang di frontend, jarak atas-bawah menyatu, tanpa ruang kosong.<br>・Modul dimatikan → API tidak mengirim modul itu, frontend tidak memuat gambar & datanya.<br>・Modul kosong (mis. tidak ada produk baru) → otomatis disembunyikan di frontend, admin mendapat peringatan.<br>・Hero, kotak cari, blok CS, dan footer adalah blok tetap, tidak bisa dimatikan (CS prioritas).<br>・Bisa pratinjau versi mobile & desktop sebelum publikasi.</div>
+  </div>
+  <div style="border-radius: 28px; border: 8px solid var(--color-text); overflow: hidden; height: 720px; background: var(--color-bg); display: flex; flex-direction: column">
+    <div style="padding: 10px 12px; font-size: 11px; color: var(--color-text-2); text-align: center; border-bottom: 1px solid var(--color-border)">Pratinjau mobile・topik gaya nonaktif</div>
+    <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12px">
+      <div style="padding: 10px 12px; border-radius: 10px; background: var(--color-bg-soft); color: var(--color-text); font-weight: 700">Hero (tetap)</div><div style="padding: 10px 12px; border-radius: 10px; background: var(--color-text); color: #FFFFFF; font-weight: 700">1 Area Live</div><div style="padding: 10px 12px; border-radius: 10px; background: var(--color-surface); color: var(--color-text); font-weight: 700">2 Kategori pilihan</div><div style="padding: 10px 12px; border-radius: 10px; background: var(--color-surface); color: var(--color-text); font-weight: 700">3 Produk terlaris</div><div style="padding: 10px 12px; border-radius: 10px; background: var(--color-surface); color: var(--color-text); font-weight: 700">4 Produk baru minggu ini</div><div style="padding: 10px 12px; border-radius: 10px; background: var(--color-surface); color: var(--color-text); font-weight: 700">5 Host populer</div>
+      <div style="padding: 8px 12px; border-radius: 10px; border: 1.5px dashed var(--color-live); color: var(--color-live); font-weight: 700; text-decoration: line-through">6 Topik gaya (nonaktif・tidak dimuat)</div>
+      <div style="padding: 10px 12px; border-radius: 10px; background: var(--color-primary); color: var(--color-on-primary); font-weight: 700">Blok CS (tetap)</div>
+      <div style="padding: 10px 12px; border-radius: 10px; background: var(--color-bg-soft); font-weight: 700">Footer (tetap)</div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF8C69","options":["#FF8C69","#7FB3E6","#7CC9A0"]},"$preview":{"width":1180,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accent: this.props.accent ?? '#FF8C69'
+    };
+  }
+}
+</script>
+</body>
+</html>

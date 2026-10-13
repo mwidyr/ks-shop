@@ -422,3 +422,12 @@ export function IconSparkles(props) {
     </svg>
   )
 }
+
+export function IconBook(props) {
+  return (
+    <svg {...base} width={16} height={16} {...props}>
+      <path d="M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4z" />
+      <path d="M20 5h-4a2 2 0 0 0-2 2" />
+    </svg>
+  )
+}

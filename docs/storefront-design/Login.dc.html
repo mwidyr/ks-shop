@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>ralulu 登入註冊</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;family=Noto+Serif+TC:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+:root{--color-primary:#FF8C69;--color-on-primary:#2B2B2E;--color-primary-hover:#F7795A;--color-primary-strong:#B8432D;--color-primary-soft:#FFEDE6;--color-secondary:#FFC9B8;--color-bg:#FFFFFF;--color-bg-soft:#F7F7F8;--color-surface:#FFFFFF;--color-text:#2B2B2E;--color-text-2:#5F6168;--color-text-3:#6B6E76;--color-disabled:#9AA0A6;--color-border:#ECEDEF;--color-border-strong:#8C9098;--color-success:#2E7D52;--color-success-bg:#E8F5EE;--color-warning:#9A5B00;--color-warning-bg:#FFF4E5;--color-error:#C62828;--color-error-bg:#FDECEC;--color-info:#2F6FA3;--color-live:#D32F2F;--color-live-soft:#FAD4D1;--color-coupon-bg:#FFF4EF}
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+a{color:var(--color-primary-strong)}a:hover{color:var(--color-text)}
+@keyframes csShake{0%,84%,100%{transform:rotate(0)}86%{transform:rotate(-14deg)}88%{transform:rotate(12deg)}90%{transform:rotate(-10deg)}92%{transform:rotate(8deg)}94%{transform:rotate(0)}}
+.cs-shake{animation:csShake 3.5s ease-in-out infinite;transform-origin:50% 60%}
+@keyframes csFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.cs-tip{animation:csFloat 2.4s ease-in-out infinite}
+@keyframes langMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.lang-track{display:flex;align-items:center;gap:8px;width:max-content;animation:langMarquee 22s linear infinite}
+.lang-track:hover{animation-play-state:paused}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(201,60,41,0.6)}70%{box-shadow:0 0 0 12px rgba(201,60,41,0)}100%{box-shadow:0 0 0 0 rgba(201,60,41,0)}}
+.live-pulse{animation:livePulse 1.6s ease-out infinite}
+@keyframes liveDot{50%{opacity:.25}}
+.live-dot{animation:liveDot 1s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){.cs-shake,.cs-tip,.lang-track,.live-pulse,.live-dot{animation:none}}
+
+h1,h2,.serif{font-family:'Noto Serif TC','Songti TC',serif;letter-spacing:.3px}
+</style>
+</helmet>
+<div style="width: 390px; height: 1100px; position: relative; overflow: hidden; background: var(--color-bg); font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; color: var(--color-text)">
+<div aria-label="Ganti bahasa Language" style="height: 46px; background: var(--color-bg-soft); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; overflow: hidden; position: relative; z-index: 5">
+  <a href="Language.dc.html" aria-label="Semua bahasa All languages" style="flex: none; height: 46px; padding: 0 10px 0 12px; display: flex; align-items: center; background: var(--color-bg-soft); box-shadow: 8px 0 10px -6px rgba(30,30,35,0.3); position: relative; z-index: 1"><span style="width: 32px; height: 32px; border-radius: 16px; background: var(--color-primary); color: var(--color-on-primary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg></span></a>
+  <div style="flex: 1; overflow: hidden"><div class="lang-track"><div style="display: flex; align-items: center; gap: 8px; padding-left: 10px"><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Ganti bahasa →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-primary); color: var(--color-on-primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; text-decoration: none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>Indonesia</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Change language →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">English</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">切換語言 →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">中文</a><span style="flex: none; width: 12px"></span></div><div aria-hidden="true" style="display: flex; align-items: center; gap: 8px; padding-left: 10px"><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Ganti bahasa →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-primary); color: var(--color-on-primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; text-decoration: none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>Indonesia</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Change language →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">English</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">切換語言 →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">中文</a><span style="flex: none; width: 12px"></span></div></div></div>
+</div>
+<div style="position: relative; height: 280px; overflow: hidden">
+  <img src="/_blob/5c5ac277ed9ed35f781b1c62886f56f9" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: center 25%">
+  <div style="position: absolute; inset: 0; background: rgba(30,30,35,0.35)"></div>
+  <a href="Main.dc.html" aria-label="Tutup" style="position: absolute; top: 10px; left: 8px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #FFFFFF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+  <div style="position: absolute; left: 20px; bottom: 22px; color: #FFFFFF"><div class="serif" style="font-size: 32px; font-style: italic; font-weight: 700">ralulu</div><div style="font-size: 15px">Yang dipakai host, bisa dibeli di sini</div></div>
+</div>
+<section style="margin: -16px 0 0; position: relative; border-radius: 22px 22px 0 0; background: var(--color-bg); padding: 20px 20px 0; display: flex; flex-direction: column; gap: 12px">
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px; border-radius: 24px; background: var(--color-bg-soft)">
+    <span style="height: 40px; border-radius: 20px; background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; box-shadow: 0 1px 4px rgba(30,30,35,0.08)">Login</span>
+    <span style="height: 40px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: var(--color-text-2)">Daftar</span>
+  </div>
+  <div style="padding: 12px 14px; border-radius: 14px; background: var(--color-primary-soft); font-size: 13px; color: var(--color-text)">Member baru dapat <b>Saldo belanja NT$[100]</b>; pesanan pertama gratis ongkir min. NT$1,500</div>
+  <button style="height: 48px; border-radius: 24px; border: none; background: var(--color-primary); color: #FFFFFF; font-size: 15px; font-weight: 700; background: #1FA855; display: flex; align-items: center; justify-content: center; gap: 8px">Lanjut dengan WhatsApp</button>
+  <button style="height: 48px; border-radius: 24px; border: none; background: var(--color-primary); color: #FFFFFF; font-size: 15px; font-weight: 700; background: #06C755; display: flex; align-items: center; justify-content: center; gap: 8px">Lanjut dengan LINE</button>
+  <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--color-disabled)"><span style="flex: 1; height: 1px; background: var(--color-border)"></span>Atau pakai nomor HP<span style="flex: 1; height: 1px; background: var(--color-border)"></span></div>
+  <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Nomor HP
+    <span style="display: flex; gap: 8px"><span style="flex: none; height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface); display: flex; align-items: center; gap: 4px; font-weight: 500">+886 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg></span><input inputmode="tel" placeholder="0912 345 678" style="flex: 1; min-width: 0; height: 48px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface); padding: 0 14px; font-size: 15px"></span>
+  </label>
+  <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Kode verifikasi
+    <span style="display: flex; gap: 8px"><input inputmode="numeric" placeholder="6 digit" style="flex: 1; min-width: 0; height: 48px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface); padding: 0 14px; font-size: 15px"><button style="flex: none; height: 48px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--color-text); background: transparent; font-size: 13px; font-weight: 700">Kirim kode verifikasi</button></span>
+    <span style="font-size: 12px; font-weight: 400; color: var(--color-text-2)">Kode verifikasi dikirim via WhatsApp atau SMS</span>
+  </label>
+  <a href="Member.dc.html" style="height: 48px; border-radius: 24px; border: none; background: var(--color-primary); color: var(--color-on-primary); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none">Login / Daftar</a>
+  <p style="margin: 0; font-size: 11px; color: var(--color-disabled); text-align: center; line-height: 1.6">Dengan melanjutkan kamu setuju dengan <a href="#">Syarat layanan</a> dan <a href="#">Kebijakan privasi</a></p>
+  <p style="margin: 0 0 24px; font-size: 13px; text-align: center">Bingung daftar?<a href="Service.dc.html" style="font-weight: 700">Tanya CS</a></p>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF8C69","options":["#FF8C69","#7FB3E6","#7CC9A0"]},"$preview":{"width":390,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accent: this.props.accent ?? '#FF8C69'
+    };
+  }
+}
+</script>
+</body>
+</html>

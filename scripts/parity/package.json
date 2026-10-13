@@ -1,0 +1,8 @@
+{
+  "name": "ralulu-parity",
+  "private": true,
+  "type": "module",
+  "description": "Pixel-parity check: every customer-facing design artboard vs the matching storefront page",
+  "scripts": { "parity": "node run.mjs" },
+  "dependencies": { "playwright-core": "^1.48.0", "pixelmatch": "^6.0.0", "pngjs": "^7.0.0" }
+}

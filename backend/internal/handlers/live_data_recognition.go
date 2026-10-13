@@ -313,18 +313,18 @@ func (h *LiveDataHandler) Recognize(w http.ResponseWriter, r *http.Request) {
 // ---- Submit ----
 
 type submitPublicLiveDataRequest struct {
-	HostID              int      `json:"host_id"`
-	LocationID          int      `json:"location_id"`
-	Views               int      `json:"views"`
-	UV                  int      `json:"uv"`
-	ActiveViewers       int      `json:"active_viewers"`
-	AWTSeconds          int      `json:"awt_seconds"`
-	PCU                 int      `json:"pcu"`
-	ACU                 float64  `json:"acu"`
-	Follows             int      `json:"follows"`
-	Chats               int      `json:"chats"`
-	Shares              int      `json:"shares"`
-	Likes               int      `json:"likes"`
+	HostID              int             `json:"host_id"`
+	LocationID          int             `json:"location_id"`
+	Views               int             `json:"views"`
+	UV                  int             `json:"uv"`
+	ActiveViewers       int             `json:"active_viewers"`
+	AWTSeconds          int             `json:"awt_seconds"`
+	PCU                 int             `json:"pcu"`
+	ACU                 float64         `json:"acu"`
+	Follows             int             `json:"follows"`
+	Chats               int             `json:"chats"`
+	Shares              int             `json:"shares"`
+	Likes               int             `json:"likes"`
 	LiveDurationSeconds int             `json:"live_duration_seconds"`
 	ImageURLs           []string        `json:"image_urls"`
 	RecognizedData      json.RawMessage `json:"recognized_data"` // the raw AI output from Recognize, passed back through unchanged - stored for staff to audit what the AI actually read vs. what the host corrected it to

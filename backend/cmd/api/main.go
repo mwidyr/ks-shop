@@ -95,7 +95,12 @@ func main() {
 	heatmapH := &handlers.HeatmapHandler{DB: pool}
 	pickupChainH := &handlers.PickupChainHandler{DB: pool}
 	languageH := &handlers.LanguageHandler{DB: pool}
-	storeH := &handlers.StorefrontHandler{DB: pool}
+	storeH := &handlers.StorefrontHandler{DB: pool, JWTSecret: cfg.JWTSecret}
+	memberAdminH := &handlers.MemberAdminHandler{DB: pool}
+	memberH := &handlers.MemberHandler{DB: pool, Cfg: cfg, JWTSecret: cfg.JWTSecret}
+	siteH := &handlers.SiteHandler{DB: pool}
+	themeH := &handlers.ThemeHandler{DB: pool}
+	siteAdminH := &handlers.SiteAdminHandler{DB: pool}
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
 		CloudinaryCloudName: cfg.CloudinaryCloudName,
@@ -170,12 +175,92 @@ func main() {
 		r.Post("/public/store/orders", storeH.CreateOrder)
 		r.Get("/public/store/orders/track", storeH.Track)
 		r.Post("/public/store/newsletter", storeH.Subscribe)
+		// Website rebuild (ralulu design): home modules, hosts, live, style content, search, store search.
+		r.Get("/public/store/home", siteH.Home)
+		r.Get("/public/store/category-tree", siteH.CategoryTree)
+		r.Get("/public/store/hosts", siteH.Hosts)
+		r.Get("/public/store/hosts/{slug}", siteH.Host)
+		r.Get("/public/store/live", siteH.Live)
+		r.Get("/public/store/cards", siteH.Cards)
+		r.Get("/public/store/seo", siteH.SEO)
+		// Website accounts: email OTP, WhatsApp OTP (the member sends the code), inbound WhatsApp webhook.
+		r.Post("/public/member/email/request", memberH.EmailRequest)
+		r.Post("/public/member/email/verify", memberH.EmailVerify)
+		r.Post("/public/member/wa/start", memberH.WAStart)
+		r.Get("/public/member/wa/status/{id}", memberH.WAStatus)
+		r.Get("/webhooks/whatsapp", memberH.WebhookVerify)
+		r.Post("/webhooks/whatsapp", memberH.Webhook)
+		r.Route("/member", func(r chi.Router) {
+			r.Use(memberH.MemberAuth)
+			r.Get("/me", memberH.Me)
+			r.Patch("/profile", memberH.UpdateProfile)
+			r.Get("/favorites", memberH.Favorites)
+			r.Put("/favorites/{id}", memberH.SetFavorite)
+			r.Get("/coupons", memberH.Coupons)
+			r.Post("/coupons/claim", memberH.ClaimCoupon)
+			r.Get("/orders", memberH.Orders)
+			r.Get("/ledger", memberH.Ledger)
+			r.Post("/sync", memberH.Sync)
+		})
+		r.Get("/public/store/products/{id}/reviews", siteH.ProductReviews)
+		r.Post("/public/store/reviews", siteH.SubmitReview)
+		r.Post("/public/store/upload", siteH.LimitedUpload(uploadH.UploadImage))
+		r.Get("/public/store/content", siteH.ContentList)
+		r.Get("/public/store/content/{slug}", siteH.ContentGet)
+		r.Get("/public/store/search", siteH.Search)
+		r.Get("/public/store/cvs/search", siteH.CvsSearch)
+		r.Post("/public/store/coupons/claim", siteH.ClaimCoupon)
+		r.Post("/public/store/restock-requests", siteH.RestockRequest)
+		r.Post("/public/store/returns", siteH.ReturnRequest)
+		r.Get("/public/store/whatsapp/order", siteH.WhatsAppOrder)
+		r.Get("/theme/published", themeH.Published)
+		r.Get("/theme/published.css", themeH.PublishedCSS)
+		r.Get("/theme/preview/{token}", themeH.Preview)
 
 		r.Group(func(r chi.Router) {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
 			r.Use(appmw.RequireRole(allStaffRoles...))
 
 			r.Post("/auth/verify-password", authH.VerifyPassword)
+
+			// Website management (home modules, WhatsApp / CS settings, public host profiles, style content).
+			r.With(view("website_home")).Get("/admin/home-modules", siteAdminH.HomeModules)
+			r.With(edit("website_home")).Put("/admin/home-modules", siteAdminH.SaveHomeModules)
+			r.With(view("store_profile")).Get("/admin/site-settings", siteAdminH.GetSettings)
+			r.With(edit("store_profile")).Patch("/admin/site-settings", siteAdminH.SaveSettings)
+			r.With(view("website_hosts")).Get("/admin/site-hosts", siteAdminH.Hosts)
+			r.With(view("website_hosts")).Get("/admin/site-hosts/{id}", siteAdminH.Host)
+			r.With(edit("website_hosts")).Put("/admin/site-hosts/{id}", siteAdminH.SaveHost)
+			r.With(view("website_content")).Get("/admin/content", siteAdminH.ContentList)
+			r.With(view("website_content")).Get("/admin/content/{id}", siteAdminH.ContentGet)
+			r.With(edit("website_content")).Post("/admin/content", siteAdminH.ContentCreate)
+			r.With(edit("website_content")).Put("/admin/content/{id}", siteAdminH.ContentUpdate)
+			r.With(edit("website_content")).Delete("/admin/content/{id}", siteAdminH.ContentDelete)
+			r.With(view("products")).Get("/admin/product-site/{id}", siteAdminH.ProductSite)
+			r.With(edit("products")).Put("/admin/product-site/{id}", siteAdminH.SaveProductSite)
+			r.With(view("orders")).Get("/admin/restock-requests", siteAdminH.RestockRequests)
+			r.With(edit("orders")).Post("/admin/restock-requests/{id}/notified", siteAdminH.MarkRestockNotified)
+			r.With(view("orders")).Get("/admin/product-reviews", siteAdminH.AdminReviews)
+			r.With(edit("orders")).Patch("/admin/product-reviews/{id}", siteAdminH.SetReviewStatus)
+			r.With(view("orders")).Get("/admin/web-returns", siteAdminH.WebReturns)
+			r.With(edit("orders")).Patch("/admin/web-returns/{id}", siteAdminH.SetWebReturnStatus)
+
+			r.With(view("members")).Get("/admin/members", memberAdminH.List)
+			r.With(view("members")).Get("/admin/members/{id}", memberAdminH.Detail)
+			r.With(edit("members")).Post("/admin/members/{id}/adjust", memberAdminH.Adjust)
+			r.With(edit("members")).Patch("/admin/members/{id}", memberAdminH.SetActive)
+			r.With(view("members")).Get("/admin/reward-settings", memberAdminH.GetRewards)
+			r.With(edit("members")).Put("/admin/reward-settings", memberAdminH.SaveRewards)
+
+			// Theme & Appearance (Brand Admin): drafts, validation, atomic publish, versions.
+			r.With(view("theme")).Get("/admin/theme/draft", themeH.GetDraft)
+			r.With(edit("theme")).Put("/admin/theme/draft", themeH.PutDraft)
+			r.With(view("theme")).Post("/admin/theme/validate", themeH.Validate)
+			r.With(edit("theme")).Post("/admin/theme/preview-link", themeH.PreviewLink)
+			r.With(edit("theme")).Post("/admin/theme/publish", themeH.Publish)
+			r.With(view("theme")).Get("/admin/theme/versions", themeH.Versions)
+			r.With(edit("theme")).Post("/admin/theme/versions/{id}/restore", themeH.Restore)
+			r.With(view("theme")).Get("/admin/theme/presets", themeH.Presets)
 
 			r.With(view("products")).Get("/products", productH.List)
 			r.With(view("products")).Get("/products/{id}", productH.Detail)

@@ -351,6 +351,9 @@ export default function Orders() {
                       {o.is_urgent && (
                         <p className="text-[9px] font-bold uppercase tracking-wide text-red-600 mb-0.5">⚠ {t('page_orders.urgent_badge')}</p>
                       )}
+                      {o.source && o.source !== 'staff' && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-sky-700 mb-0.5">🌐 {t(`page_orders.source_${o.source}`)}</p>
+                      )}
                       {o.is_merged && (
                         <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600 mb-0.5">🔗 {t('page_orders.merged_badge')}</p>
                       )}

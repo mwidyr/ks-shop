@@ -11,7 +11,7 @@ import {
   IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles, IconUser,
   IconBroadcast, IconUsers, IconChat, IconWarehouse, IconClipboard,
   IconUndo, IconBarChart, IconUserCog, IconPuzzle, IconFileText, IconPalette,
-  IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist,
+  IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist, IconBook,
 } from './icons'
 
 // Sidebar structure per the client's "Sidebar Structure & Navigation Adjustments": two ungrouped
@@ -55,6 +55,16 @@ const navGroups = [
       { to: '/analytics/product-trend', key: 'product_trend', icon: IconTrendUp },
       { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
       { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
+    ],
+  },
+  {
+    title: 'website', icon: IconPalette, items: [
+      { to: '/website/home', key: 'website_home', icon: IconSliders },
+      { to: '/website/hosts', key: 'website_hosts', icon: IconUser },
+      { to: '/website/content', key: 'website_content', icon: IconBook },
+      { to: '/website/theme', key: 'theme', icon: IconPalette },
+      { to: '/website/members', key: 'members', icon: IconUsers },
+      { to: '/website/requests', key: 'website_requests', icon: IconChat },
     ],
   },
   {
@@ -131,6 +141,7 @@ const VISIBLE_TAB_KEYS = new Set([
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
+  'website_home', 'website_hosts', 'website_content', 'theme', 'website_requests', 'members',
 ])
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
@@ -228,6 +239,7 @@ export default function AppShell({ children }) {
   // flash of a mostly-empty sidebar before the real access map arrives.
   function canSeeTab(tabKey) {
     if (tabKey === 'telegram_settings') return access !== null && isSuperUser // Super Admin only
+    if (tabKey === 'website_requests') tabKey = 'orders' // restock / return requests follow Orders access
     if (isSuperUser || access === null) return true
     return !!access[tabKey]
   }

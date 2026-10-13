@@ -63,6 +63,12 @@ const Payouts = lazy(() => import('./pages/Payouts'))
 const Fees = lazy(() => import('./pages/Fees'))
 const Reports = lazy(() => import('./pages/Reports'))
 const StoreProfile = lazy(() => import('./pages/StoreProfile'))
+const WebsiteHome = lazy(() => import('./pages/WebsiteHome'))
+const WebsiteHosts = lazy(() => import('./pages/WebsiteHosts'))
+const WebsiteContent = lazy(() => import('./pages/WebsiteContent'))
+const ThemeCenter = lazy(() => import('./pages/ThemeCenter'))
+const WebsiteRequests = lazy(() => import('./pages/WebsiteRequests'))
+const Members = lazy(() => import('./pages/Members'))
 const StoreDesign = lazy(() => import('./pages/StoreDesign'))
 const RolesMatrix = lazy(() => import('./pages/RolesMatrix'))
 const Notifications = lazy(() => import('./pages/Notifications'))
@@ -199,6 +205,12 @@ export default function App() {
 
         {/* Store */}
         <Route path="/store/profile" element={<ProtectedRoute><StoreProfile /></ProtectedRoute>} />
+        <Route path="/website/home" element={<ProtectedRoute><WebsiteHome /></ProtectedRoute>} />
+        <Route path="/website/hosts" element={<ProtectedRoute><WebsiteHosts /></ProtectedRoute>} />
+        <Route path="/website/content" element={<ProtectedRoute><WebsiteContent /></ProtectedRoute>} />
+        <Route path="/website/theme" element={<ProtectedRoute><ThemeCenter /></ProtectedRoute>} />
+        <Route path="/website/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
+        <Route path="/website/requests" element={<ProtectedRoute><WebsiteRequests /></ProtectedRoute>} />
         <Route path="/store/design" element={<ProtectedRoute><StoreDesign /></ProtectedRoute>} />
         <Route path="/store/team" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
 

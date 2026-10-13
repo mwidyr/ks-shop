@@ -65,6 +65,8 @@ type orderListItem struct {
 	CustomerBlocked bool    `json:"customer_blacklisted"`
 	IsUrgent        bool    `json:"is_urgent"`
 	IsMerged        bool    `json:"is_merged"`
+	// Source: staff (created in Ralulu Hub), self_checkout (customer website) or cs_assisted.
+	Source string `json:"source"`
 }
 
 // List returns orders, filtered by role (sales sees only their own), plus optional
@@ -174,9 +176,11 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id),
 		       pm.code,
 		       COALESCE(o.shipping_address,''), pc.chain_type,
-		       (pc.chain_type IN ('cvs_711','cvs_familymart') AND COALESCE(o.pickup_store_code,'') <> ''
+		       ((pc.chain_type IN ('cvs_711','cvs_familymart') AND COALESCE(o.pickup_store_code,'') <> ''
 		        AND EXISTS (SELECT 1 FROM cvs_stores cs0 WHERE cs0.chain_type = pc.chain_type)
 		        AND NOT EXISTS (SELECT 1 FROM cvs_stores cs WHERE cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code))
+		        OR NOT o.pickup_store_verified),
+		       o.source
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
@@ -198,7 +202,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged, &o.PromotionCode,
-			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified); err != nil {
+			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)
@@ -637,7 +641,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var promotionDiscountAmount float64
 	var promoFreeShipping bool
 	if strings.TrimSpace(req.PromotionCode) != "" {
-		result, errMsg := resolvePromotionByCode(ctx, tx, strings.ToUpper(strings.TrimSpace(req.PromotionCode)), customerID, subtotal)
+		result, errMsg := resolvePromotionByCode(ctx, tx, strings.ToUpper(strings.TrimSpace(req.PromotionCode)), customerID, subtotal, 0)
 		if errMsg != "" {
 			respondError(w, http.StatusBadRequest, errMsg)
 			return
@@ -877,6 +881,13 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		// Free the promotion's usage/per-customer count back up - a cancelled order shouldn't
 		// permanently consume a limited coupon's redemption slot.
 		tx.Exec(ctx, `DELETE FROM promotion_redemptions WHERE order_id=$1`, id)
+		OrderCancelledRefund(ctx, tx, id) // give back wallet balance / points the order used
+	}
+	if req.Status == "delivered" {
+		OrderDeliveredReward(ctx, tx, id) // points for the member + referral reward on a first order
+	}
+	if req.Status == "return" {
+		OrderEarnReverse(ctx, tx, id) // returned goods don't keep their points
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)

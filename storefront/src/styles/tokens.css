@@ -1,0 +1,14 @@
+/* Default theme (Peach + Putih). :where() keeps specificity at zero so the published theme served by
+   the backend (/api/theme/published.css, a plain :root rule) always wins, whatever the load order -
+   and if that request fails the site still has every colour. Never hard-code colours elsewhere. */
+:where(:root) {
+  --color-primary: #FF8C69; --color-on-primary: #2B2B2E; --color-primary-hover: #F7795A;
+  --color-primary-strong: #B8432D; --color-primary-soft: #FFEDE6; --color-secondary: #FFC9B8;
+  --color-bg: #FFFFFF; --color-bg-soft: #F7F7F8; --color-surface: #FFFFFF;
+  --color-text: #2B2B2E; --color-text-2: #5F6168; --color-text-3: #6B6E76; --color-disabled: #9AA0A6;
+  --color-border: #ECEDEF; --color-border-strong: #8C9098;
+  --color-success: #2E7D52; --color-success-bg: #E8F5EE;
+  --color-warning: #9A5B00; --color-warning-bg: #FFF4E5;
+  --color-error: #C62828; --color-error-bg: #FDECEC;
+  --color-info: #2F6FA3; --color-live: #D32F2F; --color-live-soft: #FAD4D1; --color-coupon-bg: #FFF4EF;
+}

@@ -1,0 +1,40 @@
+export default {
+  common: {
+    loading: 'Loading…', retry: 'Try again', reload: 'Reload', ask_cs: 'Ask CS', back: 'Back', close: 'Close',
+    apply: 'Apply', cancel: 'Cancel', save: 'Save', continue: 'Continue', done: 'Done', see_all: 'See all ›',
+    all: 'All', view: 'View', add_to_cart: 'Add to cart', sold_out: 'Sold out', stock_left: '{{n}} left',
+    error_generic: 'Something went wrong, please try again.', optional: 'optional', required: 'required', edit: 'Edit', change: 'Change',
+    yes: 'Yes', no: 'No', or: 'or', items: '{{n}} items', total: 'Total', subtotal: 'Subtotal', empty: 'Nothing here yet',
+    new: 'New', live_price: 'Live price', price_live: 'Live price {{price}}', off: '-{{pct}}%',
+  },
+  nav: { home: 'Home', category: 'Categories', cs: 'CS', cart: 'Cart', menu: 'Menu', main: 'Main menu', account: 'Account & more', search_aria: 'Search products or hosts' },
+  lang: { change: 'Change language →', aria: 'Change language', all: 'All languages' },
+  search: {
+    placeholder: 'Search products, hosts (e.g. RARA) or live codes', placeholder_short: 'Search products, hosts, or live codes',
+    placeholder_input: 'Search products, hosts, or live codes',
+  },
+  strip: { cs: '✓ CS helps you order', free_ship: '✓ Free shipping over {{amount}}', pickup: '✓ Pick up at 7-ELEVEN・FamilyMart' },
+  freebar: { remaining: 'Spend {{amount}} more for free shipping', reached: 'Congrats! This order ships free.', to_cart: 'Go to cart ›' },
+  fab: { online: 'CS online', tip: 'Unsure about size or how to order?', aria: 'Contact CS' },
+  home: {
+    hero_eyebrow: 'AUTUMN EDIT', hero_title: 'Autumn collection', hero_sub: 'New this week', hero_cta: 'Shop now ›',
+    hero_alt: 'Autumn collection key visual',
+    live_eyebrow: 'LIVE NOW', live_area: 'Live area', all_live: 'All live ›', live_now: 'Live now', viewers: '{{n}} watching',
+    worn_by_host: 'Worn by the host', buy_here: 'shop it right here', perk: 'Watch live, get a {{amount}} coupon', enter_live: 'Join live',
+    showing: 'Now showing {{name}}・tap what you like', next_live: 'Next live', not_live: 'Not live',
+    cat_eyebrow: 'CATEGORY', best_eyebrow: 'BEST SELLERS', new_eyebrow: 'NEW IN', hosts_eyebrow: 'HOSTS', topics_eyebrow: 'STYLE TOPICS',
+    topics_hint: 'Open a topic to see full outfits, products and the hosts who wear them', read_topic: 'Read topic ›',
+    cs_title: 'Unsure about size or how to order?', cs_sub: 'Send a screenshot on WhatsApp and CS orders it for you', cs_cta: 'Ask CS on WhatsApp',
+  },
+  host: {
+    live_now: 'Live now', viewers_short: '{{n}} watching', wearing: 'Now wearing', enter_live: 'Join live', see_outfit: 'See outfits',
+    has_replay: 'Replay available', not_live_at: 'Not live・{{when}}', next_at: 'Next live: {{when}}', last_replay: 'Last live: replay',
+    items_n: '+{{n}} items', host_page: 'Host page',
+  },
+  when: { today_evening: 'tonight {{time}}', today: 'today {{time}}', tomorrow: 'tomorrow {{time}}', other: '{{day}} {{time}}' },
+  footer: {
+    about: 'About us', orders: 'My orders', returns: 'Return / exchange policy', style: 'Style topics', shipping: 'Shipping & payment',
+    cs_center: 'CS center', copyright: '© ralulu', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
+  },
+  toast: { added: '✓ Added to cart' },
+}

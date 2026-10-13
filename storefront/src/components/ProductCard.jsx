@@ -1,52 +1,84 @@
 import { Link } from 'react-router-dom'
-import { img, onImgError } from '../lib/api'
-import { money, discountPct } from '../lib/format'
+import { useTranslation } from 'react-i18next'
+import { img, onImgError, sized, srcSet } from '../lib/api'
+import { discountPct, money } from '../lib/format'
+import { useFavorites } from '../lib/favorites'
+import { IconHeart, IconPlus } from './Icons'
+import { useQuickAdd } from './QuickAdd'
+import RestockSheet from './RestockSheet'
+import { useState } from 'react'
 
-export default function ProductCard({ p }) {
+export const productPath = (p) => `/p/${p.id}`
+
+const badge = (bg) => ({ position: 'absolute', top: 8, left: 8, padding: '3px 8px', borderRadius: 6, background: bg, color: '#FFFFFF', fontSize: 11, fontWeight: 700 })
+
+// Grid card (2 columns on mobile): favourite top-right, quick add bottom-right, name 2 lines, price / was / -%.
+export function ProductCard({ p, badgeKind, badgeText, eager, dropFrom = 0, showPct = true }) {
+  const { t } = useTranslation()
+  const { has, toggle } = useFavorites()
+  const quick = useQuickAdd()
   const pct = discountPct(p.price, p.compare_at)
-  const first = p.images[0]
-  const second = p.images[1]
+  const fav = has(p.id)
+  const [restock, setRestock] = useState(false)
+  const low = p.in_stock && p.stock_left > 0 && p.stock_left <= 3
+  const dropped = dropFrom > p.price
+  const kind = badgeKind || (dropped ? 'drop' : p.is_live ? 'live' : p.is_new ? 'new' : low ? 'low' : '')
   return (
-    <Link to={`/produk/${p.id}`} className="group block">
-      <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
-        <img src={img(first)} alt={p.name} loading="lazy" onError={onImgError} className={`absolute inset-0 w-full h-full object-cover transition duration-500 ${second ? 'group-hover:opacity-0' : 'group-hover:scale-105'}`} />
-        {second && <img src={img(second)} alt="" loading="lazy" onError={onImgError} className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition duration-500" />}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {pct > 0 && <span className="bg-red-600 text-white text-[11px] font-semibold px-2 py-0.5">-{pct}%</span>}
-          {!p.in_stock && <span className="bg-black text-white text-[11px] font-semibold px-2 py-0.5">Habis</span>}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 14, overflow: 'hidden', background: 'var(--color-bg-soft)' }}>
+        <Link to={productPath(p)} style={{ display: 'block', width: '100%', height: '100%' }}>
+          <img src={sized(img(p.image), 320)} srcSet={srcSet(p.image)} sizes="(min-width:1024px) 240px, 50vw" alt={p.name} loading={eager ? 'eager' : 'lazy'} onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </Link>
+        {kind === 'live' && <span style={badge('var(--color-live)')}>{p.live_code ? t('product.live_code_badge', { code: p.live_code }) : t('product.live_product')}</span>}
+        {kind === 'worn' && <span style={badge('var(--color-text)')}>{badgeText}</span>}
+        {kind === 'drop' && <span style={badge('var(--color-live)')}>{t('wish.drop_badge')}</span>}
+        {kind === 'low' && <span style={badge('var(--color-text)')}>{t('common.low_stock', { n: p.stock_left })}</span>}
+        {kind === 'new' && <span style={badge('var(--color-text)')}>{t('common.new')}</span>}
+        {!p.in_stock && <span style={{ ...badge('rgba(30,30,35,0.78)'), left: 'auto', right: 8, top: 44 }}>{t('common.sold_out')}</span>}
+        <button type="button" aria-label={t('product.favorite')} aria-pressed={fav} onClick={() => toggle({ id: p.id, price: p.price, name: p.name, image: p.image })}
+          style={{ position: 'absolute', top: 6, right: 6, width: 34, height: 34, borderRadius: 17, border: 'none', background: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: fav ? 'var(--color-live)' : 'var(--color-text)' }}>
+          <IconHeart filled={fav} strokeWidth={fav ? 2 : 1.8} />
+        </button>
+        {p.in_stock && (
+          <button type="button" aria-label={t('common.add_to_cart')} onClick={() => quick.open(p)}
+            style={{ position: 'absolute', right: 8, bottom: 8, width: 36, height: 36, borderRadius: 18, border: 'none', background: 'var(--color-text)', color: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconPlus size={16} />
+          </button>
+        )}
       </div>
-      <div className="pt-3">
-        {p.category_display && <p className="text-[11px] uppercase tracking-wide text-gray-500">{p.category_display}</p>}
-        <h3 className="text-sm font-medium leading-snug line-clamp-2 mt-0.5 group-hover:underline">{p.name}</h3>
-        <div className="mt-1.5 flex items-baseline gap-2 flex-wrap">
-          <span className={`text-sm font-semibold ${pct > 0 ? 'text-red-600' : ''}`}>{money(p.price)}</span>
-          {pct > 0 && <span className="text-xs text-gray-400 line-through">{money(p.compare_at)}</span>}
-        </div>
-        {p.colors.length > 1 && <p className="text-[11px] text-gray-500 mt-1">{p.colors.length} warna</p>}
+      <Link to={productPath(p)} style={{ fontSize: 13, lineHeight: 1.4, height: 36, overflow: 'hidden', color: 'var(--color-text)', textDecoration: 'none' }}>{p.name}</Link>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>{money(p.price)}</span>
+        {dropped
+          ? <><span style={{ fontSize: 12, color: 'var(--color-disabled)', textDecoration: 'line-through' }}>{money(dropFrom)}</span><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-live)' }}>{t('wish.dropped', { amount: money(dropFrom - p.price) })}</span></>
+          : pct > 0 && <><span style={{ fontSize: 12, color: 'var(--color-disabled)', textDecoration: 'line-through' }}>{money(p.compare_at)}</span>{showPct && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-live)' }}>-{pct}%</span>}</>}
       </div>
-    </Link>
-  )
-}
-
-export function ProductGrid({ products, cols = 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' }) {
-  return (
-    <div className={`grid ${cols} gap-x-3 gap-y-8 md:gap-x-5`}>
-      {products.map((p) => <ProductCard key={p.id} p={p} />)}
+      {!p.in_stock && (
+        <>
+          <button type="button" onClick={() => setRestock(true)} style={{ alignSelf: 'flex-start', minHeight: 32, padding: '0 12px', borderRadius: 16, border: '1.5px solid var(--color-text)', background: 'transparent', color: 'var(--color-text)', fontSize: 12, fontWeight: 700 }}>{t('restock_inline.notify')}</button>
+          <RestockSheet open={restock} onClose={() => setRestock(false)} productId={p.id} />
+        </>
+      )}
     </div>
   )
 }
 
-export function ProductGridSkeleton({ n = 8 }) {
+// Compact strip card used in horizontal scrollers (best sellers w/ rank, live products).
+export function StripCard({ p, rank, livePrice, width = 136 }) {
+  const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-8 md:gap-x-5">
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="animate-pulse">
-          <div className="aspect-[3/4] bg-gray-100" />
-          <div className="h-3 bg-gray-100 mt-3 w-3/4" />
-          <div className="h-3 bg-gray-100 mt-2 w-1/3" />
-        </div>
-      ))}
+    <div style={{ position: 'relative', flex: 'none' }}>
+      <Link to={productPath(p)} style={{ width, display: 'flex', flexDirection: 'column', gap: 5, textDecoration: 'none', color: 'var(--color-text)' }}>
+        <span style={{ position: 'relative', display: 'block', aspectRatio: '3 / 4', borderRadius: 14, overflow: 'hidden', background: 'var(--color-bg-soft)' }}>
+          <img src={sized(img(p.image), 280)} srcSet={srcSet(p.image)} sizes={`${width}px`} alt={p.name} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {p.is_live && !livePrice && <span style={{ ...badge('var(--color-live)'), top: 6, left: 6, padding: '2px 7px' }}>{t('common.live_price')}</span>}
+        </span>
+        <span style={{ fontSize: 13, lineHeight: 1.4, height: 36, overflow: 'hidden' }}>{p.name}</span>
+        <b style={{ fontSize: 15 }}>{livePrice ? t('common.price_live', { price: money(p.price) }) : money(p.price)}</b>
+      </Link>
+      {rank && (
+        <span style={{ position: 'absolute', left: -2, top: 150, width: 30, height: 30, borderRadius: 15, background: 'var(--color-text)', color: 'var(--color-bg)', fontSize: 15, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--color-bg)' }}>{rank}</span>
+      )}
     </div>
   )
 }

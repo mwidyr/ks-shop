@@ -6,6 +6,7 @@ import { getProduct, createProduct, updateProduct, createVariant, updateVariant,
 import { listSuppliers } from '../api/suppliers'
 import { listColors } from '../api/colors'
 import PhotoSlots from '../components/PhotoSlots'
+import ProductWebsiteSection from '../components/website/ProductWebsiteSection'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import CategorySelect from '../components/CategorySelect'
 import { useAuth } from '../context/AuthContext'
@@ -575,6 +576,7 @@ export default function ProductForm() {
           </button>
         </div>
       </form>
+      {isEdit && <ProductWebsiteSection productId={id} />}
       {previewIndex !== null && <ImagePreviewModal images={images} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
     </div>
   )

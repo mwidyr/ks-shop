@@ -2,15 +2,24 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ralulu - Fashion Terbaru</title>
-    <meta name="description" content="Belanja fashion terbaru di Ralulu. Koleksi baru, promo, dan voucher setiap hari." />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Per-page <title>, description, canonical, robots, Open Graph and JSON-LD are injected by nginx (SSI)
+         from the backend (/api/public/store/seo). The block below is only output when that include
+         fails - and as-is under `vite dev`, where SSI does not run. -->
+    <!--# block name="seo_fail" -->
+    <title>ralulu</title>
+    <meta name="description" content="ralulu - yang dipakai host, bisa dibeli di sini. Belanja outfit dari live, ambil di 7-ELEVEN / FamilyMart." />
+    <!--# endblock -->
+    <!--# include virtual="/api/public/store/seo?path=$request_uri" stub="seo_fail" -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Koulen&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet" />
+    <!-- Published brand theme (tokens as CSS variables). Render-blocking on purpose: no colour flash.
+         Defaults live in src/styles/tokens.css, so a failed request never leaves the site unstyled. -->
+    <link rel="stylesheet" href="/api/theme/published.css" />
   </head>
   <body>
     <div id="root"></div>

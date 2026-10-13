@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -67,5 +68,32 @@ func loadShippingFeeSettings(ctx context.Context, db queryRower) (map[string]flo
 		}
 		values[key] = value
 	}
+	// The free-shipping campaign switch / date window (Ralulu Hub > Store Profile > Website) turns the
+	// threshold off for everyone at once, so the website message and the real fee can never disagree.
+	if !freeShippingCampaignOn(ctx, db, time.Now()) {
+		values["free_shipping_threshold_minimarket"] = 0
+		values["free_shipping_threshold_pos"] = 0
+	}
 	return values, nil
+}
+
+// freeShippingCampaignOn: store_settings free_shipping_active (default on) and the optional
+// start/end dates (yyyy-mm-dd, inclusive, business timezone).
+func freeShippingCampaignOn(ctx context.Context, db queryRower, now time.Time) bool {
+	get := func(k string) string {
+		var v string
+		_ = db.QueryRow(ctx, `SELECT value FROM store_settings WHERE key=$1`, k).Scan(&v)
+		return v
+	}
+	if get("free_shipping_active") == "false" {
+		return false
+	}
+	today := now.In(businessTZ).Format("2006-01-02")
+	if start := get("free_shipping_start"); start != "" && today < start {
+		return false
+	}
+	if end := get("free_shipping_end"); end != "" && today > end {
+		return false
+	}
+	return true
 }

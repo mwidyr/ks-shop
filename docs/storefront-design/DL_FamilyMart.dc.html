@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>FamilyMart · Pilih toko</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;family=Noto+Serif+TC:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+:root{--color-primary:#FF8C69;--color-on-primary:#2B2B2E;--color-primary-hover:#F7795A;--color-primary-strong:#B8432D;--color-primary-soft:#FFEDE6;--color-secondary:#FFC9B8;--color-bg:#FFFFFF;--color-bg-soft:#F7F7F8;--color-surface:#FFFFFF;--color-text:#2B2B2E;--color-text-2:#5F6168;--color-text-3:#6B6E76;--color-disabled:#9AA0A6;--color-border:#ECEDEF;--color-border-strong:#8C9098;--color-success:#2E7D52;--color-success-bg:#E8F5EE;--color-warning:#9A5B00;--color-warning-bg:#FFF4E5;--color-error:#C62828;--color-error-bg:#FDECEC;--color-info:#2F6FA3;--color-live:#D32F2F;--color-live-soft:#FAD4D1;--color-coupon-bg:#FFF4EF}
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+a{color:var(--color-primary-strong)}a:hover{color:var(--color-text)}
+@keyframes csShake{0%,84%,100%{transform:rotate(0)}86%{transform:rotate(-14deg)}88%{transform:rotate(12deg)}90%{transform:rotate(-10deg)}92%{transform:rotate(8deg)}94%{transform:rotate(0)}}
+.cs-shake{animation:csShake 3.5s ease-in-out infinite;transform-origin:50% 60%}
+@keyframes csFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.cs-tip{animation:csFloat 2.4s ease-in-out infinite}
+@keyframes langMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.lang-track{display:flex;align-items:center;gap:8px;width:max-content;animation:langMarquee 22s linear infinite}
+.lang-track:hover{animation-play-state:paused}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(201,60,41,0.6)}70%{box-shadow:0 0 0 12px rgba(201,60,41,0)}100%{box-shadow:0 0 0 0 rgba(201,60,41,0)}}
+.live-pulse{animation:livePulse 1.6s ease-out infinite}
+@keyframes liveDot{50%{opacity:.25}}
+.live-dot{animation:liveDot 1s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){.cs-shake,.cs-tip,.lang-track,.live-pulse,.live-dot{animation:none}}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .9s linear infinite}
+@keyframes shimmer{0%{opacity:.55}50%{opacity:1}100%{opacity:.55}}
+.skel{animation:shimmer 1.2s ease-in-out infinite}
+h1,h2,.serif{font-family:'Noto Serif TC','Songti TC',serif;letter-spacing:.3px}
+</style>
+</helmet>
+<div style="width: 390px; height: 1180px; position: relative; overflow: hidden; background: var(--color-bg); font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; color: var(--color-text)">
+<div aria-label="Ganti bahasa Language" style="height: 46px; background: var(--color-bg-soft); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; overflow: hidden; position: relative; z-index: 5">
+  <a href="Language.dc.html" aria-label="Semua bahasa All languages" style="flex: none; height: 46px; padding: 0 10px 0 12px; display: flex; align-items: center; background: var(--color-bg-soft); box-shadow: 8px 0 10px -6px rgba(30,30,35,0.3); position: relative; z-index: 1"><span style="width: 32px; height: 32px; border-radius: 16px; background: var(--color-primary); color: var(--color-on-primary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg></span></a>
+  <div style="flex: 1; overflow: hidden"><div class="lang-track"><div style="display: flex; align-items: center; gap: 8px; padding-left: 10px"><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Ganti bahasa →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-primary); color: var(--color-on-primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; text-decoration: none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>Indonesia</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Change language →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">English</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">切換語言 →</span><a href="Main.dc.html" tabindex="0" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">中文</a><span style="flex: none; width: 12px"></span></div><div aria-hidden="true" style="display: flex; align-items: center; gap: 8px; padding-left: 10px"><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Ganti bahasa →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-primary); color: var(--color-on-primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; text-decoration: none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>Indonesia</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">Change language →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">English</a><span style="flex: none; width: 12px"></span><span style="flex: none; font-size: 12px; color: var(--color-text-2); white-space: nowrap">切換語言 →</span><a href="Main.dc.html" tabindex="-1" style="flex: none; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--color-surface); border: 1.5px solid var(--color-secondary); color: var(--color-text); font-size: 13px; font-weight: 700; display: flex; align-items: center; text-decoration: none; box-sizing: border-box">中文</a><span style="flex: none; width: 12px"></span></div></div></div>
+</div>
+<header style="height: 60px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--color-bg); border-bottom: 1px solid var(--color-border)">
+  <a href="DL_Guest.dc.html" aria-label="Kembali / Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--color-text)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"></path></svg></a>
+  <div style="flex: 1; display: flex; flex-direction: column"><h1 style="margin: 0; font-size: 17px; font-weight: 700">Pilih toko FamilyMart</h1><span style="font-size: 11px; color: var(--color-text-2)">Choose a FamilyMart store</span></div>
+</header>
+<div style="display: flex; padding: 12px 16px 4px"><div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 26px; height: 26px; border-radius: 13px; background: var(--color-primary); color: var(--color-on-primary); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg></span><span style="font-size: 11px; font-weight: 400; color: var(--color-text-2); text-align: center; line-height: 1.25">Data diri<br>Your info</span></div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 26px; height: 26px; border-radius: 13px; background: var(--color-primary); color: var(--color-on-primary); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span><span style="font-size: 11px; font-weight: 700; color: var(--color-text); text-align: center; line-height: 1.25">Pengiriman<br>Delivery</span></div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 26px; height: 26px; border-radius: 13px; background: var(--color-border); color: var(--color-text-2); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center">3</span><span style="font-size: 11px; font-weight: 400; color: var(--color-text-2); text-align: center; line-height: 1.25">Pembayaran<br>Payment</span></div></div>
+
+<section style="margin: 12px 16px 0; padding: 16px; border-radius: 18px; background: var(--color-surface); border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 12px"><div style="display: flex; align-items: center; gap: 12px"><span role="img" aria-label="FamilyMart" title="Ganti dengan file logo resmi" style="flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--color-surface); border: 1.5px dashed var(--color-border-strong); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; box-sizing: border-box"><span style="font-size: 11px; font-weight: 700; color: var(--color-text); letter-spacing: -0.2px">FamilyMart</span><span style="font-size: 8px; color: var(--color-text-2)">Logo resmi</span></span><span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 17px; font-weight: 700; color: var(--color-text)">Masukkan nomor toko FamilyMart</span><span style="font-size: 12px; color: var(--color-text-2)">Enter FamilyMart Store Number</span></span></div>
+  <label style="display: flex; flex-direction: column; gap: 6px">
+    <span style="position: relative; display: block">
+      <input inputmode="numeric" autocomplete="off" value="" placeholder="Contoh: 123456" aria-label="Nomor toko FamilyMart"  style="width: 100%; height: 64px; box-sizing: border-box; border-radius: 16px; border: 1.5px solid var(--color-border); background: var(--color-surface); padding: 0 70px 0 18px; font-size: 26px; font-weight: 700; letter-spacing: 6px; font-family: monospace; color: var(--color-text)">
+      <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--color-disabled)">0/[6]</span>
+    </span>
+    <span style="font-size: 12px; color: var(--color-text-2)">Hanya angka · Numbers only</span>
+  </label>
+  <button style="height: 48px; border-radius: 24px; border: none; background: var(--color-primary); color: var(--color-on-primary); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Cari / Search</button></section>
+
+<div style="margin: 12px 16px 0; display: flex; flex-direction: column; gap: 10px"><a href="DL_Tutorial.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--color-primary-soft); border: 1.5px solid var(--color-secondary); text-decoration: none; color: var(--color-text)">
+  <span style="flex: none; width: 40px; height: 40px; border-radius: 20px; background: var(--color-text); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900">?</span>
+  <span style="flex: 1; display: flex; flex-direction: column"><b style="font-size: 15px">Tidak tahu nomor toko?</b><span style="font-size: 12px; color: var(--color-text-2)">Don't know your Store Number?</span></span>
+  <span style="font-size: 15px; font-weight: 700; color: var(--color-primary-strong)">Lihat caranya →</span>
+</a><a href="DL_Example.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px dashed var(--color-border-strong); text-decoration: none; color: var(--color-text)">
+  <span style="flex: none; padding: 3px 8px; border-radius: 6px; background: var(--color-bg-soft); font-size: 11px; font-weight: 900; letter-spacing: 1px; color: var(--color-text-2)">CONTOH</span>
+  <span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 13px">Nomor toko terlihat seperti: <b style="font-family: monospace; font-size: 15px; letter-spacing: 2px">123456</b></span><span style="font-size: 11px; color: var(--color-disabled)">Ini hanya contoh, bukan toko asli · This is only an example</span></span>
+</a></div>
+<div style="margin: 12px 16px 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--color-text-2)">
+  <span>Tidak punya struk? · No receipt?</span>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+    <a href="DL_HCT.dc.html" style="height: 44px; border-radius: 22px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none">Kirim ke rumah (HCT)</a>
+    <a href="DL_CS.dc.html" style="height: 44px; border-radius: 22px; background: var(--color-text); color: #FFFFFF; font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none">Tanya CS</a>
+  </div>
+</div>
+<a href="Service.dc.html" aria-label="Hubungi CS / Customer Service" style="position: absolute; right: 12px; bottom: 100px; z-index: 20; display: flex; align-items: flex-end; gap: 8px; text-decoration: none">
+  <span class="cs-tip" style="padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--color-surface); color: var(--color-text); box-shadow: 0 3px 14px rgba(20,40,38,0.22); display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px">
+    <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--color-success)"><span style="width: 7px; height: 7px; border-radius: 4px; background: var(--color-success); color: #FFFFFF"></span>CS online</span>
+    <span style="font-size: 13px; font-weight: 700; white-space: nowrap">Bingung? Tanya CS kami</span>
+  </span>
+  <span class="cs-shake" style="position: relative; width: 74px; height: 74px; border-radius: 37px; background: var(--color-primary); border: 3px solid #FFFFFF; box-shadow: 0 6px 18px rgba(255,140,105,0.28); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; color: var(--color-on-primary)">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9.5" r="3.6"></circle><path d="M5.5 21c1.1-3.4 3.6-5.2 6.5-5.2s5.4 1.8 6.5 5.2"></path><path d="M6.2 10a5.8 5.8 0 0 1 11.6 0"></path><rect x="4.6" y="9.2" width="2.4" height="3.6" rx="1.2" fill="#fff"></rect><rect x="17" y="9.2" width="2.4" height="3.6" rx="1.2" fill="#fff"></rect><path d="M18.2 12.8v1.2a2 2 0 0 1-2 2H14"></path></svg>
+    <span style="font-size: 11px; font-weight: 900; color: #FFFFFF; letter-spacing: 1px; line-height: 1.1">CS</span>
+    <span style="position: absolute; top: -3px; right: -3px; min-width: 22px; height: 22px; border-radius: 11px; background: var(--color-live); color: #FFFFFF; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #fff">1</span>
+    <span style="position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; border-radius: 7px; background: var(--color-success); border: 2px solid #fff; color: #FFFFFF"></span>
+  </span>
+</a>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px; background: var(--color-surface); border-top: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; z-index: 10"><div style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 12px; color: var(--color-text-2)">Total</span><b style="font-size: 20px">NT$[1,180]</b><span style="font-size: 11px; color: var(--color-text-2)">Pilih toko dulu · Select a store first</span></div><a href="#" style="flex: none; width: 190px; height: 52px; border-radius: 26px; background: var(--color-border); color: var(--color-disabled); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; text-decoration: none">Lanjut · Continue</a></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF8C69","options":["#FF8C69","#7FB3E6","#7CC9A0"]},"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accent: this.props.accent ?? '#FF8C69'
+    };
+  }
+}
+</script>
+</body>
+</html>
