@@ -1,3 +1,4 @@
+import { describeError } from '../utils/errorText'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -210,7 +211,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
       })
       onDone()
     } catch (err) {
-      setError(err.response?.data?.error || t('page_order_detail.update_status_failed_error'))
+      setError(describeError(err, t('page_order_detail.update_status_failed_error')))
     } finally {
       setSaving(false)
     }
@@ -342,7 +343,7 @@ export default function OrderDetail() {
         setMergeWarning(message)
         return
       }
-      setError(message || t('page_order_detail.update_status_failed_error'))
+      setError(message || describeError(err, t('page_order_detail.update_status_failed_error')))
     }
   }
 
