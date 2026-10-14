@@ -20,7 +20,10 @@ type siteCategory struct {
 // categoryTree loads categories that have sellable products (or children that do), as a tree.
 func (h *SiteHandler) categoryTree(r *http.Request) []siteCategory {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT c.id, c.name, `+storeCategorySQL(r, "c.name")+`, COALESCE(c.slug,''), c.parent_id, COALESCE(c.cover_url,''),
+		SELECT c.id, c.name, `+storeCategorySQL(r, "c.name")+`, COALESCE(c.slug,''), c.parent_id,
+		       COALESCE(NULLIF(c.cover_url,''),
+		         (SELECT pi.url FROM products p JOIN product_images pi ON pi.product_id = p.id
+		          WHERE p.category = c.name AND p.is_active AND p.deleted_at IS NULL ORDER BY p.id DESC, pi.sort_order LIMIT 1), ''),
 		       (SELECT COUNT(*) FROM products p WHERE p.category = c.name AND p.is_active AND p.deleted_at IS NULL
 		         AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active))
 		FROM categories c ORDER BY c.sort_order, c.id`)

@@ -97,8 +97,10 @@ export default function Product() {
 
   const variants = p?.variants || []
   const colors = useMemo(() => [...new Set(variants.map((v) => v.color))].filter(Boolean), [variants])
-  const sizesFor = variants.filter((v) => !color || v.color === color)
-  const chosen = variants.find((v) => (!color || v.color === color) && v.size === size)
+  const noSize = (v) => String(v.size || '').trim() === ''
+  const sizeless = variants.length > 0 && variants.every(noSize) // sold by colour only: colour alone picks the variant
+  const sizesFor = variants.filter((v) => (!color || v.color === color) && !noSize(v))
+  const chosen = variants.find((v) => (!color ? colors.length <= 1 : v.color === color) && (sizeless || v.size === size))
   const f = freeShip(cart.subtotal)
   const pct = p ? discountPct(p.price, p.compare_at) : 0
   const fav = p ? has(p.id) : false
@@ -173,11 +175,11 @@ export default function Product() {
       )}
 
       <section style={{ padding: desktop ? '20px 0 0' : '20px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {!sizeless && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 700 }}>{t('product.size')}</span>
           {measurementKeys.length > 0 && <button type="button" onClick={() => setSizeSheet(true)} style={{ fontSize: 13, color: 'var(--color-primary-strong)', background: 'none', border: 'none', padding: 0 }}>{t('product.size_table')}</button>}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }} role="radiogroup" aria-label={t('product.size')}>
+        </div>}
+        {!sizeless && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }} role="radiogroup" aria-label={t('product.size')}>
           {sizesFor.map((v) => {
             const out = v.stock <= 0
             const on = size === v.size
@@ -186,7 +188,7 @@ export default function Product() {
                 style={{ height: 44, borderRadius: 8, fontSize: 15, background: out ? 'var(--color-bg-soft)' : on ? 'var(--color-primary-soft)' : 'var(--color-surface)', color: out ? 'var(--color-disabled)' : on ? 'var(--color-primary-strong)' : 'var(--color-text)', border: out ? '1px dashed var(--color-border)' : on ? '2px solid var(--color-primary-strong)' : '1px solid var(--color-border)', fontWeight: on ? 700 : 400, textDecoration: out ? 'line-through' : 'none' }}>{v.size}</button>
             )
           })}
-        </div>
+        </div>}
         {tried && !chosen && <span role="alert" style={{ fontSize: 12, color: 'var(--color-error)' }}>{t('product.choose_size_first')}</span>}
         {(() => {
           const sug = suggestSize(p.wear, profile.height, profile.weight)

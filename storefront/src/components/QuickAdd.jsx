@@ -5,7 +5,7 @@ import { useCart } from '../lib/cart'
 import { money } from '../lib/format'
 import { productText, waUrl } from '../lib/wa'
 import { useStore } from '../lib/store'
-import { btnDark, btnOutline, btnPrimary, ErrorState, Sheet, Spinner } from './ui'
+import { btnOutline, btnPrimary, ErrorState, Sheet, Spinner } from './ui'
 
 const Ctx = createContext(null)
 export const useQuickAdd = () => useContext(Ctx)
@@ -68,8 +68,11 @@ function QuickAddSheet({ productId, onClose, cart }) {
 
   const variants = product?.variants || []
   const colors = [...new Set(variants.map((v) => v.color))]
-  const sizes = variants.filter((v) => !color || v.color === color)
-  const chosen = variants.find((v) => v.color === (color || variants[0]?.color) && v.size === size)
+  const sizes = variants.filter((v) => (!color || v.color === color) && String(v.size || '').trim() !== '')
+  // products sold by colour only have no size to pick: the colour alone selects the variant
+  const sizeless = variants.length > 0 && variants.every((v) => String(v.size || '').trim() === '')
+  const needColor = colors.length > 1 && !color
+  const chosen = needColor ? undefined : variants.find((v) => v.color === (color || variants[0]?.color) && (sizeless || v.size === size))
 
   function submit() {
     if (!chosen || chosen.stock <= 0) return
@@ -98,7 +101,7 @@ function QuickAddSheet({ productId, onClose, cart }) {
                   ))}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }} role="radiogroup" aria-label={t('product.size')}>
+              {!sizeless && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }} role="radiogroup" aria-label={t('product.size')}>
                 {sizes.map((v) => {
                   const out = v.stock <= 0
                   const on = size === v.size
@@ -107,12 +110,11 @@ function QuickAddSheet({ productId, onClose, cart }) {
                       style={{ height: 46, borderRadius: 12, fontSize: 15, background: 'var(--color-surface)', color: out ? 'var(--color-disabled)' : 'var(--color-text)', border: out ? '1px dashed var(--color-border)' : on ? '2px solid var(--color-text)' : '1px solid var(--color-border)', fontWeight: on ? 700 : 400, textDecoration: out ? 'line-through' : 'none' }}>{v.size}</button>
                   )
                 })}
-              </div>
+              </div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8 }}>
                 <a href={waUrl(settings.whatsapp_number, productText(i18n.language, { name: product.name, code: product.live_code, color, size, url: `${window.location.origin}/p/${product.id}` }))} target="_blank" rel="noreferrer" style={{ ...btnOutline, height: 48, padding: 0 }}>{t('common.ask_cs')}</a>
                 <button type="button" onClick={submit} disabled={!chosen || chosen.stock <= 0} style={{ ...btnPrimary, height: 48, ...(!chosen ? { background: 'var(--color-border)', color: 'var(--color-disabled)', cursor: 'not-allowed' } : {}) }}>{t('common.add_to_cart')}</button>
               </div>
-              <span hidden style={btnDark} />
             </div>
           )}
     </Sheet>
