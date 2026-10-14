@@ -65,6 +65,11 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
   const [zoom, setZoom] = useState(false) // tap the thumbnail to enlarge the photo (same viewer as Products / Stock)
   const isOpen = open
   const selectedInProduct = product.variants.filter((v) => pending[v.id] > 0).length
+  const activeVariants = product.variants.filter((v) => v.is_active !== false)
+  const prices = activeVariants.map((v) => Number(v.price) || 0)
+  const minPrice = prices.length ? Math.min(...prices) : 0
+  const maxPrice = prices.length ? Math.max(...prices) : 0
+  const { t } = useTranslation()
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 mb-3 overflow-hidden">
@@ -81,6 +86,9 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
         <div className="flex-1 min-w-0">
           {product.sku && <p className="text-xs font-bold text-brand-600">{product.sku}</p>}
           <p className="font-semibold text-gray-800 truncate">{pickerProductName(product, nameLang)}</p>
+          <p className="text-xs text-gray-500">
+            {t('page_inventory.variant_count', { count: activeVariants.length })} · NT$ {formatCurrency(minPrice)}{maxPrice > minPrice ? ` – ${formatCurrency(maxPrice)}` : ''}
+          </p>
         </div>
         {selectedInProduct > 0 && (
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 shrink-0">{selectedInProduct}</span>
