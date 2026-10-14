@@ -972,12 +972,19 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 	var curChain int
 	var curOverride, inGroup bool
 	var subtotal float64
+	var curStatus string
 	if err := h.DB.QueryRow(ctx, `
-		SELECT o.pickup_chain_id, o.free_shipping_override,
+		SELECT o.status, o.pickup_chain_id, o.free_shipping_override,
 		       EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id),
 		       COALESCE((SELECT SUM(oi.price_at_order * oi.qty) FROM order_items oi WHERE oi.order_id = o.id), 0)
-		FROM orders o WHERE o.id=$1`, id).Scan(&curChain, &curOverride, &inGroup, &subtotal); err != nil {
+		FROM orders o WHERE o.id=$1`, id).Scan(&curStatus, &curChain, &curOverride, &inGroup, &subtotal); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+	// Method / address / store can only change before picking starts; once the order is in the
+	// shipping process the parcel data is already in use by the warehouse.
+	if curStatus != "pending" {
+		respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum picking dimulai (status saat ini: "+curStatus+")")
 		return
 	}
 

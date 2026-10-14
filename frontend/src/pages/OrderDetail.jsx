@@ -189,6 +189,8 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
   const [saving, setSaving] = useState(false)
   // An order merged into a shipment group keeps its fee (the group's fee holder carries it).
   const feeLocked = Boolean(order.shipment_group_id)
+  // an order from an earlier day: CS must check with the warehouse before changing it
+  const olderOrder = order.created_at && new Date(order.created_at).toDateString() !== new Date().toDateString()
   useEffect(() => { getShippingSettings().then(setShippingSettings).catch(() => {}) }, [])
 
   // Picking another chain re-seeds the fee like Create Order does (the old fee is kept for the chain the
@@ -201,6 +203,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
   }
 
   const selectedChain = pickupChains.find((c) => String(c.id) === chainId)
+  const methodDefaultFee = selectedChain && shippingSettings ? defaultShippingFee(selectedChain, shippingSettings, Number(order.subtotal) || 0) : null
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
   const storeCodeValid = !isCvs || /^\d{6}$/.test(storeCode)
   const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, storeCode, isCvs)
@@ -285,11 +288,19 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
             </div>
           ))}
 
+          {olderOrder && <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{t('page_order_detail.older_order_warning')}</p>}
+
           {selectedChain && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
               <input type="number" min="0" value={fee} onChange={(e) => { setFee(Number(e.target.value) || 0); setFeeDirty(true) }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               {!feeDirty && <p className="text-xs text-gray-400 mt-1">{feeLocked ? t('page_order_detail.fee_group_hint') : order.free_shipping_override ? t('page_order_detail.fee_manual_free_hint') : t('page_order_detail.fee_auto_hint')}</p>}
+              {!feeLocked && methodDefaultFee != null && Number(fee) !== methodDefaultFee && (
+                <p className="text-xs text-amber-500 mt-1">
+                  {t('page_order_detail.fee_default_hint', { fee: formatCurrency(methodDefaultFee) })}{' '}
+                  <button type="button" className="underline font-medium" onClick={() => { setFee(methodDefaultFee); setFeeDirty(true) }}>{t('page_order_detail.fee_use_default')}</button>
+                </p>
+              )}
             </div>
           )}
 
@@ -627,9 +638,9 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.pickup_method_label')}</p>
-              <button onClick={() => setPickupModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+              {order.status === 'pending' && <button onClick={() => setPickupModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                 {t('page_order_detail.edit_pickup_button')}
-              </button>
+              </button>}
             </div>
             <p className="text-sm text-gray-500 mb-3">
               {order.pickup_chain_name || '-'}

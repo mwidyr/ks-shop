@@ -701,7 +701,10 @@
     "urgent_badge": "緊急",
     "fee_auto_hint": "依此配送方式的運費規則自動帶入，必要時可修改。",
     "fee_manual_free_hint": "此訂單已手動免運，運費維持免費。",
-    "fee_group_hint": "此訂單已合併出貨，運費由收取運費的訂單負擔。"
+    "fee_group_hint": "此訂單已合併出貨，運費由收取運費的訂單負擔。",
+    "fee_default_hint": "此配送方式的預設運費：{{fee}}。",
+    "fee_use_default": "使用預設",
+    "older_order_warning": "此為前一天的訂單：變更配送方式、地址或門市代碼前，請先與倉庫確認。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",

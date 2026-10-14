@@ -701,7 +701,10 @@
     "urgent_badge": "Urgent",
     "fee_auto_hint": "Follows the shipping rules of this method; change it if needed.",
     "fee_manual_free_hint": "This order was made free by hand, shipping stays free.",
-    "fee_group_hint": "This order is merged into a shipment; the shipping fee follows the fee-holder order."
+    "fee_group_hint": "This order is merged into a shipment; the shipping fee follows the fee-holder order.",
+    "fee_default_hint": "Default shipping fee for this method: {{fee}}.",
+    "fee_use_default": "Use default",
+    "older_order_warning": "Order from a previous day: check with the warehouse before changing the method, address or store code."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",

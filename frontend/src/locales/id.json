@@ -701,7 +701,10 @@
     "urgent_badge": "Mendesak",
     "fee_auto_hint": "Otomatis mengikuti aturan ongkir metode ini; ubah kalau perlu.",
     "fee_manual_free_hint": "Pesanan ini digratiskan manual, ongkir tetap gratis.",
-    "fee_group_hint": "Pesanan ini digabung pengiriman, ongkir ikut pesanan pemegang ongkir."
+    "fee_group_hint": "Pesanan ini digabung pengiriman, ongkir ikut pesanan pemegang ongkir.",
+    "fee_default_hint": "Ongkir default metode ini: {{fee}}.",
+    "fee_use_default": "Pakai default",
+    "older_order_warning": "Pesanan dari hari sebelumnya: konfirmasi ke gudang dulu sebelum mengubah metode, alamat, atau kode toko."
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
