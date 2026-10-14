@@ -16,6 +16,7 @@ import { getReviews } from '../lib/api'
 import Stars from '../components/Stars'
 import { IconBack, IconCheck, IconChevDown, IconHeadphones, IconHeart, IconMenu, IconPlay, IconChat, IconSearch, IconShare } from '../components/Icons'
 import { btnOutline, btnPrimary, EmptyState, ErrorState, Field, inputStyle, Sheet, Skeleton } from '../components/ui'
+import { blankSize } from '../components/QuickAdd'
 
 const iconLink = { width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)' }
 
@@ -97,7 +98,7 @@ export default function Product() {
 
   const variants = p?.variants || []
   const colors = useMemo(() => [...new Set(variants.map((v) => v.color))].filter(Boolean), [variants])
-  const noSize = (v) => String(v.size || '').trim() === ''
+  const noSize = blankSize
   const sizeless = variants.length > 0 && variants.every(noSize) // sold by colour only: colour alone picks the variant
   const sizesFor = variants.filter((v) => (!color || v.color === color) && !noSize(v))
   const chosen = variants.find((v) => (!color ? colors.length <= 1 : v.color === color) && (sizeless || v.size === size))

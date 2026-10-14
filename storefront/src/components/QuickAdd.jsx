@@ -27,6 +27,9 @@ export function QuickAddProvider({ children }) {
   )
 }
 
+// a size that is empty or only invisible characters counts as "no size"
+export const blankSize = (v) => String(v.size ?? '').replace(/[\s\u200b-\u200d\ufeff]/g, '') === ''
+
 export function variantPick(product) {
   const colors = product.colors || []
   const variants = product.variants || []
@@ -68,9 +71,9 @@ function QuickAddSheet({ productId, onClose, cart }) {
 
   const variants = product?.variants || []
   const colors = [...new Set(variants.map((v) => v.color))]
-  const sizes = variants.filter((v) => (!color || v.color === color) && String(v.size || '').trim() !== '')
+  const sizes = variants.filter((v) => (!color || v.color === color) && !blankSize(v))
   // products sold by colour only have no size to pick: the colour alone selects the variant
-  const sizeless = variants.length > 0 && variants.every((v) => String(v.size || '').trim() === '')
+  const sizeless = variants.length > 0 && variants.every(blankSize)
   const needColor = colors.length > 1 && !color
   const chosen = needColor ? undefined : variants.find((v) => v.color === (color || variants[0]?.color) && (sizeless || v.size === size))
 

@@ -6,7 +6,7 @@ import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { IconBack, IconCart, IconChevDown, IconFilter, IconSearch } from '../components/Icons'
 import { ProductCard } from '../components/ProductCard'
-import { btnDark, btnOutline, btnPrimary, Chip, EmptyState, ErrorState, iconBtn, ProductGridSkeleton, Sheet, inputStyle } from '../components/ui'
+import { btnOutline, btnPrimary, Chip, EmptyState, ErrorState, iconBtn, ProductGridSkeleton, Sheet, inputStyle } from '../components/ui'
 
 const SORTS = ['newest', 'rec', 'bestseller', 'price_asc', 'price_desc']
 const sortKey = { newest: 'sort_newest', rec: 'sort_rec', bestseller: 'sort_best', price_asc: 'sort_asc', price_desc: 'sort_desc' }
@@ -124,7 +124,6 @@ export default function ProductList() {
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 15 }}><input type="checkbox" checked={draft.sale} onChange={(e) => setDraft({ ...draft, sale: e.target.checked })} />{t('list.only_sale')}</label>
         </div>
       </Sheet>
-      <span hidden style={btnDark} />
     </div>
   )
 }
