@@ -70,12 +70,12 @@ function QuickAddSheet({ productId, onClose, cart }) {
   }, [product]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const variants = product?.variants || []
-  const colors = [...new Set(variants.map((v) => v.color))]
+  const colors = [...new Set(variants.map((v) => v.color))].filter((c) => String(c ?? '').trim() !== '')
   const sizes = variants.filter((v) => (!color || v.color === color) && !blankSize(v))
   // products sold by colour only have no size to pick: the colour alone selects the variant
   const sizeless = variants.length > 0 && variants.every(blankSize)
   const needColor = colors.length > 1 && !color
-  const chosen = needColor ? undefined : variants.find((v) => v.color === (color || variants[0]?.color) && (sizeless || v.size === size))
+  const chosen = needColor ? undefined : variants.find((v) => (color ? v.color === color : colors.length <= 1) && (sizeless || v.size === size))
 
   function submit() {
     if (!chosen || chosen.stock <= 0) return
