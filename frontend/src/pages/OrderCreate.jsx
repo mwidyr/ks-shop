@@ -8,6 +8,7 @@ import { listPickupChains } from '../api/pickupChains'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { getShippingSettings } from '../api/settings'
+import { nameTooLong, nameUnits, addressTooLong } from '../utils/exportRules'
 import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
@@ -55,6 +56,9 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
   const selectedChain = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
   const subtotal = order.items.reduce((sum, it) => sum + it.price * it.qty, 0)
+  const isPos = selectedChain?.chain_type === 'courier'
+  const customerNameTooLong = nameTooLong(order.customer?.name)
+  const posAddressTooLong = isPos && addressTooLong(order.shippingAddress)
   const storeCodeValid = !isCvs || /^\d{6}$/.test(order.pickupStoreCode)
   const storeCodeCheck = useStoreCodeCheck(selectedChain?.chain_type, order.pickupStoreCode, isCvs)
   // Mirrors defaultShippingFee's own threshold check - used only to show the "Gratis Ongkir"
@@ -189,6 +193,9 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.section_customer')}</label>
         <CustomerPicker onChange={handleCustomerChange} />
+        {customerNameTooLong && (
+          <p className="text-xs text-red-600 mt-1">{t('page_order_create.name_too_long_error', { units: nameUnits(order.customer?.name) })}</p>
+        )}
       </div>
 
       <div>
@@ -238,7 +245,8 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_address_label')}</label>
-            <textarea value={order.shippingAddress} onChange={(e) => onUpdate('shippingAddress', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
+            <textarea value={order.shippingAddress} onChange={(e) => onUpdate('shippingAddress', e.target.value)} rows={2} className={`w-full border rounded-lg px-3 py-2 text-sm ${posAddressTooLong ? 'border-red-400' : 'border-gray-300'}`} required />
+            {posAddressTooLong && <p className="text-xs text-red-600 mt-1">{t('page_order_create.address_too_long_error', { count: [...order.shippingAddress].length })}</p>}
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.shipping_fee_label')}</label>
@@ -431,7 +439,9 @@ export default function OrderCreate() {
     if (!order.customer.id && !TW_PHONE_REGEX.test(order.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: 1 })
     if (!order.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: 1 })
     if (cvs && !/^\d{6}$/.test(order.pickupStoreCode)) return t('page_order_create.block_error_store_code', { index: 1 })
+    if (nameTooLong(order.customer?.name)) return t('page_order_create.block_error_name_long', { index: 1 })
     if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
+    if (isCvs === 'courier' && addressTooLong(order.shippingAddress)) return t('page_order_create.block_error_address_long', { index: 1 })
     if (order.items.length === 0) return t('page_order_create.block_error_no_products', { index: 1 })
     return ''
   }

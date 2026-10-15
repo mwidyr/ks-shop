@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
+import { addressTooLong, hctOrderNoValid } from '../utils/exportRules'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
-// "Masalah" here only means missing shipping_address - we don't have address-region data to
-// detect remote-island/COD-restricted deliveries the way the reference system claims to.
+// "Masalah" = data HCT's import would reject: no address, an address over 50 characters, or an
+// order id over 20 characters / containing Chinese. We don't have address-region data to detect
+// remote-island/COD-restricted deliveries the way the reference system claims to.
 function classify(r) {
   if (r.exported_at) return 'exported'
-  if (!r.shipping_address) return 'problem'
+  if (!r.shipping_address || addressTooLong(r.shipping_address) || !hctOrderNoValid(r.order_no)) return 'problem'
   return 'exportable'
 }
 
@@ -88,17 +90,18 @@ export default function ExportKurirModal({ onClose, onExported }) {
     setBusy(true)
     try {
       const XLSX = await import('xlsx')
+      // Per "Export File Adjustments": only columns B, C, D, E, H and J carry data.
       const dataRows = picked.map((r) => [
-        '', // 序號 - unused
-        r.order_no,
+        '', // 序號 - blank
+        r.order_no, // 訂單號 - internal order id, exact (<=20 chars, no Chinese - see classify)
         truncate(r.customer_name, 20),
-        truncate(r.shipping_address, 50),
+        r.shipping_address, // complete address (Create Order already limits POS addresses to 50)
         truncate(r.customer_phone, 15),
-        '', // 託運備註 - no equivalent data
-        '', // (商品別編號) - "don't fill"
-        r.total_qty,
-        '', // 才積重量 - no data
-        r.total_to_pay,
+        '', // 託運備註 - blank
+        '', // (商品別編號) - blank
+        1, // 商品數量 - always 1, not the real item count
+        '', // 才積重量 - blank
+        r.total_to_pay, // 代收貨款 - products + actual shipping fee (products only when free shipping)
         '', // 指定配送日期 - no scheduling feature
         '', // 指定配送時間 - no scheduling feature
       ])

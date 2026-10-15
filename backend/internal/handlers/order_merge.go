@@ -97,6 +97,9 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
+	if rejectIfLocked(w, ctx, tx, req.OrderIDs...) {
+		return
+	}
 	rows, err := tx.Query(ctx, `
 		SELECT id, customer_id, pickup_chain_id, COALESCE(pickup_store_code,''), status, shipping_fee, free_shipping_override
 		FROM orders WHERE id = ANY($1) ORDER BY created_at`, req.OrderIDs)
@@ -232,6 +235,10 @@ func (h *OrderMergeHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
+	if anyOrderLocked(ctx, tx, id) || groupHasLockedMember(ctx, tx, id) {
+		respondError(w, http.StatusConflict, orderLockedMsg)
+		return
+	}
 	var feeOrderID int
 	var originalFee *float64
 	var originalOverride *bool

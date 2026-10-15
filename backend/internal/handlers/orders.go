@@ -240,9 +240,11 @@ type groupItemView struct {
 }
 
 type orderDetailView struct {
-	ID                       int             `json:"id"`
-	OrderNo                  string          `json:"order_no"`
-	Status                   string          `json:"status"`
+	ID      int    `json:"id"`
+	OrderNo string `json:"order_no"`
+	Status  string `json:"status"`
+	// Locked: exported to a logistics provider -> details frozen, only warehouse/super_user move status.
+	Locked                   bool            `json:"locked"`
 	CustomerName             string          `json:"customer_name"`
 	CustomerPhone            string          `json:"customer_phone"`
 	CustomerBlocked          bool            `json:"customer_blacklisted"`
@@ -446,6 +448,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	o.Locked = anyOrderLocked(ctx, h.DB, id)
 	respondJSON(w, http.StatusOK, o)
 }
 
@@ -570,6 +573,14 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 
 	customerID := req.Customer.ID
+	exportName := req.Customer.Name
+	if customerID != nil {
+		_ = tx.QueryRow(ctx, `SELECT name FROM customers WHERE id=$1`, *customerID).Scan(&exportName)
+	}
+	if msg := validateExportFields(ctx, tx, req.PickupChainID, exportName, req.ShippingAddress); msg != "" {
+		respondError(w, http.StatusBadRequest, msg)
+		return
+	}
 	if customerID == nil {
 		if req.Customer.Name == "" || req.Customer.Phone == "" {
 			respondError(w, http.StatusBadRequest, "customer name and phone are required for a new customer")
@@ -763,9 +774,15 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 
 	var currentStatus string
-	if err := tx.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1 FOR UPDATE`, id).
-		Scan(&currentStatus); err != nil {
+	var exported bool
+	if err := tx.QueryRow(ctx, `SELECT status, exported_at IS NOT NULL FROM orders WHERE id=$1 FOR UPDATE`, id).
+		Scan(&currentStatus, &exported); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
+		return
+	}
+	// Exported orders are locked: only warehouse and super_user may still move the status.
+	if exported && !canChangeLockedStatus(claims.Role) {
+		respondError(w, http.StatusForbidden, "order sudah di-export (Picking): hanya Warehouse dan Super Admin yang boleh mengubah status")
 		return
 	}
 
@@ -923,6 +940,9 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
+		return
+	}
 	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1, is_urgent=$2, notes_deadline=$3 WHERE id=$4`,
 		req.InternalNotes, req.IsUrgent, req.NotesDeadline, id)
 	if err != nil {
@@ -957,6 +977,9 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "pickup_chain_id is required")
 		return
 	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
+		return
+	}
 	ctx := r.Context()
 	finalAddress, badRequest := resolvePickupAddress(ctx, h.DB, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
 	if badRequest != "" {
@@ -985,6 +1008,10 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 	// shipping process the parcel data is already in use by the warehouse.
 	if curStatus != "pending" {
 		respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum picking dimulai (status saat ini: "+curStatus+")")
+		return
+	}
+	if msg := validateExportFields(ctx, h.DB, req.PickupChainID, "", finalAddress); msg != "" {
+		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
 
@@ -1056,6 +1083,9 @@ func (h *OrderHandler) UpdateKeepDate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
+		return
+	}
 	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET keep_date=$1 WHERE id=$2`, req.KeepDate, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save keep date")
@@ -1082,6 +1112,9 @@ func (h *OrderHandler) AddAttachment(w http.ResponseWriter, r *http.Request) {
 	var req addAttachmentRequest
 	if err := decodeJSON(r, &req); err != nil || req.URL == "" {
 		respondError(w, http.StatusBadRequest, "url is required")
+		return
+	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
 		return
 	}
 	var attID int
@@ -1223,6 +1256,9 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 	var req splitOrderRequest
 	if err := decodeJSON(r, &req); err != nil || len(req.ItemIDs) == 0 {
 		respondError(w, http.StatusBadRequest, "item_ids is required")
+		return
+	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
 		return
 	}
 

@@ -12,6 +12,7 @@ import { formatCurrency } from '../utils/format'
 import { resolveUrl, uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
+import { useAuth } from '../context/AuthContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import PickingLineItem from '../components/PickingLineItem'
 import ScanVerifyModal from '../components/ScanVerifyModal'
@@ -322,6 +323,7 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
 export default function OrderDetail() {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
+  const { user } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)
@@ -417,7 +419,11 @@ export default function OrderDetail() {
 
   if (!order) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">{t('common.loading')}</div>
 
-  const nextOptions = transitions[order.status] || []
+  // Exported to logistics (status Picking): details are frozen for everyone; only warehouse and
+  // super_user can still move the status. Item picking itself (warehouse work) stays available.
+  const locked = Boolean(order.locked)
+  const canChangeStatus = !locked || ['warehouse', 'super_user'].includes(user?.role)
+  const nextOptions = canChangeStatus ? (transitions[order.status] || []) : []
   function actionLabel(s) {
     if (order.status === 'pending') {
       if (s === 'picking') return t('page_order_detail.start_picking_action')
@@ -501,6 +507,11 @@ export default function OrderDetail() {
         </div>
       </div>
       <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}</p>
+      {locked && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          🔒 {t('page_order_detail.locked_banner')}{!canChangeStatus && ` ${t('page_order_detail.locked_status_hint')}`}
+        </div>
+      )}
 
       {order.customer_blacklisted && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 mb-4">
@@ -552,10 +563,10 @@ export default function OrderDetail() {
               value={keepDateDraft}
               onChange={(e) => setKeepDateDraft(e.target.value)}
               onBlur={(e) => saveKeepDate(e.target.value)}
-              disabled={keepDateSaving}
+              disabled={keepDateSaving || locked}
               className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
             />
-            {keepDateDraft && (
+            {keepDateDraft && !locked && (
               <button
                 onClick={() => { setKeepDateDraft(''); saveKeepDate('') }}
                 className="ml-2 text-xs text-gray-500 hover:text-red-600"
@@ -573,7 +584,7 @@ export default function OrderDetail() {
                 <button onClick={() => setScanOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                   {t('page_order_detail.scan_verify_button')}
                 </button>
-                {order.items.length > 1 && (
+                {order.items.length > 1 && !locked && (
                   <button onClick={() => setSplitOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                     {t('page_order_detail.split_order_action')}
                   </button>
@@ -669,9 +680,11 @@ export default function OrderDetail() {
                   </span>
                 )}
               </p>
-              <button onClick={() => setNotesModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
-                {t('page_order_detail.edit_notes_button')}
-              </button>
+              {!locked && (
+                <button onClick={() => setNotesModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+                  {t('page_order_detail.edit_notes_button')}
+                </button>
+              )}
             </div>
             {order.is_urgent && order.notes_deadline && (
               <p className="text-xs text-red-600 mb-1">
@@ -684,10 +697,12 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.attachments_label')}</p>
-              <label className="text-xs font-semibold text-brand-600 hover:underline cursor-pointer">
-                {uploading ? t('page_order_detail.uploading_label') : t('page_order_detail.upload_photo_button')}
-                <input type="file" accept="image/*" className="hidden" onChange={handleUploadAttachment} disabled={uploading} />
-              </label>
+              {!locked && (
+                <label className="text-xs font-semibold text-brand-600 hover:underline cursor-pointer">
+                  {uploading ? t('page_order_detail.uploading_label') : t('page_order_detail.upload_photo_button')}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadAttachment} disabled={uploading} />
+                </label>
+              )}
             </div>
             {order.attachments?.length > 0 ? (
               <div className="flex gap-2 flex-wrap">

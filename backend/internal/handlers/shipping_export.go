@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	appmw "ordermgmt/internal/middleware"
 )
 
 // ShippingExportHandler builds the two carrier export layouts the client actually uses today:
@@ -23,29 +25,32 @@ type ShippingExportHandler struct {
 }
 
 type shippingExportRow struct {
-	OrderID               int      `json:"order_id"`
-	OrderIDs              []int    `json:"order_ids"`
-	OrderNo               string   `json:"order_no"`
-	GroupOrderNos         []string `json:"group_order_nos"`
-	CustomerName          string   `json:"customer_name"`
-	CustomerPhone         string   `json:"customer_phone"`
-	ShippingAddress       string   `json:"shipping_address"`
-	PickupChainName       string   `json:"pickup_chain_name"`
-	ChainType             string   `json:"chain_type"`
-	PickupStoreName       string   `json:"pickup_store_name"`
-	PickupStoreCode       string   `json:"pickup_store_code"`
-	IsHomeDelivery        bool     `json:"is_home_delivery"`
-	ItemsSummary          string   `json:"items_summary"`
-	PackingProducts       string   `json:"packing_products"`
-	TotalQty              int      `json:"total_qty"`
-	ItemValue             float64  `json:"item_value"`
-	ShippingFee           float64  `json:"shipping_fee"`
-	TotalToPay            float64  `json:"total_to_pay"`
-	OrderDate             string   `json:"order_date"`
-	InternalNotesCombined string   `json:"internal_notes_combined"`
-	Status                string   `json:"status"`
-	ExportedAt            *string  `json:"exported_at"`
-	TrackingNumber        *string  `json:"tracking_number"`
+	OrderID         int      `json:"order_id"`
+	OrderIDs        []int    `json:"order_ids"`
+	OrderNo         string   `json:"order_no"`
+	GroupOrderNos   []string `json:"group_order_nos"`
+	CustomerName    string   `json:"customer_name"`
+	CustomerPhone   string   `json:"customer_phone"`
+	ShippingAddress string   `json:"shipping_address"`
+	PickupChainName string   `json:"pickup_chain_name"`
+	ChainType       string   `json:"chain_type"`
+	PickupStoreName string   `json:"pickup_store_name"`
+	PickupStoreCode string   `json:"pickup_store_code"`
+	IsHomeDelivery  bool     `json:"is_home_delivery"`
+	ItemsSummary    string   `json:"items_summary"`
+	// CategoriesZh: unique Chinese category names of the order's items, concatenated without
+	// separators (7-ELEVEN "商品" column - product names can trip the carrier's keyword filter).
+	CategoriesZh          string  `json:"categories_zh"`
+	PackingProducts       string  `json:"packing_products"`
+	TotalQty              int     `json:"total_qty"`
+	ItemValue             float64 `json:"item_value"`
+	ShippingFee           float64 `json:"shipping_fee"`
+	TotalToPay            float64 `json:"total_to_pay"`
+	OrderDate             string  `json:"order_date"`
+	InternalNotesCombined string  `json:"internal_notes_combined"`
+	Status                string  `json:"status"`
+	ExportedAt            *string `json:"exported_at"`
+	TrackingNumber        *string `json:"tracking_number"`
 }
 
 // exportOrderRow is one raw order fetched for export, before shipment-group collapsing.
@@ -70,13 +75,14 @@ type exportOrderRow struct {
 	FeeOrderID      *int
 }
 
-// List returns one row per PHYSICAL SHIPMENT eligible for export (status ready_to_ship/shipped):
+// List returns one row per PHYSICAL SHIPMENT eligible for export (status pending/picking/ready_to_ship/shipped;
+// a first export moves a pending order to picking and locks it, see MarkExported):
 // a merged shipment group collapses to a single row (combined items/value/qty, the shipping fee
 // counted once) instead of one row per original order, since the carrier ships and collects COD
 // as one package. By default already-exported+shipped orders/groups are excluded; pass
 // ?include_exported=true to still see them.
 func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
-	where := " WHERE o.status IN ('ready_to_ship','shipped') "
+	where := " WHERE o.status IN ('pending','picking','ready_to_ship','shipped') "
 	if r.URL.Query().Get("include_exported") != "true" {
 		where += " AND NOT (o.status = 'shipped' AND o.exported_at IS NOT NULL) "
 	}
@@ -113,7 +119,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i, o := range orders {
 		orderIDs[i] = o.ID
 	}
-	itemsByOrder, packingByOrder, qtyByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
+	itemsByOrder, packingByOrder, qtyByOrder, catsByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
 
 	groups := map[string][]exportOrderRow{}
 	var groupKeys []string
@@ -152,7 +158,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 
 		allExported := true
 		var earliestExported *time.Time
-		var itemFragments, packingFragments, notes []string
+		var itemFragments, packingFragments, notes, categories []string
 		for _, m := range members {
 			row.OrderIDs = append(row.OrderIDs, m.ID)
 			if m.ID != primary.ID {
@@ -165,6 +171,11 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 			if frag := packingByOrder[m.ID]; frag != "" {
 				packingFragments = append(packingFragments, frag)
+			}
+			for _, c := range catsByOrder[m.ID] {
+				if !containsString(categories, c) {
+					categories = append(categories, c)
+				}
 			}
 			if m.InternalNotes != "" {
 				notes = append(notes, m.InternalNotes)
@@ -183,6 +194,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		row.ItemsSummary = strings.Join(itemFragments, ", ")
+		row.CategoriesZh = strings.Join(categories, "")
 		// Packing Label File requirement: one line per product per order, newline-joined so it
 		// renders as a multi-line cell in the exported .xlsx (see ExportCvsModal.jsx).
 		row.PackingProducts = strings.Join(packingFragments, "\n")
@@ -203,31 +215,37 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 // verbatim in the real CVS carrier template - do not reformat) and a "SKU - Name（Color /
 // Size） xQty" fragment for the Packing Label File, plus a total qty. All three are keyed by
 // order ID; the caller joins fragments across a shipment group's member orders itself.
-func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]string, map[int]int) {
+func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]string, map[int]int, map[int][]string) {
 	fragments := map[int][]string{}
 	packingFragments := map[int][]string{}
 	qty := map[int]int{}
+	cats := map[int][]string{}
 	if len(orderIDs) == 0 {
-		return map[int]string{}, map[int]string{}, qty
+		return map[int]string{}, map[int]string{}, qty, cats
 	}
 	rows, err := db.Query(r.Context(), `
-		SELECT oi.order_id, `+productNameSQL(r, "p")+`, oi.qty, COALESCE(p.sku,''), pv.color, pv.size
+		SELECT oi.order_id, `+productNameSQL(r, "p")+`, oi.qty, COALESCE(p.sku,''), pv.color, pv.size,
+		       COALESCE(NULLIF(cat.name_zh,''), p.category, '')
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
+		LEFT JOIN categories cat ON cat.name = p.category
 		WHERE oi.order_id = ANY($1)
 		ORDER BY oi.order_id, oi.id`, orderIDs)
 	if err != nil {
-		return map[int]string{}, map[int]string{}, qty
+		return map[int]string{}, map[int]string{}, qty, cats
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var orderID, itemQty int
 		// productSKU is the parent/master product code (products.sku) - staff only use this
 		// one, not each variant's own per-color/size sku, so that's what goes on the label.
-		var name, productSKU, color, size string
-		if err := rows.Scan(&orderID, &name, &itemQty, &productSKU, &color, &size); err != nil {
+		var name, productSKU, color, size, category string
+		if err := rows.Scan(&orderID, &name, &itemQty, &productSKU, &color, &size, &category); err != nil {
 			continue
+		}
+		if category != "" && !containsString(cats[orderID], category) {
+			cats[orderID] = append(cats[orderID], category)
 		}
 		fragments[orderID] = append(fragments[orderID], fmt.Sprintf("%s*%d", name, itemQty))
 		packingFragments[orderID] = append(packingFragments[orderID],
@@ -242,23 +260,88 @@ func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int)
 	for orderID, frags := range packingFragments {
 		packingSummary[orderID] = strings.Join(frags, "\n")
 	}
-	return summary, packingSummary, qty
+	return summary, packingSummary, qty, cats
+}
+
+func containsString(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 type markExportedRequest struct {
 	OrderIDs []int `json:"order_ids"`
 }
 
-// MarkExported flags the given orders as exported (timestamp only - the tracking number, if
-// any, is filled in separately once the carrier assigns one).
+// MarkExported records an export of the given orders (the frontend calls it only after the file was
+// generated, so a failed export never reaches here and leaves the orders untouched):
+//   - every call appends one order_export_log row per order (order, provider, time, user,
+//     is_reexport) - re-exports are logged too and never overwrite earlier history;
+//   - the FIRST export of a pending order moves it to picking ("Processing") and stamps
+//     exported_at, which locks the order's details (see order_lock.go);
+//   - a re-export changes neither the status nor exported_at, so it never unlocks anything.
+//
+// The status change deliberately bypasses UpdateStatus' "at least one item picked" rule: export is
+// the trigger here, picking happens afterwards.
 func (h *ShippingExportHandler) MarkExported(w http.ResponseWriter, r *http.Request) {
 	var req markExportedRequest
 	if err := decodeJSON(r, &req); err != nil || len(req.OrderIDs) == 0 {
 		respondError(w, http.StatusBadRequest, "order_ids is required")
 		return
 	}
-	if _, err := h.DB.Exec(r.Context(), `UPDATE orders SET exported_at = now() WHERE id = ANY($1)`, req.OrderIDs); err != nil {
+	claims := appmw.GetClaims(r)
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	// Log first (is_reexport = already had exported_at), then flip status/exported_at.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_export_log (order_id, provider, user_id, is_reexport)
+		SELECT o.id, pc.chain_type, $2, o.exported_at IS NOT NULL
+		FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.id = ANY($1)`, req.OrderIDs, claims.UserID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to log export")
+		return
+	}
+	rows, err := tx.Query(ctx, `
+		WITH prev AS (
+			SELECT id, status FROM orders WHERE id = ANY($1) AND exported_at IS NULL FOR UPDATE
+		)
+		UPDATE orders o SET exported_at = now(),
+		       status = CASE WHEN prev.status = 'pending' THEN 'picking' ELSE o.status END,
+		       updated_at = now()
+		FROM prev WHERE o.id = prev.id
+		RETURNING o.id, prev.status`, req.OrderIDs)
+	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to mark orders as exported")
+		return
+	}
+	var movedToPicking []int
+	for rows.Next() {
+		var id int
+		var prevStatus string
+		if rows.Scan(&id, &prevStatus) == nil && prevStatus == "pending" {
+			movedToPicking = append(movedToPicking, id)
+		}
+	}
+	rows.Close()
+	for _, id := range movedToPicking {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
+			VALUES ($1,'pending','picking',$2,'system: export logistik pertama')`, id, claims.UserID); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to log status change")
+			return
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
+import { nameTooLong } from '../utils/exportRules'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
 // These are the client's own real import templates (711.xlsx / FamilyMart.xls, the latter
@@ -39,7 +40,9 @@ function normalizePhone(phone) {
 function classify(r) {
   if (r.exported_at && r.tracking_number) return 'has_tracking'
   if (r.exported_at) return 'no_tracking'
-  if (!r.pickup_store_code || !r.customer_phone) return 'problem'
+  if (!/^\d{6}$/.test(r.pickup_store_code || '') || !r.customer_phone) return 'problem'
+  // Recipient name over the carrier's limit (10 English / 5 Chinese chars) would fail the import.
+  if (nameTooLong(r.customer_name)) return 'problem'
   return 'exportable'
 }
 
@@ -128,11 +131,12 @@ export default function ExportCvsModal({ onClose, onExported }) {
         worksheet.getRow(rowNum).eachCell({ includeEmpty: true }, (cell) => { cell.value = null })
       }
 
-      // Both templates: Order/Product Amount = item value + shipping fee (the total the buyer
-      // actually pays, e.g. 380+60=440 per the spec's own example), and Shipping Fee itself is
-      // always exported as 0 - both explicit rules in the spec, not our interpretation.
-      const totalAmount = (r) => r.item_value + r.shipping_fee
-
+      // Per "Export File Adjustments": the amount column is the products only, the shipping fee
+      // column is the real fee recorded on the order (60 normally, 0 when free shipping), and the
+      // customer pays amount + fee. The product column is the order's unique Chinese category
+      // names (product names can trip the carrier's prohibited-keyword check), and the order's
+      // internal order number goes in the remark/product column so the carrier's tracking
+      // numbers can be matched back to our orders.
       picked.forEach((r, i) => {
         const phone = normalizePhone(r.customer_phone)
         const row = worksheet.getRow(tpl.firstDataRow + i)
@@ -142,12 +146,12 @@ export default function ExportCvsModal({ onClose, onExported }) {
               phone,
               r.pickup_store_code,
               '常溫', // Temperature Type - always Room Temperature per spec
-              r.items_summary,
-              totalAmount(r),
-              0, // Shipping Fee - always 0 per spec
+              r.categories_zh, // 商品 - unique Chinese categories, no separators (e.g. 上衣內衣)
+              r.item_value, // 訂單金額 - products only
+              r.shipping_fee, // 運費金額 - actual fee (0 when free shipping)
               r.order_date,
-              phone, // Product Note - the buyer's phone, same as Recipient Phone, per spec
-              '', // Other Info (FB/LINE/IG) - no such field exists in this system
+              r.order_no, // 商品備註 - internal order id, for matching tracking numbers back
+              '', // columns after 商品備註 stay blank
             ]
           : [
               r.customer_name,
@@ -157,11 +161,10 @@ export default function ExportCvsModal({ onClose, onExported }) {
               // ("請將每個欄位的儲存格格式設為 文字 ※重要") - unlike 711, which specifies a
               // numeric type per amount field - so these are stringified, and given the '@'
               // (text) number format below, not left as real numeric cells.
-              String(totalAmount(r)),
-              '0', // Shipping Fee - always 0 per spec
+              String(r.item_value), // 商品金額 - products only
+              String(r.shipping_fee), // 運費金額 - actual fee (0 when free shipping)
               r.order_date,
-              phone, // Product - FamilyMart has no separate note field, so the buyer's phone
-                     // goes in Product itself here, per spec
+              r.order_no, // 商品 - internal order id, for matching tracking numbers back
             ]
         values.forEach((v, colIdx) => { row.getCell(colIdx + 1).value = v })
         // Phone and store code must stay bare text (leading zeros in store codes like "023060"
