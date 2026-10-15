@@ -14,6 +14,8 @@ type siteContentCard struct {
 	ID            int      `json:"id"`
 	Type          string   `json:"type"`
 	Slug          string   `json:"slug"`
+	Lang          string   `json:"lang"`
+	Path          string   `json:"path"`
 	Title         string   `json:"title"`
 	Summary       string   `json:"summary"`
 	CategoryLabel string   `json:"category_label"`
@@ -31,7 +33,7 @@ type siteContentCard struct {
 func (h *SiteHandler) contentCards(ctx context.Context, lang, where string, args []interface{}, limit int) []siteContentCard {
 	out := []siteContentCard{}
 	sql := `
-		SELECT c.id, c.type, c.slug, c.title, c.summary, c.category_label, COALESCE(c.cover_url,''), c.cover_alt,
+		SELECT c.id, c.type, c.slug, c.lang, c.title, c.summary, c.category_label, COALESCE(c.cover_url,''), c.cover_alt,
 		       COALESCE(NULLIF(c.author_name,''), ah.name, ''), COALESCE(ah.slug,''), c.read_minutes, c.published_at, c.tags, c.is_featured
 		FROM content_pages c LEFT JOIN hosts ah ON ah.id = c.author_host_id
 		WHERE c.is_published AND (c.published_at IS NULL OR c.published_at <= now()) AND ` + where + `
@@ -45,11 +47,12 @@ func (h *SiteHandler) contentCards(ctx context.Context, lang, where string, args
 		var c siteContentCard
 		var title, summary, label, alt map[string]string
 		var published *time.Time
-		if rows.Scan(&c.ID, &c.Type, &c.Slug, &title, &summary, &label, &c.CoverURL, &alt, &c.Author, &c.AuthorSlug,
+		if rows.Scan(&c.ID, &c.Type, &c.Slug, &c.Lang, &title, &summary, &label, &c.CoverURL, &alt, &c.Author, &c.AuthorSlug,
 			&c.ReadMinutes, &published, &c.Tags, &c.Featured) != nil {
 			continue
 		}
-		c.Title, c.Summary, c.CategoryLabel, c.CoverAlt = pickLang(title, lang), pickLang(summary, lang), pickLang(label, lang), pickLang(alt, lang)
+		c.Title, c.Summary, c.CategoryLabel, c.CoverAlt = pickLang(title, c.Lang), pickLang(summary, c.Lang), pickLang(label, c.Lang), pickLang(alt, c.Lang)
+		c.Path = contentPath(c.Lang, c.Type, c.Slug, c.AuthorSlug)
 		if published != nil {
 			c.PublishedAt = published.Format(time.RFC3339)
 		}
@@ -71,6 +74,22 @@ func (h *SiteHandler) ContentList(w http.ResponseWriter, r *http.Request) {
 		args = append(args, t)
 		where = `c.type = $1`
 	}
+	// lang_counts: published articles per language (the storefront defaults its language filter from it)
+	langCounts := map[string]int{}
+	if rows, err := h.DB.Query(r.Context(), `SELECT lang, COUNT(*) FROM content_pages c WHERE c.is_published AND (c.published_at IS NULL OR c.published_at <= now()) AND `+where+` GROUP BY lang`, args...); err == nil {
+		for rows.Next() {
+			var l string
+			var n int
+			if rows.Scan(&l, &n) == nil {
+				langCounts[l] = n
+			}
+		}
+		rows.Close()
+	}
+	if cl := strings.ToLower(strings.TrimSpace(q.Get("content_lang"))); validContentLang(cl) {
+		args = append(args, cl)
+		where += ` AND c.lang = $` + strconv.Itoa(len(args))
+	}
 	items := h.contentCards(r.Context(), lang, where, args, atoiDefault(q.Get("limit"), 24))
 	// label chips (category_label values present) so the journal can offer filter chips
 	labels := []string{}
@@ -90,7 +109,7 @@ func (h *SiteHandler) ContentList(w http.ResponseWriter, r *http.Request) {
 		}
 		items = filtered
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"items": items, "labels": labels})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"items": items, "labels": labels, "lang_counts": langCounts})
 }
 
 // ContentGet serves GET /public/store/content/{slug}: one topic / article / host article.
@@ -112,9 +131,9 @@ func (h *SiteHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 	var authorHost *int
 	h.DB.QueryRow(ctx, `SELECT body, seo_title, seo_description, COALESCE(canonical_url,''), is_indexed, author_host_id FROM content_pages WHERE id=$1`, card.ID).
 		Scan(&body, &seoTitle, &seoDesc, &canonical, &indexed, &authorHost)
-	blocks := body[lang]
+	blocks := body[card.Lang]
 	if len(blocks) == 0 {
-		for _, l := range []string{"id", "en", "zh"} {
+		for _, l := range []string{"id", "en", "zh", "vi"} {
 			if len(body[l]) > 0 {
 				blocks = body[l]
 				break
@@ -169,7 +188,7 @@ func (h *SiteHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"author_height_cm": authorHeight, "page": card, "blocks": blocks, "products": products, "categories": cats, "hosts": hosts, "related": related,
 		"seo": map[string]interface{}{
-			"title": pickLang(seoTitle, lang), "description": pickLang(seoDesc, lang), "canonical": canonical, "index": indexed,
+			"title": pickLang(seoTitle, card.Lang), "description": pickLang(seoDesc, card.Lang), "canonical": canonical, "index": indexed,
 		},
 	})
 }

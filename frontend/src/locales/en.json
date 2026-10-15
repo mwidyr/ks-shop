@@ -2181,7 +2181,8 @@
       "language_zh": "Chinese",
       "id": "ID",
       "title": "Title",
-      "status": "Status"
+      "status": "Status",
+      "language_vi": "Tiếng Việt"
     },
     "home": {
       "title": "Home modules",
@@ -2315,7 +2316,7 @@
       "summary": "Summary",
       "label": "Category label",
       "body": "Body",
-      "body_hint": "One block per line: '## Heading', '### Subheading', '- list item', '[product:12]' for an inline product card, '#Tag' for hashtags, plain text for paragraphs. Blank lines separate paragraphs.",
+      "body_hint": "Use the toolbar for headings, bold, lists, links, images and product cards. The editor looks close to the website.",
       "cover": "Cover image",
       "cover_alt": "Cover alt text",
       "author_host": "Author (host)",
@@ -2343,7 +2344,34 @@
       "body_per_lang": "Body ({{lang}})",
       "add_product": "Add product by ID or search",
       "view_site": "Open on website",
-      "seo_len": "{{n}} characters"
+      "seo_len": "{{n}} characters",
+      "lang": "Article language",
+      "lang_hint": "One article = one language. Pick it once; the article is published under a URL starting with it.",
+      "all_langs": "All",
+      "url_preview": "Website URL",
+      "title_one": "Title",
+      "summary_one": "Summary",
+      "body_one": "Article body",
+      "editor": {
+        "h2": "Heading",
+        "h3": "Subheading",
+        "bold": "Bold",
+        "italic": "Italic",
+        "bullet": "Bulleted list",
+        "ordered": "Numbered list",
+        "list": "List",
+        "link": "Link",
+        "image": "Image",
+        "product": "Product",
+        "undo": "Undo",
+        "redo": "Redo",
+        "link_prompt": "Link address (leave empty to remove):",
+        "upload_failed": "Image upload failed",
+        "product_card": "Product card",
+        "remove": "Remove",
+        "pick_product": "Search a product (name or SKU)",
+        "pick_product_hint": "Pick a product to insert as a card at the cursor."
+      }
     },
     "theme": {
       "title": "Theme & Appearance",

@@ -4,52 +4,17 @@ import { listCategories } from '../api/categories'
 import { listHosts } from '../api/hosts'
 import { createContent, deleteContent, getContent, listContent, updateContent } from '../api/website'
 import { uploadImageFile } from '../utils/image'
+import { blocksToDoc, docToBlocks, productIdsInBlocks } from '../utils/contentBlocks'
+import RichBodyEditor from '../components/website/RichBodyEditor'
 import { btnCls, btnGhost, cardCls, inputCls, ProductSearch, useProductList } from '../components/website/Pickers'
 
-const LANGS = ['id', 'en', 'zh']
+const LANGS = ['id', 'en', 'zh', 'vi']
+const TEXT_KEYS = ['title', 'summary', 'category_label', 'cover_alt', 'seo_title', 'seo_description']
 const EMPTY = {
-  type: 'topic', slug: '', title: {}, summary: {}, body: {}, category_label: {}, cover_url: '', cover_alt: {}, author_host_id: null, author_name: '', read_minutes: null,
+  type: 'topic', slug: '', lang: 'id', title: {}, summary: {}, body: {}, category_label: {}, cover_alt: {}, cover_url: '', author_host_id: null, author_name: '', read_minutes: null,
   tags: [], seo_title: {}, seo_description: {}, canonical_url: '', is_published: false, is_indexed: true, is_featured: false, product_ids: [], category_ids: [], host_ids: [],
 }
-
-// Blocks <-> the simple line markup the editor shows (## heading, ### sub, - item, [product:12], #tag, plain paragraphs).
-export function blocksToText(blocks = []) {
-  const out = []
-  blocks.forEach((b) => {
-    if (b.type === 'h2') out.push(`## ${b.text}`)
-    else if (b.type === 'h3') out.push(`### ${b.text}`)
-    else if (b.type === 'list') (b.items || []).forEach((x) => out.push(`- ${x}`))
-    else if (b.type === 'product') out.push(`[product:${b.product_id}]`)
-    else if (b.type === 'tags') out.push((b.items || []).map((x) => `#${x}`).join(' '))
-    else if (b.type === 'image') out.push(`![${b.alt || ''}](${b.url})`)
-    else out.push(b.text || '')
-    out.push('')
-  })
-  return out.join('\n').trim()
-}
-export function textToBlocks(text = '') {
-  const blocks = []
-  let para = []
-  let list = []
-  const flush = () => {
-    if (para.length) { blocks.push({ type: 'p', text: para.join('\n') }); para = [] }
-    if (list.length) { blocks.push({ type: 'list', items: list }); list = [] }
-  }
-  text.split('\n').forEach((raw) => {
-    const line = raw.trim()
-    let m
-    if (!line) { flush(); return }
-    if (line.startsWith('### ')) { flush(); blocks.push({ type: 'h3', text: line.slice(4) }) }
-    else if (line.startsWith('## ')) { flush(); blocks.push({ type: 'h2', text: line.slice(3) }) }
-    else if (line.startsWith('- ')) { if (para.length) flush(); list.push(line.slice(2)) }
-    else if ((m = line.match(/^\[product:(\d+)\]$/))) { flush(); blocks.push({ type: 'product', product_id: Number(m[1]) }) }
-    else if ((m = line.match(/^!\[(.*)\]\((.+)\)$/))) { flush(); blocks.push({ type: 'image', alt: m[1], url: m[2] }) }
-    else if (/^(#[^\s#]+\s*)+$/.test(line)) { flush(); blocks.push({ type: 'tags', items: line.split(/\s+/).map((x) => x.replace(/^#/, '')) }) }
-    else { if (list.length) flush(); para.push(line) }
-  })
-  flush()
-  return blocks
-}
+const slugify = (text) => text.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 
 function L({ label, hint, children }) {
   return <div><label className="text-sm font-medium text-gray-700">{label}</label>{children}{hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}</div>
@@ -63,29 +28,45 @@ export default function WebsiteContent() {
   const [cats, setCats] = useState([])
   const [hosts, setHosts] = useState([])
   const [form, setForm] = useState(null) // null = list view
-  const [bodyText, setBodyText] = useState({})
-  const [lang, setLang] = useState('id')
+  const [doc, setDoc] = useState(null) // Tiptap document of the body
+  const [editorKey, setEditorKey] = useState(0) // remounts the editor when another article opens
+  const [slugTouched, setSlugTouched] = useState(false)
+  const [langFilter, setLangFilter] = useState('')
   const [msg, setMsg] = useState(null)
   const [saving, setSaving] = useState(false)
 
   const load = () => listContent().then(setItems).catch(() => {})
+  const lang = form?.lang || 'id'
   useEffect(() => { load(); listCategories().then(setCats).catch(() => {}); listHosts().then(setHosts).catch(() => {}) }, [])
 
   async function open(id) {
     setMsg(null)
-    if (!id) { setForm({ ...EMPTY }); setBodyText({}); return }
+    setEditorKey((k) => k + 1)
+    setSlugTouched(Boolean(id))
+    if (!id) { setForm({ ...EMPTY }); setDoc(blocksToDoc([])); return }
     const d = await getContent(id)
     setForm(d)
-    setBodyText(Object.fromEntries(LANGS.map((l) => [l, blocksToText(d.body?.[l] || [])])))
+    setDoc(blocksToDoc(d.body?.[d.lang] || []))
   }
   const set = (patch) => setForm((cur) => ({ ...cur, ...patch }))
-  const setLangField = (key, value) => setForm((cur) => ({ ...cur, [key]: { ...cur[key], [lang]: value } }))
+  const setLangField = (key, value) => setForm((cur) => ({ ...cur, [key]: { ...cur[key], [cur.lang]: value } }))
+  // the article has one language: switching it moves the text already typed to the new language key
+  const changeLang = (next) => setForm((cur) => {
+    const moved = Object.fromEntries(TEXT_KEYS.map((k) => [k, cur[k]?.[cur.lang] ? { [next]: cur[k][cur.lang] } : {}]))
+    return { ...cur, ...moved, lang: next }
+  })
+  function setTitle(value) {
+    setLangField('title', value)
+    if (!slugTouched && !form.id) set({ slug: slugify(value) })
+  }
 
   async function save() {
     setSaving(true); setMsg(null)
     try {
-      const body = Object.fromEntries(LANGS.filter((l) => (bodyText[l] || '').trim()).map((l) => [l, textToBlocks(bodyText[l])]))
-      const payload = { ...form, body, read_minutes: form.read_minutes === '' ? null : form.read_minutes }
+      const blocks = docToBlocks(doc)
+      // product cards in the text need the product in the article's product list (the storefront looks them up there)
+      const productIds = [...new Set([...(form.product_ids || []), ...productIdsInBlocks(blocks)])]
+      const payload = { ...form, body: { [form.lang]: blocks }, product_ids: productIds, read_minutes: form.read_minutes === '' ? null : form.read_minutes }
       const res = form.id ? await updateContent(form.id, payload) : await createContent(payload)
       setMsg({ ok: true, text: c('saved') })
       load()
@@ -106,6 +87,7 @@ export default function WebsiteContent() {
     e.target.value = ''
   }
 
+  const shown = langFilter ? items.filter((x) => x.lang === langFilter) : items
   if (!form) {
     return (
       <div className="px-4 sm:px-6 py-6 max-w-5xl space-y-4">
@@ -113,14 +95,20 @@ export default function WebsiteContent() {
           <div><h1 className="text-lg font-bold text-gray-800">{c('title')}</h1><p className="text-sm text-gray-500">{c('intro')}</p></div>
           <button type="button" onClick={() => open(null)} className={btnCls}>{c('new')}</button>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500">{c('lang')}:</span>
+          {['', ...LANGS].map((l) => (
+            <button key={l || 'all'} type="button" onClick={() => setLangFilter(l)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${langFilter === l ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600'}`}>{l ? t(`page_website.common.language_${l}`) : c('all_langs')}</button>
+          ))}
+        </div>
         <div className={`${cardCls} overflow-x-auto`}>
-          {items.length === 0 ? <p className="text-sm text-gray-500">{c('empty')}</p> : (
+          {shown.length === 0 ? <p className="text-sm text-gray-500">{c('empty')}</p> : (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-gray-500 uppercase"><th className="py-2">{t('page_website.common.title')}</th><th>{c('type')}</th><th>{c('slug')}</th><th>{t('page_website.common.status')}</th></tr></thead>
+              <thead><tr className="text-left text-xs text-gray-500 uppercase"><th className="py-2">{t('page_website.common.title')}</th><th>{c('type')}</th><th>{c('lang')}</th><th>{c('slug')}</th><th>{t('page_website.common.status')}</th></tr></thead>
               <tbody className="divide-y">
-                {items.map((x) => (
+                {shown.map((x) => (
                   <tr key={x.id} className="cursor-pointer hover:bg-gray-50" onClick={() => open(x.id)}>
-                    <td className="py-2 font-medium">{x.title}</td><td>{c(`t_${x.type}`)}</td><td className="text-gray-500">{x.slug}</td>
+                    <td className="py-2 font-medium">{x.title}</td><td>{c(`t_${x.type}`)}</td><td><span className="text-xs font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700 uppercase">{x.lang}</span></td><td className="text-gray-500">{x.slug}</td>
                     <td><span className={`text-xs px-2 py-0.5 rounded ${x.is_published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{x.is_published ? c('live') : c('draft')}</span></td>
                   </tr>
                 ))}
@@ -144,16 +132,21 @@ export default function WebsiteContent() {
               <option value="topic">{c('t_topic')}</option><option value="article">{c('t_article')}</option><option value="host_article">{c('t_host_article')}</option>
             </select>
           </L>
-          <L label={c('slug')} hint={c('slug_hint')}><input value={form.slug} onChange={(e) => set({ slug: e.target.value.toLowerCase() })} className={inputCls} /></L>
+          <L label={c('lang')} hint={c('lang_hint')}>
+            <select value={lang} onChange={(e) => changeLang(e.target.value)} className={inputCls}>
+              {LANGS.map((l) => <option key={l} value={l}>{t(`page_website.common.language_${l}`)}</option>)}
+            </select>
+          </L>
         </div>
-        <div className="flex gap-2">
-          {LANGS.map((l) => <button key={l} type="button" onClick={() => setLang(l)} className={`px-3 py-1.5 rounded-full text-sm font-semibold border ${lang === l ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600'}`}>{t(`page_website.common.language_${l}`)}</button>)}
-        </div>
-        <L label={c('title_per_lang', { lang: t(`page_website.common.language_${lang}`) })}><input value={form.title?.[lang] || ''} onChange={(e) => setLangField('title', e.target.value)} className={inputCls} /></L>
-        <L label={c('summary_per_lang', { lang: t(`page_website.common.language_${lang}`) })}><textarea rows={2} value={form.summary?.[lang] || ''} onChange={(e) => setLangField('summary', e.target.value)} className={inputCls} /></L>
+        <L label={c('slug')} hint={c('slug_hint')}>
+          <input value={form.slug} onChange={(e) => { setSlugTouched(true); set({ slug: e.target.value.toLowerCase() }) }} className={inputCls} />
+          <p className="text-xs text-gray-500 mt-1">{c('url_preview')}: <span className="font-mono">{form.type === 'host_article' ? `/${lang}/hosts/<host>/journal/${form.slug || '…'}` : `/${lang}/style/${form.slug || '…'}`}</span></p>
+        </L>
+        <L label={c('title_one')}><input value={form.title?.[lang] || ''} onChange={(e) => setTitle(e.target.value)} className={inputCls} /></L>
+        <L label={c('summary_one')}><textarea rows={2} value={form.summary?.[lang] || ''} onChange={(e) => setLangField('summary', e.target.value)} className={inputCls} /></L>
         <L label={c('label')}><input value={form.category_label?.[lang] || ''} onChange={(e) => setLangField('category_label', e.target.value)} className={inputCls} /></L>
-        <L label={c('body_per_lang', { lang: t(`page_website.common.language_${lang}`) })} hint={c('body_hint')}>
-          <textarea rows={14} value={bodyText[lang] || ''} onChange={(e) => setBodyText((cur) => ({ ...cur, [lang]: e.target.value }))} className={`${inputCls} font-mono`} />
+        <L label={c('body_one')} hint={c('body_hint')}>
+          {doc && <RichBodyEditor key={editorKey} value={doc} onChange={setDoc} />}
         </L>
       </div>
 

@@ -249,7 +249,7 @@ export default function Host() {
         <section style={{ padding: `26px ${px}px 0` }}>
           {head('NOTES', t('host.notes_title', { name: host.name }), '/style', t('host.all_articles'))}
           {d.journal.map((a) => (
-            <Link key={a.id} to={`/hosts/${host.slug}/journal/${a.slug}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
+            <Link key={a.id} to={a.path || `/hosts/${host.slug}/journal/${a.slug}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
               <img src={sized(img(a.cover_url), 160)} alt="" loading="lazy" onError={onImgError} style={{ width: 72, height: 72, borderRadius: 12, objectFit: 'cover' }} />
               <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-strong)' }}>{a.category_label}</span>

@@ -9,6 +9,7 @@
     "preview": "vite preview --host --port 5174"
   },
   "dependencies": {
+    "dompurify": "^3.4.17",
     "i18next": "^26.4.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

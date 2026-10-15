@@ -2181,7 +2181,8 @@
       "language_zh": "中文",
       "id": "ID",
       "title": "標題",
-      "status": "狀態"
+      "status": "狀態",
+      "language_vi": "Tiếng Việt"
     },
     "home": {
       "title": "首頁模組",
@@ -2315,7 +2316,7 @@
       "summary": "摘要",
       "label": "分類標籤",
       "body": "內文",
-      "body_hint": "每行一個區塊：「## 標題」「### 小標」「- 清單」「[product:12]」插入商品卡、「#標籤」、其餘為段落。",
+      "body_hint": "使用工具列設定標題、粗體、清單、連結、圖片與商品卡片。編輯畫面接近網站實際呈現。",
       "cover": "封面圖",
       "cover_alt": "封面替代文字",
       "author_host": "作者（主播）",
@@ -2343,7 +2344,34 @@
       "body_per_lang": "內文（{{lang}}）",
       "add_product": "以 ID 或搜尋新增商品",
       "view_site": "在網站開啟",
-      "seo_len": "{{n}} 字"
+      "seo_len": "{{n}} 字",
+      "lang": "文章語言",
+      "lang_hint": "一篇文章只有一種語言。選定後，網站會以該語言開頭的網址發佈。",
+      "all_langs": "全部",
+      "url_preview": "網站網址",
+      "title_one": "標題",
+      "summary_one": "摘要",
+      "body_one": "文章內容",
+      "editor": {
+        "h2": "大標題",
+        "h3": "小標題",
+        "bold": "粗體",
+        "italic": "斜體",
+        "bullet": "項目清單",
+        "ordered": "編號清單",
+        "list": "清單",
+        "link": "連結",
+        "image": "圖片",
+        "product": "商品",
+        "undo": "復原",
+        "redo": "重做",
+        "link_prompt": "連結網址（留空則移除）：",
+        "upload_failed": "圖片上傳失敗",
+        "product_card": "商品卡片",
+        "remove": "移除",
+        "pick_product": "搜尋商品（名稱或 SKU）",
+        "pick_product_hint": "選擇商品，插入游標位置作為卡片。"
+      }
     },
     "theme": {
       "title": "品牌視覺設定",

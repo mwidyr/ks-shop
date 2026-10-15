@@ -22,7 +22,7 @@ export default function BottomNav() {
         boxShadow: '0 10px 28px rgba(30,30,35,0.16)', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', maxWidth: 528, margin: '0 auto',
       }}
     >
-      <NavLink to="/" end style={({ isActive }) => item(isActive || /^\/(live|style)/.test(pathname))}><IconHome />{t('nav.home')}</NavLink>
+      <NavLink to="/" end style={({ isActive }) => item(isActive || /^\/((id|en|zh|vi)\/)?(live|style)/.test(pathname))}><IconHome />{t('nav.home')}</NavLink>
       <NavLink to="/categories" style={({ isActive }) => item(isActive || /^\/(c\/|products)/.test(pathname))}><IconGrid />{t('nav.category')}</NavLink>
       <NavLink to="/service" style={({ isActive }) => item(isActive)}>
         <span style={{ width: 32, height: 32, borderRadius: 16, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(255,140,105,0.30)' }}>

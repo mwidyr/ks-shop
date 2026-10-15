@@ -16,6 +16,8 @@ a { color: var(--color-primary-strong); }
 a:hover { color: var(--color-text); }
 h1, h2, .serif { font-family: 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .3px; }
 :focus-visible { outline: 2px solid var(--color-primary-strong); outline-offset: 2px; }
+/* inline formatting inside an article paragraph (links written in the admin editor) */
+.article-rich a, li a { color: var(--color-primary-strong); text-decoration: underline; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 

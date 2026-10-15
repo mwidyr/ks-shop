@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useOutletContext, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getContent, img, onImgError, sized } from '../lib/api'
+import { CONTENT_LANGS, contentHref, getContent, img, onImgError, sized } from '../lib/api'
+import { safeHtml } from '../lib/safeHtml'
 import { fullDate } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useArticleFavs } from '../lib/articleFavs'
@@ -21,7 +22,12 @@ function Blocks({ blocks, products, topic, toc, hostName }) {
         const out = []
         if (b.type === 'h2') out.push(<h2 key={i} id={`s${i}`} style={{ margin: topic || hostName ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700, lineHeight: hostName ? 1.85 : undefined }}>{b.text}</h2>)
         else if (b.type === 'h3') out.push(<h3 key={i} style={{ margin: '8px 0 0', fontSize: 17 }}>{b.text}</h3>)
-        else if (b.type === 'list') out.push(<ul key={i} style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>{(b.items || []).map((x) => <li key={x}>{x}</li>)}</ul>)
+        else if (b.type === 'list' || b.type === 'olist') {
+          const Tag = b.type === 'olist' ? 'ol' : 'ul'
+          out.push(<Tag key={i} style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>{(b.items || []).map((x, n) => (b.items_html?.[n]
+            ? <li key={n} dangerouslySetInnerHTML={{ __html: safeHtml(b.items_html[n]) }} />
+            : <li key={n}>{x}</li>))}</Tag>)
+        }
         else if (b.type === 'image') out.push(
           <figure key={i} style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <img src={sized(img(b.url), 900)} alt={b.alt || ''} loading="lazy" onError={onImgError} style={{ width: '100%', height: 320, borderRadius: 16, objectFit: 'cover', objectPosition: 'center 25%' }} />
@@ -39,6 +45,7 @@ function Blocks({ blocks, products, topic, toc, hostName }) {
               <span style={{ flex: 'none', ...(hostName ? { minHeight: 36, padding: '0 12px' } : { height: 36, padding: '0 14px', fontWeight: 700 }), borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, display: 'flex', alignItems: 'center' }}>{t('style.view_product')}</span>
             </Link>)
         } else if (b.type === 'tags') out.push(<div key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{(b.items || []).map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>)
+        else if (b.html) out.push(<p key={i} className="article-rich" style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }} dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} />)
         else out.push(<p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }}>{b.text}</p>)
         if (!tocDone && !topic && toc.length > 1 && (b.type === 'p' || !b.type)) { tocDone = true; out.push(tocBox(toc, t)) }
         return out
@@ -57,20 +64,24 @@ const tocBox = (toc, t) => (
 export default function Content() {
   const params = useParams()
   const slug = params.slug2 || params.slug
+  const { pathname } = useLocation()
+  const badPrefix = Boolean(params.lang) && !CONTENT_LANGS.includes(params.lang)
   const { t, i18n } = useTranslation()
   const { desktop } = useOutletContext()
   const saved = useArticleFavs()
   const [d, setD] = useState(null)
   const [state, setState] = useState('loading')
-  const load = useCallback(() => { setState('loading'); getContent(slug).then((x) => { setD(x); setState('ok') }).catch((e) => setState(e.status === 404 ? 'notfound' : 'error')) }, [slug])
+  const load = useCallback(() => { if (badPrefix) { setState('notfound'); return }; setState('loading'); getContent(slug).then((x) => { setD(x); setState('ok') }).catch((e) => setState(e.status === 404 ? 'notfound' : 'error')) }, [slug, badPrefix])
   useEffect(() => { load() }, [load, i18n.language])
   const page = d?.page
   const seo = d?.seo
   useSeo({
-    title: seo?.title || page?.title, description: seo?.description || page?.summary, canonical: seo?.canonical || (page ? (page.type === 'host_article' ? `/hosts/${page.author_slug}/journal/${page.slug}` : `/style/${page.slug}`) : ''),
+    title: seo?.title || page?.title, description: seo?.description || page?.summary, canonical: seo?.canonical || (page ? contentHref(page) : ''),
     noindex: seo ? seo.index === false : false,
     jsonLd: page ? { '@context': 'https://schema.org', '@type': 'Article', headline: page.title, description: page.summary, image: page.cover_url, datePublished: page.published_at, author: { '@type': 'Person', name: page.author } } : null,
   })
+  // the old unprefixed URL (/style/x) and a wrong language prefix go to the article's own /{lang}/... URL
+  if (state === 'ok' && page?.path && page.path !== pathname.replace(/\/+$/, '')) return <Navigate to={page.path} replace />
   if (state === 'loading') return <div><PageHeader title="" /><Skeleton h={220} r={0} /></div>
   if (state === 'notfound') return <div><PageHeader title="" /><EmptyState title={t('style.notfound')} action={<Link to="/style" style={{ ...btnPrimary, marginTop: 8 }}>{t('style.title')}</Link>} /></div>
   if (state === 'error') return <div><PageHeader title="" /><ErrorState title={t('style.error')} onRetry={load} /></div>
@@ -78,7 +89,7 @@ export default function Content() {
   const topic = page.type === 'topic'
   const hostArt = page.type === 'host_article'
   const toc = d.blocks.map((b, i) => (b.type === 'h2' ? { i, text: b.text } : null)).filter(Boolean)
-  const href = (c) => (c.type === 'host_article' ? `/hosts/${c.author_slug}/journal/${c.slug}` : `/style/${c.slug}`)
+  const href = contentHref
   const dateDots = (iso) => fullDate(iso).replace(/\//g, '.')
   const isSaved = saved.has(page.slug)
   const right = topic || hostArt

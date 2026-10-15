@@ -2181,7 +2181,8 @@
       "language_zh": "Mandarin",
       "id": "ID",
       "title": "Judul",
-      "status": "Status"
+      "status": "Status",
+      "language_vi": "Tiếng Việt"
     },
     "home": {
       "title": "Modul Home",
@@ -2315,7 +2316,7 @@
       "summary": "Ringkasan",
       "label": "Label kategori",
       "body": "Isi",
-      "body_hint": "Satu blok per baris: '## Judul', '### Subjudul', '- butir', '[product:12]' untuk kartu produk, '#Tag' untuk hashtag, teks biasa untuk paragraf.",
+      "body_hint": "Gunakan toolbar untuk judul, tebal, daftar, tautan, gambar, dan kartu produk. Tampilan di editor mendekati website.",
       "cover": "Gambar sampul",
       "cover_alt": "Teks alt sampul",
       "author_host": "Penulis (host)",
@@ -2343,7 +2344,34 @@
       "body_per_lang": "Isi ({{lang}})",
       "add_product": "Tambah produk lewat ID atau pencarian",
       "view_site": "Buka di website",
-      "seo_len": "{{n}} karakter"
+      "seo_len": "{{n}} karakter",
+      "lang": "Bahasa artikel",
+      "lang_hint": "Satu artikel = satu bahasa. Pilih sekali; tampil di website dengan URL berawalan bahasa ini.",
+      "all_langs": "Semua",
+      "url_preview": "URL di website",
+      "title_one": "Judul",
+      "summary_one": "Ringkasan",
+      "body_one": "Isi artikel",
+      "editor": {
+        "h2": "Judul besar",
+        "h3": "Subjudul",
+        "bold": "Tebal",
+        "italic": "Miring",
+        "bullet": "Daftar butir",
+        "ordered": "Daftar angka",
+        "list": "Daftar",
+        "link": "Tautan",
+        "image": "Gambar",
+        "product": "Produk",
+        "undo": "Urungkan",
+        "redo": "Ulangi",
+        "link_prompt": "Alamat tautan (kosongkan untuk menghapus):",
+        "upload_failed": "Gagal mengunggah gambar",
+        "product_card": "Kartu produk",
+        "remove": "Hapus",
+        "pick_product": "Cari produk (nama atau SKU)",
+        "pick_product_hint": "Pilih produk untuk disisipkan sebagai kartu di posisi kursor."
+      }
     },
     "theme": {
       "title": "Tema & Tampilan",

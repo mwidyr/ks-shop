@@ -43,6 +43,9 @@ export const getHome = () => request('/home')
 export const getHosts = (q) => request(`/hosts${qs({ q })}`)
 export const getHost = (slug) => request(`/hosts/${encodeURIComponent(slug)}`)
 export const getLive = () => request('/live')
+// Public URL of an article card: /{lang}/style/{slug} (path comes from the API; the fallback is the old unprefixed URL).
+export const contentHref = (c) => c.path || (c.type === 'host_article' && (c.author_slug || c.host) ? `/hosts/${c.author_slug || c.host}/journal/${c.slug}` : `/style/${c.slug}`)
+export const CONTENT_LANGS = ['id', 'en', 'zh', 'vi']
 export const getContentList = (params) => request(`/content${qs(params)}`)
 export const getContent = (slug) => request(`/content/${encodeURIComponent(slug)}`)
 export const searchAll = (q) => request(`/search${qs({ q })}`)

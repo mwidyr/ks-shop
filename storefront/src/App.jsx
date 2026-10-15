@@ -56,9 +56,11 @@ export default function App() {
           <Route path="/hosts" element={<Hosts />} />
           <Route path="/hosts/:slug" element={<Host />} />
           <Route path="/hosts/:slug/journal/:slug2" element={<Content />} />
+          <Route path="/:lang/hosts/:slug/journal/:slug2" element={<Content />} />
           <Route path="/live" element={<Live />} />
           <Route path="/style" element={<Style />} />
           <Route path="/style/:slug" element={<Content />} />
+          <Route path="/:lang/style/:slug" element={<Content />} />
           <Route path="/info/:slug" element={<Info />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/member" element={<Member />} />

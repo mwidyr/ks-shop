@@ -146,7 +146,7 @@ export default function Search() {
             <section style={{ padding: '20px 16px 0' }}>
               <h2 style={{ ...sTitle(), margin: '0 0 6px' }}>{first ? t('search.articles_of', { name: first.name }) : t('search.articles')}</h2>
               {articles.map((a) => (
-                <Link key={a.id} to={a.type === 'host_article' ? `/hosts/${a.author_slug}/journal/${a.slug}` : `/style/${a.slug}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
+                <Link key={a.id} to={a.path || (a.type === 'host_article' ? `/hosts/${a.author_slug}/journal/${a.slug}` : `/style/${a.slug}`)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
                   <img src={sized(img(a.cover_url), 160)} alt="" onError={onImgError} style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} />
                   <b style={{ fontSize: 15, lineHeight: 1.45 }}>{a.title}</b>
                 </Link>

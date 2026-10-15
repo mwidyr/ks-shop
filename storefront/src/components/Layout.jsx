@@ -107,7 +107,10 @@ const FAB = [
   [/^\/checkout/, 104, false], [/^\/coupons/, 100, false], [/^\/search/, 100, false], [/^\/wishlist/, 100, true], [/^\/hosts/, 100, false],
   [/^\/style\/[^/]+/, 100, false], [/^\/style/, 100, true],
 ]
-function fabFor(pathname) {
+// article URLs start with the article language (/vi/style/x): the layout rules below are written without it
+const stripLang = (p) => p.replace(/^\/(id|en|zh|vi)(?=\/)/, '')
+function fabFor(rawPath) {
+  const pathname = stripLang(rawPath)
   const hit = FAB.find(([re]) => re.test(pathname))
   return hit ? { bottom: hit[1], oneLine: hit[2] } : null
 }
@@ -115,7 +118,8 @@ function fabFor(pathname) {
 export default function Layout() {
   const { t } = useTranslation()
   const desktop = useDesktop()
-  const { pathname } = useLocation()
+  const { pathname: rawPathname } = useLocation()
+  const pathname = stripLang(rawPathname)
   const hideNav = NO_NAV.some((r) => r.test(pathname))
   const fab = fabFor(pathname)
   const bare = /^\/language/.test(pathname)

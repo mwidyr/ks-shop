@@ -48,6 +48,18 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	parts := strings.Split(strings.Trim(path, "/"), "/")
+	// article URLs: /{lang}/style/{slug}, /{lang}/hosts/{host}/journal/{slug} (and the old unprefixed forms)
+	artSlug := ""
+	switch {
+	case len(parts) == 3 && validContentLang(parts[0]) && parts[1] == "style":
+		artSlug = parts[2]
+	case len(parts) == 5 && validContentLang(parts[0]) && parts[1] == "hosts" && parts[3] == "journal":
+		artSlug = parts[4]
+	case len(parts) == 2 && parts[0] == "style":
+		artSlug = parts[1]
+	case len(parts) == 4 && parts[0] == "hosts" && parts[2] == "journal":
+		artSlug = parts[3]
+	}
 	switch {
 	case path == "/":
 		m.Title = ""
@@ -91,35 +103,38 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 		m.Image = avatar
 		m.JSONLD = append(m.JSONLD, map[string]interface{}{"@context": "https://schema.org", "@type": "Person", "name": name, "description": bio, "image": avatar, "url": m.Canonical},
 			breadcrumb(base, []crumb{{"Home", "/"}, {"Hosts", "/hosts"}, {name, path}}))
-	case (parts[0] == "style" && len(parts) == 2) || (parts[0] == "hosts" && len(parts) == 4 && parts[2] == "journal"):
-		slug := parts[len(parts)-1]
-		var typ string
+	case artSlug != "":
+		var typ, artLang, authorSlug string
 		var title, summary, seoT, seoD map[string]string
 		var cover, canonical, author string
 		var indexed bool
 		var published *string
 		if err := h.DB.QueryRow(ctx, `
-			SELECT c.type, c.title, c.summary, c.seo_title, c.seo_description, COALESCE(c.cover_url,''), COALESCE(c.canonical_url,''), c.is_indexed,
-			       COALESCE(NULLIF(c.author_name,''), ah.name, ''), to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+			SELECT c.type, c.lang, c.title, c.summary, c.seo_title, c.seo_description, COALESCE(c.cover_url,''), COALESCE(c.canonical_url,''), c.is_indexed,
+			       COALESCE(NULLIF(c.author_name,''), ah.name, ''), COALESCE(ah.slug,''), to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 			FROM content_pages c LEFT JOIN hosts ah ON ah.id = c.author_host_id
-			WHERE c.slug=$1 AND c.is_published AND (c.published_at IS NULL OR c.published_at <= now())`, slug).
-			Scan(&typ, &title, &summary, &seoT, &seoD, &cover, &canonical, &indexed, &author, &published); err != nil {
+			WHERE c.slug=$1 AND c.is_published AND (c.published_at IS NULL OR c.published_at <= now())`, artSlug).
+			Scan(&typ, &artLang, &title, &summary, &seoT, &seoD, &cover, &canonical, &indexed, &author, &authorSlug, &published); err != nil {
 			m.Index = false
 			m.Title = "404"
 			break
 		}
-		m.Title = firstNonEmpty(pickLang(seoT, lang), pickLang(title, lang))
-		m.Description = firstNonEmpty(pickLang(seoD, lang), pickLang(summary, lang))
+		m.ContentLang = artLang
+		m.Title = firstNonEmpty(pickLang(seoT, artLang), pickLang(title, artLang))
+		m.Description = firstNonEmpty(pickLang(seoD, artLang), pickLang(summary, artLang))
 		m.Image = cover
+		// canonical: the article's own-language URL (also for the old unprefixed path / a wrong prefix)
+		own := contentPath(artLang, typ, artSlug, authorSlug)
+		m.Canonical = base + own
 		if canonical != "" {
 			m.Canonical = canonical
 		}
 		m.Index = m.Index && indexed
-		art := map[string]interface{}{"@context": "https://schema.org", "@type": "Article", "headline": pickLang(title, lang), "description": pickLang(summary, lang), "image": nonEmptyList(cover), "author": map[string]interface{}{"@type": "Person", "name": author}}
+		art := map[string]interface{}{"@context": "https://schema.org", "@type": "Article", "inLanguage": artLang, "headline": pickLang(title, artLang), "description": pickLang(summary, artLang), "image": nonEmptyList(cover), "author": map[string]interface{}{"@type": "Person", "name": author}}
 		if published != nil {
 			art["datePublished"] = *published
 		}
-		m.JSONLD = append(m.JSONLD, art, breadcrumb(base, []crumb{{"Home", "/"}, {"Style", "/style"}, {pickLang(title, lang), path}}))
+		m.JSONLD = append(m.JSONLD, art, breadcrumb(base, []crumb{{"Home", "/"}, {"Style", "/style"}, {pickLang(title, artLang), own}}))
 	case parts[0] == "c" && len(parts) == 2:
 		name, _ := url.PathUnescape(parts[1])
 		var display string
@@ -167,6 +182,7 @@ func breadcrumb(base string, cs []crumb) map[string]interface{} {
 
 type seoMeta struct {
 	Title, Description, Canonical, Image string
+	ContentLang                          string // article language (og:locale); empty = the visitor's UI language
 	Index                                bool
 	JSONLD                               []map[string]interface{}
 }
@@ -199,7 +215,7 @@ func (m seoMeta) render(lang string) string {
 	} else {
 		b.WriteString("<meta name=\"robots\" content=\"noindex,nofollow\">\n")
 	}
-	fmt.Fprintf(&b, "<meta property=\"og:title\" content=\"%s\">\n<meta property=\"og:type\" content=\"website\">\n<meta property=\"og:url\" content=\"%s\">\n<meta property=\"og:locale\" content=\"%s\">\n", esc(title), esc(m.Canonical), map[string]string{"id": "id_ID", "en": "en_US", "zh": "zh_TW"}[lang])
+	fmt.Fprintf(&b, "<meta property=\"og:title\" content=\"%s\">\n<meta property=\"og:type\" content=\"website\">\n<meta property=\"og:url\" content=\"%s\">\n<meta property=\"og:locale\" content=\"%s\">\n", esc(title), esc(m.Canonical), map[string]string{"id": "id_ID", "en": "en_US", "zh": "zh_TW", "vi": "vi_VN"}[firstNonEmpty(m.ContentLang, lang)])
 	if m.Description != "" {
 		fmt.Fprintf(&b, "<meta property=\"og:description\" content=\"%s\">\n", esc(m.Description))
 	}

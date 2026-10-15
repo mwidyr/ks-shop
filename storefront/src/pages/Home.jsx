@@ -123,7 +123,7 @@ function Topics({ list, desktop, title, subtitle }) {
   const { t } = useTranslation()
   const [first, ...rest] = list
   const card = (c, big) => (
-    <Link key={c.id} to={`/style/${c.slug}`} style={{ display: 'flex', flexDirection: 'column', borderRadius: big ? 18 : 14, overflow: 'hidden', background: 'var(--color-surface)', textDecoration: 'none', color: 'var(--color-text)' }}>
+    <Link key={c.id} to={c.path || `/style/${c.slug}`} style={{ display: 'flex', flexDirection: 'column', borderRadius: big ? 18 : 14, overflow: 'hidden', background: 'var(--color-surface)', textDecoration: 'none', color: 'var(--color-text)' }}>
       <img src={sized(img(c.cover_url), 640)} alt={c.title} loading="lazy" onError={onImgError} style={{ width: '100%', height: big ? 200 : 120, objectFit: 'cover', objectPosition: big ? 'center 30%' : 'center 25%', background: 'var(--color-bg-soft)' }} />
       <span style={{ padding: big ? '14px 16px' : '10px 12px', display: 'flex', flexDirection: 'column', gap: big ? 4 : 3 }}>
         {big ? <h3 className="serif" style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{c.title}</h3> : <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{c.title}</h3>}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getContentList, img, onImgError, sized } from '../lib/api'
+import { CONTENT_LANGS, contentHref, getContentList, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
 import { IconSearch } from '../components/Icons'
 import { EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
@@ -12,22 +12,43 @@ export default function Style() {
   const { desktop } = useOutletContext()
   const [sp, setSp] = useSearchParams()
   const label = sp.get('label') || ''
+  // article language filter: the visitor's choice (?lang=, remembered), else the browser language when it has articles, else all
+  const stored = (() => { try { return localStorage.getItem('ralulu_style_lang') } catch { return null } })()
+  const langParam = sp.get('lang')
   const [d, setD] = useState(null)
+  const [counts, setCounts] = useState(null)
   const [error, setError] = useState(false)
   useSeo({ title: t('style.title'), description: t('style.title'), canonical: '/style' })
-  const load = useCallback(() => { setError(false); getContentList({ label, limit: 40 }).then(setD).catch(() => setError(true)) }, [label])
+  const browserLang = (() => { const n = (navigator.language || 'id').toLowerCase().slice(0, 2); return CONTENT_LANGS.includes(n) ? n : '' })()
+  // ''=all. Until the per-language counts are known the default is "all"
+  const chosen = langParam !== null ? langParam : stored !== null ? stored : (counts && browserLang && counts[browserLang] > 0 ? browserLang : '')
+  const pickLang = (l) => {
+    try { localStorage.setItem('ralulu_style_lang', l) } catch { /* private mode */ }
+    const next = new URLSearchParams(sp); next.set('lang', l) // '' = all, kept explicit so the browser-language default does not apply again
+    setSp(next, { replace: true })
+  }
+  const load = useCallback(() => {
+    setError(false)
+    getContentList({ label, limit: 40, content_lang: chosen }).then((x) => { setD(x); setCounts(x.lang_counts || {}) }).catch(() => setError(true))
+  }, [label, chosen])
   useEffect(() => { load() }, [load, i18n.language])
   const px = desktop ? 40 : 16
   const items = d?.items || []
   const [hero, ...rest] = items
-  const href = (c) => (c.type === 'host_article' ? `/hosts/${c.author_slug}/journal/${c.slug}` : `/style/${c.slug}`)
+  const href = contentHref
   const pill = (on) => ({ flex: 'none', height: 34, padding: '0 14px', borderRadius: 17, fontSize: 13, display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'content-box', ...(on ? { background: 'var(--color-text)', color: '#FFFFFF', fontWeight: 700, border: 'none' } : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }) })
   return (
     <div style={{ paddingBottom: 130 }}>
       <PageHeader title={t('style.title')} to="/" right={<Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link>} />
+      {counts && CONTENT_LANGS.filter((l) => counts[l] > 0).length > 1 && (
+        <div className="no-scrollbar" role="group" aria-label={t('style.lang_filter')} style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: `12px ${px}px 0` }}>
+          <button type="button" aria-pressed={!chosen} onClick={() => pickLang('')} style={pill(!chosen)}>{t('style.lang_all')}</button>
+          {CONTENT_LANGS.filter((l) => counts[l] > 0).map((l) => <button key={l} type="button" aria-pressed={chosen === l} onClick={() => pickLang(l)} style={pill(chosen === l)}>{t(`style.lang_${l}`)}</button>)}
+        </div>
+      )}
       <div className="no-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: `12px ${px}px` }}>
-        <button type="button" onClick={() => setSp({}, { replace: true })} style={pill(!label)}>{t('style.all')}</button>
-        {(d?.labels || []).map((l) => <button key={l} type="button" onClick={() => setSp({ label: l }, { replace: true })} style={pill(label === l)}>{l}</button>)}
+        <button type="button" onClick={() => { const n = new URLSearchParams(sp); n.delete('label'); setSp(n, { replace: true }) }} style={pill(!label)}>{t('style.all')}</button>
+        {(d?.labels || []).map((l) => <button key={l} type="button" onClick={() => { const n = new URLSearchParams(sp); n.set('label', l); setSp(n, { replace: true }) }} style={pill(label === l)}>{l}</button>)}
       </div>
       {error && <ErrorState title={t('style.error')} onRetry={load} />}
       {!d && !error && <div style={{ padding: px }}><Skeleton h={200} r={18} /></div>}

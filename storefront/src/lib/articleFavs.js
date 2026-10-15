@@ -15,7 +15,7 @@ export function useArticleFavs() {
   }, [])
   const toggle = useCallback((a) => {
     const cur = read()
-    const next = cur.some((x) => x.slug === a.slug) ? cur.filter((x) => x.slug !== a.slug) : [{ slug: a.slug, title: a.title, summary: a.summary || '', cover: a.cover_url || '', type: a.type, host: a.host_slug || '', savedAt: Date.now() }, ...cur]
+    const next = cur.some((x) => x.slug === a.slug) ? cur.filter((x) => x.slug !== a.slug) : [{ slug: a.slug, title: a.title, summary: a.summary || '', cover: a.cover_url || '', type: a.type, host: a.author_slug || a.host_slug || '', path: a.path || '', savedAt: Date.now() }, ...cur]
     try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* private mode */ }
     window.dispatchEvent(new Event(EVT))
   }, [])
