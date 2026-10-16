@@ -147,8 +147,10 @@ export default function ExportCvsModal({ onClose, onExported }) {
               r.pickup_store_code,
               '常溫', // Temperature Type - always Room Temperature per spec
               r.categories_zh, // 商品 - unique Chinese categories, no separators (e.g. 上衣內衣)
-              r.item_value, // 訂單金額 - products only
-              r.shipping_fee, // 運費金額 - actual fee (0 when free shipping)
+              // 訂單金額 = products + shipping fee, 運費金額 = 0: 7-ELEVEN's import rejects a separate
+              // fee above its site-wide promo fee (NT$38), so the fee is folded into the amount.
+              Number(r.item_value || 0) + Number(r.shipping_fee || 0),
+              0,
               r.order_date,
               r.order_no, // 商品備註 - internal order id, for matching tracking numbers back
               '', // columns after 商品備註 stay blank
