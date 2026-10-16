@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
-import { addressTooLong, hctOrderNoValid } from '../utils/exportRules'
+import { exportErrors } from '../utils/exportRules'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
-// "Masalah" = data HCT's import would reject: no address, an address over 50 characters, or an
-// order id over 20 characters / containing Chinese. We don't have address-region data to detect
-// remote-island/COD-restricted deliveries the way the reference system claims to.
+// "Masalah" = data HCT's import would reject (see exportErrors: name length, no address, address over
+// 50 characters, order id over 20 characters / containing Chinese). Rows with errors are blocked
+// from export in every tab, including already-exported ones shown for re-export.
 function classify(r) {
   if (r.exported_at) return 'exported'
-  if (!r.shipping_address || addressTooLong(r.shipping_address) || !hctOrderNoValid(r.order_no)) return 'problem'
+  if (exportErrors(r, 'courier').length > 0) return 'problem'
   return 'exportable'
 }
 
@@ -80,12 +80,14 @@ export default function ExportKurirModal({ onClose, onExported }) {
   function toggle(id) {
     setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
+  const validVisible = visible.filter((r) => exportErrors(r, 'courier').length === 0)
+  const invalidCount = visible.length - validVisible.length
   function toggleAll() {
-    setSelected((s) => (s.size === visible.length ? new Set() : new Set(visible.map((r) => r.order_id))))
+    setSelected((s) => (s.size === validVisible.length ? new Set() : new Set(validVisible.map((r) => r.order_id))))
   }
 
   async function handleExport() {
-    const picked = visible.filter((r) => selected.has(r.order_id))
+    const picked = validVisible.filter((r) => selected.has(r.order_id))
     if (picked.length === 0) return
     setBusy(true)
     try {
@@ -140,6 +142,9 @@ export default function ExportKurirModal({ onClose, onExported }) {
           ))}
         </div>
 
+        {invalidCount > 0 && (
+          <p className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 shrink-0">{t('page_orders.export_err_blocked', { count: invalidCount })}</p>
+        )}
         <label className="flex items-center gap-2 px-5 py-3 text-sm text-gray-600 shrink-0">
           <input type="checkbox" checked={includeExported} onChange={(e) => setIncludeExported(e.target.checked)} />
           {t('page_orders.include_exported')}
@@ -154,7 +159,7 @@ export default function ExportKurirModal({ onClose, onExported }) {
             <table className={tableClasses}>
               <thead>
                 <tr className={theadRowClasses}>
-                  <th className="py-2 w-8"><input type="checkbox" checked={selected.size === visible.length} onChange={toggleAll} /></th>
+                  <th className="py-2 w-8"><input type="checkbox" checked={validVisible.length > 0 && selected.size === validVisible.length} onChange={toggleAll} /></th>
                   <th className="py-2">{t('page_orders.export_col_recipient')}</th>
                   <th className="py-2">{t('page_orders.export_col_address')}</th>
                   <th className="py-2">{t('page_orders.export_col_cod')}</th>
@@ -162,12 +167,17 @@ export default function ExportKurirModal({ onClose, onExported }) {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {visible.map((r) => (
+                {visible.map((r) => {
+                  const errs = exportErrors(r, 'courier')
+                  return (
                   <tr key={r.order_id} className={rowClasses}>
-                    <td className="py-2"><input type="checkbox" checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
+                    <td className="py-2"><input type="checkbox" disabled={errs.length > 0} checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
                     <td className="py-2">
                       <p className="font-medium text-[var(--text-primary)]">{r.customer_name}</p>
                       <p className="text-xs text-[var(--text-secondary)]">{r.order_no}</p>
+                      {errs.map((e) => (
+                        <p key={e.key} className="text-[11px] font-semibold text-red-600">⚠ {t(`page_orders.export_err_${e.key}`, e.params)}</p>
+                      ))}
                       {r.group_order_nos?.length > 0 && (
                         <p className="text-[10px] font-semibold text-amber-600">
                           {t('page_orders.export_merged_note', { count: r.group_order_nos.length })}
@@ -178,7 +188,8 @@ export default function ExportKurirModal({ onClose, onExported }) {
                     <td className="py-2 text-[var(--text-primary)]">{formatCurrency(r.total_to_pay)}</td>
                     <td className="py-2 text-[var(--text-secondary)]">{t(`page_orders.kurir_status_${classify(r)}`)}</td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}

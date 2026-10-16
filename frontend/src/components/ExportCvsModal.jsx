@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listShippingExport, markExported } from '../api/shippingExport'
 import { formatCurrency } from '../utils/format'
-import { nameTooLong } from '../utils/exportRules'
+import { exportErrors } from '../utils/exportRules'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses } from './Table'
 
 // These are the client's own real import templates (711.xlsx / FamilyMart.xls, the latter
@@ -34,15 +34,13 @@ function normalizePhone(phone) {
   return (phone || '').replace(/\D/g, '')
 }
 
-// A row is "problem" if it's missing data the CVS export needs (store code to route the
-// package, phone for the courier to contact the buyer) - not yet a formal validation, just
-// what's actually required for a CVS handoff to succeed.
+// A not-yet-exported row is "problem" when its data breaks the carrier's import rules (see
+// exportErrors: name length, phone, 6-digit store code, total <= NT$20,000). Rows with errors are
+// blocked from export in every tab - including already-exported ones shown for re-export.
 function classify(r) {
   if (r.exported_at && r.tracking_number) return 'has_tracking'
   if (r.exported_at) return 'no_tracking'
-  if (!/^\d{6}$/.test(r.pickup_store_code || '') || !r.customer_phone) return 'problem'
-  // Recipient name over the carrier's limit (10 English / 5 Chinese chars) would fail the import.
-  if (nameTooLong(r.customer_name)) return 'problem'
+  if (exportErrors(r, r.chain_type).length > 0) return 'problem'
   return 'exportable'
 }
 
@@ -97,12 +95,14 @@ export default function ExportCvsModal({ onClose, onExported }) {
   function toggle(id) {
     setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
+  const validVisible = visible.filter((r) => exportErrors(r, r.chain_type).length === 0)
+  const invalidCount = visible.length - validVisible.length
   function toggleAll() {
-    setSelected((s) => (s.size === visible.length ? new Set() : new Set(visible.map((r) => r.order_id))))
+    setSelected((s) => (s.size === validVisible.length ? new Set() : new Set(validVisible.map((r) => r.order_id))))
   }
 
   async function handleExport() {
-    const picked = visible.filter((r) => selected.has(r.order_id))
+    const picked = validVisible.filter((r) => selected.has(r.order_id))
     if (picked.length === 0) return
     setBusy(true)
     try {
@@ -244,6 +244,9 @@ export default function ExportCvsModal({ onClose, onExported }) {
           ))}
         </div>
 
+        {invalidCount > 0 && (
+          <p className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 shrink-0">{t('page_orders.export_err_blocked', { count: invalidCount })}</p>
+        )}
         <label className="flex items-center gap-2 px-5 py-3 text-sm text-gray-600 shrink-0">
           <input type="checkbox" checked={includeExported} onChange={(e) => setIncludeExported(e.target.checked)} />
           {t('page_orders.include_exported')}
@@ -258,7 +261,7 @@ export default function ExportCvsModal({ onClose, onExported }) {
             <table className={tableClasses}>
               <thead>
                 <tr className={theadRowClasses}>
-                  <th className="py-2 w-8"><input type="checkbox" checked={selected.size === visible.length} onChange={toggleAll} /></th>
+                  <th className="py-2 w-8"><input type="checkbox" checked={validVisible.length > 0 && selected.size === validVisible.length} onChange={toggleAll} /></th>
                   <th className="py-2">{t('page_orders.export_col_buyer')}</th>
                   <th className="py-2">{t('page_orders.export_col_store')}</th>
                   <th className="py-2">{t('page_orders.export_col_item_value')}</th>
@@ -267,12 +270,17 @@ export default function ExportCvsModal({ onClose, onExported }) {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {visible.map((r) => (
+                {visible.map((r) => {
+                  const errs = exportErrors(r, r.chain_type)
+                  return (
                   <tr key={r.order_id} className={rowClasses}>
-                    <td className="py-2"><input type="checkbox" checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
+                    <td className="py-2"><input type="checkbox" disabled={errs.length > 0} checked={selected.has(r.order_id)} onChange={() => toggle(r.order_id)} /></td>
                     <td className="py-2">
                       <p className="font-medium text-[var(--text-primary)]">{r.customer_name}</p>
                       <p className="text-xs text-[var(--text-secondary)]">{r.order_no}</p>
+                      {errs.map((e) => (
+                        <p key={e.key} className="text-[11px] font-semibold text-red-600">⚠ {t(`page_orders.export_err_${e.key}`, e.params)}</p>
+                      ))}
                       {r.group_order_nos?.length > 0 && (
                         <p className="text-[10px] font-semibold text-amber-600">
                           {t('page_orders.export_merged_note', { count: r.group_order_nos.length })}
@@ -290,7 +298,8 @@ export default function ExportCvsModal({ onClose, onExported }) {
                     </td>
                     <td className="py-2 text-[var(--text-secondary)]">{t(`page_orders.status_${classify(r)}`)}</td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}
