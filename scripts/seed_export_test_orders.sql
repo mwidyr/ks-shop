@@ -3,17 +3,35 @@
 --   psql "$DATABASE_URL" -f scripts/seed_export_test_orders.sql
 -- Remove them again with scripts/clean_export_test_orders.sql.
 --
--- Creates 300 pending orders: 100 per method (7-ELEVEN, FamilyMart, POS home delivery).
+-- Creates 300 pending orders: 100 per method (7-ELEVEN, FamilyMart, POS home delivery) for the
+-- Shipping Workbench (batch creation, Excel export/import, retry, stock allocation).
 --  * dummy data only; every order is identifiable: order_no 'TST-...', customer phone 0900xxxxxx
---    (except the blacklist-test phone), internal note '[TEST-EXPORT]';
+--    (except the blacklist-test phone), internal note '[TEST-EXPORT]'; deliberately broken ones
+--    also carry '[BAD: ...]' in the note, so you can find them again;
+--  * orders are created 1-6 days ago (Taiwan "yesterday or earlier" rule), except #99 and #100 of
+--    each method, which are created NOW to test that today's orders are not eligible;
+--  * STOCK: every variant's Actual stock is raised to at least 1000 so normal orders are
+--    fulfillable (it is never lowered), EXCEPT the first variant, which is set to 3 units. Every
+--    10th order (#6, #16, ...) buys 2 of it, so most of those show up as "Insufficient Stock";
+--  * DELIBERATELY WRONG DATA, to test the error handling:
+--      7-ELEVEN / FamilyMart  #5 #45 #85   store code 111111 (does not exist; "no such store")
+--                             #15 #65      store code 99999 (5 digits)
+--                             #13          phone 0900123 (not a valid mobile number)
+--                             #11 #51      recipient name longer than 10 characters
+--                             #31          recipient name of 6 Chinese characters (= 12 units)
+--                             #17 #67      order total above NT$20,000
+--      POS / HCT              #9 #59       address longer than 50 characters
+--                             #14          address missing
+--                             #11 #51 #31 #17 #67   same name / total problems as above
 --  * customer names are short English first names without digits (Anna, Lisa, Maya, ...);
---  * each order's total (products + shipping fee) stays far below NT$20,000;
+--  * the real store codes are also added to the cached store directory (cvs_stores), see the comment
+--    in the script, so only the deliberately wrong codes are flagged as "unknown";
+--  * normal orders stay far below NT$20,000 (products + shipping fee);
 --  * 7-ELEVEN and FamilyMart: store codes are REAL ones from the store lists supplied by the client
 --    (taiwan_711_all.xlsx / familymart_all.xlsx, 120 of each embedded below);
 --  * 7-ELEVEN: a few orders use phone 0912345678 (blacklisted by the 7-ELEVEN system);
 --  * shipping fee follows the real rules: 60 for minimarket, 100 for POS, 0 once the subtotal
---    reaches the configured free-shipping threshold (read from app_settings);
---  * no date restrictions - all orders are created "now" so they can be exported right away.
+--    reaches the configured free-shipping threshold (read from app_settings).
 -- Safe to run more than once: it refuses to run while TST- orders still exist.
 
 DO $$
@@ -289,6 +307,11 @@ DECLARE
     v_fee       NUMERIC;
     v_big       BOOLEAN;
     v_type      TEXT;
+    v_scarce    INT;
+    v_normal    INT[];
+    v_bad       TEXT;
+    v_created   TIMESTAMPTZ;
+    v_qty       INT;
 BEGIN
     IF EXISTS (SELECT 1 FROM orders WHERE order_no LIKE 'TST-%') THEN
         RAISE EXCEPTION 'TST- test orders already exist; run scripts/clean_export_test_orders.sql first';
@@ -300,6 +323,24 @@ BEGIN
     -- One customer (the blacklisted phone) is shared by several 7-ELEVEN orders.
     INSERT INTO customers (name, phone, address) VALUES ('Blake', '0912345678', '') RETURNING id INTO v_cust_bl;
     PERFORM setseed(0.42);
+
+    IF array_length(v_variants, 1) < 2 THEN RAISE EXCEPTION 'needs at least two product variants'; END IF;
+    v_scarce := v_variants[1];
+    v_normal := v_variants[2:array_length(v_variants, 1)];
+    UPDATE stock_buckets SET available_stock = GREATEST(available_stock, 1000) WHERE variant_id <> v_scarce;
+    UPDATE stock_buckets SET available_stock = 3 WHERE variant_id = v_scarce;
+
+    -- The Shipping Workbench rejects a store code that is missing from the cached ECPay store
+    -- directory (cvs_stores). On a dev machine that directory is ECPay's small STAGING list, so the
+    -- real codes below would all look "unknown". Add them (real stores, from the client's lists) so
+    -- only the deliberately wrong codes are flagged. The daily ECPay refresh replaces the cache;
+    -- re-run this script's INSERT (or the whole seed) if the good orders suddenly turn "unknown".
+    INSERT INTO cvs_stores (chain_type, store_code, store_name, store_addr, store_phone)
+    SELECT 'cvs_711', split_part(x, '|', 1), split_part(x, '|', 2), '', '' FROM unnest(v_stores_711) AS x
+    ON CONFLICT (chain_type, store_code) DO NOTHING;
+    INSERT INTO cvs_stores (chain_type, store_code, store_name, store_addr, store_phone)
+    SELECT 'cvs_familymart', split_part(x, '|', 1), split_part(x, '|', 2), '', '' FROM unnest(v_stores_fm) AS x
+    ON CONFLICT (chain_type, store_code) DO NOTHING;
 
     FOREACH v_type IN ARRAY ARRAY['cvs_711','cvs_familymart','courier'] LOOP
         IF v_type = 'courier' THEN
@@ -326,6 +367,31 @@ BEGIN
                 v_addr := v_store || ' ' || v_code;
             END IF;
 
+            v_bad := '';
+            IF v_type <> 'courier' THEN
+                IF i IN (5, 45, 85) THEN
+                    v_code := '111111'; v_store := '測試錯誤門市'; v_bad := 'store code 111111';
+                ELSIF i IN (15, 65) THEN
+                    v_code := '99999'; v_store := '測試錯誤門市'; v_bad := 'store code 99999 (5 digits)';
+                ELSIF i = 13 THEN
+                    v_phone := '0900123'; v_bad := 'phone 0900123';
+                END IF;
+                v_addr := v_store || ' ' || v_code;
+            ELSE
+                IF i IN (9, 59) THEN
+                    v_addr := '台北市中山區測試路' || i || '號' || repeat('很長的地址', 8); v_bad := 'address over 50 characters';
+                ELSIF i = 14 THEN
+                    v_addr := ''; v_bad := 'address missing';
+                END IF;
+            END IF;
+            IF i IN (11, 51) THEN
+                v_name := 'Bartholomew Longname'; v_bad := trim(v_bad || ' name over 10 characters');
+            ELSIF i = 31 THEN
+                v_name := '王小明明明明'; v_bad := trim(v_bad || ' name 6 Chinese characters');
+            END IF;
+            -- today's orders: must NOT be eligible for a batch yet
+            v_created := CASE WHEN i >= 99 THEN now() ELSE now() - make_interval(days => 1 + (i % 6), hours => i % 23) END;
+
             IF v_type = 'cvs_711' AND i % 20 = 3 THEN                           -- 5 orders: blacklisted phone
                 v_cust := v_cust_bl;
             ELSE
@@ -334,20 +400,30 @@ BEGIN
 
             v_big := (i % 4 = 0);                                               -- every 4th order is big enough to reach free shipping
             INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id,
-                                pickup_store_name, pickup_store_code, internal_notes, sales_channel, shipping_fee)
+                                pickup_store_name, pickup_store_code, internal_notes, sales_channel, shipping_fee, created_at)
             VALUES ('TST-' || CASE v_type WHEN 'cvs_711' THEN '711' WHEN 'cvs_familymart' THEN 'FM' ELSE 'POS' END || '-' || lpad(i::text, 3, '0'),
-                    v_cust, v_user, 'pending', v_addr, v_chain, v_store, v_code, '[TEST-EXPORT]', 'live', 0)
+                    v_cust, v_user, 'pending', v_addr, v_chain, v_store, v_code,
+                    '[TEST-EXPORT]' || CASE WHEN i % 10 = 6 THEN ' [SCARCE-STOCK]' ELSE '' END || CASE WHEN v_bad <> '' THEN ' [BAD: ' || v_bad || ']' ELSE '' END,
+                    'live', 0, v_created)
             RETURNING id INTO v_order;
             INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
             VALUES (v_order, NULL, 'pending', v_user, 'test data');
 
-            n_items := 1 + (i % 2);
+            n_items := CASE WHEN i % 10 = 6 OR i IN (17, 67) THEN 1 ELSE 1 + (i % 2) END;
             v_sub := 0;
             FOR k IN 1..n_items LOOP
-                v_price := CASE WHEN v_big THEN 1500 + (random() * 1500)::int ELSE 100 + (random() * 400)::int END;
-                INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id)
-                VALUES (v_order, v_variants[1 + (random() * (array_length(v_variants, 1) - 1))::int], CASE WHEN v_big THEN 1 ELSE 1 + (random() * 1)::int END, v_price,
-                        v_hosts[1 + (random() * (array_length(v_hosts, 1) - 1))::int]);
+                v_price := CASE WHEN i IN (17, 67) THEN 25000                       -- over NT$20,000
+                                WHEN v_big THEN 1500 + (random() * 1500)::int ELSE 100 + (random() * 400)::int END;
+                IF i % 10 = 6 THEN
+                    v_qty := 2;                                                      -- competes for the 3 scarce units
+                    INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id)
+                    VALUES (v_order, v_scarce, v_qty, v_price, v_hosts[1 + (random() * (array_length(v_hosts, 1) - 1))::int]);
+                ELSE
+                    v_qty := CASE WHEN v_big OR i IN (17, 67) THEN 1 ELSE 1 + (random() * 1)::int END;
+                    INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id)
+                    VALUES (v_order, v_normal[1 + (random() * (array_length(v_normal, 1) - 1))::int], v_qty, v_price,
+                            v_hosts[1 + (random() * (array_length(v_hosts, 1) - 1))::int]);
+                END IF;
             END LOOP;
             SELECT SUM(qty * price_at_order) INTO v_sub FROM order_items WHERE order_id = v_order;
             v_fee := CASE WHEN v_type = 'courier'
@@ -358,7 +434,10 @@ BEGIN
     END LOOP;
 END $$;
 
-SELECT pc.chain_type, count(*) AS orders, count(*) FILTER (WHERE o.shipping_fee = 0) AS free_shipping,
-       max(COALESCE((SELECT SUM(qty * price_at_order) FROM order_items WHERE order_id = o.id), 0) + o.shipping_fee) AS max_total
+SELECT pc.chain_type, count(*) AS orders,
+       count(*) FILTER (WHERE o.internal_notes LIKE '%[BAD:%') AS deliberately_wrong,
+       count(*) FILTER (WHERE o.internal_notes LIKE '%[SCARCE-STOCK]%') AS scarce_stock,
+       count(*) FILTER (WHERE o.created_at > now() - interval '1 hour') AS created_today,
+       count(*) FILTER (WHERE o.shipping_fee = 0) AS free_shipping
 FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 WHERE o.order_no LIKE 'TST-%' GROUP BY 1 ORDER BY 1;
