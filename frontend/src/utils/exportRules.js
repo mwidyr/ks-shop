@@ -58,3 +58,10 @@ export function exportErrors(r, kind) {
   if (total > EXPORT_TOTAL_MAX) errs.push({ key: 'total', params: { total } })
   return errs
 }
+
+// What the shipping platform sees as the order amount: products - discount + additional + shipping
+// fee. The platform rejects an order above EXPORT_TOTAL_MAX, so Create Order blocks it up front.
+export function carrierTotal(order) {
+  const items = (order.items || []).reduce((sum, it) => sum + Number(it.price || 0) * Number(it.qty || 0), 0)
+  return items - (Number(order.discountAmount) || 0) + (Number(order.additionalAmount) || 0) + (Number(order.shippingFee) || 0)
+}

@@ -31,13 +31,22 @@ type OrderHandler struct {
 	OnOrderCreated func()
 }
 
+// validTransitions are the status changes staff can make by hand. Processing and Ready to Ship are
+// never set manually: the Shipping Workbench moves an order there when its batch's shipping Excel
+// is exported and when the platform result is imported. Shipped/Delivered normally also come from
+// imports (3PL shipment confirmation, platform delivery status); the manual path for those two is
+// restricted to warehouse/super_user (see manualShipRoles) as a fallback. A shipped order can no
+// longer be cancelled - it follows the return process.
 var validTransitions = map[string][]string{
-	"pending":       {"picking", "cancelled"},
-	"picking":       {"ready_to_ship", "cancelled"},
+	"pending":       {"cancelled"},
+	"processing":    {"cancelled"},
 	"ready_to_ship": {"shipped", "cancelled"},
-	"shipped":       {"delivered", "cancelled", "return"},
+	"shipped":       {"delivered", "return"},
 	"delivered":     {"return"},
 }
+
+// manualShipTargets can only be set by hand by warehouse/super_user.
+var manualShipTargets = map[string]bool{"shipped": true, "delivered": true}
 
 type orderListItem struct {
 	ID              int    `json:"id"`
@@ -120,7 +129,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	if search := q.Get("q"); search != "" {
 		like := "%" + search + "%"
 		likeArg := addArg(like)
-		baseWhere += " AND (c.name ILIKE " + likeArg + " OR c.phone ILIKE " + likeArg + " OR o.order_no ILIKE " + likeArg + ")"
+		baseWhere += " AND (c.name ILIKE " + likeArg + " OR c.phone ILIKE " + likeArg + " OR o.order_no ILIKE " + likeArg + " OR o.platform_order_no ILIKE " + likeArg + " OR o.tracking_number ILIKE " + likeArg + ")"
 	}
 	if q.Get("blacklist_only") == "true" {
 		baseWhere += " AND EXISTS (SELECT 1 FROM customer_labels cl WHERE cl.customer_id = o.customer_id AND cl.label = 'blacklist')"
@@ -227,8 +236,8 @@ type orderItemView struct {
 	Price           float64 `json:"price"`
 	HostID          *int    `json:"host_id"`
 	HostName        string  `json:"host_name"`
-	AvailableToPick int     `json:"available_to_pick"` // total_stock = available_stock + incoming_stock - order_stock: the actual pick-time gate value
-	PhysicalStock   int     `json:"physical_stock"`    // raw available_stock, for staff reference
+	AvailableToPick int     `json:"available_to_pick"` // Available = Actual + Incoming - Ordered (can be negative = oversold)
+	PhysicalStock   int     `json:"physical_stock"`    // Actual stock (stock_buckets.available_stock), for staff reference
 	IsOversell      bool    `json:"is_oversell"`
 }
 
@@ -244,7 +253,15 @@ type orderDetailView struct {
 	OrderNo string `json:"order_no"`
 	Status  string `json:"status"`
 	// Locked: exported to a logistics provider -> details frozen, only warehouse/super_user move status.
-	Locked                   bool            `json:"locked"`
+	Locked bool `json:"locked"`
+	// StatusLocked: exported to the shipping platform (Processing onwards) - from here only
+	// warehouse/super_user may change the status. Unlike Locked it is false for an order that is
+	// merely in a batch (details frozen, but CS can still cancel it while it is New).
+	StatusLocked    bool   `json:"status_locked"`
+	PlatformOrderNo string `json:"platform_order_no"`
+	TrackingNumber  string `json:"tracking_number"`
+	// ReturnReceived: the warehouse already booked the returned goods back into stock.
+	ReturnReceived           bool            `json:"return_received"`
 	CustomerName             string          `json:"customer_name"`
 	CustomerPhone            string          `json:"customer_phone"`
 	CustomerBlocked          bool            `json:"customer_blacklisted"`
@@ -333,7 +350,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT oi.id, oi.variant_id, `+productNameSQL(r, "p")+`,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
-		       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock
+		       sb.available_stock + sb.incoming_stock - `+orderedForVariantSQL("pv.id")+`, sb.available_stock
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -390,7 +407,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			SELECT oi.id, oi.variant_id, `+productNameSQL(r, "p")+`,
 			       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 			       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h2.name,'-'),
-			       sb.available_stock + sb.incoming_stock - sb.order_stock, sb.available_stock, o2.order_no
+			       sb.available_stock + sb.incoming_stock - `+orderedForVariantSQL("pv.id")+`, sb.available_stock, o2.order_no
 			FROM order_shipment_group_members m2
 			JOIN orders o2 ON o2.id = m2.order_id
 			JOIN order_items oi ON oi.order_id = o2.id
@@ -449,6 +466,10 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	o.Locked = anyOrderLocked(ctx, h.DB, id)
+	h.DB.QueryRow(ctx, `
+		SELECT o.exported_at IS NOT NULL, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''),
+		       EXISTS(SELECT 1 FROM stock_movements sm WHERE sm.order_id = o.id AND sm.event_type IN ('return_restocked','return_broken'))
+		FROM orders o WHERE o.id=$1`, id).Scan(&o.StatusLocked, &o.PlatformOrderNo, &o.TrackingNumber, &o.ReturnReceived)
 	respondJSON(w, http.StatusOK, o)
 }
 
@@ -621,10 +642,9 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Order creation never validates or touches stock - the only enforcement point is
-	// PickItem, gated on total_stock (available_stock + incoming_stock - order_stock) staying
-	// positive. This
-	// deliberately allows an order to be created even with zero/insufficient stock on hand.
+	// Order creation never validates or touches stock: it just raises "Ordered" (derived from the
+	// orders). This deliberately allows an order to be created even with zero/insufficient stock on
+	// hand - the Shipping Workbench only batches orders that physical stock can fully cover.
 	var subtotal float64
 	for _, it := range req.Items {
 		var price float64
@@ -681,6 +701,12 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		shippingFee = 0
 		freeShippingOverride = true
 	}
+	// The shipping platforms reject an order above NT$20,000 (products + shipping fee), so such an
+	// order must be fixed here, not discovered at export time. Same formula as the export rows.
+	if subtotal-req.DiscountAmount+req.AdditionalAmount+shippingFee > exportTotalMax {
+		respondError(w, http.StatusBadRequest, fmt.Sprintf("total pesanan melebihi batas platform pengiriman (maks. NT$%d)", exportTotalMax))
+		return
+	}
 	if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=$1, free_shipping_override=$2, promotion_id=$3, promotion_discount_amount=$4 WHERE id=$5`,
 		shippingFee, freeShippingOverride, promotionID, promotionDiscountAmount, orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save shipping fee")
@@ -711,11 +737,9 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 type updateStatusRequest struct {
 	Status string `json:"status"`
 	Reason string `json:"reason"`
-	// Force skips the mergeable-sibling warning below for the "picking" transition only - the
-	// frontend sets this after the staff member confirms a "start picking without merging?"
-	// dialog. Has no effect on "shipped", which stays a hard, non-overridable block (the
-	// last-resort safety net right before an irreversible shipment).
-	Force bool `json:"force"`
+	// ConfirmStopped must be true to cancel an order that is already Processing / Ready to Ship:
+	// the caller confirms the external shipping order (platform / 3PL) has been stopped.
+	ConfirmStopped bool `json:"confirm_stopped"`
 }
 
 // findMergeableSiblings returns the order_nos of other orders belonging to the same customer,
@@ -751,6 +775,42 @@ func (h *OrderHandler) findMergeableSiblings(ctx context.Context, tx pgx.Tx, ord
 	return siblingOrderNos, nil
 }
 
+// checkStatusChange applies the manual status-change rules: it returns an HTTP status and message
+// when the change is refused, or ("", 0 value) msg=="" when it is allowed.
+func checkStatusChange(role, current, target, reason string, exported, confirmStopped bool) (int, string) {
+	// Exported orders are locked: only warehouse and super_user may still move the status.
+	if exported && !canChangeLockedStatus(role) {
+		return http.StatusForbidden, "order sudah di-export (Processing): hanya Warehouse dan Super Admin yang boleh mengubah status"
+	}
+	valid := false
+	for _, s := range validTransitions[current] {
+		if s == target {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "transisi status tidak valid: " + current + " -> " + target
+	}
+	if (target == "cancelled" || target == "return") && reason == "" {
+		return http.StatusBadRequest, "reason is required for cancelled/return"
+	}
+	if manualShipTargets[target] && !canChangeLockedStatus(role) {
+		return http.StatusForbidden, "status Shipped/Completed diperbarui lewat Shipping Workbench; hanya Warehouse dan Super Admin yang boleh mengubahnya manual"
+	}
+	// Once an order is in the external shipping workflow, only warehouse/super_user may cancel it,
+	// after confirming the shipment can still be stopped.
+	if target == "cancelled" && (current == "processing" || current == "ready_to_ship") {
+		if !canChangeLockedStatus(role) {
+			return http.StatusForbidden, "order sudah masuk proses pengiriman: hanya Warehouse dan Super Admin yang boleh membatalkan"
+		}
+		if !confirmStopped {
+			return http.StatusBadRequest, "confirm that the external shipment has been stopped before cancelling (confirm_stopped)"
+		}
+	}
+	return 0, ""
+}
+
 // UpdateStatus validates the transition and triggers the corresponding stock movement.
 func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -780,77 +840,13 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
-	// Exported orders are locked: only warehouse and super_user may still move the status.
-	if exported && !canChangeLockedStatus(claims.Role) {
-		respondError(w, http.StatusForbidden, "order sudah di-export (Picking): hanya Warehouse dan Super Admin yang boleh mengubah status")
+	if status, msg := checkStatusChange(claims.Role, currentStatus, req.Status, req.Reason, exported, req.ConfirmStopped); msg != "" {
+		respondError(w, status, msg)
 		return
 	}
 
-	allowed := validTransitions[currentStatus]
-	isValid := false
-	for _, s := range allowed {
-		if s == req.Status {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		respondError(w, http.StatusBadRequest, "transisi status tidak valid: "+currentStatus+" -> "+req.Status)
-		return
-	}
-	if (req.Status == "cancelled" || req.Status == "return") && req.Reason == "" {
-		respondError(w, http.StatusBadRequest, "reason is required for cancelled/return")
-		return
-	}
-
-	rows, err := tx.Query(ctx, `SELECT variant_id, qty, picked_qty FROM order_items WHERE order_id=$1`, id)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to load order items")
-		return
-	}
-	type item struct {
-		VariantID int
-		Qty       int
-		PickedQty int
-	}
-	var items []item
-	for rows.Next() {
-		var it item
-		rows.Scan(&it.VariantID, &it.Qty, &it.PickedQty)
-		items = append(items, it)
-	}
-	rows.Close()
-
-	if req.Status == "picking" {
-		anyPicked := false
-		for _, it := range items {
-			if it.PickedQty > 0 {
-				anyPicked = true
-				break
-			}
-		}
-		if !anyPicked {
-			respondError(w, http.StatusBadRequest, "pilih dan ambil setidaknya satu produk sebelum memulai picking")
-			return
-		}
-	}
-
-	// Merging only ever works pre-picking/pre-shipment (see order_merge.go's Suggestions/
-	// CreateGroup eligibility: pending or ready_to_ship, never mid-picking) - so the earliest
-	// useful place to warn staff about a mergeable sibling is right when picking is about to
-	// start, not just at the final shipped transition. "picking" is a soft warning staff can
-	// dismiss (req.Force skips it, set by the frontend once they've confirmed a "start picking
-	// without merging?" dialog) - starting picking doesn't itself prevent merging later, so it
-	// shouldn't hard-block. "shipped" stays a hard, non-overridable block: it's the last-resort
-	// safety net right before an irreversible shipment, in case a sibling order only appeared
-	// after this one had already started picking.
-	if req.Status == "picking" && !req.Force {
-		siblingOrderNos, sibErr := h.findMergeableSiblings(ctx, tx, id)
-		if sibErr == nil && len(siblingOrderNos) > 0 {
-			respondError(w, http.StatusConflict, "pelanggan ini punya order lain yang bisa digabung sebelum dikirim: "+strings.Join(siblingOrderNos, ", "))
-			return
-		}
-	}
+	// "shipped" stays a hard, non-overridable block when a mergeable sibling order exists: it's
+	// the last-resort safety net right before an irreversible shipment.
 	if req.Status == "shipped" {
 		siblingOrderNos, sibErr := h.findMergeableSiblings(ctx, tx, id)
 		if sibErr == nil && len(siblingOrderNos) > 0 {
@@ -859,57 +855,8 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, it := range items {
-		switch req.Status {
-		case "delivered":
-			// order_stock decreases (sale finalized). available_stock was already decreased at
-			// pick time, so no change there - by this stage picked_qty == qty for every item.
-			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
-			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
-				VALUES ($1,$2,'order_stock','(finalized)',$3,'order_delivered',$4,$5)`,
-				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
-		case "cancelled":
-			// Only the actually-picked portion ever touched stock (order creation no longer
-			// reserves anything) - reverse picked_qty, not the full ordered qty.
-			tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
-			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
-				VALUES ($1,$2,'order_stock','available_stock',$3,'order_cancelled',$4,$5)`,
-				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
-		case "return":
-			// order_stock -> available_stock (if still present, e.g. from Shipped) - returned items
-			// go straight back to sellable stock. If coming from 'delivered', order_stock was
-			// already 0, so this just adds the returned qty back to available_stock.
-			if currentStatus == "delivered" {
-				tx.Exec(ctx, `UPDATE stock_buckets SET available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
-			} else {
-				tx.Exec(ctx, `UPDATE stock_buckets SET order_stock = order_stock - $1, available_stock = available_stock + $1 WHERE variant_id=$2`, it.PickedQty, it.VariantID)
-			}
-			tx.Exec(ctx, `INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id, note)
-				VALUES ($1,$2,'order_stock','available_stock',$3,'order_return',$4,$5)`,
-				it.VariantID, id, it.PickedQty, claims.UserID, req.Reason)
-		}
-	}
-
-	if _, err := tx.Exec(ctx, `UPDATE orders SET status=$1, updated_at=now() WHERE id=$2`, req.Status, id); err != nil {
+	if err := applyStatusChange(ctx, tx, id, currentStatus, req.Status, &claims.UserID, req.Reason); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update order status")
-		return
-	}
-	if req.Status == "cancelled" {
-		// Free the promotion's usage/per-customer count back up - a cancelled order shouldn't
-		// permanently consume a limited coupon's redemption slot.
-		tx.Exec(ctx, `DELETE FROM promotion_redemptions WHERE order_id=$1`, id)
-		OrderCancelledRefund(ctx, tx, id) // give back wallet balance / points the order used
-	}
-	if req.Status == "delivered" {
-		OrderDeliveredReward(ctx, tx, id) // points for the member + referral reward on a first order
-	}
-	if req.Status == "return" {
-		OrderEarnReverse(ctx, tx, id) // returned goods don't keep their points
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
-		VALUES ($1,$2,$3,$4,$5)`, id, currentStatus, req.Status, claims.UserID, req.Reason); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to log status change")
 		return
 	}
 
@@ -1007,7 +954,7 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 	// Method / address / store can only change before picking starts; once the order is in the
 	// shipping process the parcel data is already in use by the warehouse.
 	if curStatus != "pending" {
-		respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum picking dimulai (status saat ini: "+curStatus+")")
+		respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum order masuk Processing (status saat ini: "+curStatus+")")
 		return
 	}
 	if msg := validateExportFields(ctx, h.DB, req.PickupChainID, "", finalAddress); msg != "" {
@@ -1071,7 +1018,7 @@ type updateKeepDateRequest struct {
 }
 
 // UpdateKeepDate sets or clears the order's Keep date (nullable - clearing it makes the order
-// immediately picking-queue-eligible again, see PickingHandler.Queue).
+// eligible for batching again).
 func (h *OrderHandler) UpdateKeepDate(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -1124,121 +1071,6 @@ func (h *OrderHandler) AddAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusCreated, map[string]int{"id": attID})
-}
-
-type pickItemRequest struct {
-	PickedQty int `json:"picked_qty"`
-}
-
-// PickItem records how much of a line item has been physically gathered during picking
-// (used both from the order-detail page and the cross-order Daftar Pengambilan queue). Once
-// every item on the order reaches full picked_qty, the order auto-transitions picking ->
-// ready_to_ship - "ready to ship" is a derived fact (100% picked), not a staff decision, so
-// there's no separate manual "mark as ready" action to forget.
-func (h *OrderHandler) PickItem(w http.ResponseWriter, r *http.Request) {
-	itemID, err := strconv.Atoi(chi.URLParam(r, "itemId"))
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid item id")
-		return
-	}
-	var req pickItemRequest
-	if err := decodeJSON(r, &req); err != nil || req.PickedQty < 0 {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	claims := appmw.GetClaims(r)
-	ctx := r.Context()
-
-	tx, err := h.DB.Begin(ctx)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	defer tx.Rollback(ctx)
-
-	var orderID, variantID, qty, oldPickedQty int
-	if err := tx.QueryRow(ctx, `SELECT order_id, variant_id, qty, picked_qty FROM order_items WHERE id=$1`, itemID).
-		Scan(&orderID, &variantID, &qty, &oldPickedQty); err != nil {
-		respondError(w, http.StatusNotFound, "order item not found")
-		return
-	}
-	if _, err := tx.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, orderID); err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	newPickedQty := req.PickedQty
-	if newPickedQty > qty {
-		newPickedQty = qty
-	}
-	delta := newPickedQty - oldPickedQty
-
-	// Stock is only ever touched here, not at order creation: picking is the sole enforcement
-	// point. total_stock = available_stock + incoming_stock - order_stock must stay positive for
-	// a pick to add quantity; releasing quantity (delta < 0, picked_qty being lowered) never
-	// needs a gate.
-	if delta > 0 {
-		var available, incoming, orderStock int
-		var allowOversell bool
-		if err := tx.QueryRow(ctx, `
-			SELECT sb.available_stock, sb.incoming_stock, sb.order_stock, pv.allow_oversell FROM stock_buckets sb
-			JOIN product_variants pv ON pv.id = sb.variant_id
-			WHERE sb.variant_id=$1 FOR UPDATE`, variantID).Scan(&available, &incoming, &orderStock, &allowOversell); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to load stock")
-			return
-		}
-		totalStock := available + incoming - orderStock
-		if totalStock <= 0 && !allowOversell {
-			respondError(w, http.StatusConflict, fmt.Sprintf("stok tidak mencukupi untuk picking (total_stock: %d)", totalStock))
-			return
-		}
-	}
-	if delta != 0 {
-		if _, err := tx.Exec(ctx, `
-			UPDATE stock_buckets SET available_stock = available_stock - $1, order_stock = order_stock + $1
-			WHERE variant_id = $2`, delta, variantID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to update stock")
-			return
-		}
-		eventType, bucketFrom, bucketTo, movementQty := "item_picked", "available_stock", "order_stock", delta
-		if delta < 0 {
-			eventType, bucketFrom, bucketTo, movementQty = "item_unpicked", "order_stock", "available_stock", -delta
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO stock_movements (variant_id, order_id, bucket_from, bucket_to, qty, event_type, user_id)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-			variantID, orderID, bucketFrom, bucketTo, movementQty, eventType, claims.UserID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to log stock movement")
-			return
-		}
-	}
-
-	if _, err := tx.Exec(ctx, `UPDATE order_items SET picked_qty = $1 WHERE id=$2`, newPickedQty, itemID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to update picked quantity")
-		return
-	}
-
-	var remaining int
-	if err := tx.QueryRow(ctx, `
-		SELECT COUNT(*) FROM order_items WHERE order_id=$1 AND picked_qty < qty`, orderID).Scan(&remaining); err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if remaining == 0 {
-		var currentStatus string
-		if err := tx.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1`, orderID).Scan(&currentStatus); err == nil && currentStatus == "picking" {
-			tx.Exec(ctx, `UPDATE orders SET status='ready_to_ship', updated_at=now() WHERE id=$1`, orderID)
-			tx.Exec(ctx, `
-				INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
-				VALUES ($1,'picking','ready_to_ship',$2,'system: semua item sudah dipicking')`, orderID, claims.UserID)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 type splitOrderRequest struct {

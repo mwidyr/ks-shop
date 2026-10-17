@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -20,7 +21,7 @@ const (
 func exportNameUnits(s string) int {
 	n := 0
 	for _, r := range s {
-		if unicode.Is(unicode.Han, r) || (r >= 0x3000 && r <= 0x303F) || (r >= 0xFF00 && r <= 0xFFEF) {
+		if isCJK(r) {
 			n += 2
 		} else {
 			n++
@@ -41,4 +42,63 @@ func validateExportFields(ctx context.Context, db rowQuerier, chainID int, name,
 		return "alamat POS terlalu panjang untuk file logistik (maks. 50 karakter Mandarin)"
 	}
 	return ""
+}
+
+const (
+	exportTotalMax = 20000
+	hctOrderNoMax  = 20
+)
+
+func trim(s string) string { return strings.TrimSpace(s) }
+
+func isCJK(r rune) bool {
+	return unicode.Is(unicode.Han, r) || (r >= 0x3000 && r <= 0x303F) || (r >= 0xFF00 && r <= 0xFFEF)
+}
+
+// hctOrderNoValid: HCT order id is at most 20 characters, no Chinese.
+func hctOrderNoValid(orderNo string) bool {
+	if orderNo == "" || len([]rune(orderNo)) > hctOrderNoMax {
+		return false
+	}
+	for _, r := range orderNo {
+		if isCJK(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// cvsPhoneOK: a Taiwan mobile number, 10 digits starting with 09, after dropping separators.
+func cvsPhoneOK(phone string) bool {
+	digits := make([]rune, 0, 10)
+	for _, r := range phone {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, r)
+		}
+	}
+	return len(digits) == 10 && digits[0] == '0' && digits[1] == '9'
+}
+
+func isSixDigits(s string) bool {
+	if len(s) != 6 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func dedupeStrings(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
 }

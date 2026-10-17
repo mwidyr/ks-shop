@@ -102,23 +102,13 @@ type Variant struct {
 	// IncomingOpenPO is true when the variant has a Purchase Order not yet fully received, so
 	// Inventory can say "ETA not set" when no such PO has an expected arrival date yet.
 	IncomingOpenPO bool `json:"incoming_open_po"`
-	// ReservedForOrders is what customer orders have asked for but staff have not picked yet
-	// (SUM(qty - picked_qty) over orders that are not cancelled / returned). Creating an order raises
-	// it without touching available_stock; picking moves the quantity out of both. Shown as
-	// "Dipesan" in Stock Management.
+	// ReservedForOrders is the "Ordered" quantity: what customers have ordered but not yet had shipped
+	// (orders in pending / processing / ready_to_ship, see orderedByVariantSQL). It is derived, never
+	// stored, and only drops when the order ships or is cancelled. Shown as "Dipesan" in Stock Management.
 	ReservedForOrders int `json:"reserved_for_orders"`
-	// TotalStock is the Available Stock shown to staff: available_stock + incoming_stock - ReservedForOrders.
-	// (Picking itself is still gated separately in orders.PickItem.)
+	// TotalStock is the Available Stock shown to staff: Actual (available_stock) + Incoming - Ordered.
 	TotalStock int `json:"total_stock"`
 }
-
-// reservedByVariantSQL is a derived table (variant_id, qty) of the quantity reserved by open customer
-// orders - join it as `LEFT JOIN <this> rv ON rv.variant_id = pv.id` and read COALESCE(rv.qty, 0).
-const reservedByVariantSQL = `(
-	SELECT oi.variant_id, SUM(oi.qty - oi.picked_qty) AS qty
-	FROM order_items oi JOIN orders o ON o.id = oi.order_id
-	WHERE o.status NOT IN ('cancelled','return') AND oi.qty > oi.picked_qty
-	GROUP BY oi.variant_id)`
 
 type ProductImage struct {
 	ID  int    `json:"id"`
@@ -216,7 +206,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
-		LEFT JOIN `+reservedByVariantSQL+` rv ON rv.variant_id = pv.id
+		LEFT JOIN `+orderedByVariantSQL+` rv ON rv.variant_id = pv.id
 		ORDER BY pv.id`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch variants")
@@ -350,7 +340,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
-		LEFT JOIN `+reservedByVariantSQL+` rv ON rv.variant_id = pv.id
+		LEFT JOIN `+orderedByVariantSQL+` rv ON rv.variant_id = pv.id
 		WHERE pv.product_id = $1 ORDER BY pv.id`, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch variants")
@@ -829,11 +819,6 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SKU = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size, req.SKU)
 
-	if req.AvailableStock < before.OrderStock {
-		respondError(w, http.StatusConflict, fmt.Sprintf("available_stock tidak boleh kurang dari order_stock (%d)", before.OrderStock))
-		return
-	}
-
 	var beforePrice float64
 	tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice)
 
@@ -967,9 +952,9 @@ func (h *ProductHandler) StockHistory(w http.ResponseWriter, r *http.Request) {
 		argN++
 	}
 	if direction := q.Get("direction"); direction == "in" {
-		where += " AND sm.qty >= 0 AND sm.bucket_to IN ('available_stock','order_stock')"
+		where += " AND sm.qty >= 0 AND sm.bucket_to = 'available_stock'"
 	} else if direction == "out" {
-		where += " AND sm.event_type IN ('order_delivered','order_return')"
+		where += " AND sm.event_type IN ('shipment_deducted')"
 	}
 
 	limit := 100

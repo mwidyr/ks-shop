@@ -12,7 +12,7 @@ import { IconHeadset, IconWhatsApp } from '../components/Icons'
 import { btnDark, btnOutline, btnPrimary, btnWhatsApp, ErrorState, Field, inputStyle, PageHeader, Sheet, Spinner } from '../components/ui'
 
 const STEPS = ['created', 'shipped', 'hub', 'store', 'ready']
-const reached = (status) => ({ pending: 1, picking: 1, ready_to_ship: 1, shipped: 3, delivered: 5, return: 5, cancelled: 0 }[status] ?? 1)
+const reached = (status) => ({ pending: 1, picking: 1, processing: 1, ready_to_ship: 1, shipped: 3, delivered: 5, return: 5, cancelled: 0 }[status] ?? 1)
 
 export default function OrderDetail() {
   const { orderNo } = useParams()

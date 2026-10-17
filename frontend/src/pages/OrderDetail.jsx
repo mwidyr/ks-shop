@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  addOrderAttachment, deleteMergeGroup, getOrder, pickOrderItem, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
+  addOrderAttachment, deleteMergeGroup, getOrder, markReturnReceived, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
 } from '../api/orders'
 import { listPickupChains } from '../api/pickupChains'
 import { getShippingSettings } from '../api/settings'
@@ -14,8 +14,7 @@ import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
 import { useAuth } from '../context/AuthContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
-import PickingLineItem from '../components/PickingLineItem'
-import ScanVerifyModal from '../components/ScanVerifyModal'
+import OrderLineItem from '../components/OrderLineItem'
 import { IconClose } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 
@@ -32,22 +31,77 @@ function isoToLocalInput(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Manual status changes only (mirrors validTransitions in orders.go). Processing / Ready to Ship
+// are set by the Shipping Workbench; Shipped / Completed manually only by warehouse / super_user.
 const transitions = {
-  pending: ['picking', 'cancelled'],
-  picking: ['ready_to_ship', 'cancelled'],
+  pending: ['cancelled'],
+  processing: ['cancelled'],
   ready_to_ship: ['shipped', 'cancelled'],
-  shipped: ['delivered', 'cancelled', 'return'],
+  shipped: ['delivered', 'return'],
   delivered: ['return'],
 }
+const manualShipTargets = ['shipped', 'delivered']
 
 const todoByStatus = {
   pending: ['todo_waiting_picking'],
-  picking: ['todo_picking_in_progress'],
+  processing: ['todo_picking_in_progress'],
   ready_to_ship: ['todo_pickup_done', 'todo_waiting_shipment'],
   shipped: ['todo_in_transit'],
   delivered: ['todo_order_done'],
   cancelled: ['todo_order_cancelled'],
   return: ['todo_order_returned'],
+}
+
+// Warehouse books a returned order's goods back: resellable units go back into Actual stock, damaged
+// ones into Broken. Done once, only after the items were physically received and checked.
+function ReturnReceivedPanel({ order, onDone }) {
+  const { t } = useTranslation()
+  const [lines, setLines] = useState(() => {
+    const byVariant = {}
+    order.items.forEach((it) => { byVariant[it.variant_id] = { variant_id: it.variant_id, label: `${it.product_sku} ${it.color}/${it.size}`, qty: (byVariant[it.variant_id]?.qty || 0) + it.qty } })
+    return Object.values(byVariant).map((l) => ({ ...l, resellable: l.qty, broken: 0 }))
+  })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const set = (i, field, v) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [field]: Math.max(0, Number(v) || 0) } : l)))
+  async function submit() {
+    if (!window.confirm(t('page_order_detail.return_received_confirm'))) return
+    setBusy(true)
+    setError('')
+    try {
+      await markReturnReceived(order.id, lines.map((l) => ({ variant_id: l.variant_id, resellable_qty: l.resellable, broken_qty: l.broken })))
+      onDone()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_order_detail.update_status_failed_error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 space-y-3">
+      <div>
+        <p className="font-semibold text-gray-800 text-sm">{t('page_order_detail.return_received_title')}</p>
+        <p className="text-xs text-gray-600">{t('page_order_detail.return_received_hint')}</p>
+      </div>
+      {lines.map((l, i) => (
+        <div key={l.variant_id} className="flex items-center justify-between gap-3 flex-wrap text-sm">
+          <span className="font-mono text-xs text-gray-700">{l.label} × {l.qty}</span>
+          <span className="flex items-center gap-2">
+            <label className="text-xs text-gray-500">{t('page_order_detail.return_resellable')}
+              <input type="number" min="0" max={l.qty} value={l.resellable} onChange={(e) => set(i, 'resellable', e.target.value)} className="ml-1 w-16 border border-gray-300 rounded px-2 py-1" />
+            </label>
+            <label className="text-xs text-gray-500">{t('page_order_detail.return_broken')}
+              <input type="number" min="0" max={l.qty} value={l.broken} onChange={(e) => set(i, 'broken', e.target.value)} className="ml-1 w-16 border border-gray-300 rounded px-2 py-1" />
+            </label>
+          </span>
+        </div>
+      ))}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button onClick={submit} disabled={busy} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        {t('page_order_detail.return_received_button')}
+      </button>
+    </div>
+  )
 }
 
 function SplitOrderModal({ order, onClose, onDone }) {
@@ -330,13 +384,11 @@ export default function OrderDetail() {
   const [reason, setReason] = useState('')
   const [pendingAction, setPendingAction] = useState(null)
   const [error, setError] = useState('')
-  const [mergeWarning, setMergeWarning] = useState('') // set when starting picking hits a mergeable-sibling warning the staff can confirm past
   const [keepDateDraft, setKeepDateDraft] = useState('')
   const [keepDateSaving, setKeepDateSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copyFallbackText, setCopyFallbackText] = useState(null)
   const [uploading, setUploading] = useState(false)
-  const [scanOpen, setScanOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useState(false)
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [pickupModalOpen, setPickupModalOpen] = useState(false)
@@ -349,42 +401,23 @@ export default function OrderDetail() {
   useEffect(() => { load() }, [id])
   useEffect(() => { listPickupChains().then(setPickupChains) }, [])
 
-  async function handleUpdateStatus(status, force) {
+  async function handleUpdateStatus(status) {
     setError('')
-    setMergeWarning('')
     if ((status === 'cancelled' || status === 'return') && !reason) {
       setPendingAction(status)
       return
     }
-    if (status === 'picking' && !order.items.some((it) => it.picked_qty > 0)) {
-      setError(t('page_order_detail.start_picking_no_items_error'))
-      return
-    }
     try {
-      await updateOrderStatus(id, status, reason, force)
+      // Cancelling an order already in the shipping workflow: the confirm button itself is the
+      // staff's confirmation that the external shipment was stopped (warehouse / super_user only).
+      await updateOrderStatus(id, status, reason, status === 'cancelled')
       setReason('')
       setPendingAction(null)
       load()
     } catch (err) {
       const message = err.response?.data?.error || ''
-      // Starting picking with a mergeable sibling order is a warning the staff can confirm
-      // past, not a hard block - shipping with one still is (see orders.go's UpdateStatus).
-      if (status === 'picking' && !force && err.response?.status === 409 && message.includes('digabung')) {
-        setMergeWarning(message)
-        return
-      }
       setError(message || describeError(err, t('page_order_detail.update_status_failed_error')))
     }
-  }
-
-  async function handlePick(itemId, pickedQty) {
-    await pickOrderItem(itemId, pickedQty)
-    load()
-  }
-
-  async function handleScanMatch(code) {
-    const item = order.items.find((it) => it.sku === code && it.picked_qty < it.qty)
-    if (item) await handlePick(item.id, item.picked_qty + 1)
   }
 
   async function handleUnmerge() {
@@ -419,14 +452,16 @@ export default function OrderDetail() {
 
   if (!order) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">{t('common.loading')}</div>
 
-  // Exported to logistics (status Picking): details are frozen for everyone; only warehouse and
-  // super_user can still move the status. Item picking itself (warehouse work) stays available.
+  // Exported to logistics (status Processing): details are frozen for everyone; only warehouse and
+  // super_user can still move the status.
   const locked = Boolean(order.locked)
-  const canChangeStatus = !locked || ['warehouse', 'super_user'].includes(user?.role)
-  const nextOptions = canChangeStatus ? (transitions[order.status] || []) : []
+  const isWarehouse = ['warehouse', 'super_user'].includes(user?.role)
+  const canChangeStatus = !order.status_locked || isWarehouse
+  const nextOptions = canChangeStatus
+    ? (transitions[order.status] || []).filter((s) => isWarehouse || !manualShipTargets.includes(s))
+    : []
   function actionLabel(s) {
     if (order.status === 'pending') {
-      if (s === 'picking') return t('page_order_detail.start_picking_action')
       if (s === 'cancelled') return t('page_order_detail.reject_order_action')
     }
     return t(`status.${s}`, statusLabels[s])
@@ -434,12 +469,6 @@ export default function OrderDetail() {
 
   const hostNames = [...new Set(order.items.map((it) => it.host_name).filter((n) => n && n !== '-'))]
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0)
-  const totalPicked = order.items.reduce((s, it) => s + it.picked_qty, 0)
-  const progres = totalPicked === 0
-    ? t('page_order_detail.progress_waiting')
-    : totalPicked < totalQty
-    ? t('page_order_detail.progress_partial', { picked: totalPicked, total: totalQty })
-    : t('page_order_detail.progress_done')
 
   async function copyOrderInfo() {
     const isGrouped = order.shipment_group_id && order.shipment_group_items?.length > 0
@@ -535,11 +564,24 @@ export default function OrderDetail() {
               <p className="text-[11px] uppercase text-gray-400 mb-0.5">{t('page_order_detail.stage_label')}</p>
               <StatusPill status={order.status} />
             </div>
-            <div>
-              <p className="text-[11px] uppercase text-gray-400 mb-0.5">{t('page_order_detail.fulfillment_progress_label')}</p>
-              <p className="font-semibold text-gray-700">{progres}</p>
-            </div>
           </div>
+
+          {(order.platform_order_no || order.tracking_number) && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-[11px] uppercase text-gray-400 mb-0.5">{t('page_order_detail.platform_order_no_label')}</p>
+                <p className="font-mono font-semibold text-gray-700">{order.platform_order_no || '-'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase text-gray-400 mb-0.5">{t('page_order_detail.shipping_no_label')}</p>
+                <p className="font-mono font-semibold text-gray-700">{order.tracking_number || '-'}</p>
+              </div>
+            </div>
+          )}
+
+          {order.status === 'return' && isWarehouse && !order.return_received && (
+            <ReturnReceivedPanel order={order} onDone={load} />
+          )}
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <p className="text-sm font-semibold text-gray-700 mb-1">{t('page_order_detail.customer_contact_label')}</p>
@@ -581,9 +623,6 @@ export default function OrderDetail() {
             <div className="p-4 flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.product_details_label', { count: order.items.length })}</p>
               <div className="flex gap-2">
-                <button onClick={() => setScanOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
-                  {t('page_order_detail.scan_verify_button')}
-                </button>
                 {order.items.length > 1 && !locked && (
                   <button onClick={() => setSplitOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                     {t('page_order_detail.split_order_action')}
@@ -593,20 +632,17 @@ export default function OrderDetail() {
             </div>
             {order.items.map((item) => (
               <div key={item.id} className="p-3">
-                <PickingLineItem
-                  itemId={item.id}
+                <OrderLineItem
                   sku={item.product_sku}
                   productName={item.product_name}
                   imageUrl={item.image_url}
                   color={item.color}
                   size={item.size}
                   qty={item.qty}
-                  pickedQty={item.picked_qty}
-                  availableToPick={item.available_to_pick}
-                  physicalStock={item.physical_stock}
+                  available={item.available_to_pick}
+                  actualStock={item.physical_stock}
                   isOversell={item.is_oversell}
                   hostName={item.host_name}
-                  onPick={handlePick}
                   meta={<p className="text-sm font-semibold text-gray-700 float-right">{formatCurrency(item.price * item.qty)}</p>}
                 />
               </div>
@@ -782,24 +818,6 @@ export default function OrderDetail() {
                   </div>
                 </div>
               )}
-              {mergeWarning && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
-                    {mergeWarning}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => handleUpdateStatus('picking', true)} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-                      {t('page_order_detail.start_picking_anyway')}
-                    </button>
-                    <Link to="/orders/merge" className="text-sm font-semibold text-brand-600 hover:underline px-2">
-                      {t('page_merge_orders.heading')} →
-                    </Link>
-                    <button onClick={() => setMergeWarning('')} className="text-sm text-gray-500 px-2">
-                      {t('common.cancel')}
-                    </button>
-                  </div>
-                </div>
-              )}
               {error && (
                 <div className="mt-2">
                   <p className="text-red-600 text-sm">{error}</p>
@@ -870,7 +888,6 @@ export default function OrderDetail() {
           </div>
         </div>
       )}
-      {scanOpen && <ScanVerifyModal onMatch={handleScanMatch} onClose={() => setScanOpen(false)} />}
       {splitOpen && (
         <SplitOrderModal
           order={order}

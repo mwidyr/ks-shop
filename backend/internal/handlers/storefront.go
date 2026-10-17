@@ -53,10 +53,10 @@ func storeCategorySQL(r *http.Request, col string) string {
 }
 
 // sellableSQL is how many units of a variant can still be promised to a website customer:
-// physical available stock minus what pending/picking orders still need to pick.
-const sellableSQL = `(sb.available_stock - COALESCE((
-	SELECT SUM(oi.qty - oi.picked_qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-	WHERE oi.variant_id = pv.id AND o.status IN ('pending','picking')), 0))`
+// Available = Actual + Incoming - Ordered (customers may order before incoming stock arrives).
+const sellableSQL = `(sb.available_stock + sb.incoming_stock - COALESCE((
+	SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+	WHERE oi.variant_id = pv.id AND o.status IN ` + orderedStatusesSQL + `), 0))`
 
 // ---- catalog ----
 

@@ -35,8 +35,9 @@ const ReplenishmentPlanning = lazy(() => import('./pages/ReplenishmentPlanning')
 const PurchaseRequisitions = lazy(() => import('./pages/PurchaseRequisitions'))
 const PurchaseRequisitionDetail = lazy(() => import('./pages/PurchaseRequisitionDetail'))
 const Shipping = lazy(() => import('./pages/Shipping'))
-const ShippingExport = lazy(() => import('./pages/ShippingExport'))
-const DaftarPengambilan = lazy(() => import('./pages/DaftarPengambilan'))
+const ShippingWorkbench = lazy(() => import('./pages/ShippingWorkbench'))
+const ShippingProvider = lazy(() => import('./pages/ShippingProvider'))
+const ShippingBatch = lazy(() => import('./pages/ShippingBatch'))
 const PanelSiaran = lazy(() => import('./pages/PanelSiaran'))
 const LiveSessionHistory = lazy(() => import('./pages/LiveSessionHistory'))
 const LiveSessionNew = lazy(() => import('./pages/LiveSessionNew'))
@@ -95,7 +96,7 @@ function RequireAuth({ children }) {
 // the former Dashboard, so roles that may view it go there; everyone else (e.g. CS, warehouse)
 // lands on the first sidebar page their role can open.
 const HOME_CANDIDATES = [
-  ['performance_dashboard', '/analytics/performance-dashboard'], ['orders', '/orders'], ['picking', '/picking'],
+  ['performance_dashboard', '/analytics/performance-dashboard'], ['orders', '/orders'], ['shipping_workbench', '/shipping-workbench'],
   ['returns', '/returns'], ['inventory', '/inventory'], ['panel_siaran', '/panel-siaran'], ['products', '/products'],
   ['customers', '/customers'], ['suppliers', '/suppliers'], ['purchases', '/purchases'], ['reports', '/finance/reports'],
 ]
@@ -174,8 +175,9 @@ export default function App() {
 
         {/* Fulfillment */}
         <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
-        <Route path="/shipping/export" element={<ProtectedRoute><ShippingExport /></ProtectedRoute>} />
-        <Route path="/picking" element={<ProtectedRoute><DaftarPengambilan /></ProtectedRoute>} />
+        <Route path="/shipping-workbench" element={<ProtectedRoute><ShippingWorkbench /></ProtectedRoute>} />
+        <Route path="/shipping-workbench/:slug" element={<ProtectedRoute><ShippingProvider /></ProtectedRoute>} />
+        <Route path="/shipping-workbench/:slug/batches/:id" element={<ProtectedRoute><ShippingBatch /></ProtectedRoute>} />
         <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
         <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />
 

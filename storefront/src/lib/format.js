@@ -40,7 +40,7 @@ export const ORDER_TABS = ['all', 'pending', 'processing', 'shipping', 'done', '
 export function orderTab(status) {
   switch (status) {
     case 'pending': return 'pending'
-    case 'picking': case 'ready_to_ship': return 'processing'
+    case 'picking': case 'processing': case 'ready_to_ship': return 'processing'
     case 'shipped': return 'shipping'
     case 'delivered': return 'done'
     case 'return': return 'return'

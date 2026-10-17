@@ -1,41 +1,51 @@
 # Stock Movement Reference Table
 
-> Dokumen ini adalah source of truth untuk semua perubahan stock bucket.
-> Semua developer WAJIB mengacu ke tabel ini saat implementasi — bukan menebak logic sendiri.
+> Source of truth for stock logic since the Shipping Workbench (client Q&A, Question 4).
+> The earlier checkout/reserve/pick model described in older docs is superseded.
 
-## Bucket Definition
-- `available_stock` — stok siap dijual/checkout
-- `reserve_stock` — stok yang sedang di-hold saat user di Checkout Page (subject to 30-menit expiry)
-- `order_stock` — stok yang sudah committed jadi Order (Pending s/d sebelum Delivered/Cancelled/Return). **Counter terpisah, TIDAK masuk formula total_stock**
-- `promo_stock` — alokasi khusus promo (belum ada flow checkout — OPEN QUESTION)
-- `safety_stock` — buffer, tidak dijual normal
-- `broken_stock` — barang rusak/reject/hasil retur
+## Fields (per product variant)
 
-## Formula
-```
-total_stock = available_stock + reserve_stock + promo_stock + safety_stock + broken_stock
-```
-> ⚠️ **ASUMSI (perlu konfirmasi klien):** karena `order_stock` tidak ada di formula, maka saat stock pindah ke `order_stock`, `total_stock` otomatis berkurang di titik itu juga (bukan menunggu Delivered). Ini karena secara akuntansi barang dianggap sudah "committed/terjual" begitu Order dibuat.
+| Field | DB column | Meaning |
+|---|---|---|
+| **Actual** | `stock_buckets.available_stock` | Physical stock in the warehouse. Only this can be fulfilled through the 3PL. |
+| **Incoming** | `stock_buckets.incoming_stock` | Purchased, not yet received. Sellable, but cannot be shipped. |
+| **Ordered** | *derived* | Customer quantity not yet shipped: items on orders in `pending`, `processing`, `ready_to_ship`. Never stored (`orderedByVariantSQL`). |
+| **Available** | *derived* | `Actual + Incoming - Ordered`. Negative = oversold. |
+| Broken | `stock_buckets.broken_stock` | Damaged / non-resellable returns. |
 
-## Movement Table
+`reserve_stock` and `order_stock` are no longer used (`order_stock` is always 0).
 
-| # | Event | available_stock | reserve_stock | order_stock (di luar formula) | broken_stock | total_stock |
-|---|---|---|---|---|---|---|
-| 1 | User masuk Checkout Page | -qty | +qty | - | - | tetap |
-| 2 | Checkout expired (30 menit tanpa aktivitas) | +qty | -qty | - | - | tetap |
-| 3 | Aktivitas di checkout page (ubah qty, dll) | - | - | - | - | tetap (timer reset) |
-| 4 | Checkout sukses → Order dibuat (status **Pending**) | - | -qty | +qty | - | **-qty** |
-| 5 | Status Confirm → Packing → Picking → Shipped | - | - | tetap | - | tetap |
-| 6 | Order **Delivered** | - | - | -qty (sale finalized) | - | tetap |
-| 7 | Order **Cancelled** (valid dari Pending s/d sebelum Delivered) | +qty | - | -qty | - | **+qty** |
-| 8 | Order **Return** (valid dari Shipped atau Delivered) | - | - | -qty (jika masih ada) | +qty | **+qty** |
+## Movement table
 
-## Open Questions ke Klien
-1. Konfirmasi asumsi formula di atas — apakah benar `total_stock` berkurang saat order masuk Pending, bukan saat Delivered?
-2. `promo_stock` — kapan dan bagaimana dipakai untuk checkout? Perlu flow checkout terpisah atau manual adjustment saja oleh admin?
-3. Apakah butuh proses QC untuk barang di `broken_stock` hasil retur sebelum bisa dipindah manual ke `available_stock` lagi (misal ternyata barangnya masih bagus)?
-4. Concurrency: locking strategy — pessimistic lock (row lock saat checkout) atau optimistic lock (versioning + retry)? Rekomendasi: pessimistic lock untuk kasus stock terbatas dengan traffic rendah (4-5 user) — lebih simpel dan aman.
+| Event | Actual | Incoming | Ordered | Available |
+|---|---|---|---|---|
+| Customer places an order | - | - | +qty | -qty |
+| Shipping batch created / Excel exported / platform result imported | - | - | - | - |
+| Purchase order confirmed | - | +qty | - | +qty |
+| Purchase received | +qty | -qty | - | - |
+| **3PL confirms shipment** (status `shipped`) | **-qty** | - | -qty | - |
+| Delivery confirmed (`delivered`) | - | - | - | - |
+| Order cancelled before shipment | - | - | -qty | +qty |
+| Return requested (order `return`), goods not received | - | - | - | - |
+| Returned goods received, resellable | +qty | - | - | +qty |
+| Returned goods received, damaged | - (Broken +qty) | - | - | - |
 
-## Technical Notes
-- Semua perubahan bucket harus dalam **satu database transaction** (atomic) dengan stock movement log tercatat di tabel terpisah (`stock_movements`: bucket_from, bucket_to, qty, sku, order_id, user_id, timestamp).
-- Background job (cron, misal tiap 1 menit) diperlukan untuk auto-expire checkout session yang lewat 30 menit tanpa aktivitas.
+## Rules
+
+- Actual is deducted **once** per (order, variant): the unique index `uq_stock_movements_once` on
+  `stock_movements` makes a repeated shipment import / click a no-op (`deductShipmentStock`).
+- A returned item is restocked once per (order, variant) via `POST /orders/{id}/return-received`.
+- A shipped order cannot be cancelled; it follows the return process.
+- Shipping batches **allocate** physical stock (an order in a batch that has not shipped or been
+  cancelled holds its quantity) without changing any field; allocation is derived, never stored.
+  Allocatable = Actual - quantity held by unshipped batch orders. An order is only batchable if its
+  whole quantity fits.
+- Every change is a row in `stock_movements`, written in the same transaction as the stock update.
+
+## Order statuses
+
+`pending` (New) -> `processing` -> `ready_to_ship` -> `shipped` -> `delivered` (Completed);
+final: `delivered`, `cancelled`, `return` (Returned).
+- `processing`: the batch's initial shipping Excel was exported.
+- `ready_to_ship`: the platform result was imported and the order matched.
+- `shipped`: the 3PL confirmed actual shipment.

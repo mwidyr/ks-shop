@@ -37,3 +37,5 @@ PickingTask (opsional, jika picking perlu tracking terpisah dari status order)
 - [ ] Semua event stock movement tercatat lengkap dan bisa di-trace per SKU/order
 - [ ] Tidak ada race condition yang menyebabkan stock minus atau inconsistent (tested dengan concurrent transaction)
 - [ ] `total_stock` selalu sinkron dengan formula setelah event apapun
+
+> **Note:** the picking process in this document was retired. Orders are now fulfilled through the Shipping Workbench; see `00-stock-movement-table.md` for the current stock rules.

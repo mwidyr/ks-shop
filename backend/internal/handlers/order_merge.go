@@ -32,7 +32,7 @@ type mergeSuggestion struct {
 // currently mid-picking, and not yet shipped) sharing the same customer + pickup chain + pickup
 // store, 2 or more at a time. Deliberately NOT narrowed to pending-only: a merge combines the
 // SHIPMENT, not the picking process, so two orders that were picked independently can still be
-// shipped together once both are ready_to_ship. Excluding 'picking' (kept, unchanged from
+// shipped together once both are ready_to_ship. Excluding 'processing' (kept, unchanged from
 // before) plus keeping ready_to_ship eligible is also what keeps the hard ship-time block in
 // UpdateStatus (see orders.go, "shipped" case) always resolvable - that check uses this exact
 // same eligibility, so any sibling it flags can always actually be merged.
@@ -131,8 +131,8 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	for _, o := range orders {
-		if o.Status == "picking" {
-			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is currently being picked and can't be merged")
+		if o.Status == "processing" {
+			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already being processed for shipping and can't be merged")
 			return
 		}
 		if o.Status != "pending" && o.Status != "ready_to_ship" {

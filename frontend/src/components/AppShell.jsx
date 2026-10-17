@@ -22,7 +22,7 @@ const navGroups = [
   {
     title: 'operations', icon: IconCart, items: [
       { to: '/orders', key: 'orders', icon: IconCart },
-      { to: '/picking', key: 'picking', icon: IconClipboard },
+      { to: '/shipping-workbench', key: 'shipping_workbench', icon: IconClipboard },
       { to: '/returns', key: 'returns', icon: IconUndo },
       { to: '/inventory', key: 'inventory', icon: IconMolecule },
       { to: '/customers', key: 'customers', icon: IconUsers },
@@ -136,7 +136,7 @@ const TOP_ITEMS = [
 // until it's ready to ship. This is a blanket visibility gate on top of (not a replacement
 // for) the per-role canSeeTab() permission check below.
 const VISIBLE_TAB_KEYS = new Set([
-  'panel_siaran', 'orders', 'picking', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
+  'panel_siaran', 'orders', 'shipping_workbench', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
   'reports', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
@@ -158,7 +158,6 @@ const titleOverrides = [
   { prefix: '/panel-siaran/history', titleKey: 'shared.title_session_history' },
   { prefix: '/panel-siaran/new', titleKey: 'shared.title_new_session' },
   { prefix: '/panel-siaran/', titleKey: 'shared.title_manage_session' },
-  { prefix: '/shipping/export', titleKey: 'shared.title_shipping_export' },
   { prefix: '/purchases/history', titleKey: 'page_purchase_history.title' },
   { prefix: '/suppliers/', titleKey: 'page_suppliers.profile_title' },
 ]

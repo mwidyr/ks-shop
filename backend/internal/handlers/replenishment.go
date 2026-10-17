@@ -14,7 +14,7 @@ import (
 
 // ReplenishmentHandler powers Replenishment Planning (Replenishment Planning PDF): a simple
 // alert system on top of existing ERP data. Stock always means Available Stock including
-// Incoming (Aktual + Incoming - Dipesan, see reservedByVariantSQL). Alerts are evaluated per
+// Incoming (Aktual + Incoming - Dipesan, see orderedByVariantSQL). Alerts are evaluated per
 // colour/size (variant) but cards and lists count each product once per alert category. Sales
 // use ALL channels with cancelled/returned orders excluded.
 type ReplenishmentHandler struct {
@@ -152,7 +152,7 @@ func (h *ReplenishmentHandler) List(w http.ResponseWriter, r *http.Request) {
 		FROM product_variants pv
 		JOIN products p ON p.id = pv.product_id
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
-		LEFT JOIN `+reservedByVariantSQL+` rv ON rv.variant_id = pv.id
+		LEFT JOIN `+orderedByVariantSQL+` rv ON rv.variant_id = pv.id
 		LEFT JOIN suppliers s ON s.id = p.supplier_id
 		LEFT JOIN sales_agg sa ON sa.variant_id = pv.id
 		LEFT JOIN overdue od ON od.variant_id = pv.id`+where+`

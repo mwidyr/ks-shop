@@ -13,8 +13,8 @@ export function createOrder(payload) {
   return client.post('/orders', payload).then((res) => res.data)
 }
 
-export function updateOrderStatus(id, status, reason, force) {
-  return client.patch(`/orders/${id}/status`, { status, reason, force: Boolean(force) }).then((res) => res.data)
+export function updateOrderStatus(id, status, reason, confirmStopped) {
+  return client.patch(`/orders/${id}/status`, { status, reason, confirm_stopped: Boolean(confirmStopped) }).then((res) => res.data)
 }
 
 export function updateOrderNotes(id, payload) {
@@ -33,17 +33,8 @@ export function addOrderAttachment(id, url) {
   return client.post(`/orders/${id}/attachments`, { url }).then((res) => res.data)
 }
 
-export function pickOrderItem(itemId, pickedQty) {
-  return client.patch(`/order-items/${itemId}/pick`, { picked_qty: pickedQty }).then((res) => res.data)
-}
-
 export function splitOrder(id, itemIds) {
   return client.post(`/orders/${id}/split`, { item_ids: itemIds }).then((res) => res.data)
-}
-
-export function getPickingQueue(params) {
-  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
-  return client.get(`/picking-queue?${q.toString()}`).then((res) => res.data)
 }
 
 export function getMergeSuggestions() {
@@ -56,4 +47,9 @@ export function createMergeGroup(orderIds) {
 
 export function deleteMergeGroup(groupId) {
   return client.delete(`/orders/merge-groups/${groupId}`).then((res) => res.data)
+}
+
+// Warehouse books returned goods back into stock: lines = [{variant_id, resellable_qty, broken_qty}]
+export function markReturnReceived(id, lines, note) {
+  return client.post(`/orders/${id}/return-received`, { lines, note }).then((res) => res.data)
 }

@@ -22,7 +22,7 @@ type RolePermissionHandler struct {
 // (dashboard, settings). Keep in sync if the sidebar changes.
 var tabKeys = []string{
 	"dashboard",
-	"panel_siaran", "orders", "picking", "shipping", "chat", "customers", "reviews",
+	"panel_siaran", "orders", "shipping", "shipping_workbench", "chat", "customers", "reviews",
 	"products", "categories", "colors", "inventory", "warehouses", "suppliers", "purchases", "purchase_requisitions", "replenishment_planning", "purchase_alert",
 	"returns", "refunds",
 	"promotions", "campaigns", "advertising",

@@ -11,13 +11,11 @@ import { formatCurrency } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
-import ExportCvsModal from '../components/ExportCvsModal'
-import ExportKurirModal from '../components/ExportKurirModal'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
-  { key: 'picking', value: 'picking', labelKey: 'page_orders.tab_processing', countKeys: ['picking'] },
+  { key: 'processing', value: 'processing', labelKey: 'page_orders.tab_processing', countKeys: ['processing'] },
   { key: 'ready_to_ship', value: 'ready_to_ship', labelKey: 'status.ready_to_ship', countKeys: ['ready_to_ship'] },
   { key: 'shipped', value: 'shipped', labelKey: 'status.shipped', countKeys: ['shipped'] },
   { key: 'delivered', value: 'delivered', labelKey: 'status.delivered', countKeys: ['delivered'] },
@@ -80,7 +78,6 @@ export default function Orders() {
   const [mergeSuggestions, setMergeSuggestions] = useState([])
   const [mergeAllBusy, setMergeAllBusy] = useState(false)
   const [mergeAllResult, setMergeAllResult] = useState('')
-  const [exportModal, setExportModal] = useState(null)
   const [copiedPhoneId, setCopiedPhoneId] = useState(null)
 
   async function handleCopyPhone(e, orderId, phone) {
@@ -197,16 +194,10 @@ export default function Orders() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <button onClick={() => setExportModal('cvs')} className="text-sm font-medium px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50">
-          {t('page_orders.export_cvs_button')}
-        </button>
-        <button onClick={() => setExportModal('kurir')} className="text-sm font-medium px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50">
-          {t('page_orders.export_kurir_button')}
-        </button>
+        <Link to="/shipping-workbench" className="text-sm font-medium px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50">
+          {t('page_orders.open_shipping_workbench')}
+        </Link>
       </div>
-
-      {exportModal === 'cvs' && <ExportCvsModal onClose={() => setExportModal(null)} onExported={fetchOrders} />}
-      {exportModal === 'kurir' && <ExportKurirModal onClose={() => setExportModal(null)} onExported={fetchOrders} />}
 
       {mergeSuggestions.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">

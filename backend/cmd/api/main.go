@@ -65,6 +65,7 @@ func main() {
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
 	promotionH := &handlers.PromotionHandler{DB: pool}
 	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
+	shippingWBH := &handlers.ShippingWorkbenchHandler{DB: pool}
 	cvsStoreH := &handlers.CvsStoreHandler{
 		DB:         pool,
 		MerchantID: cfg.ECPayLogisticsMerchantID,
@@ -111,7 +112,6 @@ func main() {
 	feesH := &handlers.FeeSettingsHandler{DB: pool}
 	shippingSettingsH := &handlers.ShippingSettingsHandler{DB: pool}
 	storeSettingsH := &handlers.StoreSettingsHandler{DB: pool}
-	pickingH := &handlers.PickingHandler{DB: pool}
 	pickupLinkH := &handlers.PickupLinkHandler{DB: pool}
 	categoryH := &handlers.CategoryHandler{DB: pool}
 	colorH := &handlers.ColorHandler{DB: pool}
@@ -301,8 +301,8 @@ func main() {
 			r.With(edit("orders")).Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
 			r.With(edit("orders")).Patch("/orders/{id}/pickup", orderH.UpdatePickup)
 			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
-			r.With(edit("picking")).Patch("/order-items/{itemId}/pick", orderH.PickItem)
 			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)
+			r.With(edit("shipping_workbench")).Post("/orders/{id}/return-received", orderH.ReturnReceived)
 			r.With(view("promotions")).Get("/promotions", promotionH.List)
 			r.With(edit("promotions")).Post("/promotions", promotionH.Create)
 			r.With(edit("promotions")).Patch("/promotions/{id}", promotionH.Update)
@@ -311,10 +311,21 @@ func main() {
 			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
 			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)
 			r.With(edit("orders")).Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
-			r.With(view("picking")).Get("/picking-queue", pickingH.Queue)
 
-			r.With(view("shipping")).Get("/shipping-export", shippingExportH.List)
-			r.With(edit("shipping")).Post("/shipping-export/mark-exported", shippingExportH.MarkExported)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/eligible", shippingWBH.Eligible)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches", shippingWBH.CreateBatch)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/batches", shippingWBH.ListBatches)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/batches/{id}", shippingWBH.GetBatch)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/batches/{id}/export-rows", shippingWBH.ExportRows)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/exports", shippingWBH.RecordExport)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/orders/{orderId}/confirm-failed", shippingWBH.ConfirmFailed)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/confirm-all-failed", shippingWBH.ConfirmAllNotCreated)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/imports", shippingWBH.Import)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/issues/{id}/resolve", shippingWBH.ResolveIssue)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/overview", shippingWBH.Overview)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/issues", shippingWBH.Issues)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/settings", shippingWBH.GetSettings)
+			r.With(appmw.RequireRole("super_user")).Put("/shipping-workbench/settings", shippingWBH.UpdateSettings)
 			r.With(edit("shipping")).Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)
 			r.With(view("shipping")).Get("/pickup-links", pickupLinkH.List)
 			r.With(edit("shipping")).Post("/pickup-links", pickupLinkH.Create)

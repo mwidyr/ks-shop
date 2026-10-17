@@ -8,7 +8,7 @@ import { listPickupChains } from '../api/pickupChains'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import { getShippingSettings } from '../api/settings'
-import { nameTooLong, nameUnits, addressTooLong } from '../utils/exportRules'
+import { nameTooLong, nameUnits, addressTooLong, carrierTotal, EXPORT_TOTAL_MAX } from '../utils/exportRules'
 import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
@@ -386,6 +386,9 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
           <span className="font-bold text-gray-800">{t('page_order_create.total_label')}</span>
           <span className="text-xl font-extrabold text-brand-600">{formatCurrency(total)}</span>
         </div>
+        {carrierTotal(order) > EXPORT_TOTAL_MAX && (
+          <p className="text-xs font-semibold text-red-600">⚠ {t('page_order_create.total_max_warning', { max: EXPORT_TOTAL_MAX.toLocaleString() })}</p>
+        )}
       </div>
 
       <div className="flex justify-end gap-3">
@@ -443,6 +446,7 @@ export default function OrderCreate() {
     if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
     if (isCvs === 'courier' && addressTooLong(order.shippingAddress)) return t('page_order_create.block_error_address_long', { index: 1 })
     if (order.items.length === 0) return t('page_order_create.block_error_no_products', { index: 1 })
+    if (carrierTotal(order) > EXPORT_TOTAL_MAX) return t('page_order_create.block_error_total_max', { index: 1, max: EXPORT_TOTAL_MAX.toLocaleString() })
     return ''
   }
 

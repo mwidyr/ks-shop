@@ -1,6 +1,6 @@
 export const statusColors = {
   pending: 'bg-yellow-100 text-yellow-700',
-  picking: 'bg-purple-100 text-purple-700',
+  processing: 'bg-purple-100 text-purple-700',
   ready_to_ship: 'bg-teal-100 text-teal-700',
   shipped: 'bg-cyan-100 text-cyan-700',
   delivered: 'bg-green-100 text-green-700',
@@ -9,7 +9,7 @@ export const statusColors = {
 }
 
 export const statusLabels = {
-  pending: 'Pending', picking: 'Picking', ready_to_ship: 'Ready to Ship',
+  pending: 'Pending', processing: 'Processing', ready_to_ship: 'Ready to Ship',
   shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', return: 'Return',
 }
 

@@ -50,3 +50,5 @@ OrderStatusLog (audit trail)
 - [ ] Cancelled hanya bisa sebelum Delivered, Return hanya dari Shipped/Delivered
 - [ ] Setiap perubahan status tercatat lengkap di audit log dengan alasan untuk Cancelled/Return
 - [ ] Stock movement otomatis ter-trigger dan konsisten setiap perubahan status
+
+> **Note:** current statuses are New -> Processing -> Ready to Ship -> Shipped -> Completed (+ Cancelled, Returned); see `00-stock-movement-table.md`.

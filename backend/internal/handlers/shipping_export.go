@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -9,9 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	appmw "ordermgmt/internal/middleware"
 )
 
 // ShippingExportHandler builds the two carrier export layouts the client actually uses today:
@@ -51,6 +51,16 @@ type shippingExportRow struct {
 	Status                string  `json:"status"`
 	ExportedAt            *string `json:"exported_at"`
 	TrackingNumber        *string `json:"tracking_number"`
+	PlatformOrderNo       *string `json:"platform_order_no"`
+	// earliestCreated / latestCreated bound the creation time of the shipment's member orders
+	// (server-side only: batch eligibility uses the Taiwan business date of the latest one).
+	earliestCreated time.Time
+	latestCreated   time.Time
+}
+
+// queryer is satisfied by both *pgxpool.Pool and pgx.Tx.
+type queryer interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
 // exportOrderRow is one raw order fetched for export, before shipment-group collapsing.
@@ -69,46 +79,41 @@ type exportOrderRow struct {
 	Status          string
 	ExportedAt      *time.Time
 	TrackingNumber  *string
+	PlatformOrderNo *string
 	CreatedAt       time.Time
 	InternalNotes   string
 	GroupID         *int
 	FeeOrderID      *int
 }
 
-// List returns one row per PHYSICAL SHIPMENT eligible for export (status pending/picking/ready_to_ship/shipped;
-// a first export moves a pending order to picking and locks it, see MarkExported):
-// a merged shipment group collapses to a single row (combined items/value/qty, the shipping fee
-// counted once) instead of one row per original order, since the carrier ships and collects COD
-// as one package. By default already-exported+shipped orders/groups are excluded; pass
-// ?include_exported=true to still see them.
-func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
-	where := " WHERE o.status IN ('pending','picking','ready_to_ship','shipped') "
-	if r.URL.Query().Get("include_exported") != "true" {
-		where += " AND NOT (o.status = 'shipped' AND o.exported_at IS NOT NULL) "
-	}
-
-	rows, err := h.DB.Query(r.Context(), `
-		SELECT o.id, o.order_no, c.name, c.phone, o.shipping_address, pc.name, pc.chain_type,
+// loadShipmentRows returns one row per PHYSICAL SHIPMENT matching the given WHERE clause (over
+// orders o / pickup_chains pc): a merged shipment group collapses to a single row (combined
+// items/value/qty, the shipping fee counted once) instead of one row per original order, since the
+// carrier ships and collects COD as one package. The Shipping Workbench builds its batches from
+// these rows.
+func loadShipmentRows(r *http.Request, db queryer, where string, args ...any) ([]shippingExportRow, error) {
+	ctx := r.Context()
+	rows, err := db.Query(ctx, `
+		SELECT o.id, o.order_no, c.name, c.phone, COALESCE(o.shipping_address,''), pc.name, pc.chain_type,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''),
 		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order) FROM order_items oi WHERE oi.order_id = o.id),0) - o.discount_amount + o.additional_amount,
-		       o.shipping_fee, o.status, o.exported_at, o.tracking_number, o.created_at,
+		       o.shipping_fee, o.status, o.exported_at, o.tracking_number, o.platform_order_no, o.created_at,
 		       COALESCE(o.internal_notes,''), gm.group_id, g.shipping_fee_order_id
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_shipment_group_members gm ON gm.order_id = o.id
 		LEFT JOIN order_shipment_groups g ON g.id = gm.group_id`+where+`
-		ORDER BY o.created_at ASC`)
+		ORDER BY o.created_at ASC`, args...)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch export rows")
-		return
+		return nil, err
 	}
 	var orders []exportOrderRow
 	for rows.Next() {
 		var o exportOrderRow
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.CustomerName, &o.CustomerPhone, &o.ShippingAddress,
 			&o.PickupChainName, &o.ChainType, &o.PickupStoreName, &o.PickupStoreCode, &o.ItemValue, &o.ShippingFee,
-			&o.Status, &o.ExportedAt, &o.TrackingNumber, &o.CreatedAt, &o.InternalNotes, &o.GroupID, &o.FeeOrderID); err != nil {
+			&o.Status, &o.ExportedAt, &o.TrackingNumber, &o.PlatformOrderNo, &o.CreatedAt, &o.InternalNotes, &o.GroupID, &o.FeeOrderID); err != nil {
 			continue
 		}
 		orders = append(orders, o)
@@ -119,7 +124,7 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i, o := range orders {
 		orderIDs[i] = o.ID
 	}
-	itemsByOrder, packingByOrder, qtyByOrder, catsByOrder := fetchExportItemSummaries(r, h.DB, orderIDs)
+	itemsByOrder, packingByOrder, qtyByOrder, catsByOrder := fetchExportItemSummaries(r, db, orderIDs)
 
 	groups := map[string][]exportOrderRow{}
 	var groupKeys []string
@@ -152,14 +157,19 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 			PickupStoreCode: primary.PickupStoreCode,
 			Status:          primary.Status,
 			TrackingNumber:  primary.TrackingNumber,
-			OrderDate:       primary.CreatedAt.Format("2006/1/2"),
+			PlatformOrderNo: primary.PlatformOrderNo,
+			OrderDate:       primary.CreatedAt.In(taipeiTZ).Format("2006/1/2"),
 		}
 		row.IsHomeDelivery = row.ChainType == "courier"
 
 		allExported := true
 		var earliestExported *time.Time
 		var itemFragments, packingFragments, notes, categories []string
+		row.earliestCreated = members[0].CreatedAt
 		for _, m := range members {
+			if m.CreatedAt.After(row.latestCreated) {
+				row.latestCreated = m.CreatedAt
+			}
 			row.OrderIDs = append(row.OrderIDs, m.ID)
 			if m.ID != primary.ID {
 				row.GroupOrderNos = append(row.GroupOrderNos, m.OrderNo)
@@ -208,14 +218,14 @@ func (h *ShippingExportHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Slice(list, func(i, j int) bool { return list[i].OrderID > list[j].OrderID })
-	respondJSON(w, http.StatusOK, list)
+	return list, nil
 }
 
 // fetchExportItemSummaries builds, per order ID: a "ProductName*qty" text fragment (used
 // verbatim in the real CVS carrier template - do not reformat) and a "SKU - Name（Color /
 // Size） xQty" fragment for the Packing Label File, plus a total qty. All three are keyed by
 // order ID; the caller joins fragments across a shipment group's member orders itself.
-func fetchExportItemSummaries(r *http.Request, db *pgxpool.Pool, orderIDs []int) (map[int]string, map[int]string, map[int]int, map[int][]string) {
+func fetchExportItemSummaries(r *http.Request, db queryer, orderIDs []int) (map[int]string, map[int]string, map[int]int, map[int][]string) {
 	fragments := map[int][]string{}
 	packingFragments := map[int][]string{}
 	qty := map[int]int{}
@@ -270,81 +280,6 @@ func containsString(list []string, v string) bool {
 		}
 	}
 	return false
-}
-
-type markExportedRequest struct {
-	OrderIDs []int `json:"order_ids"`
-}
-
-// MarkExported records an export of the given orders (the frontend calls it only after the file was
-// generated, so a failed export never reaches here and leaves the orders untouched):
-//   - every call appends one order_export_log row per order (order, provider, time, user,
-//     is_reexport) - re-exports are logged too and never overwrite earlier history;
-//   - the FIRST export of a pending order moves it to picking ("Processing") and stamps
-//     exported_at, which locks the order's details (see order_lock.go);
-//   - a re-export changes neither the status nor exported_at, so it never unlocks anything.
-//
-// The status change deliberately bypasses UpdateStatus' "at least one item picked" rule: export is
-// the trigger here, picking happens afterwards.
-func (h *ShippingExportHandler) MarkExported(w http.ResponseWriter, r *http.Request) {
-	var req markExportedRequest
-	if err := decodeJSON(r, &req); err != nil || len(req.OrderIDs) == 0 {
-		respondError(w, http.StatusBadRequest, "order_ids is required")
-		return
-	}
-	claims := appmw.GetClaims(r)
-	ctx := r.Context()
-	tx, err := h.DB.Begin(ctx)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	defer tx.Rollback(ctx)
-
-	// Log first (is_reexport = already had exported_at), then flip status/exported_at.
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_export_log (order_id, provider, user_id, is_reexport)
-		SELECT o.id, pc.chain_type, $2, o.exported_at IS NOT NULL
-		FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
-		WHERE o.id = ANY($1)`, req.OrderIDs, claims.UserID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to log export")
-		return
-	}
-	rows, err := tx.Query(ctx, `
-		WITH prev AS (
-			SELECT id, status FROM orders WHERE id = ANY($1) AND exported_at IS NULL FOR UPDATE
-		)
-		UPDATE orders o SET exported_at = now(),
-		       status = CASE WHEN prev.status = 'pending' THEN 'picking' ELSE o.status END,
-		       updated_at = now()
-		FROM prev WHERE o.id = prev.id
-		RETURNING o.id, prev.status`, req.OrderIDs)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to mark orders as exported")
-		return
-	}
-	var movedToPicking []int
-	for rows.Next() {
-		var id int
-		var prevStatus string
-		if rows.Scan(&id, &prevStatus) == nil && prevStatus == "pending" {
-			movedToPicking = append(movedToPicking, id)
-		}
-	}
-	rows.Close()
-	for _, id := range movedToPicking {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
-			VALUES ($1,'pending','picking',$2,'system: export logistik pertama')`, id, claims.UserID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to log status change")
-			return
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		respondError(w, http.StatusInternalServerError, "db commit failed")
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 type updateTrackingNumberRequest struct {
