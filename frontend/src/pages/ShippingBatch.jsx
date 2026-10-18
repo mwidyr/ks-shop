@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAuth } from '../context/AuthContext'
 import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
-import { updateOrderStatus } from '../api/orders'
 import { buildPackingLabel, buildPlatformExcel, downloadBlob, exportFilename } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
 import StatusPill from '../components/StatusPill'
@@ -18,18 +16,26 @@ const INSTRUCTION_PREFIX = { cvs_711: 'instr_711', cvs_familymart: 'instr_fm', c
 // which import kinds belong to the "Unmatched or conflicting records" list of each section
 const ISSUE_KINDS = { results: RESULT_KINDS, shipment: ['3pl_shipment'], delivery: ['delivery'] }
 
+// Unmatched / conflicting import rows. Repeated and overlapping imports pile these up, and they are
+// rarely needed, so the list is collapsed until someone opens it.
 function IssueList({ issues, kinds }) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
   const list = issues.filter((i) => kinds.includes(i.kind))
   if (list.length === 0) return null
   return (
     <div className="mt-3">
-      <p className="text-xs font-semibold text-amber-700 mb-1">{t('page_shipping_wb.unmatched_records')} ({list.length})</p>
-      <ul className="text-xs text-gray-600 space-y-0.5 max-h-40 overflow-y-auto">
-        {list.map((i) => (
-          <li key={i.id}><span className="font-semibold">{t(`page_shipping_wb.issue_import_${i.issue}`, { defaultValue: i.issue })}</span> · {i.ref}</li>
-        ))}
-      </ul>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+        className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:underline">
+        <span aria-hidden>{open ? '▾' : '▸'}</span> {t('page_shipping_wb.unmatched_records')} ({list.length})
+      </button>
+      {open && (
+        <ul className="mt-1 text-xs text-gray-600 space-y-0.5 max-h-60 overflow-y-auto">
+          {list.map((i) => (
+            <li key={i.id}><span className="font-semibold">{t(`page_shipping_wb.issue_import_${i.issue}`, { defaultValue: i.issue })}</span> · {i.ref}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -48,13 +54,11 @@ function History({ items, render }) {
 export default function ShippingBatch() {
   const { id } = useParams()
   const { t } = useTranslation()
-  const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [showOrders, setShowOrders] = useState(false)
-  const canCancel = ['warehouse', 'super_user'].includes(user?.role)
 
   const load = useCallback(() => getBatch(id).then(setData).catch(() => setData(false)), [id])
   useEffect(() => { load() }, [load])
@@ -112,13 +116,6 @@ export default function ShippingBatch() {
     downloadBlob(await buildPackingLabel(res.rows), exportFilename(exportedAt ? '3pl-packing-again' : '3pl-packing', batch.batch_no))
     if (!exportedAt) await recordExport(id, '3pl_packing', res.rows.flatMap((r) => r.order_ids))
   })
-
-  const cancelOrder = (o) => {
-    const reason = window.prompt(t('page_shipping_wb.cancel_reason_prompt', { order: o.order_no }))
-    if (!reason) return
-    if (!window.confirm(t('page_shipping_wb.cancel_confirm_stopped'))) return
-    run(`cancel-${o.order_id}`, () => updateOrderStatus(o.order_id, 'cancelled', reason, true))
-  }
 
   const resultKinds = provider === 'cvs_711' ? [['711_validation', 'upload_a'], ['711_export', 'upload_b']]
     : provider === 'cvs_familymart' ? [['fm_result', 'upload_fm']] : [['hct_result', 'upload_hct']]
@@ -294,10 +291,14 @@ export default function ShippingBatch() {
           ) : (
             <ul className="divide-y bg-white rounded-xl border border-red-100">
               {unresolvedFailed.map((o) => (
-                <li key={o.order_id} className="p-3 flex items-start justify-between gap-3 flex-wrap">
+                // the whole row opens the order in Order Management: staff review the details there
+                // before deciding anything (cancelling is done from the order itself)
+                <li key={o.order_id} onClick={() => navigate(`/orders/${o.order_id}`)} onKeyDown={(ev) => { if (ev.key === 'Enter') navigate(`/orders/${o.order_id}`) }}
+                  role="link" tabIndex={0} title={t('page_shipping_wb.open_order')}
+                  className="p-3 flex items-start justify-between gap-3 flex-wrap cursor-pointer hover:bg-gray-50">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-800">
-                      <Link to={`/orders/${o.order_id}`} className="text-brand-700 hover:underline">{o.order_no}</Link>
+                      <span className="text-brand-700 hover:underline">{o.order_no}</span>
                       <span className="ml-2 text-xs font-normal text-gray-500">{o.customer_name} · {o.store_name} {o.store_code}</span>
                     </p>
                     {o.verification === 'failed'
@@ -307,12 +308,9 @@ export default function ShippingBatch() {
                   </div>
                   <div className="flex gap-3 items-center shrink-0">
                     {o.verification === 'pending_verification' && (
-                      <button onClick={() => window.confirm(t('page_shipping_wb.confirm_not_created')) && run(`cf-${o.order_id}`, () => confirmNotCreated(id, o.order_id))} className="text-xs font-semibold text-brand-600 hover:underline">
+                      <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm(t('page_shipping_wb.confirm_not_created'))) run(`cf-${o.order_id}`, () => confirmNotCreated(id, o.order_id)) }} className="text-xs font-semibold text-brand-600 hover:underline">
                         {t('page_shipping_wb.confirm_not_created_btn')}
                       </button>
-                    )}
-                    {canCancel && (
-                      <button onClick={() => cancelOrder(o)} className="text-xs font-semibold text-red-600 hover:underline">{t('page_shipping_wb.cancel_order')}</button>
                     )}
                   </div>
                 </li>

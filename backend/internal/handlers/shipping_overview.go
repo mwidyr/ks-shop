@@ -165,6 +165,9 @@ func (h *ShippingWorkbenchHandler) Issues(w http.ResponseWriter, r *http.Request
 			LEFT JOIN shipping_batches b ON b.id = l.batch_id
 			LEFT JOIN orders o ON o.id = i.order_id
 			WHERE i.resolved_at IS NULL
+			  -- overlapping / repeated imports are normal: a row for an order that is in no batch or in
+			  -- another batch stays in that batch's import history, it is not a global issue
+			  AND i.issue NOT IN ('not_in_batch', 'other_batch')
 		)`
 	var total int
 	if err := h.DB.QueryRow(r.Context(), base+` SELECT COUNT(*) FROM iss`, set.ProcessingHours, set.ReadyHours).Scan(&total); err != nil {

@@ -4,8 +4,10 @@ import { listCategories } from '../api/categories'
 import { listHosts } from '../api/hosts'
 import { createContent, deleteContent, getContent, listContent, updateContent } from '../api/website'
 import { uploadImageFile } from '../utils/image'
-import { blocksToDoc, docToBlocks, productIdsInBlocks } from '../utils/contentBlocks'
-import RichBodyEditor from '../components/website/RichBodyEditor'
+import { productIdsInBlocks } from '../utils/contentBlocks'
+import { toEditorBlocks, toStoredBlocks } from '../utils/articleBlocks'
+import ArticleBlockEditor from '../components/website/ArticleBlockEditor'
+import ArticlePreview from '../components/website/ArticlePreview'
 import { btnCls, btnGhost, cardCls, inputCls, ProductSearch, useProductList } from '../components/website/Pickers'
 
 const LANGS = ['id', 'en', 'zh', 'vi']
@@ -28,8 +30,8 @@ export default function WebsiteContent() {
   const [cats, setCats] = useState([])
   const [hosts, setHosts] = useState([])
   const [form, setForm] = useState(null) // null = list view
-  const [doc, setDoc] = useState(null) // Tiptap document of the body
-  const [editorKey, setEditorKey] = useState(0) // remounts the editor when another article opens
+  const [blocks, setBlocks] = useState(null) // the body as editor blocks (utils/articleBlocks.js)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [slugTouched, setSlugTouched] = useState(false)
   const [langFilter, setLangFilter] = useState('')
   const [msg, setMsg] = useState(null)
@@ -41,12 +43,11 @@ export default function WebsiteContent() {
 
   async function open(id) {
     setMsg(null)
-    setEditorKey((k) => k + 1)
     setSlugTouched(Boolean(id))
-    if (!id) { setForm({ ...EMPTY }); setDoc(blocksToDoc([])); return }
+    if (!id) { setForm({ ...EMPTY }); setBlocks([]); return }
     const d = await getContent(id)
     setForm(d)
-    setDoc(blocksToDoc(d.body?.[d.lang] || []))
+    setBlocks(toEditorBlocks(d.body?.[d.lang] || []))
   }
   const set = (patch) => setForm((cur) => ({ ...cur, ...patch }))
   const setLangField = (key, value) => setForm((cur) => ({ ...cur, [key]: { ...cur[key], [cur.lang]: value } }))
@@ -63,10 +64,10 @@ export default function WebsiteContent() {
   async function save() {
     setSaving(true); setMsg(null)
     try {
-      const blocks = docToBlocks(doc)
-      // product cards in the text need the product in the article's product list (the storefront looks them up there)
-      const productIds = [...new Set([...(form.product_ids || []), ...productIdsInBlocks(blocks)])]
-      const payload = { ...form, body: { [form.lang]: blocks }, product_ids: productIds, read_minutes: form.read_minutes === '' ? null : form.read_minutes }
+      const stored = toStoredBlocks(blocks)
+      // product blocks need the product in the article's product list (the storefront looks them up there)
+      const productIds = [...new Set([...(form.product_ids || []), ...productIdsInBlocks(stored)])]
+      const payload = { ...form, body: { [form.lang]: stored }, product_ids: productIds, read_minutes: form.read_minutes === '' ? null : form.read_minutes }
       const res = form.id ? await updateContent(form.id, payload) : await createContent(payload)
       setMsg({ ok: true, text: c('saved') })
       load()
@@ -121,6 +122,8 @@ export default function WebsiteContent() {
   }
 
   const seoLen = (form.seo_title?.[lang] || '').length
+  // the preview shows what would be saved (empty blocks dropped), with stable keys
+  const previewBlocks = previewOpen && blocks ? toStoredBlocks(blocks).map((b, i) => ({ ...b, id: `pv${i}` })) : []
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl space-y-4">
       <button type="button" onClick={() => setForm(null)} className={btnGhost}>← {t('page_website.common.back_list')}</button>
@@ -146,7 +149,7 @@ export default function WebsiteContent() {
         <L label={c('summary_one')}><textarea rows={2} value={form.summary?.[lang] || ''} onChange={(e) => setLangField('summary', e.target.value)} className={inputCls} /></L>
         <L label={c('label')}><input value={form.category_label?.[lang] || ''} onChange={(e) => setLangField('category_label', e.target.value)} className={inputCls} /></L>
         <L label={c('body_one')} hint={c('body_hint')}>
-          {doc && <RichBodyEditor key={editorKey} value={doc} onChange={setDoc} />}
+          {blocks && <ArticleBlockEditor blocks={blocks} onChange={setBlocks} />}
         </L>
       </div>
 
@@ -201,8 +204,17 @@ export default function WebsiteContent() {
 
       <div className="sticky bottom-0 bg-gray-50/90 py-3 flex gap-3 items-center">
         <button type="button" onClick={save} disabled={saving} className={btnCls}>{saving ? t('page_website.common.saving') : t('page_website.common.save')}</button>
+        <button type="button" onClick={() => setPreviewOpen(true)} className={btnGhost}>{c('preview.button')}</button>
         {form.id && <button type="button" onClick={remove} className="text-sm text-red-600 underline">{c('delete')}</button>}
       </div>
+      {previewOpen && (
+        <ArticlePreview
+          title={form.title?.[lang]} summary={form.summary?.[lang]} categoryLabel={form.category_label?.[lang]} coverUrl={form.cover_url}
+          author={form.author_name || hosts.find((h) => h.id === form.author_host_id)?.name || ''} readMinutes={form.read_minutes}
+          tags={form.tags} type={form.type} blocks={previewBlocks}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   )
 }

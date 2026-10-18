@@ -1697,7 +1697,9 @@
     "website_self_service": "Website – Self-Service",
     "all_website": "All Website",
     "stock_line": "Available {{available}} · Actual {{actual}}",
-    "oversell_warning": "Oversold, needs restock"
+    "oversell_warning": "Oversold, needs restock",
+    "view_only_banner": "You have view-only access to this page. Changes cannot be saved.",
+    "view_only_blocked": "Change refused: you only have view access to this section."
   },
   "status": {
     "cancelled": "Cancelled",
@@ -2324,7 +2326,7 @@
       "summary": "Summary",
       "label": "Category label",
       "body": "Body",
-      "body_hint": "Use the toolbar for headings, bold, lists, links, images and product cards. The editor looks close to the website.",
+      "body_hint": "Build the article from blocks. Use the arrows to move a block, and Preview to see how it looks on the website.",
       "cover": "Cover image",
       "cover_alt": "Cover alt text",
       "author_host": "Author (host)",
@@ -2378,7 +2380,43 @@
         "product_card": "Product card",
         "remove": "Remove",
         "pick_product": "Search a product (name or SKU)",
-        "pick_product_hint": "Pick a product to insert as a card at the cursor."
+        "pick_product_hint": "Pick a product to insert as a card at the cursor.",
+        "add_block": "Add block",
+        "type_p": "Text",
+        "type_h2": "Heading (H2)",
+        "type_h3": "Subheading (H3)",
+        "type_list": "Bulleted list",
+        "type_olist": "Numbered list",
+        "type_image": "Image",
+        "type_product": "Product",
+        "type_tags": "Tags",
+        "move_up": "Move up",
+        "move_down": "Move down",
+        "delete_block": "Delete block",
+        "delete_block_confirm": "Delete this block?",
+        "empty_article": "This article has no content yet. Add the first block:",
+        "toc_title": "Table of contents (made from the H2 headings)",
+        "toc_needs_two": "shown on the website from 2 headings",
+        "link_invalid": "Only http(s), mailto, tel or site links (starting with /) are allowed.",
+        "no_image": "No image",
+        "upload_image": "Upload image",
+        "replace_image": "Replace image",
+        "alt_placeholder": "Image description (alt text)",
+        "caption_placeholder": "Caption shown under the image (optional)",
+        "change": "Change",
+        "tags_placeholder": "Tags, separated by commas or spaces",
+        "h2_placeholder": "Heading",
+        "h3_placeholder": "Subheading"
+      },
+      "preview": {
+        "button": "Preview",
+        "title": "Preview — as on the website",
+        "close": "Close",
+        "untitled": "(No title yet)",
+        "read_min": "{{n}} min read",
+        "toc": "Table of contents",
+        "shop_note": "Item in this article",
+        "view_product": "View product"
       }
     },
     "theme": {
@@ -2740,9 +2778,6 @@
     "likely_failing": "Likely the row that stopped the import — orders after it were skipped.",
     "confirm_not_created": "Confirm this order was NOT created on the platform? It will then be included in the retry file.",
     "confirm_not_created_btn": "Confirm not created",
-    "cancel_order": "Cancel order",
-    "cancel_reason_prompt": "Reason for cancelling {{order}}?",
-    "cancel_confirm_stopped": "Have you confirmed the external shipping order can be stopped?",
     "retry_download_title": "Retry order file",
     "retry_download_hint": "Only orders confirmed as failed. Orders already created are never included.",
     "download_retry": "Download Retry Order Excel",
@@ -2765,6 +2800,7 @@
     "issue_import_platform_reports_returned": "Platform reports a return",
     "issue_import_platform_reports_cancelled": "Platform reports a cancellation",
     "confirm_all_not_created_btn": "Confirm all as not created ({{count}})",
-    "confirm_all_not_created": "Confirm all {{count}} orders were NOT created on the platform? They will all be included in the retry file."
+    "confirm_all_not_created": "Confirm all {{count}} orders were NOT created on the platform? They will all be included in the retry file.",
+    "open_order": "Open order details"
   }
 }

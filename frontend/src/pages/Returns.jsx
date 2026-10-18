@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listReturns, createReturn, approveReturn, rejectReturn } from '../api/returns'
 import { formatCurrency } from '../utils/format'
+import { useCanEdit } from '../context/AccessContext'
 
 const stageKeys = ['submitted', 'reviewed', 'approved', 'item_received', 'inspection', 'refund']
 const reasonKeys = ['damaged', 'wrong_item', 'missing_item', 'defective', 'change_of_mind']
@@ -94,6 +95,7 @@ function CreateReturnForm({ onCreate, onClose }) {
 }
 
 export default function Returns() {
+  const canEdit = useCanEdit()
   const { t } = useTranslation()
   const [returns, setReturns] = useState([])
   const [showCreate, setShowCreate] = useState(false)
@@ -130,9 +132,11 @@ export default function Returns() {
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-4">
         <div />
-        <button onClick={() => setShowCreate(true)} className="bg-gray-800 hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg">
-          {t('page_returns.new_return_button')}
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowCreate(true)} className="bg-gray-800 hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            {t('page_returns.new_return_button')}
+          </button>
+        )}
       </div>
       {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
 
@@ -174,7 +178,7 @@ export default function Returns() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">{t('page_returns.refund_type_label')}</span>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{t(`page_returns.refund_type.${ret.refund_type}`)}</span>
-                {ret.status === 'active' && (
+                {ret.status === 'active' && canEdit && (
                   <div className="ml-auto flex gap-2">
                     <button onClick={() => handleApprove(ret)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100">{t('page_returns.approve')}</button>
                     <button onClick={() => handleReject(ret)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">{t('page_returns.reject')}</button>

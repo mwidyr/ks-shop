@@ -7,6 +7,7 @@ import BigStatCard from '../components/BigStatCard'
 import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
+import { useCanEdit } from '../context/AccessContext'
 
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
 // exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
@@ -67,6 +68,7 @@ function VariantRow({ product, variant, onSaved }) {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const [editing, setEditing] = useState(false)
+  const canEdit = useCanEdit()
   const [availableStock, setAvailableStock] = useState(variant.available_stock)
   const [incomingStock, setIncomingStock] = useState(variant.incoming_stock)
   const [saving, setSaving] = useState(false)
@@ -121,9 +123,9 @@ function VariantRow({ product, variant, onSaved }) {
       <button onClick={save} disabled={saving} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.save')}</button>
       <button onClick={() => { setEditing(false); setAvailableStock(variant.available_stock); setIncomingStock(variant.incoming_stock) }} className="text-xs text-gray-500 hover:underline">{t('common.cancel')}</button>
     </div>
-  ) : (
+  ) : canEdit ? (
     <button onClick={() => setEditing(true)} className="text-xs font-semibold text-brand-600 hover:underline">{t('common.edit')}</button>
-  )
+  ) : null
 
   return (
     <>

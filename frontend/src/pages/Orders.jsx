@@ -12,6 +12,7 @@ import { copyToClipboard } from '../utils/clipboard'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import { useCanEdit } from '../context/AccessContext'
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
@@ -46,6 +47,7 @@ function chainChipClass(name = '') {
 export default function Orders() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canEdit = useCanEdit()
   const [searchParams] = useSearchParams()
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
@@ -199,7 +201,7 @@ export default function Orders() {
         </Link>
       </div>
 
-      {mergeSuggestions.length > 0 && (
+      {canEdit && mergeSuggestions.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-amber-800">
             💡 <span className="font-semibold">{t('page_orders.merge_all_title')}</span>{' '}
@@ -281,6 +283,8 @@ export default function Orders() {
       {selected.size > 0 && (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-3 mb-4 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-brand-800">{t('page_orders.selected_count', { count: selected.size })}</span>
+          {canEdit && (
+            <>
           <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="">{t('page_orders.change_status_placeholder')}</option>
             {Object.keys(statusLabels).map((s) => <option key={s} value={s}>{t(`status.${s}`, statusLabels[s])}</option>)}
@@ -292,6 +296,8 @@ export default function Orders() {
           >
             {bulkBusy ? t('page_orders.applying') : t('shared.apply')}
           </button>
+            </>
+          )}
           <a
             href={`/orders/print/invoice?ids=${[...selected].join(',')}`}
             target="_blank" rel="noreferrer"
@@ -475,14 +481,14 @@ export default function Orders() {
         </>
       )}
 
-      <Link
+      {canEdit && <Link
         to="/orders/new"
         title={t('page_orders.create_order_button')}
         aria-label={t('page_orders.create_order_button')}
         className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-3xl font-light flex items-center justify-center shadow-lg"
       >
         +
-      </Link>
+      </Link>}
     </div>
   )
 }

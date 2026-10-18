@@ -27,6 +27,12 @@ client.interceptors.response.use(
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
+    // A write refused because the role only has view access to that section: tell the page shell
+    // (it shows a notice) - the request itself fails as before.
+    if (err.response?.status === 403 && /read-only/i.test(String(err.response?.data?.error || err.response?.data || ''))
+      && !['get', 'head'].includes(String(err.config?.method || 'get').toLowerCase())) {
+      window.dispatchEvent(new Event('readonly-blocked'))
+    }
     return Promise.reject(err)
   }
 )

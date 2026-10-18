@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { listSuppliers, createSupplier } from '../api/suppliers'
 import TagsInput from '../components/TagsInput'
+import { useCanEdit } from '../context/AccessContext'
 
 const emptyForm = { name: '', category: '', source: '' }
 const statusColors = { active: 'bg-green-100 text-green-700', paused: 'bg-amber-100 text-amber-700', inactive: 'bg-gray-100 text-gray-500' }
 
 export default function Suppliers() {
+  const canEdit = useCanEdit()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState([])
@@ -86,16 +88,16 @@ export default function Suppliers() {
           {suppliers.length === 0 && <p className="text-sm text-gray-400 py-4">{t('page_suppliers.empty_state')}</p>}
         </div>
 
-        <form onSubmit={handleCreate} className="grid grid-cols-3 gap-2 items-start">
+        {canEdit && <form onSubmit={handleCreate} className="grid grid-cols-3 gap-2 items-start">
           <input placeholder={t('page_suppliers.placeholder_name')} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} required className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm col-span-3 sm:col-span-1" />
           <TagsInput value={form.category} onChange={(v) => setForm((s) => ({ ...s, category: v }))} placeholder={t('page_suppliers.placeholder_category')} />
           <input placeholder={t('page_suppliers.placeholder_source')} value={form.source} onChange={(e) => setForm((s) => ({ ...s, source: e.target.value }))} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
           <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg col-span-3 sm:col-span-1">
             {saving ? t('page_suppliers.saving') : t('page_suppliers.add_button')}
           </button>
-        </form>
+        </form>}
         {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-        <p className="text-xs text-gray-400 mt-2">{t('page_suppliers.create_hint')}</p>
+        {canEdit && <p className="text-xs text-gray-400 mt-2">{t('page_suppliers.create_hint')}</p>}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings } from '../api/shippingWorkbench'
 import CrossBatchImportModal from '../components/shipping/CrossBatchImportModal'
 import { BatchStatusPill, PROVIDERS, PROVIDER_KEYS, ProgressChips, StagePill, batchPath, elapsed, ghostBtn, primaryBtn } from '../components/shipping/shared'
+import { useCanEdit } from '../context/AccessContext'
 
 const FIGURES = [
   ['ready_to_export', 'fig_ready_to_export'],
@@ -52,6 +53,7 @@ export default function ShippingWorkbench() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const canEdit = useCanEdit()
   const [overview, setOverview] = useState([])
   const [issues, setIssues] = useState({ total: 0, items: [] })
   const [issueLimit, setIssueLimit] = useState(5)
@@ -82,7 +84,7 @@ export default function ShippingWorkbench() {
         <h1 className="text-xl font-bold text-gray-800">{t('page_shipping_wb.title')}</h1>
         <div className="flex gap-2">
           {user?.role === 'super_user' && <button onClick={() => setSettingsOpen(true)} className={ghostBtn}>⚙ {t('page_shipping_wb.alert_settings')}</button>}
-          <button onClick={() => setImportOpen(true)} className={primaryBtn}>{t('page_shipping_wb.cross_batch_import')}</button>
+          {canEdit && <button onClick={() => setImportOpen(true)} className={primaryBtn}>{t('page_shipping_wb.cross_batch_import')}</button>}
         </div>
       </div>
 
@@ -91,14 +93,13 @@ export default function ShippingWorkbench() {
           const ov = byProvider[key] || {}
           return (
             <div key={key} className="bg-white rounded-2xl shadow-sm p-4 flex flex-col">
-              <span className={`self-start text-sm font-bold px-3 py-1 rounded-full border ${PROVIDERS[key].accent}`}>
-                {t(`page_shipping_wb.${PROVIDERS[key].nameKey}`)}
-              </span>
+              <h2 className="text-base font-bold text-gray-800">{t(`page_shipping_wb.${PROVIDERS[key].nameKey}`)}</h2>
               <dl className="mt-4 space-y-2 flex-1">
                 {FIGURES.map(([field, label]) => (
                   <div key={field} className="flex items-center justify-between text-sm">
                     <dt className="text-gray-500">{t(`page_shipping_wb.${label}`)}</dt>
-                    <dd className={`font-bold ${field === 'insufficient_stock' && ov[field] > 0 ? 'text-amber-600' : 'text-gray-800'}`}>{ov[field] ?? '-'}</dd>
+                    {/* out-of-stock orders use the same red as QTY in the Performance Dashboard */}
+                    <dd className="font-bold text-gray-800" style={field === 'insufficient_stock' ? { color: 'var(--qty-color)' } : undefined}>{ov[field] ?? '-'}</dd>
                   </div>
                 ))}
               </dl>
@@ -134,7 +135,7 @@ export default function ShippingWorkbench() {
                     <p className="text-xs text-gray-400">{t('page_shipping_wb.pending_for', { time: elapsed(it.since) })}</p>
                     <div className="flex gap-3 justify-end mt-1">
                       {it.batch_id && <Link to={batchPath(it.provider, it.batch_id)} className="text-xs font-semibold text-brand-600 hover:underline">{it.batch_no}</Link>}
-                      {it.import_issue_id && (
+                      {it.import_issue_id && canEdit && (
                         <button onClick={() => resolveIssue(it.import_issue_id).then(loadAll)} className="text-xs font-semibold text-gray-500 hover:underline">{t('page_shipping_wb.mark_resolved')}</button>
                       )}
                     </div>

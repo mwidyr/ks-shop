@@ -14,6 +14,7 @@ import ImagePreviewModal from '../components/ImagePreviewModal'
 import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { useAuth } from '../context/AuthContext'
+import { useCanEdit } from '../context/AccessContext'
 
 // A product only has two statuses: Published (is_active) / Unpublished. Stock is shown as its own
 // number next to it and is deliberately NOT a status (no more Low Stock / Out of Stock badges).
@@ -25,6 +26,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { translateColor, translateCategory } = useMasterData()
   const { user } = useAuth()
   const isAdmin = user?.role === 'super_user'
+  const canEdit = useCanEdit()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState(null)
@@ -161,12 +163,16 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
               <Link to={`/products/${p.id}/edit`} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <IconPencil /> {t('common.edit')}
               </Link>
-              <button onClick={toggleActive} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left">
-                {p.is_active ? t('page_products.deactivate') : t('page_products.activate')}
-              </button>
-              <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full text-left">
-                <IconTrash /> {t('common.delete')}
-              </button>
+              {canEdit && (
+                <>
+                  <button onClick={toggleActive} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left">
+                    {p.is_active ? t('page_products.deactivate') : t('page_products.activate')}
+                  </button>
+                  <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full text-left">
+                    <IconTrash /> {t('common.delete')}
+                  </button>
+                </>
+              )}
             </div>
           </>,
           document.body
@@ -192,6 +198,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
 
 export default function Products() {
   const { t, i18n } = useTranslation()
+  const canEdit = useCanEdit()
   const { translateCategory, translateColor, colors: masterColors } = useMasterData()
   // Category / Color Management link here with ?category=<name> or ?color=<name_zh> (the product
   // count there is clickable) - the list opens already filtered.
@@ -435,22 +442,26 @@ export default function Products() {
         <button onClick={exportCsv} className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
           {t('page_products.export_csv')}
         </button>
-        <label className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer">
-          {importing ? t('page_products.importing') : t('page_products.import_csv')}
-          <input type="file" accept=".csv" onChange={importCsv} className="hidden" disabled={importing} />
-        </label>
+        {canEdit && (
+          <label className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer">
+            {importing ? t('page_products.importing') : t('page_products.import_csv')}
+            <input type="file" accept=".csv" onChange={importCsv} className="hidden" disabled={importing} />
+          </label>
+        )}
         <button
           onClick={() => setBulkResult(t('page_products.excel_coming_soon'))}
           className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50"
         >
           {t('page_products.import_export_excel')}
         </button>
-        <Link to="/products/new" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-          + {t('page_products.add_product')}
-        </Link>
+        {canEdit && (
+          <Link to="/products/new" className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            + {t('page_products.add_product')}
+          </Link>
+        )}
       </div>
 
-      {selected.size > 0 && (
+      {selected.size > 0 && canEdit && (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-3 mb-4 flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-brand-800">{t('page_products.selected_count', { count: selected.size })}</span>
           <div className="flex items-center gap-1">

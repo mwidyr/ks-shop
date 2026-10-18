@@ -80,10 +80,13 @@ const Affiliates = lazy(() => import('./pages/Affiliates'))
 const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
 const TelegramSettings = lazy(() => import('./pages/TelegramSettings'))
 
-function ProtectedRoute({ children }) {
+// `lock`: the page is an editor, so a view-only role gets it with every field and button disabled
+// (components/EditLock.jsx). Pages that mix filters with actions are not locked as a whole; they hide
+// their own edit controls with useCanEdit() instead.
+function ProtectedRoute({ children, lock }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  return <AppShell>{children}</AppShell>
+  return <AppShell lock={lock}>{children}</AppShell>
 }
 
 function RequireAuth({ children }) {
@@ -142,12 +145,12 @@ export default function App() {
         {/* Sales */}
         <Route path="/panel-siaran" element={<ProtectedRoute><PanelSiaran /></ProtectedRoute>} />
         <Route path="/panel-siaran/history" element={<ProtectedRoute><LiveSessionHistory /></ProtectedRoute>} />
-        <Route path="/panel-siaran/new" element={<ProtectedRoute><LiveSessionNew /></ProtectedRoute>} />
-        <Route path="/panel-siaran/:id" element={<ProtectedRoute><LiveSessionDetail /></ProtectedRoute>} />
+        <Route path="/panel-siaran/new" element={<ProtectedRoute lock><LiveSessionNew /></ProtectedRoute>} />
+        <Route path="/panel-siaran/:id" element={<ProtectedRoute lock><LiveSessionDetail /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-        <Route path="/orders/new" element={<ProtectedRoute><OrderCreate /></ProtectedRoute>} />
-        <Route path="/orders/merge" element={<ProtectedRoute><MergeOrders /></ProtectedRoute>} />
-        <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
+        <Route path="/orders/new" element={<ProtectedRoute lock><OrderCreate /></ProtectedRoute>} />
+        <Route path="/orders/merge" element={<ProtectedRoute lock><MergeOrders /></ProtectedRoute>} />
+        <Route path="/orders/:id" element={<ProtectedRoute lock><OrderDetail /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
@@ -158,31 +161,31 @@ export default function App() {
 
         {/* Catalog */}
         <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-        <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
-        <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
-        <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-        <Route path="/colors" element={<ProtectedRoute><ColorManagement /></ProtectedRoute>} />
+        <Route path="/products/new" element={<ProtectedRoute lock><ProductForm /></ProtectedRoute>} />
+        <Route path="/products/:id/edit" element={<ProtectedRoute lock><ProductForm /></ProtectedRoute>} />
+        <Route path="/categories" element={<ProtectedRoute lock><Categories /></ProtectedRoute>} />
+        <Route path="/colors" element={<ProtectedRoute lock><ColorManagement /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
         <Route path="/warehouses" element={<ProtectedRoute><Warehouses /></ProtectedRoute>} />
         <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-        <Route path="/suppliers/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
+        <Route path="/suppliers/:id" element={<ProtectedRoute lock><SupplierDetail /></ProtectedRoute>} />
         <Route path="/purchases" element={<ProtectedRoute><Purchases /></ProtectedRoute>} />
         <Route path="/purchases/history" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
-        <Route path="/purchases/:id" element={<ProtectedRoute><PurchaseDetail /></ProtectedRoute>} />
+        <Route path="/purchases/:id" element={<ProtectedRoute lock><PurchaseDetail /></ProtectedRoute>} />
         <Route path="/replenishment-planning" element={<ProtectedRoute><ReplenishmentPlanning /></ProtectedRoute>} />
         <Route path="/purchase-requisitions" element={<ProtectedRoute><PurchaseRequisitions /></ProtectedRoute>} />
-        <Route path="/purchase-requisitions/:id" element={<ProtectedRoute><PurchaseRequisitionDetail /></ProtectedRoute>} />
+        <Route path="/purchase-requisitions/:id" element={<ProtectedRoute lock><PurchaseRequisitionDetail /></ProtectedRoute>} />
 
         {/* Fulfillment */}
         <Route path="/shipping" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
         <Route path="/shipping-workbench" element={<ProtectedRoute><ShippingWorkbench /></ProtectedRoute>} />
         <Route path="/shipping-workbench/:slug" element={<ProtectedRoute><ShippingProvider /></ProtectedRoute>} />
-        <Route path="/shipping-workbench/:slug/batches/:id" element={<ProtectedRoute><ShippingBatch /></ProtectedRoute>} />
+        <Route path="/shipping-workbench/:slug/batches/:id" element={<ProtectedRoute lock><ShippingBatch /></ProtectedRoute>} />
         <Route path="/returns" element={<ProtectedRoute><Returns /></ProtectedRoute>} />
         <Route path="/refunds" element={<ProtectedRoute><Refunds /></ProtectedRoute>} />
 
         {/* Marketing */}
-        <Route path="/promotions" element={<ProtectedRoute><Promotions /></ProtectedRoute>} />
+        <Route path="/promotions" element={<ProtectedRoute lock><Promotions /></ProtectedRoute>} />
         <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
         <Route path="/advertising" element={<ProtectedRoute><Advertising /></ProtectedRoute>} />
 
@@ -206,27 +209,27 @@ export default function App() {
         <Route path="/finance/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 
         {/* Store */}
-        <Route path="/store/profile" element={<ProtectedRoute><StoreProfile /></ProtectedRoute>} />
-        <Route path="/website/home" element={<ProtectedRoute><WebsiteHome /></ProtectedRoute>} />
-        <Route path="/website/hosts" element={<ProtectedRoute><WebsiteHosts /></ProtectedRoute>} />
-        <Route path="/website/content" element={<ProtectedRoute><WebsiteContent /></ProtectedRoute>} />
-        <Route path="/website/theme" element={<ProtectedRoute><ThemeCenter /></ProtectedRoute>} />
-        <Route path="/website/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
-        <Route path="/website/requests" element={<ProtectedRoute><WebsiteRequests /></ProtectedRoute>} />
+        <Route path="/store/profile" element={<ProtectedRoute lock><StoreProfile /></ProtectedRoute>} />
+        <Route path="/website/home" element={<ProtectedRoute lock><WebsiteHome /></ProtectedRoute>} />
+        <Route path="/website/hosts" element={<ProtectedRoute lock><WebsiteHosts /></ProtectedRoute>} />
+        <Route path="/website/content" element={<ProtectedRoute lock><WebsiteContent /></ProtectedRoute>} />
+        <Route path="/website/theme" element={<ProtectedRoute lock><ThemeCenter /></ProtectedRoute>} />
+        <Route path="/website/members" element={<ProtectedRoute lock><Members /></ProtectedRoute>} />
+        <Route path="/website/requests" element={<ProtectedRoute lock><WebsiteRequests /></ProtectedRoute>} />
         <Route path="/store/design" element={<ProtectedRoute><StoreDesign /></ProtectedRoute>} />
-        <Route path="/store/team" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
+        <Route path="/store/team" element={<ProtectedRoute lock><RolesMatrix /></ProtectedRoute>} />
 
         {/* System */}
         <Route path="/system/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="/system/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
-        <Route path="/system/roles" element={<ProtectedRoute><RolesMatrix /></ProtectedRoute>} />
+        <Route path="/system/roles" element={<ProtectedRoute lock><RolesMatrix /></ProtectedRoute>} />
         <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="/settings/telegram" element={<ProtectedRoute><TelegramSettings /></ProtectedRoute>} />
 
-        <Route path="/hosts" element={<ProtectedRoute><HostManagement /></ProtectedRoute>} />
-        <Route path="/affiliates" element={<ProtectedRoute><Affiliates /></ProtectedRoute>} />
-        <Route path="/settings/shipping" element={<ProtectedRoute><ShippingSettings /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/hosts" element={<ProtectedRoute lock><HostManagement /></ProtectedRoute>} />
+        <Route path="/affiliates" element={<ProtectedRoute lock><Affiliates /></ProtectedRoute>} />
+        <Route path="/settings/shipping" element={<ProtectedRoute lock><ShippingSettings /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute lock><Settings /></ProtectedRoute>} />
       </Routes>
     </Suspense>
   )

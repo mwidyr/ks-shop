@@ -6,6 +6,7 @@ import { formatCurrency } from '../utils/format'
 import { jakartaIsoDate } from '../utils/jakartaDate'
 import StatusPill from '../components/StatusPill'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
+import { useCanEdit } from '../context/AccessContext'
 
 // The old manual "VIP" label is gone: VIP is now an automatic tier (cumulative valid spending of
 // NT$3,000 or more), computed by the backend. The other labels stay manual.
@@ -48,6 +49,7 @@ function KpiCard({ label, value }) {
 }
 
 function CustomerDetail({ customer, onClose, onChanged }) {
+  const canEdit = useCanEdit()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [extra, setExtra] = useState(null)
@@ -103,6 +105,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
             <button
               key={l.key}
               onClick={() => toggleLabel(l.key)}
+              disabled={!canEdit}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
                 labels.has(l.key)
                   ? l.key === 'blacklist' ? 'bg-red-600 border-red-600 text-white' : 'bg-brand-600 border-brand-600 text-white'
@@ -209,13 +212,13 @@ function CustomerDetail({ customer, onClose, onChanged }) {
           </div>
         )}
 
-        <div className="mt-8 border border-red-200 bg-red-50 rounded-xl p-4">
+        {canEdit && <div className="mt-8 border border-red-200 bg-red-50 rounded-xl p-4">
           <p className="text-xs font-bold text-red-600 uppercase mb-2">{t('page_customers.detail.danger_zone')}</p>
           <button onClick={handleDelete} className="w-full text-sm font-semibold text-red-600 border border-red-300 rounded-lg py-2 hover:bg-red-100">
             {t('page_customers.detail.delete_customer')}
           </button>
           {deleteError && <p className="text-xs text-red-600 mt-2">{deleteError}</p>}
-        </div>
+        </div>}
       </div>
     </div>
   )

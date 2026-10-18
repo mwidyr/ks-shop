@@ -1697,7 +1697,9 @@
     "website_self_service": "Website – Layanan Mandiri",
     "all_website": "Semua Website",
     "stock_line": "Tersedia {{available}} · Fisik {{actual}}",
-    "oversell_warning": "Oversell, perlu restock"
+    "oversell_warning": "Oversell, perlu restock",
+    "view_only_banner": "Anda hanya punya akses lihat untuk halaman ini. Perubahan tidak bisa disimpan.",
+    "view_only_blocked": "Perubahan ditolak: Anda hanya punya akses lihat untuk bagian ini."
   },
   "status": {
     "cancelled": "Dibatalkan",
@@ -2324,7 +2326,7 @@
       "summary": "Ringkasan",
       "label": "Label kategori",
       "body": "Isi",
-      "body_hint": "Gunakan toolbar untuk judul, tebal, daftar, tautan, gambar, dan kartu produk. Tampilan di editor mendekati website.",
+      "body_hint": "Susun artikel dari blok. Pakai tanda panah untuk memindahkan blok, dan Preview untuk melihat tampilannya di website.",
       "cover": "Gambar sampul",
       "cover_alt": "Teks alt sampul",
       "author_host": "Penulis (host)",
@@ -2378,7 +2380,43 @@
         "product_card": "Kartu produk",
         "remove": "Hapus",
         "pick_product": "Cari produk (nama atau SKU)",
-        "pick_product_hint": "Pilih produk untuk disisipkan sebagai kartu di posisi kursor."
+        "pick_product_hint": "Pilih produk untuk disisipkan sebagai kartu di posisi kursor.",
+        "add_block": "Tambah blok",
+        "type_p": "Teks",
+        "type_h2": "Judul (H2)",
+        "type_h3": "Subjudul (H3)",
+        "type_list": "Daftar poin",
+        "type_olist": "Daftar bernomor",
+        "type_image": "Gambar",
+        "type_product": "Produk",
+        "type_tags": "Tag",
+        "move_up": "Naik",
+        "move_down": "Turun",
+        "delete_block": "Hapus blok",
+        "delete_block_confirm": "Hapus blok ini?",
+        "empty_article": "Artikel ini belum berisi. Tambahkan blok pertama:",
+        "toc_title": "Daftar isi (dari judul H2)",
+        "toc_needs_two": "tampil di website mulai 2 judul",
+        "link_invalid": "Hanya tautan http(s), mailto, tel, atau tautan situs (diawali /) yang diizinkan.",
+        "no_image": "Tanpa gambar",
+        "upload_image": "Unggah gambar",
+        "replace_image": "Ganti gambar",
+        "alt_placeholder": "Deskripsi gambar (alt)",
+        "caption_placeholder": "Keterangan di bawah gambar (opsional)",
+        "change": "Ganti",
+        "tags_placeholder": "Tag, pisahkan dengan koma atau spasi",
+        "h2_placeholder": "Judul",
+        "h3_placeholder": "Subjudul"
+      },
+      "preview": {
+        "button": "Preview",
+        "title": "Preview — seperti di website",
+        "close": "Tutup",
+        "untitled": "(Belum ada judul)",
+        "read_min": "Baca {{n}} menit",
+        "toc": "Daftar isi",
+        "shop_note": "Item dalam artikel",
+        "view_product": "Lihat produk"
       }
     },
     "theme": {
@@ -2740,9 +2778,6 @@
     "likely_failing": "Kemungkinan baris yang menghentikan impor — pesanan setelahnya dilewati.",
     "confirm_not_created": "Konfirmasi pesanan ini TIDAK dibuat di platform? Setelah itu masuk ke file coba ulang.",
     "confirm_not_created_btn": "Konfirmasi belum dibuat",
-    "cancel_order": "Batalkan pesanan",
-    "cancel_reason_prompt": "Alasan membatalkan {{order}}?",
-    "cancel_confirm_stopped": "Sudah dipastikan pesanan pengiriman eksternal bisa dihentikan?",
     "retry_download_title": "File pesanan coba ulang",
     "retry_download_hint": "Hanya pesanan yang dikonfirmasi gagal. Pesanan yang sudah dibuat tidak disertakan.",
     "download_retry": "Unduh Excel Pesanan Coba Ulang",
@@ -2765,6 +2800,7 @@
     "issue_import_platform_reports_returned": "Platform melaporkan retur",
     "issue_import_platform_reports_cancelled": "Platform melaporkan pembatalan",
     "confirm_all_not_created_btn": "Konfirmasi semua belum dibuat ({{count}})",
-    "confirm_all_not_created": "Konfirmasi {{count}} pesanan TIDAK dibuat di platform? Semuanya masuk ke file coba ulang."
+    "confirm_all_not_created": "Konfirmasi {{count}} pesanan TIDAK dibuat di platform? Semuanya masuk ke file coba ulang.",
+    "open_order": "Buka detail pesanan"
   }
 }

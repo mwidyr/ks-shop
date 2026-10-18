@@ -4,19 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { listBatches } from '../api/shippingWorkbench'
 import CreateBatchModal from '../components/shipping/CreateBatchModal'
 import { BatchStatusPill, PROVIDERS, ProgressChips, StagePill, batchPath, formatDateTime, primaryBtn, providerBySlug } from '../components/shipping/shared'
+import { useCanEdit } from '../context/AccessContext'
 
-const STAGES = [
-  ['pending_order_matching', 'bg-amber-50 border-amber-200'],
-  ['awaiting_3pl_shipment', 'bg-blue-50 border-blue-200'],
-  ['shipped_awaiting_completion', 'bg-purple-50 border-purple-200'],
-  ['closed', 'bg-green-50 border-green-200'],
-]
+const STAGES = ['pending_order_matching', 'awaiting_3pl_shipment', 'shipped_awaiting_completion', 'closed']
 
 export default function ShippingProvider() {
   const { slug } = useParams()
   const provider = providerBySlug(slug)
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canEdit = useCanEdit()
   const [filter, setFilter] = useState('pending')
   const [q, setQ] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
@@ -44,15 +41,16 @@ export default function ShippingProvider() {
           <h1 className="text-xl font-bold text-gray-800">{t(`page_shipping_wb.${PROVIDERS[provider].nameKey}`)}</h1>
           <p className="text-sm text-gray-500">{t('page_shipping_wb.shipping_batches')}</p>
         </div>
-        <button onClick={() => setCreateOpen(true)} className={primaryBtn}>+ {t('page_shipping_wb.create_new_batch')}</button>
+        {canEdit && <button onClick={() => setCreateOpen(true)} className={primaryBtn}>+ {t('page_shipping_wb.create_new_batch')}</button>}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {STAGES.map(([stage, cls]) => (
-          <div key={stage} className={`rounded-2xl border p-4 ${cls}`}>
-            <p className="text-xs font-semibold text-gray-600">{t(`page_shipping_wb.stage_${stage}`)}</p>
-            <p className="text-3xl font-bold text-gray-800 mt-1">{data.cards[stage] ?? 0}</p>
-            <p className="text-[11px] text-gray-500">{t('page_shipping_wb.batches_unit')}</p>
+        {/* same plain card as the Inventory Management summary cards (BigStatCard compact) */}
+        {STAGES.map((stage) => (
+          <div key={stage} className="bg-white rounded-xl shadow-sm p-3">
+            <p className="text-xs text-gray-500 truncate">{t(`page_shipping_wb.stage_${stage}`)}</p>
+            <p className="text-lg font-extrabold text-gray-800">{data.cards[stage] ?? 0}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">{t('page_shipping_wb.batches_unit')}</p>
           </div>
         ))}
       </div>

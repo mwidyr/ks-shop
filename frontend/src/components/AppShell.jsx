@@ -2,147 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { getMyAccess } from '../api/rolePermissions'
+import { useAccess, useTabLevel } from '../context/AccessContext'
+import EditLock from './EditLock'
 import { getStoreSettings } from '../api/storeSettings'
 import PreferencesModal from './PreferencesModal'
-import {
-  IconDashboard, IconOrders, IconProducts, IconSettings, IconLogout, IconBell,
-  IconTag, IconTruck, IconMegaphone, IconChartLine, IconWallet, IconStore, IconGear,
-  IconSliders, IconChevronDown, IconStar, IconSend, IconSparkles, IconUser,
-  IconBroadcast, IconUsers, IconChat, IconWarehouse, IconClipboard,
-  IconUndo, IconBarChart, IconUserCog, IconPuzzle, IconFileText, IconPalette,
-  IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist, IconBook,
-} from './icons'
+import { IconBell, IconChevronDown, IconLogout, IconSliders } from './icons'
 
-// Sidebar structure per the client's "Sidebar Structure & Navigation Adjustments": two ungrouped
-// top items (Performance Dashboard, LIVE Data Portal - see TOP_ITEMS) followed by these sections.
-// Items that are not shipped yet stay listed here (marked `upcoming`) but are hidden by
-// VISIBLE_TAB_KEYS below.
-const navGroups = [
-  {
-    title: 'operations', icon: IconCart, items: [
-      { to: '/orders', key: 'orders', icon: IconCart },
-      { to: '/shipping-workbench', key: 'shipping_workbench', icon: IconClipboard },
-      { to: '/returns', key: 'returns', icon: IconUndo },
-      { to: '/inventory', key: 'inventory', icon: IconMolecule },
-      { to: '/customers', key: 'customers', icon: IconUsers },
-      { to: '/shipping', key: 'shipping', icon: IconTruck },
-      { to: '/refunds', key: 'refunds', icon: IconWallet },
-      { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
-      { to: '/reviews', key: 'reviews', icon: IconStar, upcoming: true },
-      { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
-    ],
-  },
-  {
-    title: 'catalog', icon: IconProducts, items: [
-      { to: '/products', key: 'products', icon: IconProducts },
-      { to: '/categories', key: 'categories', icon: IconTag },
-      { to: '/colors', key: 'colors', icon: IconPalette },
-    ],
-  },
-  {
-    title: 'sales_insights', icon: IconChartLine, items: [
-      { to: '/analytics/heatmap', key: 'heatmap', icon: IconTrendUp },
-      { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
-      { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
-      { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
-    ],
-  },
-  {
-    title: 'product_performance', icon: IconTrendUp, items: [
-      { to: '/analytics/host-category-leaderboard', key: 'host_category_leaderboard', icon: IconTrendUp },
-      { to: '/analytics/products', key: 'product_analytics', icon: IconTrendUp },
-      { to: '/analytics/product-trend', key: 'product_trend', icon: IconTrendUp },
-      { to: '/analytics/product-performance', key: 'product_performance', icon: IconTrendUp },
-      { to: '/analytics/product-color-pair', key: 'product_color_pair', icon: IconTrendUp },
-    ],
-  },
-  {
-    title: 'website', icon: IconPalette, items: [
-      { to: '/website/home', key: 'website_home', icon: IconSliders },
-      { to: '/website/hosts', key: 'website_hosts', icon: IconUser },
-      { to: '/website/content', key: 'website_content', icon: IconBook },
-      { to: '/website/theme', key: 'theme', icon: IconPalette },
-      { to: '/website/members', key: 'members', icon: IconUsers },
-      { to: '/website/requests', key: 'website_requests', icon: IconChat },
-    ],
-  },
-  {
-    title: 'procurement', icon: IconTruck, items: [
-      { to: '/suppliers', key: 'suppliers', icon: IconTruck },
-      { to: '/purchases', key: 'purchases', icon: IconClipboard },
-      { to: '/purchase-requisitions', key: 'purchase_requisitions', icon: IconClipboard },
-      { to: '/replenishment-planning', key: 'replenishment_planning', icon: IconChecklist },
-    ],
-  },
-  {
-    title: 'finance', icon: IconWallet, items: [
-      { to: '/profit', key: 'profit', icon: IconWallet },
-      { to: '/finance/reports', key: 'reports', icon: IconBarChart },
-      { to: '/finance/transactions', key: 'transactions', icon: IconWallet, upcoming: true },
-      { to: '/finance/payouts', key: 'payouts', icon: IconWallet, upcoming: true },
-      { to: '/finance/fees', key: 'fees', icon: IconWallet, upcoming: true },
-    ],
-  },
-  {
-    // Two-level group: Settings -> subcategory -> pages (per the client's nested-menu spec).
-    title: 'settings', icon: IconGear, items: [
-      { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
-      { to: '/advertising', key: 'advertising', icon: IconSend, upcoming: true },
-      { to: '/store/design', key: 'store_design', icon: IconPalette, upcoming: true },
-      { to: '/store/team', key: 'team', icon: IconUsers, upcoming: true },
-      { to: '/system/notifications', key: 'notifications', icon: IconBell, upcoming: true },
-      { to: '/system/integrations', key: 'integrations', icon: IconPuzzle, upcoming: true },
-    ],
-    subgroups: [
-      {
-        title: 'business_settings', items: [
-          { to: '/promotions', key: 'promotions', icon: IconMegaphone },
-          { to: '/store/profile', key: 'store_profile', icon: IconStore },
-          { to: '/settings/shipping', key: 'shipping_settings', icon: IconLink },
-        ],
-      },
-      {
-        title: 'people_access', items: [
-          { to: '/hosts', key: 'hosts', icon: IconUser },
-          { to: '/affiliates', key: 'affiliates', icon: IconUser },
-          { to: '/system/roles', key: 'roles', icon: IconUserCog },
-        ],
-      },
-      {
-        title: 'notifications', items: [
-          { to: '/settings/telegram', key: 'telegram_settings', icon: IconSend },
-        ],
-      },
-      {
-        title: 'system_logs', items: [
-          { to: '/system/audit-logs', key: 'audit_logs', icon: IconFileText },
-          { to: '/settings', key: 'settings', icon: IconSettings },
-        ],
-      },
-    ],
-  },
-]
-
-// The two items at the very top of the sidebar, without a section heading. The Performance
-// Dashboard replaces the old Dashboard page (/dashboard now redirects to it).
-const TOP_ITEMS = [
-  { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconDashboard },
-  { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
-]
-
-// Product decision: only these tabs are shown in the sidebar for now. Everything else stays
-// fully implemented (routes, handlers, translations, navGroups entry) - just hidden from nav
-// until it's ready to ship. This is a blanket visibility gate on top of (not a replacement
-// for) the per-role canSeeTab() permission check below.
-const VISIBLE_TAB_KEYS = new Set([
-  'panel_siaran', 'orders', 'shipping_workbench', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
-  'reports', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
-  'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
-  'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
-  'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
-  'website_home', 'website_hosts', 'website_content', 'theme', 'website_requests', 'members',
-])
+import { navGroups, TOP_ITEMS, VISIBLE_TAB_KEYS, groupItems } from './navConfig'
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
 // literal nav destinations (detail/create/edit/print pages).
@@ -161,9 +27,6 @@ const titleOverrides = [
   { prefix: '/purchases/history', titleKey: 'page_purchase_history.title' },
   { prefix: '/suppliers/', titleKey: 'page_suppliers.profile_title' },
 ]
-
-// Every page entry of a group, including those inside its subgroups.
-const groupItems = (group) => [...group.items, ...(group.subgroups || []).flatMap((sg) => sg.items)]
 
 // Open/closed state of the collapsible sections, remembered per browser. Top-level sections
 // start open (as before) except Settings; subcategories start closed. The section holding the
@@ -200,7 +63,7 @@ function pageTitle(pathname, t) {
   return matches[0] ? matches[0].title : t('brand.name')
 }
 
-export default function AppShell({ children }) {
+export default function AppShell({ children, lock }) {
   const { t } = useTranslation()
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -208,17 +71,16 @@ export default function AppShell({ children }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [access, setAccess] = useState(null) // null = still loading (show everything to avoid flicker)
-  const [isSuperUser, setIsSuperUser] = useState(true)
+  const { loaded: accessLoaded, isSuperUser: accessSuper, access: accessMap } = useAccess()
+  const access = accessLoaded ? accessMap : null // null = still loading (show everything to avoid flicker)
+  const isSuperUser = accessLoaded ? accessSuper : true
+  const pageLevel = useTabLevel()
+  const [blocked, setBlocked] = useState('') // set when the server refused a change (view-only role)
   const [shopName, setShopName] = useState(t('brand.name'))
   const [clock, setClock] = useState('')
   const [openSections, setOpenSections] = useState(loadOpenSections)
 
   useEffect(() => {
-    getMyAccess().then((res) => {
-      setIsSuperUser(res.role === 'super_user')
-      setAccess(res.access)
-    })
     getStoreSettings().then((res) => { if (res.shop_name) setShopName(res.shop_name) }).catch(() => {})
   }, [])
 
@@ -256,7 +118,14 @@ export default function AppShell({ children }) {
     return location.pathname === to || location.pathname.startsWith(to + '/')
   }
 
-  useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
+  useEffect(() => { setMobileNavOpen(false); setBlocked('') }, [location.pathname])
+
+  // The API refused a change because the role only has view access (see api/client.js).
+  useEffect(() => {
+    const onBlocked = () => setBlocked('1')
+    window.addEventListener('readonly-blocked', onBlocked)
+    return () => window.removeEventListener('readonly-blocked', onBlocked)
+  }, [])
 
   const isSectionOpen = (id, fallback) => (id in openSections ? !!openSections[id] : fallback)
 
@@ -453,7 +322,20 @@ export default function AppShell({ children }) {
             </div>
           </div>
         </header>
-        <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          {pageLevel === 'view' && (
+            <div role="status" className="mx-3 mt-3 sm:mx-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+              {t('shared.view_only_banner')}
+            </div>
+          )}
+          {blocked && (
+            <div role="alert" className="mx-3 mt-3 sm:mx-6 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700">
+              <span>{t('shared.view_only_blocked')}</span>
+              <button type="button" onClick={() => setBlocked('')} className="text-red-500 hover:text-red-700" aria-label={t('common.close')}>✕</button>
+            </div>
+          )}
+          {lock ? <EditLock>{children}</EditLock> : children}
+        </main>
       </div>
 
       {prefsOpen && <PreferencesModal onClose={() => setPrefsOpen(false)} />}

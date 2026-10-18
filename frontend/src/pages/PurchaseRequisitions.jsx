@@ -5,6 +5,7 @@ import { listPurchaseRequisitions, createPurchaseRequisition, deletePurchaseRequ
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { IconTrash } from '../components/icons'
+import { useCanEdit } from '../context/AccessContext'
 
 const statusColors = {
   draft: 'bg-yellow-100 text-yellow-700',
@@ -16,6 +17,7 @@ const statusColors = {
 const deletableStatuses = new Set(['draft', 'pending_contact'])
 
 export default function PurchaseRequisitions() {
+  const canEdit = useCanEdit()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [requisitions, setRequisitions] = useState([])
@@ -58,9 +60,11 @@ export default function PurchaseRequisitions() {
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{t('page_purchase_requisitions.subtitle')}</p>
-        <button onClick={handleCreate} disabled={creating} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-          {creating ? t('page_purchase_requisitions.creating') : t('page_purchase_requisitions.create_button')}
-        </button>
+        {canEdit && (
+          <button onClick={handleCreate} disabled={creating} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            {creating ? t('page_purchase_requisitions.creating') : t('page_purchase_requisitions.create_button')}
+          </button>
+        )}
       </div>
 
       <div className={`${cardClasses} overflow-x-auto`}>
@@ -90,14 +94,14 @@ export default function PurchaseRequisitions() {
                   <td className="p-3.5 text-[var(--text-secondary)]">{new Date(req.created_at).toLocaleDateString()}</td>
                   <td className="p-3.5 text-brand-600 text-xs font-semibold">{t('page_purchase_requisitions.detail_link')}</td>
                   <td className="p-3.5">
-                    <button
+                    {canEdit && <button
                       onClick={(e) => handleDelete(e, req)}
                       disabled={!canDelete || deletingId === req.id}
                       title={canDelete ? t('page_purchase_requisitions.delete_button') : t('page_purchase_requisitions.delete_disabled_hint')}
                       className="text-red-600 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
                     >
                       <IconTrash width={16} height={16} />
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               )

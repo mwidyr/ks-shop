@@ -7,6 +7,7 @@ import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } 
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
+import EditLock from '../components/EditLock'
 
 const DEFAULTS = { stockout_days: 7, restock_days: 28, stagnant_days: 14 }
 const ALERT_OPTIONS = ['all_alerts', 'stockout', 'restock', 'stagnant', 'overdue', 'normal', 'all']
@@ -255,6 +256,7 @@ export default function ReplenishmentPlanning() {
         </div>
       </div>
 
+      <EditLock>
       <div className={`${cardClasses} p-4`}>
         <h2 className="font-bold text-[var(--text-primary)]">{t('page_replenishment.settings_title')}</h2>
         <p className="text-xs text-[var(--text-secondary)] mb-1">{t('page_replenishment.settings_subtitle')}</p>
@@ -284,6 +286,7 @@ export default function ReplenishmentPlanning() {
           {msg && <span className={`text-xs font-semibold ${msg.ok ? 'text-emerald-500' : 'text-red-500'}`}>{msg.text}</span>}
         </div>
       </div>
+      </EditLock>
       {previewImage && <ImagePreviewModal images={[{ url: previewImage }]} onClose={() => setPreviewImage(null)} />}
     </div>
   )

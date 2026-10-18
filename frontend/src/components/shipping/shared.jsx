@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next'
 
 // The three shipping providers (pickup_chains.chain_type) and their URL slugs.
 export const PROVIDERS = {
-  cvs_711: { slug: '711', nameKey: 'provider_711', accent: 'border-orange-300 bg-orange-50 text-orange-700' },
-  cvs_familymart: { slug: 'familymart', nameKey: 'provider_familymart', accent: 'border-sky-300 bg-sky-50 text-sky-700' },
-  courier: { slug: 'hct', nameKey: 'provider_hct', accent: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
+  cvs_711: { slug: '711', nameKey: 'provider_711' },
+  cvs_familymart: { slug: 'familymart', nameKey: 'provider_familymart' },
+  courier: { slug: 'hct', nameKey: 'provider_hct' },
 }
 export const PROVIDER_KEYS = Object.keys(PROVIDERS)
 export const providerBySlug = (slug) => PROVIDER_KEYS.find((k) => PROVIDERS[k].slug === slug)

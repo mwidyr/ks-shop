@@ -1697,7 +1697,9 @@
     "website_self_service": "官網 – 自助下單",
     "all_website": "所有官網",
     "stock_line": "可售 {{available}} · 實體 {{actual}}",
-    "oversell_warning": "超賣，需補貨"
+    "oversell_warning": "超賣，需補貨",
+    "view_only_banner": "您對此頁面只有檢視權限，無法儲存變更。",
+    "view_only_blocked": "變更被拒絕：您對此區塊只有檢視權限。"
   },
   "status": {
     "cancelled": "已取消",
@@ -2324,7 +2326,7 @@
       "summary": "摘要",
       "label": "分類標籤",
       "body": "內文",
-      "body_hint": "使用工具列設定標題、粗體、清單、連結、圖片與商品卡片。編輯畫面接近網站實際呈現。",
+      "body_hint": "用區塊組合文章，以箭頭調整順序，並用「預覽」查看在網站上的樣子。",
       "cover": "封面圖",
       "cover_alt": "封面替代文字",
       "author_host": "作者（主播）",
@@ -2378,7 +2380,43 @@
         "product_card": "商品卡片",
         "remove": "移除",
         "pick_product": "搜尋商品（名稱或 SKU）",
-        "pick_product_hint": "選擇商品，插入游標位置作為卡片。"
+        "pick_product_hint": "選擇商品，插入游標位置作為卡片。",
+        "add_block": "新增區塊",
+        "type_p": "文字",
+        "type_h2": "大標題 (H2)",
+        "type_h3": "小標題 (H3)",
+        "type_list": "項目清單",
+        "type_olist": "編號清單",
+        "type_image": "圖片",
+        "type_product": "商品",
+        "type_tags": "標籤",
+        "move_up": "上移",
+        "move_down": "下移",
+        "delete_block": "刪除區塊",
+        "delete_block_confirm": "要刪除這個區塊嗎？",
+        "empty_article": "這篇文章還沒有內容，請新增第一個區塊：",
+        "toc_title": "目錄（由大標題 H2 自動產生）",
+        "toc_needs_two": "有 2 個以上大標題時才會顯示",
+        "link_invalid": "只允許 http(s)、mailto、tel 或網站內連結（以 / 開頭）。",
+        "no_image": "無圖片",
+        "upload_image": "上傳圖片",
+        "replace_image": "更換圖片",
+        "alt_placeholder": "圖片說明（替代文字）",
+        "caption_placeholder": "圖片下方的說明文字（選填）",
+        "change": "更換",
+        "tags_placeholder": "標籤，以逗號或空格分隔",
+        "h2_placeholder": "大標題",
+        "h3_placeholder": "小標題"
+      },
+      "preview": {
+        "button": "預覽",
+        "title": "預覽 — 網站上的樣子",
+        "close": "關閉",
+        "untitled": "（尚無標題）",
+        "read_min": "閱讀 {{n}} 分鐘",
+        "toc": "目錄",
+        "shop_note": "文章中的商品",
+        "view_product": "查看商品"
       }
     },
     "theme": {
@@ -2740,9 +2778,6 @@
     "likely_failing": "可能是造成匯入中斷的那一列——其後的訂單已被略過。",
     "confirm_not_created": "確認此訂單「未」在平台建立？確認後會納入重試檔。",
     "confirm_not_created_btn": "確認未建立",
-    "cancel_order": "取消訂單",
-    "cancel_reason_prompt": "取消 {{order}} 的原因？",
-    "cancel_confirm_stopped": "您是否已確認外部出貨單可以停止？",
     "retry_download_title": "重試訂單檔",
     "retry_download_hint": "僅包含已確認失敗的訂單，已建立的訂單不會被納入。",
     "download_retry": "下載重試訂單 Excel",
@@ -2765,6 +2800,7 @@
     "issue_import_platform_reports_returned": "平台回報退貨",
     "issue_import_platform_reports_cancelled": "平台回報取消",
     "confirm_all_not_created_btn": "全部確認未建立（{{count}} 筆）",
-    "confirm_all_not_created": "確認這 {{count}} 筆訂單「未」在平台建立？全部將納入重試檔。"
+    "confirm_all_not_created": "確認這 {{count}} 筆訂單「未」在平台建立？全部將納入重試檔。",
+    "open_order": "開啟訂單詳情"
   }
 }
