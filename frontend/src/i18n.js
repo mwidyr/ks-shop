@@ -23,6 +23,8 @@ i18next.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 })
 
+if (typeof document !== 'undefined') document.documentElement.lang = savedLanguage
+
 export function changeLanguage(lang) {
   i18next.changeLanguage(lang)
   try {

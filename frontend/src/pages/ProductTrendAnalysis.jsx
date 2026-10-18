@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductTrend } from '../api/reports'
 import { listHosts } from '../api/hosts'
@@ -9,6 +9,8 @@ import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useMasterData } from '../context/MasterDataContext'
+import { useDebouncedValue } from '../utils/hooks'
+import Pager from '../components/Pager'
 
 const PAGE_SIZE = 50
 const fmt = (n) => Number(n || 0).toLocaleString()
@@ -138,58 +140,41 @@ export default function ProductTrendAnalysis() {
   const [catOpen, setCatOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('all')
-  const [page, setPage] = useState(1)
+  const [pageState, setPageState] = useState({ key: '', page: 1 })
   const [expanded, setExpanded] = useState(null) // product id; only one product open at a time
+  const reqId = useRef(0)
+
+  const debouncedSearch = useDebouncedValue(search, 300)
+  // Every filter, the metric, the sort and the search live in one key: a new key means page 1,
+  // so a change never fires one request for the old page and another for page 1.
+  const filterKey = [range.from, range.to, channel, hostId, locationId, affiliateId, metric, sortBy, debouncedSearch].join('|')
+  const page = pageState.key === filterKey ? pageState.page : 1
+  const setPage = (n) => setPageState({ key: filterKey, page: n })
+  // Forget the old page once the key changes, so coming back to a previous key doesn't restore it.
+  useEffect(() => { setPageState((p) => (p.key === filterKey ? p : { key: filterKey, page: 1 })) }, [filterKey])
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
   useEffect(() => { listLocations().then(setLocations) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
+  // Ranking, sorting, search and paging all happen on the server; this page only renders what comes back.
   useEffect(() => {
+    const id = ++reqId.current
     setLoading(true)
     getProductTrend({
       date_from: range.from, date_to: range.to,
       host_id: channel === 'live' ? hostId : '', location_id: channel === 'live' ? locationId : '',
       channel, affiliate_id: channel === 'website' ? affiliateId : '',
-    }).then((res) => { setData(res); setLoading(false) }).catch(() => setLoading(false))
-  }, [range, channel, hostId, locationId, affiliateId])
+      metric, sort: sortBy, q: debouncedSearch.trim(), page, page_size: PAGE_SIZE,
+    }).then((res) => { if (id === reqId.current) { setData(res); setLoading(false) } })
+      .catch(() => { if (id === reqId.current) setLoading(false) })
+  }, [filterKey, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setPage(1) }, [search, sortBy, metric, data])
-
-  const diff = (e) => e.cur[metric] - e.prev[metric]
-
-  const colorRows = useMemo(() => {
-    const out = []
-    for (const p of data?.products || []) {
-      for (const c of p.colors) out.push({ key: `${p.product_id}-${c.color}`, sku: p.sku, color: c.color, prev: c.prev, cur: c.cur })
-    }
-    return out
-  }, [data])
-
-  const growth = useMemo(() => colorRows.filter((r) => diff(r) > 0).sort((a, b) => diff(b) - diff(a)).slice(0, 10), [colorRows, metric]) // eslint-disable-line react-hooks/exhaustive-deps
-  const decline = useMemo(() => colorRows.filter((r) => diff(r) < 0).sort((a, b) => diff(a) - diff(b)).slice(0, 10), [colorRows, metric]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const categories = useMemo(() => [...(data?.categories || [])].sort((a, b) => Math.abs(diff(b)) - Math.abs(diff(a))), [data, metric]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Search + sorting only affect the product table, never the rankings above.
-  const products = useMemo(() => {
-    const s = search.trim().toLowerCase()
-    let list = (data?.products || []).filter((p) => !s
-      || p.sku.toLowerCase().includes(s) || p.name.toLowerCase().includes(s)
-      || p.colors.some((c) => c.color.toLowerCase().includes(s) || translateColor(c.color).toLowerCase().includes(s)))
-    if (sortBy === 'zero') list = list.filter((p) => p.prev[metric] > 0 && p.cur[metric] === 0)
-    const cmp = {
-      all: (a, b) => b.cur[metric] - a.cur[metric],
-      increase: (a, b) => diff(b) - diff(a),
-      decrease: (a, b) => diff(a) - diff(b),
-      current: (a, b) => b.cur[metric] - a.cur[metric],
-      zero: (a, b) => b.prev[metric] - a.prev[metric],
-    }[sortBy]
-    return [...list].sort((a, b) => cmp(a, b) || a.sku.localeCompare(b.sku))
-  }, [data, search, sortBy, metric]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pages = Math.max(1, Math.ceil(products.length / PAGE_SIZE))
-  const pageRows = products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const growth = data?.growth || []
+  const decline = data?.decline || []
+  const categories = data?.categories || []
+  const pageRows = data?.products?.items || []
+  const total = data?.products?.total || 0
 
   const rangeLabel = data ? `${data.current.from} – ${data.current.to}  vs  ${data.previous.from} – ${data.previous.to}` : ''
 
@@ -221,10 +206,10 @@ export default function ProductTrendAnalysis() {
         </div>
       </div>
 
-      {loading || !data ? (
+      {!data ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <>
+        <div className={loading ? 'opacity-60 transition-opacity space-y-4' : 'transition-opacity space-y-4'} aria-busy={loading}>
           <Section title={t('page_product_trend.top10_title')} subtitle={t('page_product_trend.top10_sub')} open={rankOpen} onToggle={() => setRankOpen((o) => !o)}>
             <div className="grid lg:grid-cols-2 gap-4">
               <RankingTable rows={growth} metric={metric} icon="↗" tone="var(--qty-color)" title={t('page_product_trend.growth')} t={t} translateColor={translateColor} />
@@ -286,8 +271,8 @@ export default function ProductTrendAnalysis() {
                           </td>
                           <CompareCells entry={p} metric={metric} />
                         </tr>
-                        {open && [...p.colors].sort((a, b) => diff(b) - diff(a)).map((c) => (
-                          <tr key={c.color} className="bg-black/5">
+                        {open && p.colors.map((c) => (
+                          <tr key={`${p.product_id}-${c.color}`} className="bg-black/5">
                             <td className="p-2 pl-9 text-[var(--text-primary)]">{translateColor(c.color) || '—'}</td>
                             <CompareCells entry={c} metric={metric} />
                           </tr>
@@ -299,16 +284,10 @@ export default function ProductTrendAnalysis() {
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
-              <span>{t('page_product_trend.count', { count: products.length })}</span>
-              <div className="flex items-center gap-2">
-                <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">{t('page_product_trend.prev')}</button>
-                <span>{t('page_product_trend.page_of', { page, pages })}</span>
-                <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40">{t('page_product_trend.next')}</button>
-              </div>
-            </div>
+            <p className="text-xs text-[var(--text-secondary)]">{t('page_product_trend.count', { count: total })}</p>
+            <Pager page={page} size={PAGE_SIZE} total={total} onPage={setPage} />
           </div>
-        </>
+        </div>
       )}
     </div>
   )

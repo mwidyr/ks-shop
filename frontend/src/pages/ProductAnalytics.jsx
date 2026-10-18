@@ -11,21 +11,6 @@ import { IconChevronDown } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { useMasterData } from '../context/MasterDataContext'
 
-// Color breakdown for one ranked product, derived client-side from the already-fetched
-// by_variant rows (no extra API call) - grouped by color, with % of that product's OWN qty
-// (not % of the whole period), matching "sales by color" rather than the page-wide GMV%.
-function colorBreakdownFor(byVariant, productSku, productQty) {
-  const rows = byVariant.filter((v) => v.product_sku === productSku)
-  const byColor = new Map()
-  for (const v of rows) {
-    const prev = byColor.get(v.color) || 0
-    byColor.set(v.color, prev + v.qty)
-  }
-  return [...byColor.entries()]
-    .map(([color, qty]) => ({ color, qty, pct: productQty > 0 ? (qty / productQty) * 100 : 0 }))
-    .sort((a, b) => b.qty - a.qty)
-}
-
 // The HOST card mirrors whatever the channel filter above is set to, so it is derived from the
 // filter state (not the API summary) and stays correct while loading or with an empty range.
 function hostCardLabel({ channel, hostId, locationId, affiliateId, hosts, locations, affiliates, t }) {
@@ -64,13 +49,19 @@ export default function ProductAnalytics() {
   const [productSort, setProductSort] = useState('gmv')
   // A Set, not a single value - each ranking row expands/collapses independently instead of
   // acting as an accordion (opening one used to close whichever other row was already open).
-  const [expandedSkus, setExpandedSkus] = useState(() => new Set())
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
 
-  function toggleExpanded(sku) {
-    setExpandedSkus((prev) => {
+  // The server returns one ready-made top-100 list per sort, so toggling only swaps lists
+  // (no browser re-sort of keyed rows, no refetch).
+  const ranking = data
+    ? (productSort === 'qty' ? data.by_product_qty : data.by_product_gmv) || data.by_product || []
+    : []
+
+  function toggleExpanded(id) {
+    setExpandedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(sku)) next.delete(sku)
-      else next.add(sku)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -172,13 +163,13 @@ export default function ProductAnalytics() {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {[...data.by_product].sort((a, b) => (productSort === 'qty' ? b.qty - a.qty : b.gmv - a.gmv)).map((p) => {
-                  const isExpanded = expandedSkus.has(p.sku)
-                  const colors = isExpanded ? colorBreakdownFor(data.by_variant, p.sku, p.qty) : []
+                {ranking.map((p) => {
+                  const isExpanded = expandedIds.has(p.product_id)
+                  const colors = isExpanded ? (p.colors || []) : []
                   return (
-                    <Fragment key={p.sku}>
+                    <Fragment key={p.product_id}>
                       <tr
-                        onClick={() => toggleExpanded(p.sku)}
+                        onClick={() => toggleExpanded(p.product_id)}
                         className={`cursor-pointer ${rowClasses}`}
                       >
                         <td className="p-2 font-mono text-xs text-brand-600">
@@ -223,7 +214,7 @@ export default function ProductAnalytics() {
                     </Fragment>
                   )
                 })}
-                {data.by_product.length === 0 && (
+                {ranking.length === 0 && (
                   <tr><td colSpan={6} className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}
               </tbody>
@@ -241,7 +232,7 @@ export default function ProductAnalytics() {
               </thead>
               <tbody className={tbodyClasses}>
                 {data.by_variant.map((v) => (
-                  <tr key={v.sku} className={rowClasses}>
+                  <tr key={v.variant_id} className={rowClasses}>
                     <td className="p-2 font-mono text-xs text-brand-600">{v.sku}</td>
                     <td className="p-2 text-[var(--text-secondary)]">{translateCategory(v.category)}</td>
                     <td className="p-2 font-medium text-[var(--text-primary)]">{v.product_name}</td>

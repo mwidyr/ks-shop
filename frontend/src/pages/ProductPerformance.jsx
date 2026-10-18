@@ -206,7 +206,7 @@ export default function ProductPerformance() {
                 </thead>
                 <tbody className={tbodyClasses}>
                   {data.cross_sell.map((c) => (
-                    <tr key={c.sku} className={rowClasses}>
+                    <tr key={c.product_id} className={rowClasses}>
                       <td className="p-2 font-mono text-xs text-brand-600">{c.sku}</td>
                       <td className="p-2 font-medium text-[var(--text-primary)]">{c.product_name}</td>
                       <td className="p-2"><Metric type="ord">{c.order_count}</Metric></td>

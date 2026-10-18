@@ -131,7 +131,7 @@ export default function ProductColorPair() {
             {data.paired_products.length === 0 ? (
               <p className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_color_pair.no_paired_products')}</p>
             ) : (
-              data.paired_products.map((row) => <PairedProductRow key={row.sku} row={row} t={t} />)
+              data.paired_products.map((row) => <PairedProductRow key={row.product_id} row={row} t={t} />)
             )}
           </div>
         </>

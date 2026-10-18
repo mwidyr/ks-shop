@@ -3,6 +3,7 @@ package handlers
 import (
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -110,6 +111,8 @@ type categoryAnalysisRow struct {
 }
 
 type variantAnalysisRow struct {
+	ProductID   int     `json:"product_id"`
+	VariantID   int     `json:"variant_id"`
 	SKU         string  `json:"sku"`
 	ProductSKU  string  `json:"product_sku"` // the product's own code (distinct from the variant SKU above) - links this row back to its by_product ranking row
 	Category    string  `json:"category"`
@@ -120,13 +123,43 @@ type variantAnalysisRow struct {
 	GMVPct      float64 `json:"gmv_pct"`
 }
 
+type productColorRow struct {
+	Color string  `json:"color"`
+	Qty   int     `json:"qty"`
+	Pct   float64 `json:"pct"` // share of THIS product's own quantity
+}
+
 type productAnalysisRow struct {
-	SKU         string  `json:"sku"`
-	Category    string  `json:"category"`
-	ProductName string  `json:"product_name"`
-	Qty         int     `json:"qty"`
-	GMV         float64 `json:"gmv"`
-	GMVPct      float64 `json:"gmv_pct"`
+	// ProductID is the identity of the row (the product code SKU can be missing or shared, so it is
+	// never used as a key); SKU is only for display.
+	ProductID   int               `json:"product_id"`
+	SKU         string            `json:"sku"`
+	Category    string            `json:"category"`
+	ProductName string            `json:"product_name"`
+	Qty         int               `json:"qty"`
+	GMV         float64           `json:"gmv"`
+	GMVPct      float64           `json:"gmv_pct"`
+	Colors      []productColorRow `json:"colors"` // every color the product sold in, not just the top-100 variants
+}
+
+// colorShares turns per-color quantities into rows with each color's share of the product's own
+// quantity, biggest first (ties by color name so the order is stable).
+func colorShares(qtyByColor map[string]int, productQty int) []productColorRow {
+	out := make([]productColorRow, 0, len(qtyByColor))
+	for color, qty := range qtyByColor {
+		row := productColorRow{Color: color, Qty: qty}
+		if productQty > 0 {
+			row.Pct = float64(qty) / float64(productQty) * 100
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Qty != out[j].Qty {
+			return out[i].Qty > out[j].Qty
+		}
+		return out[i].Color < out[j].Color
+	})
+	return out
 }
 
 // ProductAnalysis mirrors the client's own Google Sheet structure for this report: a
@@ -193,30 +226,79 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 
 	// Aggregated per product (across colors) - mirrors the reference sheet's "Host Product
 	// Ranking" (per-host drill-down) and "GMV/QTY Ranking" (Overview, no host filter) sections.
-	prodRows, err := h.DB.Query(r.Context(), `
-		SELECT COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
-		FROM order_items oi
-		JOIN orders o ON o.id = oi.order_id
-		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
-		GROUP BY p.id, p.sku, p.category, p.name ORDER BY 5 DESC LIMIT 100`, args...)
-	byProduct := []productAnalysisRow{}
-	if err == nil {
-		defer prodRows.Close()
-		for prodRows.Next() {
+	// Two rankings from the same filters: the top 100 by GMV and the top 100 by quantity. (Sorting the
+	// GMV top 100 by quantity would miss a product that sells many units at a low price.)
+	rankProducts := func(orderBy string) []productAnalysisRow {
+		out := []productAnalysisRow{}
+		rows, err := h.DB.Query(r.Context(), `
+			SELECT p.id, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			JOIN product_variants pv ON pv.id = oi.variant_id
+			JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
+			GROUP BY p.id, p.sku, p.category, p.name ORDER BY `+orderBy+`, p.id LIMIT 100`, args...)
+		if err != nil {
+			return out
+		}
+		defer rows.Close()
+		for rows.Next() {
 			var p productAnalysisRow
-			if err := prodRows.Scan(&p.SKU, &p.Category, &p.ProductName, &p.Qty, &p.GMV); err != nil {
+			if err := rows.Scan(&p.ProductID, &p.SKU, &p.Category, &p.ProductName, &p.Qty, &p.GMV); err != nil {
 				continue
 			}
 			if totalGMV > 0 {
 				p.GMVPct = p.GMV / totalGMV * 100
 			}
-			byProduct = append(byProduct, p)
+			p.Colors = []productColorRow{}
+			out = append(out, p)
+		}
+		return out
+	}
+	byProduct := rankProducts("5 DESC")
+	byProductQty := rankProducts("4 DESC")
+
+	// Color breakdown of every ranked product, from all of its sales in the same scope.
+	rankedIDs := []int{}
+	seen := map[int]bool{}
+	for _, list := range [][]productAnalysisRow{byProduct, byProductQty} {
+		for _, p := range list {
+			if !seen[p.ProductID] {
+				seen[p.ProductID] = true
+				rankedIDs = append(rankedIDs, p.ProductID)
+			}
+		}
+	}
+	colorQty := map[int]map[string]int{}
+	if len(rankedIDs) > 0 {
+		colorArgs := append(append([]interface{}{}, args...), rankedIDs)
+		if crows, err := h.DB.Query(r.Context(), `
+			SELECT pv.product_id, COALESCE(pv.color,''), SUM(oi.qty)
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			JOIN product_variants pv ON pv.id = oi.variant_id
+			JOIN products p ON p.id = pv.product_id`+joinHosts+where+` AND pv.product_id = ANY($`+strconv.Itoa(len(colorArgs))+`)
+			GROUP BY pv.product_id, pv.color`, colorArgs...); err == nil {
+			for crows.Next() {
+				var pid, qty int
+				var color string
+				if crows.Scan(&pid, &color, &qty) == nil {
+					if colorQty[pid] == nil {
+						colorQty[pid] = map[string]int{}
+					}
+					colorQty[pid][color] += qty
+				}
+			}
+			crows.Close()
+		}
+	}
+	for _, list := range [][]productAnalysisRow{byProduct, byProductQty} {
+		for i := range list {
+			list[i].Colors = colorShares(colorQty[list[i].ProductID], list[i].Qty)
 		}
 	}
 
 	varRows, err := h.DB.Query(r.Context(), `
-		SELECT pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+		SELECT p.id, pv.id, pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
@@ -227,7 +309,7 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		defer varRows.Close()
 		for varRows.Next() {
 			var v variantAnalysisRow
-			if err := varRows.Scan(&v.SKU, &v.ProductSKU, &v.Category, &v.ProductName, &v.Color, &v.Qty, &v.GMV); err != nil {
+			if err := varRows.Scan(&v.ProductID, &v.VariantID, &v.SKU, &v.ProductSKU, &v.Category, &v.ProductName, &v.Color, &v.Qty, &v.GMV); err != nil {
 				continue
 			}
 			if totalGMV > 0 {
@@ -238,10 +320,12 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"summary":     map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName, "location_name": locationName},
-		"by_category": byCategory,
-		"by_product":  byProduct,
-		"by_variant":  byVariant,
+		"summary":        map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName, "location_name": locationName},
+		"by_category":    byCategory,
+		"by_product":     byProduct, // top 100 by GMV (kept under its old name)
+		"by_product_gmv": byProduct,
+		"by_product_qty": byProductQty,
+		"by_variant":     byVariant,
 	})
 }
 
@@ -411,6 +495,7 @@ type colorComboRow struct {
 }
 
 type crossSellRow struct {
+	ProductID   int     `json:"product_id"`
 	SKU         string  `json:"sku"`
 	ProductName string  `json:"product_name"`
 	OrderCount  int     `json:"order_count"`
@@ -587,7 +672,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 	// Cross-sell: which other products most often appear in the same order as this one -
 	// a self-join of order_items on order_id, excluding this product's own lines.
 	crossSellRows, err := h.DB.Query(r.Context(), `
-		SELECT p2.sku, p2.name, COUNT(DISTINCT oi2.order_id)
+		SELECT p2.id, p2.sku, p2.name, COUNT(DISTINCT oi2.order_id)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
@@ -601,7 +686,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		defer crossSellRows.Close()
 		for crossSellRows.Next() {
 			var cs crossSellRow
-			if err := crossSellRows.Scan(&cs.SKU, &cs.ProductName, &cs.OrderCount); err != nil {
+			if err := crossSellRows.Scan(&cs.ProductID, &cs.SKU, &cs.ProductName, &cs.OrderCount); err != nil {
 				continue
 			}
 			cs.Pct = pctOf(float64(cs.OrderCount), float64(totalOrders))
@@ -707,6 +792,7 @@ func (h *ReportsHandler) ProductColorPair(w http.ResponseWriter, r *http.Request
 }
 
 type pairedProductRow struct {
+	ProductID  int            `json:"product_id"`
 	SKU        string         `json:"sku"`
 	Name       string         `json:"name"`
 	OrderCount int            `json:"order_count"`
@@ -747,7 +833,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 	h.DB.QueryRow(r.Context(), `SELECT COUNT(DISTINCT oi.order_id) `+aJoinWhere, aArgs...).Scan(&totalOrders)
 
 	rankRows, err := h.DB.Query(r.Context(), `
-		SELECT p2.sku, p2.name, COUNT(DISTINCT oi2.order_id)
+		SELECT p2.id, p2.sku, p2.name, COUNT(DISTINCT oi2.order_id)
 		FROM order_items oi
 		JOIN orders o ON o.id = oi.order_id
 		JOIN product_variants pv ON pv.id = oi.variant_id
@@ -763,6 +849,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		return
 	}
 	type ranked struct {
+		ID    int
 		SKU   string
 		Name  string
 		Count int
@@ -770,7 +857,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 	var rankedList []ranked
 	for rankRows.Next() {
 		var rr ranked
-		if rankRows.Scan(&rr.SKU, &rr.Name, &rr.Count) == nil {
+		if rankRows.Scan(&rr.ID, &rr.SKU, &rr.Name, &rr.Count) == nil {
 			rankedList = append(rankedList, rr)
 		}
 	}
@@ -819,7 +906,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		}
 
 		paired = append(paired, pairedProductRow{
-			SKU: rr.SKU, Name: rr.Name, OrderCount: rr.Count,
+			ProductID: rr.ID, SKU: rr.SKU, Name: rr.Name, OrderCount: rr.Count,
 			Pct:        pctOf(float64(rr.Count), float64(totalOrders)),
 			ColorPairs: colorPairs,
 		})
