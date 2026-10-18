@@ -143,20 +143,22 @@ type Product struct {
 	CreatedAt               string            `json:"created_at"`
 }
 
-// List returns all products with their images, variants, stock, units sold and a
-// computed status label (active / low_stock / out_of_stock / nonaktif).
-func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
+// loadProducts returns products with their images, variants, stock, units sold and a computed status
+// label (active / low_stock / out_of_stock / nonaktif). ids == nil loads every product, otherwise only
+// those (in id order); the child rows (images, variants, sales, ETAs) are restricted the same way, so a
+// page of 50 products does not read the whole catalogue.
+func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, error) {
 	admin := isAdmin(r)
-	rows, err := h.DB.Query(r.Context(), `
+	ctx := r.Context()
+	rows, err := h.DB.Query(ctx, `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, names, description, category, COALESCE(brand,''),
 		       supplier_id, base_price, cost, is_active, allow_oversell,
 		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
 		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
 		       created_at
-		FROM products WHERE deleted_at IS NULL ORDER BY id`)
+		FROM products WHERE deleted_at IS NULL AND ($1::int[] IS NULL OR id = ANY($1)) ORDER BY id`, ids)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch products")
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -184,8 +186,8 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		products = append(products, p)
 	}
 
-	irows, err := h.DB.Query(r.Context(), `
-		SELECT product_id, id, url FROM product_images ORDER BY product_id, sort_order`)
+	irows, err := h.DB.Query(ctx, `
+		SELECT product_id, id, url FROM product_images WHERE ($1::int[] IS NULL OR product_id = ANY($1)) ORDER BY product_id, sort_order`, ids)
 	if err == nil {
 		defer irows.Close()
 		for irows.Next() {
@@ -200,17 +202,17 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	vrows, err := h.DB.Query(r.Context(), `
+	vrows, err := h.DB.Query(ctx, `
 		SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv
 		JOIN stock_buckets sb ON sb.variant_id = pv.id
 		LEFT JOIN `+orderedByVariantSQL+` rv ON rv.variant_id = pv.id
-		ORDER BY pv.id`)
+		WHERE ($1::int[] IS NULL OR pv.product_id = ANY($1))
+		ORDER BY pv.id`, ids)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch variants")
-		return
+		return nil, err
 	}
 	defer vrows.Close()
 
@@ -231,13 +233,13 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		totalMinimum[productID] += v.MinimumStock
 	}
 
-	srows, err := h.DB.Query(r.Context(), `
+	srows, err := h.DB.Query(ctx, `
 		SELECT pv.product_id, COALESCE(SUM(oi.qty),0)
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN orders o ON o.id = oi.order_id
-		WHERE o.status <> 'cancelled'
-		GROUP BY pv.product_id`)
+		WHERE o.status <> 'cancelled' AND ($1::int[] IS NULL OR pv.product_id = ANY($1))
+		GROUP BY pv.product_id`, ids)
 	if err == nil {
 		defer srows.Close()
 		for srows.Next() {
@@ -251,7 +253,16 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	etas := incomingETAs(r.Context(), h.DB, nil)
+	var etaVariantIDs []int
+	if ids != nil {
+		etaVariantIDs = []int{}
+		for i := range products {
+			for _, v := range products[i].Variants {
+				etaVariantIDs = append(etaVariantIDs, v.ID)
+			}
+		}
+	}
+	etas := incomingETAs(ctx, h.DB, etaVariantIDs)
 	for i := range products {
 		for j := range products[i].Variants {
 			if info, ok := etas[products[i].Variants[j].ID]; ok {
@@ -271,7 +282,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	respondJSON(w, http.StatusOK, products)
+	return products, nil
 }
 
 // A deactivated product's status always reads "nonaktif" regardless of its stock level - a
@@ -960,6 +971,9 @@ func (h *ProductHandler) StockHistory(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if l, err := strconv.Atoi(q.Get("limit")); err == nil && l > 0 {
 		limit = l
+		if limit > 500 { // never the whole movement history in one response
+			limit = 500
+		}
 	}
 
 	query := `

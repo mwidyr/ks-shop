@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { getPurchaseHistory } from '../api/purchases'
@@ -6,6 +6,7 @@ import { listSuppliers } from '../api/suppliers'
 import DateRangePicker from '../components/DateRangePicker'
 import { formatCurrency } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
+import { useDebouncedValue } from '../utils/hooks'
 
 function fmtPct(n) { return n == null ? '—' : `${n.toFixed(1)}%` }
 
@@ -22,11 +23,14 @@ export default function PurchaseHistory() {
 
   useEffect(() => { listSuppliers(true).then(setSuppliers) }, [])
 
+  const debouncedSku = useDebouncedValue(productSku, 300)
+  const historyRequest = useRef(0)
   useEffect(() => {
+    const id = ++historyRequest.current
     setLoading(true)
-    getPurchaseHistory({ supplierId: supplierId || undefined, productSku: productSku || undefined, from: range?.from, to: range?.to })
-      .then((res) => { setRows(res.rows); setSummary(res.summary); setLoading(false) })
-  }, [supplierId, productSku, range])
+    getPurchaseHistory({ supplierId: supplierId || undefined, productSku: debouncedSku || undefined, from: range?.from, to: range?.to })
+      .then((res) => { if (id === historyRequest.current) { setRows(res.rows); setSummary(res.summary); setLoading(false) } })
+  }, [supplierId, debouncedSku, range])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">

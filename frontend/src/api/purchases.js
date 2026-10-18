@@ -7,6 +7,7 @@ export function listPurchases(filters = {}) {
   if (filters.status) params.set('status', filters.status)
   if (filters.search) params.set('search', filters.search)
   if (filters.date) params.set('date', filters.date)
+  if (filters.page) { params.set('page', filters.page); params.set('page_size', filters.page_size || 20) } // paged: { items, total, ... }
   const q = params.toString()
   return client.get(`/purchases${q ? `?${q}` : ''}`).then((res) => res.data)
 }

@@ -139,9 +139,17 @@ var siteSettingKeys = []string{"whatsapp_number", "cs_hours", "cs_hours_note", "
 func (h *SiteAdminHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	out := map[string]string{}
 	for _, k := range siteSettingKeys {
-		var v string
-		h.DB.QueryRow(r.Context(), `SELECT value FROM store_settings WHERE key=$1`, k).Scan(&v)
-		out[k] = v
+		out[k] = ""
+	}
+	// one query for all the keys (this used to be ten, one per key)
+	if rows, err := h.DB.Query(r.Context(), `SELECT key, value FROM store_settings WHERE key = ANY($1)`, siteSettingKeys); err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var k, v string
+			if rows.Scan(&k, &v) == nil {
+				out[k] = v
+			}
+		}
 	}
 	respondJSON(w, http.StatusOK, out)
 }

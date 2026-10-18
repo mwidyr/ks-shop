@@ -5,6 +5,12 @@ export function listOrders(params) {
   return client.get(`/orders?${q.toString()}`).then((res) => res.data)
 }
 
+// Number of orders per status in the date range (the tab badges of the Orders page).
+export function getOrderStatusCounts(range) {
+  const q = new URLSearchParams(Object.entries(range ? { date_from: range.from, date_to: range.to } : {}).filter(([, v]) => v))
+  return client.get(`/orders/status-counts?${q.toString()}`).then((res) => res.data)
+}
+
 export function getOrder(id) {
   return client.get(`/orders/${id}`).then((res) => res.data)
 }

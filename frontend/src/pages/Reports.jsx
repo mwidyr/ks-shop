@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProductReport, getOrderReport } from '../api/reports'
 import { listHosts } from '../api/hosts'
@@ -7,6 +7,7 @@ import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import ExportReportModal from '../components/ExportReportModal'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { useMasterData } from '../context/MasterDataContext'
+import { useDebouncedValue } from '../utils/hooks'
 
 function SummaryCard({ summary, t }) {
   if (!summary) return null
@@ -39,14 +40,17 @@ export default function Reports() {
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
 
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const reportRequest = useRef(0)
   useEffect(() => {
+    const id = ++reportRequest.current
     setLoading(true)
     const params = { from: range.from, to: range.to }
     const request = tab === 'products'
       ? getProductReport(params)
-      : getOrderReport({ ...params, q: tab === 'customers' ? search : '', host_id: tab === 'hosts' ? hostId : '' })
-    request.then((res) => { setData(res); setLoading(false) })
-  }, [tab, range, search, hostId])
+      : getOrderReport({ ...params, q: tab === 'customers' ? debouncedSearch : '', host_id: tab === 'hosts' ? hostId : '' })
+    request.then((res) => { if (id === reportRequest.current) { setData(res); setLoading(false) } })
+  }, [tab, range, debouncedSearch, hostId])
 
   return (
     <div className="px-4 sm:px-6 py-6">

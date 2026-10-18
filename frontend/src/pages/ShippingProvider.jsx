@@ -5,6 +5,8 @@ import { listBatches } from '../api/shippingWorkbench'
 import CreateBatchModal from '../components/shipping/CreateBatchModal'
 import { BatchStatusPill, PROVIDERS, ProgressChips, StagePill, batchPath, formatDateTime, primaryBtn, providerBySlug } from '../components/shipping/shared'
 import { useCanEdit } from '../context/AccessContext'
+import { useDebouncedValue } from '../utils/hooks'
+import Pager from '../components/Pager'
 
 const STAGES = ['pending_order_matching', 'awaiting_3pl_shipment', 'shipped_awaiting_completion', 'closed']
 
@@ -17,21 +19,22 @@ export default function ShippingProvider() {
   const [filter, setFilter] = useState('pending')
   const [q, setQ] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
-  const [data, setData] = useState({ cards: {}, batches: [] })
+  const [data, setData] = useState({ cards: {}, batches: [], total: 0 })
+  const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
 
+  const debouncedQ = useDebouncedValue(q, 300)
   const load = useCallback(() => {
-    if (provider) listBatches({ provider, filter, q }).then(setData)
-  }, [provider, filter, q])
+    if (provider) listBatches({ provider, filter, q: debouncedQ, sort: sortAsc ? 'oldest' : '', page, page_size: 20 }).then(setData)
+  }, [provider, filter, debouncedQ, sortAsc, page])
   useEffect(() => { load() }, [load])
+  // a new filter, search or sort direction starts at page 1
+  useEffect(() => { setPage(1) }, [filter, debouncedQ, sortAsc])
 
   if (!provider) return <div className="p-8 text-center text-gray-500">{t('page_shipping_wb.unknown_provider')}</div>
 
-  // problems first (kept by the server), then by creation date in the chosen direction
-  const list = [...data.batches].sort((a, b) => {
-    if (a.has_problems !== b.has_problems) return a.has_problems ? -1 : 1
-    return sortAsc ? a.id - b.id : b.id - a.id
-  })
+  // the server returns the page already ordered: batches with problems first, then by creation date
+  const list = data.batches
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-6xl mx-auto space-y-5">
@@ -110,6 +113,7 @@ export default function ShippingProvider() {
             </table>
           </div>
         )}
+        <Pager page={page} size={20} total={data.total} onPage={setPage} />
       </div>
 
       {createOpen && <CreateBatchModal provider={provider} onClose={() => { setCreateOpen(false); load() }} />}

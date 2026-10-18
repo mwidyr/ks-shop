@@ -70,7 +70,17 @@ func (h *ReturnHandler) List(w http.ResponseWriter, r *http.Request) {
 		query += " WHERE ret.status = $1"
 		args = append(args, status)
 	}
-	query += " ORDER BY ret.created_at DESC"
+	query += " ORDER BY ret.created_at DESC, ret.id DESC"
+	pg := parsePage(r, 20, 100)
+	total := 0
+	if isPaged(r) {
+		countSQL := "SELECT COUNT(*) FROM returns ret"
+		if len(args) > 0 {
+			countSQL += " WHERE ret.status = $1"
+		}
+		h.DB.QueryRow(r.Context(), countSQL, args...).Scan(&total)
+		query += pg.limitSQL(&args)
+	}
 
 	rows, err := h.DB.Query(r.Context(), query, args...)
 	if err != nil {
@@ -86,6 +96,10 @@ func (h *ReturnHandler) List(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		list = append(list, v)
+	}
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, list)
 }

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listProducts, updateVariant, getStockHistory, getInventoryValue } from '../api/products'
+import { listInventory, updateVariantStock, getStockHistory, getInventoryValue } from '../api/products'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrency } from '../utils/format'
 import BigStatCard from '../components/BigStatCard'
@@ -8,6 +8,7 @@ import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 import { useCanEdit } from '../context/AccessContext'
+import { useDebouncedValue, useMediaQuery } from '../utils/hooks'
 
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
 // exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
@@ -64,7 +65,13 @@ function IncomingNumber({ stock, eta, openPo, className = '', compact = false })
   )
 }
 
+// Renders its children only when `show` is true: the desktop grid and the mobile cards are not both
+// put in the DOM (one of them hidden with CSS) any more.
+const Only = ({ show, children }) => (show ? children : null)
+const INVENTORY_PAGE_SIZE = 30
+
 function VariantRow({ product, variant, onSaved }) {
+  const isDesktop = useMediaQuery('(min-width: 768px)')
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const [editing, setEditing] = useState(false)
@@ -75,18 +82,12 @@ function VariantRow({ product, variant, onSaved }) {
   const lowStock = variant.minimum_stock > 0 && variant.available_stock <= variant.minimum_stock
   const isOversell = variant.available_stock < 0
 
-  // Available and incoming stock are editable from this page - reserve/broken/minimum_stock
-  // are set from the Product form instead, so they're sent through unchanged here.
+  // Available (Actual) and incoming stock are editable from this page; the server changes only those
+  // two numbers - price, cost, reserve / broken / minimum stock are set from the Product form.
   async function save() {
     setSaving(true)
     try {
-      await updateVariant(product.id, variant.id, {
-        sku: variant.sku, color: variant.color, size: variant.size, price: variant.price,
-        compare_at_price: variant.compare_at_price, cost_price: variant.cost_price,
-        available_stock: Number(availableStock), broken_stock: variant.broken_stock,
-        reserve_stock: variant.reserve_stock, incoming_stock: Number(incomingStock),
-        minimum_stock: variant.minimum_stock,
-      })
+      await updateVariantStock(variant.id, { available_stock: Number(availableStock), incoming_stock: Number(incomingStock) })
       setEditing(false)
       onSaved()
     } finally {
@@ -130,7 +131,7 @@ function VariantRow({ product, variant, onSaved }) {
   return (
     <>
       {/* Desktop: dense grid row (unchanged layout) */}
-      <div className="hidden md:block">
+      <Only show={isDesktop}><div>
         <div className={`${INVENTORY_GRID_COLS} items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
           <p className="text-sm text-gray-700 min-w-0 truncate">{translateColor(variant.color)}/{variant.size}</p>
           <span className={`font-semibold ${NUM_CLASS}`}>{variant.total_stock}</span>
@@ -140,11 +141,11 @@ function VariantRow({ product, variant, onSaved }) {
           <span className="text-center">{badge}</span>
           <span className="text-right">{actions}</span>
         </div>
-      </div>
+      </div></Only>
 
       {/* Mobile: stacked label/value pairs instead of the cramped fixed-width grid (item 007) -
           nothing shares a column with anything else, so labels and numbers never overlap. */}
-      <div className={`md:hidden px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
+      <Only show={!isDesktop}><div className={`px-4 py-3 ${isOversell ? 'bg-red-50/50' : lowStock ? 'bg-yellow-50/50' : ''}`}>
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-sm text-gray-700 min-w-0 truncate flex-1">{translateColor(variant.color)}/{variant.size}</p>
           {badge}
@@ -168,12 +169,13 @@ function VariantRow({ product, variant, onSaved }) {
           </div>
         </div>
         {actions}
-      </div>
+      </div></Only>
     </>
   )
 }
 
 function ProductCard({ product, forceOpen, onSaved }) {
+  const isDesktop = useMediaQuery('(min-width: 768px)')
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const isOpen = forceOpen || open
@@ -196,7 +198,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50"
       >
-        <img src={resolveUrl(product.images[0]?.url)} className="w-14 h-14 rounded-lg object-cover bg-gray-100 shrink-0" />
+        <img src={resolveUrl(product.images[0]?.url)} loading="lazy" decoding="async" width={56} height={56} className="w-14 h-14 rounded-lg object-cover bg-gray-100 shrink-0" />
         <div className="flex-1 min-w-0">
           {product.sku && <p className="text-xs font-bold text-brand-600">{product.sku}</p>}
           <p className="font-semibold text-gray-800 truncate">{product.name}</p>
@@ -204,7 +206,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
         <IconChevronDown width={16} height={16} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="hidden md:block">
+      <Only show={isDesktop}><div>
         <div className={`${INVENTORY_GRID_COLS} px-4 pb-3 text-xs`}>
           <span className="text-gray-400 uppercase font-semibold self-end">{t('page_inventory.variant_count', { count: product.variants.length })}</span>
           <span className="text-center text-gray-400 uppercase font-semibold">{t('page_inventory.col_total')}</span>
@@ -221,10 +223,10 @@ function ProductCard({ product, forceOpen, onSaved }) {
           <span></span>
           <span></span>
         </div>
-      </div>
+      </div></Only>
 
       {/* Mobile: label/value pairs, same fix as VariantRow below (item 007). */}
-      <div className="md:hidden px-4 pb-3">
+      <Only show={!isDesktop}><div className="px-4 pb-3">
         <p className="text-[11px] text-gray-400 uppercase font-semibold mb-1.5">{t('page_inventory.variant_count', { count: product.variants.length })}</p>
         <div className="grid grid-cols-4 gap-x-2 gap-y-1 text-xs text-center">
           <div>
@@ -244,7 +246,7 @@ function ProductCard({ product, forceOpen, onSaved }) {
             <p className={`font-bold text-gray-800 ${NUM_CLASS}`}><span className={MOBILE_VALUE}>{totals.order}</span></p>
           </div>
         </div>
-      </div>
+      </div></Only>
 
       {isOpen && (
         <div className="border-t divide-y">
@@ -264,10 +266,13 @@ function StockHistoryTab() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const historyRequest = useRef(0)
   useEffect(() => {
+    const id = ++historyRequest.current
     setLoading(true)
-    getStockHistory({ q: search }).then((data) => { setRows(data); setLoading(false) })
-  }, [search])
+    getStockHistory({ q: debouncedSearch }).then((data) => { if (id === historyRequest.current) { setRows(data); setLoading(false) } })
+  }, [debouncedSearch])
 
   return (
     <div>
@@ -312,18 +317,28 @@ function StockHistoryTab() {
 export default function Inventory() {
   const { t } = useTranslation()
   const [tab, setTab] = useState('current')
-  const [products, setProducts] = useState([])
+  const [data, setData] = useState({ items: [], total: 0, page: 1, summary: null })
   const [loading, setLoading] = useState(true)
+  const [fetching, setFetching] = useState(false)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const requestId = useRef(0)
 
+  // One page (30 products) at a time, searched on the server. The old page stays on screen, dimmed,
+  // while the next one loads, and only the newest request may write its result.
   function reload() {
-    listProducts().then((data) => {
-      setProducts(data)
+    const id = ++requestId.current
+    setFetching(true)
+    listInventory({ q: debouncedSearch.trim(), page, page_size: INVENTORY_PAGE_SIZE }).then((res) => {
+      if (id !== requestId.current) return
+      setData(res)
       setLoading(false)
-    })
+      setFetching(false)
+    }).catch(() => { if (id === requestId.current) { setLoading(false); setFetching(false) } })
   }
-
-  useEffect(reload, [])
+  useEffect(reload, [debouncedSearch, page])
+  const products = data.items
 
   // Admin-only: the backend 403s everyone else, so the card is simply never shown to them.
   const { user } = useAuth()
@@ -332,21 +347,9 @@ export default function Inventory() {
     if (user?.role === 'super_user') getInventoryValue().then(setInventoryValue)
   }, [user?.role])
 
-  const allVariants = products.flatMap((p) => p.variants.map((v) => ({ product: p, variant: v })))
-  const lowStockCount = allVariants.filter(({ variant }) => variant.minimum_stock > 0 && variant.available_stock <= variant.minimum_stock).length
-  const oversellCount = allVariants.filter(({ variant }) => variant.available_stock < 0).length
-  const totalAvailable = allVariants.reduce((sum, { variant }) => sum + variant.available_stock, 0)
-  const totalOrdered = allVariants.reduce((sum, { variant }) => sum + variant.reserved_for_orders, 0)
-
-  function productMatches(product, q) {
-    if (product.name.toLowerCase().includes(q)) return true
-    if (product.sku && product.sku.toLowerCase().includes(q)) return true
-    return product.variants.some((v) =>
-      v.sku.toLowerCase().includes(q) || v.color.toLowerCase().includes(q) || v.size.toLowerCase().includes(q))
-  }
-
-  const q = search.trim().toLowerCase()
-  const filteredProducts = q ? products.filter((p) => productMatches(p, q)) : products
+  const { total_available: totalAvailable = 0, total_ordered: totalOrdered = 0, low_stock: lowStockCount = 0, oversell: oversellCount = 0 } = data.summary || {}
+  const totalPages = Math.max(1, Math.ceil(data.total / INVENTORY_PAGE_SIZE))
+  const q = debouncedSearch.trim()
 
   return (
     <div className="px-4 sm:px-6 py-6">
@@ -379,7 +382,7 @@ export default function Inventory() {
           <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               placeholder={t('page_inventory.search_placeholder')}
               className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm"
             />
@@ -387,13 +390,22 @@ export default function Inventory() {
 
           {loading ? (
             <p className="text-gray-500 py-10 text-center">{t('page_inventory.loading_inventory')}</p>
-          ) : filteredProducts.length === 0 ? (
+          ) : products.length === 0 && !fetching ? (
             <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_inventory.no_products')}</div>
           ) : (
-            <div>
-              {filteredProducts.map((product) => (
+            <div className={fetching ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={fetching}>
+              {products.map((product) => (
                 <ProductCard key={product.id} product={product} forceOpen={Boolean(q)} onSaved={reload} />
               ))}
+              {data.total > INVENTORY_PAGE_SIZE && (
+                <div className="flex items-center justify-between mt-2 text-sm text-gray-500">
+                  <span>{t('page_orders.pagination_info', { page: data.page, totalPages, total: data.total })}</span>
+                  <div className="flex gap-2">
+                    <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white disabled:opacity-40">{t('page_orders.prev')}</button>
+                    <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white disabled:opacity-40">{t('page_orders.next')}</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

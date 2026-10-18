@@ -2,9 +2,58 @@ package middleware
 
 import (
 	"net/http"
+	"sync"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// A role's access level per tab is read on EVERY non-admin request, so it is cached for a short time
+// (the role_tab_access table changes only when an admin saves the permission matrix, which calls
+// InvalidateTabAccess). A tab with no row is cached too (level "").
+const tabAccessTTL = 30 * time.Second
+
+type tabAccessEntry struct {
+	level   string
+	expires time.Time
+}
+
+var (
+	tabAccessMu    sync.RWMutex
+	tabAccessCache = map[string]tabAccessEntry{}
+)
+
+// InvalidateTabAccess drops every cached access level; call it after the permission matrix changes.
+func InvalidateTabAccess() {
+	tabAccessMu.Lock()
+	tabAccessCache = map[string]tabAccessEntry{}
+	tabAccessMu.Unlock()
+}
+
+func cachedTabLevel(r *http.Request, db *pgxpool.Pool, role, tab string) (string, error) {
+	key := role + "\x00" + tab
+	tabAccessMu.RLock()
+	e, ok := tabAccessCache[key]
+	tabAccessMu.RUnlock()
+	if ok && time.Now().Before(e.expires) {
+		return e.level, nil
+	}
+	var level string
+	err := db.QueryRow(r.Context(), `SELECT access_level FROM role_tab_access WHERE role_name=$1 AND tab_key=$2`, role, tab).Scan(&level)
+	if err != nil {
+		// no row = no access; any other error is not cached
+		if err == pgx.ErrNoRows {
+			level, err = "", nil
+		} else {
+			return "", err
+		}
+	}
+	tabAccessMu.Lock()
+	tabAccessCache[key] = tabAccessEntry{level: level, expires: time.Now().Add(tabAccessTTL)}
+	tabAccessMu.Unlock()
+	return level, nil
+}
 
 // RequireTabView allows the request if the caller's role has 'view' or 'edit' access to tabKey
 // (per role_tab_access), or if the caller is super_user (Admin always has full access, not a
@@ -60,11 +109,8 @@ func requireTabLevel(db *pgxpool.Pool, tabKey string, minLevel string) func(http
 				next.ServeHTTP(w, r)
 				return
 			}
-			var level string
-			err := db.QueryRow(r.Context(), `
-				SELECT access_level FROM role_tab_access WHERE role_name=$1 AND tab_key=$2`,
-				claims.Role, tabKey).Scan(&level)
-			if err != nil {
+			level, err := cachedTabLevel(r, db, claims.Role, tabKey)
+			if err != nil || level == "" {
 				http.Error(w, `{"error":"forbidden: no access to this section"}`, http.StatusForbidden)
 				return
 			}

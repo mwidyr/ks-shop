@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPeriodSummary, getHostAnalyticsSummary, getHistoricalBest, getHostAnalyticsPerformanceData } from '../api/hostAnalytics'
 import { listLocations } from '../api/hostLocations'
@@ -102,23 +102,39 @@ export default function HostPerformanceAnalytics() {
 
   useEffect(() => { setPage(1) }, [locationId, hostId, range, channel, affiliateId])
 
+  const baseFilters = {
+    locationId: channel === 'live' ? (locationId || undefined) : undefined,
+    hostId: channel === 'live' ? (hostId || undefined) : undefined,
+    channel, affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
+  }
+  const filtersKey = JSON.stringify([baseFilters, range.from, range.to])
+  const summaryRequest = useRef(0)
+  const tableRequest = useRef(0)
+
+  // The cards and "best" figures depend on the filters only; the daily table also on the page. Turning
+  // the page therefore re-asks only for the table (one request, not four), and the old numbers stay on
+  // screen (dimmed) while a request is on its way.
   useEffect(() => {
-    setLoading(true)
-    const baseFilters = {
-      locationId: channel === 'live' ? (locationId || undefined) : undefined,
-      hostId: channel === 'live' ? (hostId || undefined) : undefined,
-      channel, affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
-    }
+    const id = ++summaryRequest.current
     Promise.all([
       getPeriodSummary({ ...baseFilters, from: range.from, to: range.to }),
       getHostAnalyticsSummary({ ...baseFilters, from: range.from, to: range.to }),
       getHistoricalBest(baseFilters),
-      getHostAnalyticsPerformanceData({ ...baseFilters, from: range.from, to: range.to, page }),
-    ]).then(([ps, sm, hb, pd]) => {
-      setPeriodSummary(ps); setSummary(sm); setBest(hb); setDaily(pd)
+    ]).then(([ps, sm, hb]) => {
+      if (id !== summaryRequest.current) return
+      setPeriodSummary(ps); setSummary(sm); setBest(hb)
+    })
+  }, [filtersKey])
+
+  useEffect(() => {
+    const id = ++tableRequest.current
+    setLoading(true)
+    getHostAnalyticsPerformanceData({ ...baseFilters, from: range.from, to: range.to, page }).then((pd) => {
+      if (id !== tableRequest.current) return
+      setDaily(pd)
       setLoading(false)
     })
-  }, [locationId, hostId, range, page, channel, affiliateId])
+  }, [filtersKey, page])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
@@ -132,10 +148,10 @@ export default function HostPerformanceAnalytics() {
         <PeriodPicker shared allowAllTime value={range} onChange={setRange} />
       </div>
 
-      {loading || !periodSummary ? (
+      {!periodSummary ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <>
+        <div className={loading ? "opacity-60 transition-opacity space-y-4" : "transition-opacity space-y-4"} aria-busy={loading}>
           <div>
             <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.key_performance_title')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 mb-4">
@@ -247,7 +263,7 @@ export default function HostPerformanceAnalytics() {
             </table>
           </div>
 
-        </>
+        </div>
       )}
     </div>
   )

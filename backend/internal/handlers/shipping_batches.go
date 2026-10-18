@@ -315,6 +315,7 @@ func (h *ShippingWorkbenchHandler) CreateBatch(w http.ResponseWriter, r *http.Re
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+	invalidateShippingCache()
 	respondJSON(w, http.StatusCreated, map[string]interface{}{"id": batchID, "batch_no": batchNo, "orders": seq})
 }
 

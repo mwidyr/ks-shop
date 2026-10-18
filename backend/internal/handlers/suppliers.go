@@ -87,7 +87,19 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 	if len(where) > 0 {
 		query += ` WHERE ` + strings.Join(where, " AND ")
 	}
-	query += ` ORDER BY name`
+	pg := parsePage(r, 20, 100)
+	total := 0
+	if isPaged(r) {
+		countSQL := "SELECT COUNT(*) FROM suppliers"
+		if len(where) > 0 {
+			countSQL += ` WHERE ` + strings.Join(where, " AND ")
+		}
+		h.DB.QueryRow(r.Context(), countSQL, args...).Scan(&total)
+	}
+	query += ` ORDER BY name, id`
+	if isPaged(r) {
+		query += pg.limitSQL(&args)
+	}
 
 	rows, err := h.DB.Query(r.Context(), query, args...)
 	if err != nil {
@@ -112,8 +124,14 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Bulk-fetch every listed supplier's Contacts/Notes in two queries (not one per supplier) so
 	// the list page can show which field a text search matched (item 035) - contacts/notes live
 	// in child tables the base supplierSelect above never touches.
+	supplierIDs := make([]int, 0, len(list))
+	for _, sup := range list {
+		supplierIDs = append(supplierIDs, sup.ID)
+	}
+	// only the listed suppliers' rows (a search that matches 3 suppliers no longer loads every contact and note)
 	if crows, err := h.DB.Query(r.Context(), `
-		SELECT supplier_id, id, COALESCE(contact_name,''), method, value FROM supplier_contacts ORDER BY id`); err == nil {
+		SELECT supplier_id, id, COALESCE(contact_name,''), method, value FROM supplier_contacts
+		WHERE supplier_id = ANY($1) ORDER BY id`, supplierIDs); err == nil {
 		defer crows.Close()
 		for crows.Next() {
 			var supplierID int
@@ -129,7 +147,8 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 	if nrows, err := h.DB.Query(r.Context(), `
 		SELECT sn.supplier_id, sn.id, sn.note, COALESCE(u.name,'-'), sn.created_at
 		FROM supplier_notes sn LEFT JOIN users u ON u.id = sn.created_by
-		ORDER BY sn.created_at DESC`); err == nil {
+		WHERE sn.supplier_id = ANY($1)
+		ORDER BY sn.created_at DESC`, supplierIDs); err == nil {
 		defer nrows.Close()
 		for nrows.Next() {
 			var supplierID int
@@ -145,6 +164,10 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+		return
+	}
 	respondJSON(w, http.StatusOK, list)
 }
 

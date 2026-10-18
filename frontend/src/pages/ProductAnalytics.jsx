@@ -103,10 +103,10 @@ export default function ProductAnalytics() {
         <PeriodPicker shared value={range} onChange={setRange} />
       </div>
 
-      {loading || !data ? (
+      {!data ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <>
+        <div className={loading ? "opacity-60 transition-opacity space-y-4" : "transition-opacity space-y-4"} aria-busy={loading}>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div className={`${cardClasses} p-4`}>
               <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_product_analytics.host')}</p>
@@ -257,7 +257,7 @@ export default function ProductAnalytics() {
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

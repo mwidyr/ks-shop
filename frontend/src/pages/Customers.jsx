@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { listCustomerStats, getCustomerDetail, setCustomerLabel, deleteCustomer } from '../api/customers'
@@ -7,6 +7,7 @@ import { jakartaIsoDate } from '../utils/jakartaDate'
 import StatusPill from '../components/StatusPill'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useCanEdit } from '../context/AccessContext'
+import { useDebouncedValue } from '../utils/hooks'
 
 // The old manual "VIP" label is gone: VIP is now an automatic tier (cumulative valid spending of
 // NT$3,000 or more), computed by the backend. The other labels stay manual.
@@ -231,11 +232,17 @@ const SORTS = {
   orders_desc: { key: 'orders', dir: -1 }, orders_asc: { key: 'orders', dir: 1 },
   ltv_desc: { key: 'ltv', dir: -1 }, ltv_asc: { key: 'ltv', dir: 1 },
 }
-const sortValue = (c, key) => (key === 'orders' ? c.order_count : key === 'ltv' ? c.total_spend : (c.last_order_at ? new Date(c.last_order_at).getTime() : null))
+const PAGE_SIZE = 25
+
+// The filters in the names the API expects.
+const filterParams = (f) => ({
+  min_orders: f.minOrders, max_orders: f.maxOrders, min_spend: f.minLtv, max_spend: f.maxLtv, tier: f.tier, from: f.from, to: f.to,
+})
 
 export default function Customers() {
   const { t } = useTranslation()
-  const [data, setData] = useState({ kpi: null, customers: [] })
+  const [data, setData] = useState({ kpi: null, customers: [], total: 0, page: 1, page_size: PAGE_SIZE })
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState(emptyFilters)
@@ -243,58 +250,42 @@ export default function Customers() {
   const [sort, setSort] = useState('last_desc') // default: most recent purchase first
   const [selected, setSelected] = useState(null)
 
+  // Search, filters and sort are applied by the server, one page at a time. Only the newest request
+  // may write its result, and the previous page stays on screen (dimmed) while the next one loads.
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const requestId = useRef(0)
+  const [fetching, setFetching] = useState(false)
+  const queryParams = () => ({ q: debouncedSearch.trim(), sort, ...filterParams(filters) })
   function reload() {
-    listCustomerStats().then((res) => {
+    const id = ++requestId.current
+    setFetching(true)
+    listCustomerStats({ ...queryParams(), page, page_size: PAGE_SIZE }).then((res) => {
+      if (id !== requestId.current) return
       setData(res)
       setLoading(false)
-      setSelected((cur) => (cur ? res.customers.find((c) => c.id === cur.id) || null : null))
-    })
+      setFetching(false)
+      setSelected((cur) => (cur ? res.customers.find((c) => c.id === cur.id) || cur : null))
+    }).catch(() => { if (id === requestId.current) { setLoading(false); setFetching(false) } })
   }
-  useEffect(reload, [])
+  useEffect(reload, [debouncedSearch, filters, sort, page])
+  const changeSearch = (v) => { setSearch(v); setPage(1) }
 
-  const setF = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }))
+  const setF = (k) => (e) => { setFilters((f) => ({ ...f, [k]: e.target.value })); setPage(1) }
   const activeFilterCount = Object.values(filters).filter((v) => v !== '').length
 
-  // Search, every filter and the sort all apply together.
-  const list = useMemo(() => {
-    const num = (v) => (v === '' ? null : Number(v))
-    const minO = num(filters.minOrders), maxO = num(filters.maxOrders), minL = num(filters.minLtv), maxL = num(filters.maxLtv)
-    const q = search.trim().toLowerCase()
-    const rows = data.customers.filter((c) => {
-      if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q)) return false
-      if (minO != null && c.order_count < minO) return false
-      if (maxO != null && c.order_count > maxO) return false
-      if (minL != null && c.total_spend < minL) return false
-      if (maxL != null && c.total_spend > maxL) return false
-      if (filters.tier === 'blacklist') { if (!(c.labels || []).includes('blacklist')) return false }
-      else if (filters.tier && c.tier !== filters.tier) return false
-      if (filters.from || filters.to) {
-        if (!c.last_order_at) return false
-        const day = jakartaIsoDate(new Date(c.last_order_at))
-        if (filters.from && day < filters.from) return false
-        if (filters.to && day > filters.to) return false
-      }
-      return true
-    })
-    const { key, dir } = SORTS[sort]
-    return [...rows].sort((a, b) => {
-      const av = sortValue(a, key), bv = sortValue(b, key)
-      if (av == null && bv == null) return 0
-      if (av == null) return 1 // customers without a purchase always last
-      if (bv == null) return -1
-      return (av - bv) * dir
-    })
-  }, [data.customers, search, filters, sort])
+  const list = data.customers
+  const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
 
   const [exporting, setExporting] = useState(false)
-  // Exports the rows currently shown (search / filters / sort applied): same columns as the table,
-  // plus the average cycle, the delivery destination split into city/county and the LAST order only.
+  // Exports every customer matching the current search / filters / sort (not just the page on screen):
+  // same columns as the table, plus the average cycle, the delivery destination split into city/county
+  // and the LAST order only.
   async function exportExcel() {
     setExporting(true)
     try {
-      const XLSX = await import('xlsx')
+      const [XLSX, all] = await Promise.all([import('xlsx'), listCustomerStats({ ...queryParams(), export: 1 })])
       const c = (key) => t(`page_customers.export_cols.${key}`)
-      const rows = list.map((r) => {
+      const rows = all.customers.map((r) => {
         const d = r.last_delivery
         const lo = r.last_order
         return {
@@ -336,6 +327,7 @@ export default function Customers() {
     const cur = SORTS[sort]
     if (cur.key === key) setSort(`${key}_${cur.dir === -1 ? 'asc' : 'desc'}`)
     else setSort(`${key}_desc`)
+    setPage(1)
   }
   const arrow = (key) => (SORTS[sort].key === key ? (SORTS[sort].dir === -1 ? ' ↓' : ' ↑') : '')
 
@@ -358,7 +350,7 @@ export default function Customers() {
         <div className="flex flex-wrap gap-2 items-center">
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => changeSearch(e.target.value)}
             placeholder={t('page_customers.search_placeholder')}
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[180px]"
           />
@@ -370,13 +362,13 @@ export default function Customers() {
           </button>
           <button
             onClick={exportExcel}
-            disabled={exporting || list.length === 0}
+            disabled={exporting || data.total === 0}
             className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
           >
             {exporting ? t('page_customers.exporting') : t('page_customers.export')}
           </button>
           {/* Mobile: a plain "Sort By" dropdown (desktop sorts via the column headers) */}
-          <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label={t('page_customers.sort_by')} className="md:hidden border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full">
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1) }} aria-label={t('page_customers.sort_by')} className="md:hidden border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full">
             {Object.keys(SORTS).map((s) => <option key={s} value={s}>{t(`page_customers.sort_${s}`)}</option>)}
           </select>
         </div>
@@ -415,7 +407,7 @@ export default function Customers() {
             </div>
             <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-between">
               <span className="text-xs text-[var(--text-secondary)]">{t('page_customers.results_count', { count: list.length })}</span>
-              <button onClick={() => setFilters(emptyFilters)} className="text-xs font-semibold text-brand-600 hover:underline">{t('page_customers.filter_reset')}</button>
+              <button onClick={() => { setFilters(emptyFilters); setPage(1) }} className="text-xs font-semibold text-brand-600 hover:underline">{t('page_customers.filter_reset')}</button>
             </div>
           </div>
         )}
@@ -423,10 +415,10 @@ export default function Customers() {
 
       {loading ? (
         <p className="text-gray-500 py-10 text-center">{t('page_customers.loading_customers')}</p>
-      ) : list.length === 0 ? (
+      ) : list.length === 0 && !fetching ? (
         <div className={`${cardClasses} p-10 text-center text-[var(--text-secondary)]`}>{t('page_customers.no_results')}</div>
       ) : (
-        <>
+        <div className={fetching ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={fetching}>
           <div className={`${cardClasses} overflow-x-auto hidden md:block`}>
             <table className={tableClasses}>
               <thead>
@@ -473,7 +465,15 @@ export default function Customers() {
               </div>
             ))}
           </div>
-        </>
+
+          <div className="flex items-center justify-between mt-4 text-sm text-[var(--text-secondary)]">
+            <span>{t('page_orders.pagination_info', { page: data.page, totalPages, total: data.total })}</span>
+            <div className="flex gap-2">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40">{t('page_orders.prev')}</button>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40">{t('page_orders.next')}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {selected && <CustomerDetail key={selected.id} customer={selected} onClose={() => setSelected(null)} onChanged={reload} />}

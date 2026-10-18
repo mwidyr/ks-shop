@@ -463,5 +463,6 @@ func (h *ShippingWorkbenchHandler) Import(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]any{"import_id": importID, "summary": a.sum})
 }

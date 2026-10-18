@@ -5,12 +5,15 @@ import { listLiveSessions } from '../api/liveSessions'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { IconArrowRight } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
+import Pager from '../components/Pager'
 
 export default function LiveSessionHistory() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState(null)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
 
-  useEffect(() => { listLiveSessions({}).then(setSessions) }, [])
+  useEffect(() => { listLiveSessions({ page, page_size: 25 }).then((res) => { setSessions(res.items); setTotal(res.total) }) }, [page])
 
   return (
     <div className="px-4 sm:px-6 py-6">
@@ -62,6 +65,7 @@ export default function LiveSessionHistory() {
           </table>
         </div>
       )}
+      <Pager page={page} size={25} total={total} onPage={setPage} />
     </div>
   )
 }

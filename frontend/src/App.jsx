@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import { useAuth } from './context/AuthContext'
-import { getMyAccess } from './api/rolePermissions'
+import { useAccess } from './context/AccessContext'
 
 // Route-level code splitting: each page is only transformed/downloaded when actually
 // navigated to, instead of the whole ~45-page tree loading up front on every visit.
@@ -105,17 +105,13 @@ const HOME_CANDIDATES = [
 ]
 
 function HomeRedirect() {
-  const [target, setTarget] = useState(null)
-  useEffect(() => {
-    getMyAccess()
-      .then((res) => {
-        const ok = (key) => res.role === 'super_user' || !!res.access?.[key]
-        const hit = HOME_CANDIDATES.find(([key]) => ok(key))
-        setTarget(hit ? hit[1] : (ok('settings') ? '/settings' : '/analytics/performance-dashboard'))
-      })
-      .catch(() => setTarget('/analytics/performance-dashboard'))
-  }, [])
-  return target ? <Navigate to={target} replace /> : <PageLoading />
+  // the access map is already loaded once per login by AccessProvider (no second /my-access call)
+  const { loaded, isSuperUser, access } = useAccess()
+  if (!loaded) return <PageLoading />
+  const ok = (key) => isSuperUser || !!access?.[key]
+  const hit = HOME_CANDIDATES.find(([key]) => ok(key))
+  const target = hit ? hit[1] : (ok('settings') ? '/settings' : '/analytics/performance-dashboard')
+  return <Navigate to={target} replace />
 }
 
 function PageLoading() {

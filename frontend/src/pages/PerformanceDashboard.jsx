@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPerformanceSummary, getHostRanking, getPerformanceData } from '../api/performanceDashboard'
 import { listLocations } from '../api/hostLocations'
@@ -82,25 +82,37 @@ export default function PerformanceDashboard() {
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
   useEffect(() => { listHosts(false, locationId || undefined).then(setHosts) }, [locationId])
 
+  const filters = {
+    locationId: channel === 'live' ? (locationId || undefined) : undefined,
+    hostId: channel === 'live' ? (hostId || undefined) : undefined,
+    from: range.from, to: range.to, channel,
+    affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
+  }
+  const filtersKey = JSON.stringify(filters)
+  const summaryRequest = useRef(0)
+  const dataRequest = useRef(0)
+
+  // The cards and the ranking depend on the filters only; the table also on the sort. Clicking a column
+  // header therefore re-asks only for the table - not for all three - and the old numbers stay on screen
+  // (dimmed) while a new request is on its way.
   useEffect(() => {
-    setLoading(true)
-    const filters = {
-      locationId: channel === 'live' ? (locationId || undefined) : undefined,
-      hostId: channel === 'live' ? (hostId || undefined) : undefined,
-      from: range.from, to: range.to, channel,
-      affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
-    }
-    Promise.all([
-      getPerformanceSummary(filters),
-      getHostRanking(filters),
-      getPerformanceData({ ...filters, sort: sort.key, dir: sort.dir }),
-    ]).then(([s, r, p]) => {
+    const id = ++summaryRequest.current
+    Promise.all([getPerformanceSummary(filters), getHostRanking(filters)]).then(([s, r]) => {
+      if (id !== summaryRequest.current) return
       setSummary(s)
       setRanking(r)
+    })
+  }, [filtersKey])
+
+  useEffect(() => {
+    const id = ++dataRequest.current
+    setLoading(true)
+    getPerformanceData({ ...filters, sort: sort.key, dir: sort.dir }).then((p) => {
+      if (id !== dataRequest.current) return
       setPerfData(p)
       setLoading(false)
     })
-  }, [locationId, hostId, range, sort, channel, affiliateId])
+  }, [filtersKey, sort])
 
   const selectedLocationName = locationId ? locations.find((l) => String(l.id) === String(locationId))?.name : null
   const selectedHostName = hostId ? hosts.find((h) => String(h.id) === String(hostId))?.name : null
@@ -131,10 +143,10 @@ export default function PerformanceDashboard() {
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">{dashboardTitle}</h1>
       )}
 
-      {loading || !summary ? (
+      {!summary ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <>
+        <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"} aria-busy={loading}>
           {/* Desktop 3 + 3; mobile 2-1-2-1 (QTY|ORD, GMV, AVG QTY|AVG ORD, AVG GMV). AOV sits under ORD. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatCard label="QTY" value={fmtNum(summary.qty)} />
@@ -211,7 +223,7 @@ export default function PerformanceDashboard() {
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { listSuppliers, createSupplier } from '../api/suppliers'
 import TagsInput from '../components/TagsInput'
 import { useCanEdit } from '../context/AccessContext'
+import { useDebouncedValue } from '../utils/hooks'
+import Pager from '../components/Pager'
 
 const emptyForm = { name: '', category: '', source: '' }
 const statusColors = { active: 'bg-green-100 text-green-700', paused: 'bg-amber-100 text-amber-700', inactive: 'bg-gray-100 text-gray-500' }
@@ -13,16 +15,20 @@ export default function Suppliers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const debouncedSearch = useDebouncedValue(search, 300)
   function reload() {
-    listSuppliers(true, search).then(setSuppliers)
+    listSuppliers(true, debouncedSearch, page).then((res) => { setSuppliers(res.items); setTotal(res.total) })
   }
 
-  useEffect(reload, [search])
+  useEffect(reload, [debouncedSearch, page])
+  useEffect(() => { setPage(1) }, [debouncedSearch])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -87,6 +93,7 @@ export default function Suppliers() {
           })}
           {suppliers.length === 0 && <p className="text-sm text-gray-400 py-4">{t('page_suppliers.empty_state')}</p>}
         </div>
+        <Pager page={page} size={20} total={total} onPage={setPage} className="mb-4" />
 
         {canEdit && <form onSubmit={handleCreate} className="grid grid-cols-3 gap-2 items-start">
           <input placeholder={t('page_suppliers.placeholder_name')} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} required className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm col-span-3 sm:col-span-1" />

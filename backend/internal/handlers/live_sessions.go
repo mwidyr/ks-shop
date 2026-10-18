@@ -101,7 +101,14 @@ func (h *LiveSessionHandler) List(w http.ResponseWriter, r *http.Request) {
 		argN++
 	}
 
-	rows, err := h.DB.Query(r.Context(), liveSessionSelect+where+" ORDER BY ls.created_at DESC LIMIT 100", args...)
+	pg := parsePage(r, 25, 100)
+	total := 0
+	limit := " LIMIT 100"
+	if isPaged(r) {
+		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM live_sessions ls`+where, args...).Scan(&total)
+		limit = pg.limitSQL(&args)
+	}
+	rows, err := h.DB.Query(r.Context(), liveSessionSelect+where+" ORDER BY ls.created_at DESC, ls.id DESC"+limit, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch live sessions")
 		return
@@ -115,6 +122,10 @@ func (h *LiveSessionHandler) List(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		list = append(list, s)
+	}
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, list)
 }

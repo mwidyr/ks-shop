@@ -1,9 +1,10 @@
 import client from './client'
 
-export function listSuppliers(includeInactive, search) {
+export function listSuppliers(includeInactive, search, page) {
   const params = new URLSearchParams()
   if (includeInactive) params.set('include_inactive', 'true')
   if (search) params.set('q', search)
+  if (page) { params.set('page', page); params.set('page_size', 20) } // paged: { items, total, ... }
   const qs = params.toString()
   return client.get(`/suppliers${qs ? `?${qs}` : ''}`).then((res) => res.data)
 }

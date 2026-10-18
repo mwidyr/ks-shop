@@ -4,7 +4,10 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
+
+	"ordermgmt/internal/cache"
 )
 
 type providerOverview struct {
@@ -26,31 +29,68 @@ func countOrders(rows []eligibleRow, category string) int {
 	return n
 }
 
-// Overview handles GET /shipping-workbench/overview: the five figures per provider card.
+// overviewTTL: the homepage figures are cached for a few seconds and dropped whenever a batch, export,
+// import or order status changes (invalidateShippingCache), so they never lag behind an action staff
+// just took; the TTL only covers stock changes made elsewhere (purchases, stock edits).
+const overviewTTL = 10 * time.Second
+
+func invalidateShippingCache() { cache.Invalidate("shipping:") }
+
+// invalidateOrderCaches drops every cached aggregate built from orders and customers. Call it after a
+// change to an order, a customer or a customer label has been committed.
+func invalidateOrderCaches() {
+	cache.Invalidate("shipping:")
+	cache.Invalidate("customers:")
+	cache.Invalidate("report:")
+	cache.Invalidate("inventory:")
+}
+
+// loadOverview computes the five figures of one provider card.
+func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string) (providerOverview, error) {
+	ov := providerOverview{Provider: p}
+	elig, err := computeEligible(r, h.DB, p, time.Now())
+	if err != nil {
+		return ov, err
+	}
+	ov.ReadyToExport = countOrders(elig.Rows, catReady)
+	ov.Insufficient = countOrders(elig.Rows, catInsufficient)
+	err = h.DB.QueryRow(r.Context(), `
+		SELECT COUNT(*) FILTER (WHERE o.status = 'processing'),
+		       COUNT(*) FILTER (WHERE o.status = 'ready_to_ship'),
+		       COUNT(*) FILTER (WHERE o.status = 'shipped')
+		FROM shipping_batch_orders sbo
+		JOIN shipping_batches b ON b.id = sbo.batch_id
+		JOIN orders o ON o.id = sbo.order_id
+		WHERE b.provider = $1`, p).Scan(&ov.Processing, &ov.ReadyToShip, &ov.Shipped)
+	return ov, err
+}
+
+// Overview handles GET /shipping-workbench/overview: the five figures per provider card. The three
+// providers are computed in parallel (they are independent) and the result is cached briefly.
 func (h *ShippingWorkbenchHandler) Overview(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	out := []providerOverview{}
-	for _, p := range []string{"cvs_711", "cvs_familymart", "courier"} {
-		ov := providerOverview{Provider: p}
-		elig, err := computeEligible(r, h.DB, p, time.Now())
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to load overview")
-			return
+	out, err := cache.Get("shipping:overview", overviewTTL, func() ([]providerOverview, error) {
+		providers := []string{"cvs_711", "cvs_familymart", "courier"}
+		res := make([]providerOverview, len(providers))
+		errs := make([]error, len(providers))
+		var wg sync.WaitGroup
+		for i, p := range providers {
+			wg.Add(1)
+			go func(i int, p string) {
+				defer wg.Done()
+				res[i], errs[i] = h.loadOverview(r, p)
+			}(i, p)
 		}
-		ov.ReadyToExport = countOrders(elig.Rows, catReady)
-		ov.Insufficient = countOrders(elig.Rows, catInsufficient)
-		if err := h.DB.QueryRow(ctx, `
-			SELECT COUNT(*) FILTER (WHERE o.status = 'processing'),
-			       COUNT(*) FILTER (WHERE o.status = 'ready_to_ship'),
-			       COUNT(*) FILTER (WHERE o.status = 'shipped')
-			FROM shipping_batch_orders sbo
-			JOIN shipping_batches b ON b.id = sbo.batch_id
-			JOIN orders o ON o.id = sbo.order_id
-			WHERE b.provider = $1`, p).Scan(&ov.Processing, &ov.ReadyToShip, &ov.Shipped); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to load overview")
-			return
+		wg.Wait()
+		for _, e := range errs {
+			if e != nil {
+				return nil, e
+			}
 		}
-		out = append(out, ov)
+		return res, nil
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to load overview")
+		return
 	}
 	respondJSON(w, http.StatusOK, out)
 }
@@ -169,13 +209,9 @@ func (h *ShippingWorkbenchHandler) Issues(w http.ResponseWriter, r *http.Request
 			  -- another batch stays in that batch's import history, it is not a global issue
 			  AND i.issue NOT IN ('not_in_batch', 'other_batch')
 		)`
-	var total int
-	if err := h.DB.QueryRow(r.Context(), base+` SELECT COUNT(*) FROM iss`, set.ProcessingHours, set.ReadyHours).Scan(&total); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to load issues")
-		return
-	}
+	// One evaluation of the (large) CTE: the page and the total come from the same pass.
 	rows, err := h.DB.Query(r.Context(), base+`
-		SELECT type, provider, order_id, order_no, batch_id, batch_no, message, since, import_issue_id
+		SELECT type, provider, order_id, order_no, batch_id, batch_no, message, since, import_issue_id, COUNT(*) OVER() AS total
 		FROM iss ORDER BY since ASC, order_id LIMIT $3 OFFSET $4`, set.ProcessingHours, set.ReadyHours, limit, offset)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load issues")
@@ -183,15 +219,20 @@ func (h *ShippingWorkbenchHandler) Issues(w http.ResponseWriter, r *http.Request
 	}
 	defer rows.Close()
 	items := []pendingIssue{}
+	total := 0
 	for rows.Next() {
 		var it pendingIssue
 		var since time.Time
-		if err := rows.Scan(&it.Type, &it.Provider, &it.OrderID, &it.OrderNo, &it.BatchID, &it.BatchNo, &it.Message, &since, &it.ImportIssueID); err != nil {
+		if err := rows.Scan(&it.Type, &it.Provider, &it.OrderID, &it.OrderNo, &it.BatchID, &it.BatchNo, &it.Message, &since, &it.ImportIssueID, &total); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to read issues")
 			return
 		}
 		it.Since = since.Format(time.RFC3339)
 		items = append(items, it)
+	}
+	if len(items) == 0 && offset > 0 {
+		// a page past the end has no rows to carry the window count: count separately (rare)
+		h.DB.QueryRow(r.Context(), base+` SELECT COUNT(*) FROM iss`, set.ProcessingHours, set.ReadyHours).Scan(&total)
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"total": total, "items": items})
 }

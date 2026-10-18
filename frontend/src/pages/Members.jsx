@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { adjustMember, getMember, getRewardSettings, listMembers, saveRewardSettings, setMemberActive } from '../api/website'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
+import Pager from '../components/Pager'
 
 const REWARD_FIELDS = ['welcome_balance', 'welcome_voucher_amount', 'welcome_voucher_min_order', 'welcome_voucher_days', 'referral_reward', 'points_per_100', 'point_value', 'birthday_discount_pct', 'refund_credit_bonus_pct']
 
@@ -10,15 +11,19 @@ export default function Members() {
   const m = (k, o) => t(`page_members.${k}`, o)
   const [q, setQ] = useState('')
   const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [sel, setSel] = useState(null)
   const [detail, setDetail] = useState(null)
   const [adj, setAdj] = useState({ kind: 'balance', amount: '', note: '' })
   const [rewards, setRewards] = useState(null)
   const [msg, setMsg] = useState(null)
 
-  const load = (text = q) => listMembers(text).then(setRows).catch(() => {})
-  useEffect(() => { load(''); getRewardSettings().then(setRewards).catch(() => {}) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const id = setTimeout(() => load(q), 250); return () => clearTimeout(id) }, [q]) // eslint-disable-line react-hooks/exhaustive-deps
+  const load = (text = q) => listMembers(text, page).then((res) => { setRows(res.items); setTotal(res.total) }).catch(() => {})
+  useEffect(() => { getRewardSettings().then(setRewards).catch(() => {}) }, [])
+  // the first run (empty search) is the initial load; later runs wait for typing to pause
+  useEffect(() => { const id = setTimeout(() => load(q), 250); return () => clearTimeout(id) }, [q, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1) }, [q])
 
   const open = async (id) => { setSel(id); setMsg(null); setDetail(await getMember(id)) }
   const fail = (e) => setMsg({ ok: false, text: e.response?.data?.error || t('page_website.common.error') })
@@ -54,6 +59,7 @@ export default function Members() {
               </tbody>
             </table>
           )}
+          <Pager page={page} size={25} total={total} onPage={setPage} />
         </div>
 
         {detail && (

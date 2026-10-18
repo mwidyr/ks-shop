@@ -66,10 +66,8 @@ type orderListItem struct {
 	// not configured / not yet loaded = unknown, never flagged), same rule as the order form's
 	// "store code not found" check.
 	StoreUnverified bool    `json:"store_unverified"`
-	HostNames       string  `json:"host_names"`
 	TotalQty        int     `json:"total_qty"`
 	Total           float64 `json:"total"`
-	PromotionCode   *string `json:"promotion_code"`
 	CreatedAt       string  `json:"created_at"`
 	CustomerBlocked bool    `json:"customer_blacklisted"`
 	IsUrgent        bool    `json:"is_urgent"`
@@ -138,65 +136,85 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		baseWhere += " AND EXISTS (SELECT 1 FROM order_items ois WHERE ois.order_id = o.id AND ois.live_session_id = " + addArg(sessionID) + ")"
 	}
 
-	page := 1
-	if p, err := strconv.Atoi(q.Get("page")); err == nil && p > 0 {
-		page = p
-	}
-	pageSize := 20
-	if ps, err := strconv.Atoi(q.Get("page_size")); err == nil && ps > 0 {
-		pageSize = ps
-	}
+	pg := parsePage(r, 20, 100)
+	pageSize := pg.Size
 
+	// The customers join is only needed by the text search; the count skips it (and so a join per
+	// counted row) when nothing searches on the customer.
+	countFrom := "FROM orders o"
+	if q.Get("q") != "" {
+		countFrom = "FROM orders o JOIN customers c ON c.id = o.customer_id"
+	}
 	var total int
-	countQuery := "SELECT COUNT(*) FROM orders o JOIN customers c ON c.id = o.customer_id" + baseWhere
-	h.DB.QueryRow(r.Context(), countQuery, args...).Scan(&total)
+	if err := h.DB.QueryRow(r.Context(), "SELECT COUNT(*) "+countFrom+baseWhere, args...).Scan(&total); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to count orders")
+		return
+	}
 
 	listArgs := append([]interface{}{}, args...)
 	limitPlaceholder := "$" + itoa(argN)
 	listArgs = append(listArgs, pageSize)
 	argN++
 	offsetPlaceholder := "$" + itoa(argN)
-	listArgs = append(listArgs, (page-1)*pageSize)
+	listArgs = append(listArgs, pg.Offset)
 
-	orderBy := "o.created_at DESC"
-	switch q.Get("sort") {
-	case "oldest":
-		orderBy = "o.created_at ASC"
-	case "total_desc":
-		orderBy = "total_amount DESC"
-	case "total_asc":
-		orderBy = "total_amount ASC"
-	}
+	orderBy := pickSort(q.Get("sort"), map[string]string{
+		"oldest":     "o.created_at ASC, o.id ASC",
+		"total_desc": "total_amount DESC, o.id DESC",
+		"total_asc":  "total_amount ASC, o.id ASC",
+	}, "o.created_at DESC, o.id DESC")
 
-	query := `
+	// Line items are aggregated once per order in a lateral join (no GROUP BY over the item rows, and
+	// the item sum and quantity share one scan of order_items instead of two).
+	const selectCols = `
 		SELECT o.id, o.order_no, o.status, c.name, c.phone, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.created_at,
-		       COALESCE(SUM(oi.qty * oi.price_at_order),0) - o.discount_amount - o.promotion_discount_amount + o.additional_amount +
+		       COALESCE(oi.subtotal,0) - o.discount_amount - o.promotion_discount_amount + o.additional_amount +
 		       CASE WHEN EXISTS (
 		           SELECT 1 FROM order_shipment_group_members gm
 		           JOIN order_shipment_groups g ON g.id = gm.group_id
 		           WHERE gm.order_id = o.id AND g.shipping_fee_order_id != o.id
 		       ) THEN 0 ELSE o.shipping_fee END AS total_amount,
-		       COALESCE((SELECT SUM(oi3.qty) FROM order_items oi3 WHERE oi3.order_id = o.id), 0),
-		       COALESCE((SELECT string_agg(DISTINCT h.name, ', ') FROM order_items oi2
-		                 JOIN hosts h ON h.id = oi2.host_id WHERE oi2.order_id = o.id), '-'),
+		       COALESCE(oi.qty,0),
 		       EXISTS (SELECT 1 FROM customer_labels cl2 WHERE cl2.customer_id = o.customer_id AND cl2.label = 'blacklist'),
 		       o.is_urgent,
 		       EXISTS (SELECT 1 FROM order_shipment_group_members gm2 WHERE gm2.order_id = o.id),
-		       pm.code,
 		       COALESCE(o.shipping_address,''), pc.chain_type,
 		       ((pc.chain_type IN ('cvs_711','cvs_familymart') AND COALESCE(o.pickup_store_code,'') <> ''
 		        AND EXISTS (SELECT 1 FROM cvs_stores cs0 WHERE cs0.chain_type = pc.chain_type)
 		        AND NOT EXISTS (SELECT 1 FROM cvs_stores cs WHERE cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code))
 		        OR NOT o.pickup_store_verified),
-		       o.source
-		FROM orders o
-		JOIN customers c ON c.id = o.customer_id
+		       o.source`
+	const joinRest = `
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
-		LEFT JOIN order_items oi ON oi.order_id = o.id
-		LEFT JOIN promotions pm ON pm.id = o.promotion_id` +
-		baseWhere +
-		" GROUP BY o.id, c.name, c.phone, pc.name, pc.chain_type, pm.code ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+		LEFT JOIN LATERAL (
+		    SELECT SUM(i.qty * i.price_at_order) AS subtotal, SUM(i.qty) AS qty
+		    FROM order_items i WHERE i.order_id = o.id
+		) oi ON true`
+
+	var query string
+	if strings.HasPrefix(orderBy, "total_amount") {
+		// Sorting by the computed total has to compute it for every matching order first.
+		query = selectCols + `
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id` + joinRest + baseWhere +
+			" ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+	} else {
+		// Sorting by date: pick the page's ids first (an index scan that stops after offset + size rows),
+		// and only then build the rows - so a deep page does not aggregate the thousands of orders
+		// before it.
+		pageFrom := "FROM orders o"
+		if q.Get("q") != "" {
+			pageFrom = "FROM orders o JOIN customers c ON c.id = o.customer_id"
+		}
+		query = "WITH page AS (SELECT o.id " + pageFrom + baseWhere +
+			" ORDER BY " + orderBy + " LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder + ")" +
+			selectCols + `
+		FROM page
+		JOIN orders o ON o.id = page.id
+		JOIN customers c ON c.id = o.customer_id` + joinRest +
+			" ORDER BY " + orderBy
+	}
 
 	rows, err := h.DB.Query(r.Context(), query, listArgs...)
 	if err != nil {
@@ -210,16 +228,14 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var o orderListItem
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
-			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.HostNames, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged, &o.PromotionCode,
+			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged,
 			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)
 		list = append(list, o)
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"items": list, "total": total, "page": page, "page_size": pageSize,
-	})
+	respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
 }
 
 type orderItemView struct {
@@ -726,6 +742,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	invalidateOrderCaches()
 	if h.OnOrderCreated != nil {
 		h.OnOrderCreated()
 	}
@@ -865,6 +882,7 @@ func (h *OrderHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	invalidateOrderCaches()
 	respondJSON(w, http.StatusOK, map[string]string{"status": req.Status})
 }
 
@@ -1167,4 +1185,33 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 
 func itoa(n int) string {
 	return strconv.Itoa(n)
+}
+
+// StatusCounts handles GET /orders/status-counts: the number of orders per status inside the date
+// range, for the tab badges of the Orders page. It is the only part of the old dashboard summary the
+// page used, as one grouped count that sorting and paging never need to repeat.
+func (h *OrderHandler) StatusCounts(w http.ResponseWriter, r *http.Request) {
+	from, to, filtered := dateRange(r)
+	query := `SELECT status, COUNT(*) FROM orders o`
+	var args []interface{}
+	if filtered {
+		query += ` WHERE o.created_at >= $1 AND o.created_at < $2`
+		args = append(args, from, to)
+	}
+	query += ` GROUP BY status`
+	rows, err := h.DB.Query(r.Context(), query, args...)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to count orders")
+		return
+	}
+	defer rows.Close()
+	counts := map[string]int{}
+	for rows.Next() {
+		var s string
+		var c int
+		if rows.Scan(&s, &c) == nil {
+			counts[s] = c
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"order_status_counts": counts})
 }

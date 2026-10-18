@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -47,6 +48,15 @@ func main() {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Lang"},
 		AllowCredentials: false,
 	}))
+	// Responses are compressed (the product, customer and purchase lists are large JSON). Images and
+	// other binary files are already compressed and are left alone.
+	r.Use(middleware.Compress(5, "application/json", "text/plain", "text/csv", "text/html", "text/css", "application/javascript"))
+	r.Use(appmw.RequestTiming(os.Getenv("REQUEST_LOG") == "1", 300*time.Millisecond))
+
+	// Aggregate screens (dashboards, analytics, reports, replenishment) re-scan orders and items on every
+	// request; their answers are kept for 30 seconds per user and URL, and dropped when an order or customer
+	// changes (invalidateOrderCaches).
+	reportCache := appmw.CacheResponses(30*time.Second, "report")
 
 	authH := &handlers.AuthHandler{DB: pool, JWTSecret: cfg.JWTSecret, Cfg: cfg}
 	productH := &handlers.ProductHandler{DB: pool}
@@ -265,6 +275,8 @@ func main() {
 
 			r.With(view("products")).Get("/products", productH.List)
 			r.With(view("products")).Get("/products/{id}", productH.Detail)
+			r.With(view("inventory")).Get("/inventory", productH.Inventory)
+			r.With(edit("inventory")).Patch("/variants/{variantId}/stock", productH.UpdateVariantStock)
 			r.With(view("inventory")).Get("/inventory/history", productH.StockHistory)
 			r.With(view("inventory")).Get("/inventory/value", productH.InventoryValue)
 			r.With(edit("products")).Post("/products", productH.Create)
@@ -293,6 +305,7 @@ func main() {
 			r.With(edit("colors")).Delete("/colors/{id}", colorH.Delete)
 
 			r.With(view("orders")).Get("/pickup-stores/validate", cvsStoreH.ValidateStoreCode)
+			r.With(view("orders")).Get("/orders/status-counts", orderH.StatusCounts)
 			r.With(view("orders")).Get("/orders", orderH.List)
 			r.With(view("orders")).Get("/orders/{id}", orderH.Detail)
 			r.With(edit("orders")).Post("/orders", orderH.Create)
@@ -333,12 +346,12 @@ func main() {
 
 			r.With(view("audit_logs")).Get("/activity-log", activityLogH.List)
 
-			r.With(view("dashboard")).Get("/dashboard/summary", dashboardH.Summary)
-			r.With(view("dashboard")).Get("/dashboard/graph", dashboardH.Graph)
-			r.With(view("dashboard")).Get("/dashboard/host-ranking", dashboardH.HostRanking)
-			r.With(view("dashboard")).Get("/dashboard/top-products", dashboardH.TopProducts)
-			r.With(view("profit")).Get("/dashboard/profit", dashboardH.Profit)
-			r.With(view("dashboard")).Get("/dashboard/alerts", dashboardH.Alerts)
+			r.With(view("dashboard"), reportCache).Get("/dashboard/summary", dashboardH.Summary)
+			r.With(view("dashboard"), reportCache).Get("/dashboard/graph", dashboardH.Graph)
+			r.With(view("dashboard"), reportCache).Get("/dashboard/host-ranking", dashboardH.HostRanking)
+			r.With(view("dashboard"), reportCache).Get("/dashboard/top-products", dashboardH.TopProducts)
+			r.With(view("profit"), reportCache).Get("/dashboard/profit", dashboardH.Profit)
+			r.With(view("dashboard"), reportCache).Get("/dashboard/alerts", dashboardH.Alerts)
 
 			r.With(viewAny("hosts", "orders")).Get("/hosts", hostH.List)
 			r.With(edit("hosts")).Post("/hosts", hostH.Create)
@@ -402,7 +415,7 @@ func main() {
 			r.With(edit("purchases")).Post("/purchases/batches/{batchId}/receive", purchaseH.ConfirmBatch)
 			r.With(edit("purchases")).Delete("/purchases/{id}", purchaseH.Delete)
 
-			r.With(view("replenishment_planning")).Get("/replenishment", replenishmentH.List)
+			r.With(view("replenishment_planning"), reportCache).Get("/replenishment", replenishmentH.List)
 			r.With(view("replenishment_planning")).Get("/replenishment/settings", replenishmentH.GetSettings)
 			r.With(edit("replenishment_planning")).Put("/replenishment/settings", replenishmentH.UpdateSettings)
 
@@ -433,13 +446,13 @@ func main() {
 			r.With(view("fees")).Get("/settings/fees", feesH.Get)
 			r.With(edit("fees")).Patch("/settings/fees", feesH.Update)
 
-			r.With(view("reports")).Get("/reports/products", reportsH.Products)
-			r.With(view("reports")).Get("/reports/orders", reportsH.Orders)
-			r.With(view("product_analytics")).Get("/reports/product-analysis", reportsH.ProductAnalysis)
-			r.With(view("product_trend")).Get("/reports/product-trend", reportsH.ProductTrend)
-			r.With(view("product_performance")).Get("/reports/product-performance", reportsH.ProductPerformance)
-			r.With(view("product_color_pair")).Get("/reports/product-color-pair", reportsH.ProductColorPair)
-			r.With(view("host_category_leaderboard")).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)
+			r.With(view("reports"), reportCache).Get("/reports/products", reportsH.Products)
+			r.With(view("reports"), reportCache).Get("/reports/orders", reportsH.Orders)
+			r.With(view("product_analytics"), reportCache).Get("/reports/product-analysis", reportsH.ProductAnalysis)
+			r.With(view("product_trend"), reportCache).Get("/reports/product-trend", reportsH.ProductTrend)
+			r.With(view("product_performance"), reportCache).Get("/reports/product-performance", reportsH.ProductPerformance)
+			r.With(view("product_color_pair"), reportCache).Get("/reports/product-color-pair", reportsH.ProductColorPair)
+			r.With(view("host_category_leaderboard"), reportCache).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)
 
 			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)
 			r.With(edit("panel_siaran")).Post("/live-sessions", liveSessionH.Create)
@@ -459,18 +472,18 @@ func main() {
 			r.With(edit("returns")).Patch("/returns/{id}/approve", returnH.Approve)
 			r.With(edit("returns")).Patch("/returns/{id}/reject", returnH.Reject)
 
-			r.With(view("performance_dashboard")).Get("/performance-dashboard/summary", perfDashboardH.Summary)
-			r.With(view("performance_dashboard")).Get("/performance-dashboard/host-ranking", perfDashboardH.HostRanking)
-			r.With(view("performance_dashboard")).Get("/performance-dashboard/performance-data", perfDashboardH.PerformanceData)
+			r.With(view("performance_dashboard"), reportCache).Get("/performance-dashboard/summary", perfDashboardH.Summary)
+			r.With(view("performance_dashboard"), reportCache).Get("/performance-dashboard/host-ranking", perfDashboardH.HostRanking)
+			r.With(view("performance_dashboard"), reportCache).Get("/performance-dashboard/performance-data", perfDashboardH.PerformanceData)
 
-			r.With(view("host_performance_analytics")).Get("/host-analytics/lifetime", hostAnalyticsH.Lifetime)
-			r.With(view("host_performance_analytics")).Get("/host-analytics/summary", hostAnalyticsH.Summary)
-			r.With(view("host_performance_analytics")).Get("/host-analytics/period-summary", hostAnalyticsH.PeriodSummary)
-			r.With(view("host_performance_analytics")).Get("/host-analytics/sales-distribution", hostAnalyticsH.SalesDistribution)
-			r.With(view("performance_comparison")).Get("/performance-comparison/location-shift", perfComparisonH.LocationShift)
-			r.With(view("performance_comparison")).Get("/performance-comparison/custom", perfComparisonH.Custom)
-			r.With(view("host_performance_analytics")).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
-			r.With(view("host_performance_analytics")).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/lifetime", hostAnalyticsH.Lifetime)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/summary", hostAnalyticsH.Summary)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/period-summary", hostAnalyticsH.PeriodSummary)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/sales-distribution", hostAnalyticsH.SalesDistribution)
+			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/location-shift", perfComparisonH.LocationShift)
+			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/custom", perfComparisonH.Custom)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
+			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
 
 			// Telegram Settings: Super Admin only (no tab permission, nobody else can be granted it).
 			r.Route("/telegram", func(r chi.Router) {
@@ -482,9 +495,9 @@ func main() {
 				r.Post("/test-notification", telegramH.TestNotification)
 			})
 
-			r.With(view("heatmap")).Get("/heatmap/summary", heatmapH.Summary)
-			r.With(view("heatmap")).Get("/heatmap/grid", heatmapH.Grid)
-			r.With(view("heatmap")).Get("/heatmap/cell-detail", heatmapH.CellDetail)
+			r.With(view("heatmap"), reportCache).Get("/heatmap/summary", heatmapH.Summary)
+			r.With(view("heatmap"), reportCache).Get("/heatmap/grid", heatmapH.Grid)
+			r.With(view("heatmap"), reportCache).Get("/heatmap/cell-detail", heatmapH.CellDetail)
 
 			// Staff & permission management: no configurable role is seeded with edit access to
 			// the "roles" tab (see 036_role_tab_access.sql), so only super_user's bypass reaches

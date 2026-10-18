@@ -1,18 +1,19 @@
 import client from './client'
+import { cachedLookup, invalidateLookups } from './lookupCache'
 
 export function listAffiliates(includeInactive) {
   const q = includeInactive ? '?include_inactive=true' : ''
-  return client.get(`/affiliates${q}`).then((res) => res.data)
+  return cachedLookup(`affiliates${q}`, () => client.get(`/affiliates${q}`).then((res) => res.data))
 }
 
 export function createAffiliate(payload) {
-  return client.post('/affiliates', payload).then((res) => res.data)
+  return client.post('/affiliates', payload).then((res) => { invalidateLookups('affiliates'); return res.data })
 }
 
 export function updateAffiliate(id, payload) {
-  return client.patch(`/affiliates/${id}`, payload).then((res) => res.data)
+  return client.patch(`/affiliates/${id}`, payload).then((res) => { invalidateLookups('affiliates'); return res.data })
 }
 
 export function deleteAffiliate(id) {
-  return client.delete(`/affiliates/${id}`).then((res) => res.data)
+  return client.delete(`/affiliates/${id}`).then((res) => { invalidateLookups('affiliates'); return res.data })
 }

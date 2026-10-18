@@ -97,6 +97,7 @@ function check(td) {
 export function startNumericCellAlignment() {
   const pending = new Set()
   let scheduled = false
+  let observer = null
   const flush = () => {
     scheduled = false
     const tables = new Set()
@@ -108,6 +109,10 @@ export function startNumericCellAlignment() {
     })
     pending.clear()
     tables.forEach(alignHeaders)
+    // The class changes made above are observed as attribute mutations too: discard those records,
+    // otherwise every pass queues the cells it just touched and the whole table is scanned twice
+    // (and, for a table that keeps changing, forever).
+    observer?.takeRecords()
   }
   const queue = (td) => {
     pending.add(td)
@@ -120,12 +125,13 @@ export function startNumericCellAlignment() {
     if (td) { queue(td); return }
     node.querySelectorAll?.('td').forEach(queue)
   }
-  new MutationObserver((muts) => {
+  observer = new MutationObserver((muts) => {
     for (const m of muts) {
       if (m.type === 'childList') m.addedNodes.forEach(collect)
       if (m.type === 'childList' || m.type === 'characterData') collect(m.target)
       if (m.type === 'attributes' && m.target.tagName === 'TD') queue(m.target)
     }
-  }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] })
+  })
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] })
   document.querySelectorAll('td').forEach(queue)
 }

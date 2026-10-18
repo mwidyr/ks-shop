@@ -9,9 +9,12 @@ export function createCustomer(payload) {
   return client.post('/customers', payload).then((res) => res.data)
 }
 
-// { kpi: {...six cards}, customers: [...] } - merged by phone, valid orders only, see customers.go.
-export function listCustomerStats() {
-  return client.get('/customers/stats').then((res) => res.data)
+// { kpi: {...six cards}, customers: [one page], total, page, page_size } - merged by phone, valid
+// orders only, see customers.go. Search, filters, sort and paging are done by the server; with
+// params.export = 1 every matching customer comes back instead of one page.
+export function listCustomerStats(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/customers/stats?${q.toString()}`).then((res) => res.data)
 }
 
 // Delivery history (latest first, deduped) + host purchase history for the Customer Detail panel.

@@ -52,6 +52,14 @@ type requisitionListItem struct {
 }
 
 func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request) {
+	pg := parsePage(r, 20, 100)
+	total := 0
+	listArgs := []interface{}{}
+	limit := ""
+	if isPaged(r) {
+		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM purchase_requisitions`).Scan(&total)
+		limit = pg.limitSQL(&listArgs)
+	}
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT pr.id, pr.requisition_no, pr.status, pr.created_at::text, pr.completed_at::text,
 		       COALESCE((SELECT COUNT(*) FROM purchase_requisition_suppliers prs WHERE prs.requisition_id = pr.id), 0),
@@ -63,7 +71,7 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 		           WHERE prs.requisition_id = pr.id
 		       ), 0)
 		FROM purchase_requisitions pr
-		ORDER BY pr.created_at DESC`)
+		ORDER BY pr.created_at DESC, pr.id DESC`+limit, listArgs...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch requisitions")
 		return
@@ -77,6 +85,10 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		list = append(list, it)
+	}
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, list)
 }

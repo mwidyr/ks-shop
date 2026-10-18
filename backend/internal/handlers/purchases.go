@@ -135,6 +135,13 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	if date := strings.TrimSpace(q.Get("date")); date != "" {
 		where += " AND (p.created_at AT TIME ZONE 'Asia/Jakarta')::date = " + add(date) + "::date"
 	}
+	pg := parsePage(r, 20, 100)
+	total := 0
+	limit := ""
+	if isPaged(r) {
+		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM purchases p JOIN suppliers s ON s.id = p.supplier_id`+where, args...).Scan(&total)
+		limit = pg.limitSQL(&args)
+	}
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT p.id, p.po_number,
 		       (SELECT pq.requisition_no FROM purchase_requisition_suppliers prs
@@ -147,7 +154,7 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 		       p.created_at::text
 		FROM purchases p
 		JOIN suppliers s ON s.id = p.supplier_id`+where+`
-		ORDER BY p.created_at DESC`, args...)
+		ORDER BY p.created_at DESC, p.id DESC`+limit, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch purchases")
 		return
@@ -214,6 +221,10 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 			bRows.Close()
 		}
+	}
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, list)
 }

@@ -1,6 +1,7 @@
 import { resetSharedPeriod } from '../utils/sharedPeriod'
 import { createContext, useContext, useState } from 'react'
 import client from '../api/client'
+import { invalidateLookups } from '../api/lookupCache'
 
 const AuthContext = createContext(null)
 
@@ -11,6 +12,7 @@ export function AuthProvider({ children }) {
   })
 
   function applySession(token, sessionUser) {
+    invalidateLookups() // reference lists cached for the previous user must not be shown to this one
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(sessionUser))
     setUser(sessionUser)
@@ -25,6 +27,7 @@ export function AuthProvider({ children }) {
 
   function logout() {
     resetSharedPeriod()
+    invalidateLookups()
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)

@@ -142,5 +142,6 @@ func (h *RolePermissionHandler) UpdateMatrix(w http.ResponseWriter, r *http.Requ
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+	appmw.InvalidateTabAccess() // the new matrix applies immediately, not after the cache expires
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

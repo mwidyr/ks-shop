@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"ordermgmt/internal/cache"
 	appmw "ordermgmt/internal/middleware"
 )
 
@@ -133,7 +134,12 @@ func (h *ShippingWorkbenchHandler) ListBatches(w http.ResponseWriter, r *http.Re
 	if filter == "" {
 		filter = "pending"
 	}
-	all, err := loadBatchSummaries(r.Context(), h.DB, ` WHERE ($1 = '' OR b.provider = $1)`, provider)
+	// Every batch's progress is aggregated from its orders, which costs more as batches pile up, so the
+	// aggregate is kept for a few seconds (dropped on every change, see invalidateShippingCache) and
+	// searching, sorting and paging are served from it.
+	all, err := cache.Get("shipping:batches:"+provider, overviewTTL, func() ([]batchSummary, error) {
+		return loadBatchSummaries(context.Background(), h.DB, ` WHERE ($1 = '' OR b.provider = $1)`, provider)
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load batches")
 		return
@@ -162,9 +168,28 @@ func (h *ShippingWorkbenchHandler) ListBatches(w http.ResponseWriter, r *http.Re
 		}
 		list = append(list, b)
 	}
-	// batches with problems first, then newest first (query order is already newest first)
-	sort.SliceStable(list, func(i, j int) bool { return list[i].HasProblems && !list[j].HasProblems })
-	respondJSON(w, http.StatusOK, map[string]any{"cards": cards, "batches": list})
+	// batches with problems first, then newest first (or oldest first with ?sort=oldest)
+	oldestFirst := r.URL.Query().Get("sort") == "oldest"
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].HasProblems != list[j].HasProblems {
+			return list[i].HasProblems
+		}
+		if oldestFirst {
+			return list[i].ID < list[j].ID
+		}
+		return list[i].ID > list[j].ID
+	})
+	if !isPaged(r) {
+		respondJSON(w, http.StatusOK, map[string]any{"cards": cards, "batches": list})
+		return
+	}
+	pg := parsePage(r, 20, 100)
+	from := min(pg.Offset, len(list))
+	to := min(from+pg.Size, len(list))
+	resp := pageResponse(list[from:to], len(list), pg)
+	resp["batches"] = resp["items"]
+	resp["cards"] = cards
+	respondJSON(w, http.StatusOK, resp)
 }
 
 type batchOrderView struct {
@@ -538,6 +563,7 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
+	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]any{"exported_at": exportedAt.Format(time.RFC3339Nano), "moved_to_processing": moved})
 }
 
@@ -578,6 +604,7 @@ func (h *ShippingWorkbenchHandler) ConfirmFailed(w http.ResponseWriter, r *http.
 		return
 	}
 	logActivity(r.Context(), h.DB, "order", orderID, "shipping_confirmed_not_created", &claims.UserID, fmt.Sprintf("batch %d", id))
+	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -592,6 +619,7 @@ func (h *ShippingWorkbenchHandler) ResolveIssue(w http.ResponseWriter, r *http.R
 		respondError(w, http.StatusInternalServerError, "failed to resolve issue")
 		return
 	}
+	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -617,5 +645,6 @@ func (h *ShippingWorkbenchHandler) ConfirmAllNotCreated(w http.ResponseWriter, r
 		return
 	}
 	logActivity(r.Context(), h.DB, "shipping_batch", id, "confirmed_not_created", &claims.UserID, fmt.Sprintf("%d orders", ct.RowsAffected()))
+	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]int64{"confirmed": ct.RowsAffected()})
 }

@@ -48,12 +48,13 @@ export default function PanelSiaran() {
   const [loading, setLoading] = useState(true)
 
   function reload() {
+    // the newest draft and the number of sessions: one row and a count each, not the whole history
     Promise.all([
-      listLiveSessions({ status: 'draft' }),
-      listLiveSessions({}),
+      listLiveSessions({ status: 'draft', page: 1, page_size: 1 }),
+      listLiveSessions({ page: 1, page_size: 1 }),
     ]).then(([drafts, all]) => {
-      setCurrent(drafts[0] || null)
-      setTotal(all.length)
+      setCurrent(drafts.items[0] || null)
+      setTotal(all.total)
       setLoading(false)
     })
   }

@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { useTranslation } from 'react-i18next'
-import { listProducts, createProduct, updateProduct, updateVariant, deleteProduct, setProductActive } from '../api/products'
+import { listProductsPage, listProductsByIds, listProductsForExport, createProduct, updateProduct, updateVariant, deleteProduct, setProductActive } from '../api/products'
 import { listCategories } from '../api/categories'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
-import { localizedProductName, allProductNames } from '../utils/productName'
+import { localizedProductName } from '../utils/productName'
 import { IconChevronDown, IconPencil, IconTrash } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import ImagePreviewModal from '../components/ImagePreviewModal'
@@ -15,11 +15,14 @@ import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { useAuth } from '../context/AuthContext'
 import { useCanEdit } from '../context/AccessContext'
+import { useDebouncedValue, useMediaQuery } from '../utils/hooks'
 
 // A product only has two statuses: Published (is_active) / Unpublished. Stock is shown as its own
 // number next to it and is deliberately NOT a status (no more Low Stock / Out of Stock badges).
 const publishStatus = (p) => (p.is_active ? 'published' : 'unpublished')
 const publishColors = { published: 'bg-green-100 text-green-700', unpublished: 'bg-gray-100 text-gray-500' }
+
+const PRODUCTS_PAGE_SIZE = 50
 
 function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   const { t, i18n } = useTranslation()
@@ -114,6 +117,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
       <td className="p-3.5 cursor-pointer" onClick={() => navigate(`/products/${p.id}/edit`)}>
         <div className="flex items-center gap-3">
           <img
+            loading="lazy" decoding="async"
             src={resolveUrl(p.images[0]?.url)}
             onClick={(e) => { e.stopPropagation(); onPreview(p) }}
             className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
@@ -204,8 +208,11 @@ export default function Products() {
   // count there is clickable) - the list opens already filtered.
   const [searchParams, setSearchParams] = useSearchParams()
   const colorFilter = searchParams.get('color') || ''
-  const [products, setProducts] = useState([])
+  const [data, setData] = useState({ items: [], total: 0, page: 1, counts: { all: 0, active: 0, inactive: 0 } })
+  const products = data.items
   const [loading, setLoading] = useState(true)
+  const [fetching, setFetching] = useState(false)
+  const [listPage, setListPage] = useState(1)
   const [tab, setTab] = useState('all')
   const [search, setSearch] = useState('')
   const [stockFilter, setStockFilter] = useState('all')
@@ -222,56 +229,43 @@ export default function Products() {
   const [importing, setImporting] = useState(false)
   const [previewProduct, setPreviewProduct] = useState(null)
 
-  function reload() {
-    listProducts().then((data) => {
-      setProducts(data)
-      setLoading(false)
-      setSelected(new Set())
-    })
-  }
+  // typing in the search box filters after a short pause, not on every keystroke
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+  const requestId = useRef(0)
 
-  useEffect(reload, [])
+  // The filters in the names the API expects. A variant color is stored as the Chinese name or, for
+  // legacy data, Indonesian: both are sent.
+  const filterParams = () => ({
+    q: debouncedSearch.trim(), tab: tab === 'all' ? '' : tab, category: categoryFilter, stock: stockFilter === 'all' ? '' : stockFilter, sort: sortBy,
+    color: colorFilter, color_alt: colorFilter ? (masterColors.find((c) => c.name_zh === colorFilter)?.name_id || '') : '',
+  })
+
+  // One page (50 rows) per request, searched / filtered / sorted by the server. The previous rows stay on
+  // screen (dimmed) while the next page loads, and only the newest request may write its result.
+  function load() {
+    const id = ++requestId.current
+    setFetching(true)
+    listProductsPage({ ...filterParams(), page: listPage, page_size: PRODUCTS_PAGE_SIZE }).then((res) => {
+      if (id !== requestId.current) return
+      setData(res)
+      setLoading(false)
+      setFetching(false)
+    }).catch(() => { if (id === requestId.current) { setLoading(false); setFetching(false) } })
+  }
+  // After a change (bulk action, delete, toggle): reload the page and clear the selection.
+  function reload() {
+    setSelected(new Set())
+    load()
+  }
+  useEffect(load, [debouncedSearch, tab, categoryFilter, colorFilter, stockFilter, sortBy, listPage])
+  // any filter change starts at page 1
+  useEffect(() => { setListPage(1) }, [debouncedSearch, tab, categoryFilter, colorFilter, stockFilter, sortBy])
   useEffect(() => { listCategories().then((cats) => setCategories(cats.map((c) => c.name).sort())) }, [])
 
-  const activeCount = products.filter((p) => p.is_active).length
-  const inactiveCount = products.length - activeCount
-
-  const filtered = useMemo(() => {
-    const list = products.filter((p) => {
-      if (tab === 'active' && !p.is_active) return false
-      if (tab === 'inactive' && p.is_active) return false
-      if (search) {
-        const q = search.toLowerCase()
-        const matchesName = allProductNames(p).includes(q)
-        const matchesSku = (p.sku || '').toLowerCase().includes(q)
-        if (!matchesName && !matchesSku) return false
-      }
-      if (categoryFilter && p.category !== categoryFilter) return false
-      if (colorFilter) {
-        // A variant color is stored as the Chinese name (canonical) or, for legacy data, Indonesian.
-        const idName = masterColors.find((c) => c.name_zh === colorFilter)?.name_id
-        if (!p.variants.some((v) => v.color === colorFilter || (idName && v.color === idName))) return false
-      }
-      if (stockFilter !== 'all') {
-        const total = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
-        if (stockFilter === 'has_stock' && !(total > 0)) return false
-        if (stockFilter === 'low_stock' && !(total > 0 && total <= 5)) return false
-        if (stockFilter === 'out_of_stock' && total !== 0) return false
-        if (stockFilter === 'oversell' && !p.is_oversell) return false
-      }
-      return true
-    })
-
-    const priceOf = (p) => (p.variants.length ? Math.min(...p.variants.map((v) => v.price)) : 0)
-    const stockOf = (p) => p.variants.reduce((sum, v) => sum + v.total_stock, 0)
-    const sorted = [...list]
-    if (sortBy === 'newest') sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    else if (sortBy === 'stock_desc') sorted.sort((a, b) => stockOf(b) - stockOf(a))
-    else if (sortBy === 'stock_asc') sorted.sort((a, b) => stockOf(a) - stockOf(b))
-    else if (sortBy === 'price_desc') sorted.sort((a, b) => priceOf(b) - priceOf(a))
-    else if (sortBy === 'price_asc') sorted.sort((a, b) => priceOf(a) - priceOf(b))
-    return sorted
-  }, [products, tab, search, categoryFilter, colorFilter, masterColors, stockFilter, sortBy])
+  const activeCount = data.counts.active
+  const inactiveCount = data.counts.inactive
+  const totalPages = Math.max(1, Math.ceil(data.total / PRODUCTS_PAGE_SIZE))
 
   function toggleSelect(id) {
     setSelected((s) => {
@@ -282,13 +276,20 @@ export default function Products() {
     })
   }
 
+  // Selects / clears the rows of the page on screen. The selection survives paging, so rows from
+  // several pages can be acted on together.
+  const pageAllSelected = products.length > 0 && products.every((p) => selected.has(p.id))
   function toggleSelectAll() {
-    setSelected((s) => (s.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id))))
+    setSelected((s) => {
+      const next = new Set(s)
+      if (pageAllSelected) products.forEach((p) => next.delete(p.id))
+      else products.forEach((p) => next.add(p.id))
+      return next
+    })
   }
 
-  function selectedProducts() {
-    return products.filter((p) => selected.has(p.id))
-  }
+  // The list rows are slim: a bulk action loads the full detail of the selected products first.
+  const selectedProducts = () => (selected.size ? listProductsByIds([...selected]) : Promise.resolve([]))
 
   async function applyBulkStock() {
     if (bulkStock === '' || selected.size === 0) return
@@ -296,7 +297,7 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const calls = []
-    for (const p of selectedProducts()) {
+    for (const p of await selectedProducts()) {
       for (const v of p.variants) {
         calls.push(updateVariant(p.id, v.id, {
           sku: v.sku, color: v.color, size: v.size, price: v.price,
@@ -323,7 +324,7 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const calls = []
-    for (const p of selectedProducts()) {
+    for (const p of await selectedProducts()) {
       for (const v of p.variants) {
         const newPrice = isPercent ? Math.round(v.price * (1 + num / 100)) : num
         calls.push(updateVariant(p.id, v.id, {
@@ -349,7 +350,7 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const results = await Promise.allSettled(
-      selectedProducts().map((p) => updateProduct(p.id, {
+      (await selectedProducts()).map((p) => updateProduct(p.id, {
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, brand: p.brand,
         base_price: p.base_price, allow_oversell: p.allow_oversell, category: bulkCategory, is_active: p.is_active,
       }))
@@ -367,7 +368,7 @@ export default function Products() {
     setBulkBusy(true)
     setBulkResult('')
     const results = await Promise.allSettled(
-      selectedProducts().map((p) => updateProduct(p.id, {
+      (await selectedProducts()).map((p) => updateProduct(p.id, {
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, category: p.category,
         brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: isActive,
       }))
@@ -383,7 +384,7 @@ export default function Products() {
   async function applyBulkDelete() {
     setBulkBusy(true)
     setBulkResult('')
-    const results = await Promise.allSettled(selectedProducts().map((p) => deleteProduct(p.id)))
+    const results = await Promise.allSettled((await selectedProducts()).map((p) => deleteProduct(p.id)))
     const fail = results.filter((r) => r.status === 'rejected').length
     setBulkResult(fail > 0
       ? t('page_products.bulk_delete_partial', { success: results.length - fail, fail })
@@ -392,8 +393,10 @@ export default function Products() {
     reload()
   }
 
-  function exportCsv() {
-    const rows = products.flatMap((p) => p.variants.map((v) => ({
+  // Exports every product matching the current search and filters (not just the page on screen).
+  async function exportCsv() {
+    const all = await listProductsForExport(filterParams())
+    const rows = all.flatMap((p) => p.variants.map((v) => ({
       name: p.name, category: p.category, brand: p.brand, sku: v.sku, color: v.color, size: v.size,
       price: v.price, available_stock: v.available_stock, is_active: p.is_active,
     })))
@@ -509,7 +512,7 @@ export default function Products() {
       <div className={`${cardClasses} overflow-hidden`}>
         <div className="flex gap-6 px-5 pt-4 border-b border-[var(--table-divider)]">
           {[
-            ['all', t('page_products.tab_all', { count: products.length })],
+            ['all', t('page_products.tab_all', { count: data.counts.all })],
             ['active', t('page_products.tab_active', { count: activeCount })],
             ['inactive', t('page_products.tab_inactive', { count: inactiveCount })],
           ].map(([key, label]) => (
@@ -554,15 +557,15 @@ export default function Products() {
 
         {loading ? (
           <p className="text-gray-500 py-10 text-center">{t('page_products.loading_products')}</p>
-        ) : filtered.length === 0 ? (
+        ) : products.length === 0 && !fetching ? (
           <p className="text-gray-400 py-10 text-center">{t('page_products.no_products')}</p>
-        ) : (
-          <div className="overflow-x-auto hidden md:block">
+        ) : isDesktop ? (
+          <div className={`overflow-x-auto transition-opacity ${fetching ? 'opacity-60' : ''}`} aria-busy={fetching}>
             <table className={tableClasses}>
               <thead>
                 <tr className={theadRowClasses}>
                   <th className="p-3.5 w-8">
-                    <input type="checkbox" checked={selected.size === filtered.length} onChange={toggleSelectAll} />
+                    <input type="checkbox" checked={pageAllSelected} onChange={toggleSelectAll} />
                   </th>
                   <th className="p-3.5">{t('page_products.col_info')}</th>
                   <th className="p-3.5">{t('page_products.col_price')}</th>
@@ -573,17 +576,15 @@ export default function Products() {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {filtered.map((p) => (
+                {products.map((p) => (
                   <ProductRow key={p.id} p={p} onChanged={reload} selected={selected.has(p.id)} onToggleSelect={toggleSelect} onPreview={setPreviewProduct} />
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-
-        {!loading && filtered.length > 0 && (
-          <div className="md:hidden divide-y divide-[var(--table-divider)]">
-            {filtered.map((p) => {
+        ) : (
+          <div className={`divide-y divide-[var(--table-divider)] transition-opacity ${fetching ? 'opacity-60' : ''}`} aria-busy={fetching}>
+            {products.map((p) => {
               const totalStock = p.variants.reduce((sum, v) => sum + v.total_stock, 0)
               const mobileColors = [...new Set(p.variants.map((v) => v.color).filter(Boolean))]
               const mobileSizes = [...new Set(p.variants.map((v) => v.size).filter(Boolean))]
@@ -594,6 +595,7 @@ export default function Products() {
               return (
                 <Link key={p.id} to={`/products/${p.id}/edit`} className="flex items-start gap-3 p-3.5 hover:bg-[var(--table-row-hover)]">
                   <img
+                    loading="lazy" decoding="async"
                     src={resolveUrl(p.images[0]?.url)}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewProduct(p) }}
                     className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0 cursor-zoom-in"
@@ -630,6 +632,16 @@ export default function Products() {
                 </Link>
               )
             })}
+          </div>
+        )}
+
+        {!loading && data.total > PRODUCTS_PAGE_SIZE && (
+          <div className="flex items-center justify-between p-3.5 text-sm text-[var(--text-secondary)] border-t border-[var(--table-divider)]">
+            <span>{t('page_orders.pagination_info', { page: data.page, totalPages, total: data.total })}</span>
+            <div className="flex gap-2">
+              <button disabled={listPage <= 1} onClick={() => setListPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40">{t('page_orders.prev')}</button>
+              <button disabled={listPage >= totalPages} onClick={() => setListPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-[var(--table-divider)] disabled:opacity-40">{t('page_orders.next')}</button>
+            </div>
           </div>
         )}
       </div>

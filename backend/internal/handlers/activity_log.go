@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -41,36 +40,38 @@ type activityRow struct {
 }
 
 // List returns the combined activity feed, newest first, paginated.
+//
+// The feed is the union of three growing tables. Each branch is cut to its own newest
+// (offset + page size) rows BEFORE the union (served by the created_at indexes), so a page never sorts
+// the whole history: the newest N rows of the union are always among the newest N rows of its parts.
 func (h *ActivityLogHandler) List(w http.ResponseWriter, r *http.Request) {
-	page := 1
-	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
-		page = p
-	}
-	pageSize := 50
-	if ps, err := strconv.Atoi(r.URL.Query().Get("page_size")); err == nil && ps > 0 {
-		pageSize = ps
-	}
+	pg := parsePage(r, 50, 200)
+	pageSize := pg.Size
+	need := pg.Offset + pg.Size
 
 	query := `
 		WITH feed AS (
-			SELECT 'activity'::text AS source, entity_type, entity_id, action, changed_by, detail, created_at
-			FROM activity_log
+			(SELECT 'activity'::text AS source, entity_type, entity_id, action, changed_by, detail, created_at
+			 FROM activity_log ORDER BY created_at DESC LIMIT $3)
 			UNION ALL
-			SELECT 'order'::text, 'order', order_id, 'status: ' || COALESCE(status_from,'-') || ' -> ' || status_to,
-			       changed_by, COALESCE(reason,''), created_at
-			FROM order_status_log
+			(SELECT 'order'::text, 'order', order_id, 'status: ' || COALESCE(status_from,'-') || ' -> ' || status_to,
+			        changed_by, COALESCE(reason,''), created_at
+			 FROM order_status_log ORDER BY created_at DESC LIMIT $3)
 			UNION ALL
-			SELECT 'stock'::text, 'product_variant', variant_id, 'stock: ' || event_type,
-			       user_id, bucket_from || ' -> ' || bucket_to || ' (qty ' || qty || ')' || CASE WHEN note IS NOT NULL THEN ' - ' || note ELSE '' END,
-			       created_at
-			FROM stock_movements
+			(SELECT 'stock'::text, 'product_variant', variant_id, 'stock: ' || event_type,
+			        user_id, bucket_from || ' -> ' || bucket_to || ' (qty ' || qty || ')' || CASE WHEN note IS NOT NULL THEN ' - ' || note ELSE '' END,
+			        created_at
+			 FROM stock_movements ORDER BY created_at DESC LIMIT $3)
 		)
 		SELECT feed.entity_type, feed.entity_id, feed.action, COALESCE(u.name, 'system'), feed.detail, feed.created_at
 		FROM feed LEFT JOIN users u ON u.id = feed.changed_by
 		ORDER BY feed.created_at DESC
 		LIMIT $1 OFFSET $2`
 
-	rows, err := h.DB.Query(r.Context(), query, pageSize, (page-1)*pageSize)
+	var total int
+	h.DB.QueryRow(r.Context(), `SELECT (SELECT count(*) FROM activity_log) + (SELECT count(*) FROM order_status_log) + (SELECT count(*) FROM stock_movements)`).Scan(&total)
+
+	rows, err := h.DB.Query(r.Context(), query, pageSize, pg.Offset, need)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch activity log")
 		return
@@ -87,5 +88,5 @@ func (h *ActivityLogHandler) List(w http.ResponseWriter, r *http.Request) {
 		a.CreatedAt = createdAt.Format(time.RFC3339)
 		list = append(list, a)
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"items": list, "page": page, "page_size": pageSize})
+	respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
 }

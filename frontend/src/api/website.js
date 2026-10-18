@@ -41,7 +41,13 @@ export const listThemePresets = () => get('/admin/theme/presets')
 export const listProductReviews = (status) => get(`/admin/product-reviews${status ? `?status=${status}` : ''}`)
 export const setReviewStatus = (id, status) => patch(`/admin/product-reviews/${id}`, { status })
 
-export const listMembers = (q) => get(`/admin/members${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+export const listMembers = (q, page) => {
+  const p = new URLSearchParams()
+  if (q) p.set('q', q)
+  if (page) { p.set('page', page); p.set('page_size', 25) } // paged: { items, total, ... }
+  const s = p.toString()
+  return get(`/admin/members${s ? `?${s}` : ''}`)
+}
 export const getMember = (id) => get(`/admin/members/${id}`)
 export const adjustMember = (id, body) => post(`/admin/members/${id}/adjust`, body)
 export const setMemberActive = (id, is_active) => patch(`/admin/members/${id}`, { is_active })

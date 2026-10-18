@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { listPurchaseRequisitions, createPurchaseRequisition, deletePurchaseRequisition } from '../api/purchaseRequisitions'
+import { listPurchaseRequisitionsPage, createPurchaseRequisition, deletePurchaseRequisition } from '../api/purchaseRequisitions'
 import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { IconTrash } from '../components/icons'
 import { useCanEdit } from '../context/AccessContext'
+import Pager from '../components/Pager'
 
 const statusColors = {
   draft: 'bg-yellow-100 text-yellow-700',
@@ -21,15 +22,17 @@ export default function PurchaseRequisitions() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [requisitions, setRequisitions] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
   function reload() {
-    listPurchaseRequisitions().then((data) => { setRequisitions(data); setLoading(false) })
+    listPurchaseRequisitionsPage(page).then((data) => { setRequisitions(data.items); setTotal(data.total); setLoading(false) })
   }
 
-  useEffect(reload, [])
+  useEffect(reload, [page])
 
   async function handleCreate() {
     setCreating(true)
@@ -112,6 +115,7 @@ export default function PurchaseRequisitions() {
           </tbody>
         </table>
       </div>
+      <Pager page={page} size={20} total={total} onPage={setPage} />
 
       <p className="text-xs text-gray-400 mt-3">
         {t('page_purchase_requisitions.legacy_hint')} <Link to="/purchases" className="text-brand-600 hover:underline">{t('nav.items.purchases')}</Link>

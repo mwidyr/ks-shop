@@ -4,6 +4,11 @@ export function listPurchaseRequisitions() {
   return client.get('/purchase-requisitions').then((res) => res.data)
 }
 
+// One page: { items, total, page, page_size }
+export function listPurchaseRequisitionsPage(page) {
+  return client.get(`/purchase-requisitions?page=${page}&page_size=20`).then((res) => res.data)
+}
+
 export function getPurchaseRequisition(id) {
   return client.get(`/purchase-requisitions/${id}`).then((res) => res.data)
 }

@@ -1,7 +1,37 @@
 import client from './client'
 
+// Every product with full detail - for forms, pickers and analytics that need the whole catalogue.
+// The Products page uses the three paged / filtered calls below instead.
 export function listProducts() {
   return client.get('/products').then((res) => res.data)
+}
+
+const query = (params) => new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null)).toString()
+
+// One page of slim rows: { items, total, page, page_size, counts: {all, active, inactive} }.
+// params: page, page_size, q, tab, category, color, color_alt, stock, sort.
+export function listProductsPage(params) {
+  return client.get(`/products?${query({ page: 1, ...params })}`).then((res) => res.data)
+}
+
+// Full detail of the given products (the rows selected for a bulk action).
+export function listProductsByIds(ids) {
+  return client.get(`/products?ids=${ids.join(',')}`).then((res) => res.data)
+}
+
+// Full detail of every product matching the filters (CSV export).
+export function listProductsForExport(params) {
+  return client.get(`/products?${query({ ...params, export: 1 })}`).then((res) => res.data)
+}
+
+// One page of the Inventory page: { items, total, page, page_size, summary }.
+export function listInventory(params) {
+  return client.get(`/inventory?${query(params)}`).then((res) => res.data)
+}
+
+// Actual + Incoming stock of a variant (the only two numbers the Inventory page edits).
+export function updateVariantStock(variantId, payload) {
+  return client.patch(`/variants/${variantId}/stock`, payload).then((res) => res.data)
 }
 
 export function getProduct(id) {

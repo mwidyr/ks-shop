@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -63,6 +63,21 @@ function pageTitle(pathname, t) {
   return matches[0] ? matches[0].title : t('brand.name')
 }
 
+// Always Jakarta time regardless of the viewer's own timezone/locale - operational fact for staff.
+// It is its own component so the one-second tick re-renders only these few characters, not the whole
+// shell (sidebar and page frame) once a second.
+const clockFormatter = new Intl.DateTimeFormat('id-ID', {
+  timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+})
+function JakartaClock() {
+  const [clock, setClock] = useState(() => clockFormatter.format(new Date()))
+  useEffect(() => {
+    const id = setInterval(() => setClock(clockFormatter.format(new Date())), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return <>{clock}</>
+}
+
 export default function AppShell({ children, lock }) {
   const { t } = useTranslation()
   const { user, logout } = useAuth()
@@ -77,22 +92,10 @@ export default function AppShell({ children, lock }) {
   const pageLevel = useTabLevel()
   const [blocked, setBlocked] = useState('') // set when the server refused a change (view-only role)
   const [shopName, setShopName] = useState(t('brand.name'))
-  const [clock, setClock] = useState('')
   const [openSections, setOpenSections] = useState(loadOpenSections)
 
   useEffect(() => {
     getStoreSettings().then((res) => { if (res.shop_name) setShopName(res.shop_name) }).catch(() => {})
-  }, [])
-
-  // Always Jakarta time regardless of the viewer's own timezone/locale - operational fact for staff.
-  useEffect(() => {
-    const formatter = new Intl.DateTimeFormat('id-ID', {
-      timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    })
-    function tick() { setClock(formatter.format(new Date())) }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
   }, [])
 
   // A tab is visible if it's super_user (always full access) or has any row (view/edit) - a
@@ -284,7 +287,7 @@ export default function AppShell({ children, lock }) {
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-gray-500 tabular-nums">
-              <span className="font-semibold text-gray-600">{t('shared.timezone_label')}</span> · {clock}
+              <span className="font-semibold text-gray-600">{t('shared.timezone_label')}</span> · <JakartaClock />
             </span>
             <button title={t('nav.items.notifications')} className="text-gray-400 hover:text-gray-600 relative">
               <IconBell />
@@ -334,7 +337,10 @@ export default function AppShell({ children, lock }) {
               <button type="button" onClick={() => setBlocked('')} className="text-red-500 hover:text-red-700" aria-label={t('common.close')}>✕</button>
             </div>
           )}
-          {lock ? <EditLock>{children}</EditLock> : children}
+          {/* the boundary sits INSIDE the shell: opening a not-yet-loaded page keeps the sidebar and header */}
+          <Suspense fallback={<div className="p-10 text-center text-sm text-gray-400">{t('common.loading')}</div>}>
+            {lock ? <EditLock>{children}</EditLock> : children}
+          </Suspense>
         </main>
       </div>
 

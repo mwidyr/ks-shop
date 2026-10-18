@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup } from '../api/orders'
+import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup, getOrderStatusCounts } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
-import { listProducts } from '../api/products'
 import { listLiveSessions } from '../api/liveSessions'
-import { getSummary } from '../api/dashboard'
 import { formatCurrency } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { useCanEdit } from '../context/AccessContext'
+import { useMasterData } from '../context/MasterDataContext'
+import { useDebouncedValue } from '../utils/hooks'
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
@@ -48,6 +48,7 @@ export default function Orders() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const canEdit = useCanEdit()
+  const { categories: masterCategories, translateCategory } = useMasterData()
   const [searchParams] = useSearchParams()
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 20 })
   const [summary, setSummary] = useState(null)
@@ -69,7 +70,6 @@ export default function Orders() {
 
   const [hosts, setHosts] = useState([])
   const [pickupChains, setPickupChains] = useState([])
-  const [categories, setCategories] = useState([])
   const [liveSessions, setLiveSessions] = useState([])
 
   const [selected, setSelected] = useState(new Set())
@@ -97,9 +97,6 @@ export default function Orders() {
   useEffect(() => {
     listHosts(true).then(setHosts)
     listPickupChains(true).then(setPickupChains)
-    listProducts().then((products) => {
-      setCategories([...new Set(products.map((p) => p.category).filter(Boolean))])
-    })
     listLiveSessions().then(setLiveSessions)
     fetchMergeSuggestions()
   }, [])
@@ -129,24 +126,37 @@ export default function Orders() {
     setMergeAllBusy(false)
     fetchMergeSuggestions()
     fetchOrders()
+    fetchStatusCounts()
   }
+
+  // Only the newest request may write the result: a slow earlier page must not overwrite a later one.
+  const requestId = useRef(0)
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   function fetchOrders() {
     if (!range) return
+    const id = ++requestId.current
     setLoading(true)
     listOrders({
-      q: search, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
+      q: debouncedSearch, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
       blacklist_only: blacklistOnly ? 'true' : '', session_id: sessionId, sort,
       date_from: range.from, date_to: range.to, page, page_size: 20,
     }).then((res) => {
+      if (id !== requestId.current) return
       setData(res)
       setLoading(false)
       setSelected(new Set())
-    })
-    getSummary(range).then(setSummary)
+    }).catch(() => { if (id === requestId.current) setLoading(false) })
   }
 
-  useEffect(fetchOrders, [search, status, hostId, category, pickupChainId, blacklistOnly, sessionId, sort, range, page])
+  // The tab badges depend on the date range only - not on page, sort, search or the other filters.
+  function fetchStatusCounts() {
+    if (!range) return
+    getOrderStatusCounts(range).then(setSummary).catch(() => {})
+  }
+
+  useEffect(fetchOrders, [debouncedSearch, status, hostId, category, pickupChainId, blacklistOnly, sessionId, sort, range, page])
+  useEffect(fetchStatusCounts, [range])
 
   function resetFilters() {
     setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setBlacklistOnly(false)
@@ -181,6 +191,7 @@ export default function Orders() {
     setBulkStatus('')
     setBulkBusy(false)
     fetchOrders()
+    fetchStatusCounts()
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size))
@@ -237,7 +248,7 @@ export default function Orders() {
           </select>
           <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="">{t('page_orders.all_categories')}</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {masterCategories.map((c) => <option key={c.id} value={c.name_zh}>{translateCategory(c.name_zh)}</option>)}
           </select>
           <select value={pickupChainId} onChange={(e) => { setPickupChainId(e.target.value); setPage(1) }} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="">{t('page_orders.all_pickup_methods')}</option>
@@ -312,12 +323,12 @@ export default function Orders() {
       )}
       {bulkResult && <p className="text-sm text-gray-600 mb-4">{bulkResult}</p>}
 
-      {loading ? (
+      {loading && data.items.length === 0 ? (
         <p className="text-gray-500 py-10 text-center">{t('page_orders.loading_orders')}</p>
       ) : data.items.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm text-gray-500">{t('page_orders.empty_state')}</div>
       ) : (
-        <>
+        <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={loading}>
           <div className={`${cardClasses} overflow-x-auto hidden md:block`}>
             <table className={tableClasses}>
               <thead>
@@ -478,7 +489,7 @@ export default function Orders() {
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {canEdit && <Link

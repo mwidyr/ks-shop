@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listReturns, createReturn, approveReturn, rejectReturn } from '../api/returns'
+import { listReturnsPage, createReturn, approveReturn, rejectReturn } from '../api/returns'
 import { formatCurrency } from '../utils/format'
 import { useCanEdit } from '../context/AccessContext'
+import Pager from '../components/Pager'
 
 const stageKeys = ['submitted', 'reviewed', 'approved', 'item_received', 'inspection', 'refund']
 const reasonKeys = ['damaged', 'wrong_item', 'missing_item', 'defective', 'change_of_mind']
@@ -97,16 +98,18 @@ function CreateReturnForm({ onCreate, onClose }) {
 export default function Returns() {
   const canEdit = useCanEdit()
   const { t } = useTranslation()
-  const [returns, setReturns] = useState([])
+  const [data, setData] = useState({ items: [], total: 0 })
+  const returns = data.items
+  const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [error, setError] = useState('')
   const stages = stageKeys.map((k) => t(`page_returns.stages.${k}`))
 
   function reload() {
-    listReturns().then(setReturns)
+    listReturnsPage('', page).then(setData)
   }
 
-  useEffect(reload, [])
+  useEffect(reload, [page])
 
   async function handleApprove(ret) {
     setError('')
@@ -187,6 +190,7 @@ export default function Returns() {
               </div>
             </div>
           ))}
+          <Pager page={page} size={20} total={data.total} onPage={setPage} />
         </div>
       )}
 

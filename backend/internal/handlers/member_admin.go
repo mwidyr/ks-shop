@@ -25,12 +25,19 @@ func (h *MemberAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 		args = append(args, "%"+q+"%")
 		where = ` WHERE m.name ILIKE $1 OR m.email ILIKE $1 OR m.phone ILIKE $1 OR m.referral_code ILIKE $1`
 	}
+	pg := parsePage(r, 25, 100)
+	total := 0
+	limit := " LIMIT 200"
+	if isPaged(r) {
+		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM members m`+where, args...).Scan(&total)
+		limit = pg.limitSQL(&args)
+	}
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT m.id, m.name, COALESCE(m.phone,''), COALESCE(m.email,''), m.referral_code, m.is_active, m.created_at, m.last_login_at,
 		       COALESCE((SELECT SUM(amount) FROM member_ledger l WHERE l.member_id=m.id AND l.kind='balance'),0),
 		       COALESCE((SELECT SUM(amount) FROM member_ledger l WHERE l.member_id=m.id AND l.kind='points'),0),
 		       (SELECT COUNT(*) FROM orders o WHERE o.member_id=m.id)
-		FROM members m`+where+` ORDER BY m.created_at DESC LIMIT 200`, args...)
+		FROM members m`+where+` ORDER BY m.created_at DESC, m.id DESC`+limit, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load members")
 		return
@@ -55,6 +62,10 @@ func (h *MemberAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 		if rows.Scan(&x.ID, &x.Name, &x.Phone, &x.Email, &x.Referral, &x.Active, &x.CreatedAt, &x.LastLogin, &x.Balance, &x.Points, &x.Orders) == nil {
 			out = append(out, x)
 		}
+	}
+	if isPaged(r) {
+		respondJSON(w, http.StatusOK, pageResponse(out, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, out)
 }

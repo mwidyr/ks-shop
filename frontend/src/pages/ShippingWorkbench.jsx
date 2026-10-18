@@ -62,14 +62,16 @@ export default function ShippingWorkbench() {
   const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const loadIssues = useCallback((limit) => getIssues({ limit }).then(setIssues), [])
-  const loadAll = useCallback(() => {
+  // Each part loads on its own: "Show more" only re-asks for the issues, not the overview and batches.
+  const loadIssues = useCallback(() => getIssues({ limit: issueLimit }).then(setIssues), [issueLimit])
+  const loadRest = useCallback(() => {
     getOverview().then(setOverview)
-    loadIssues(issueLimit)
     listBatches({ filter: 'pending' }).then((res) => setBatches(res.batches))
-  }, [issueLimit, loadIssues])
+  }, [])
+  const loadAll = useCallback(() => { loadRest(); loadIssues() }, [loadRest, loadIssues])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => { loadRest() }, [loadRest])
+  useEffect(() => { loadIssues() }, [loadIssues])
 
   const byProvider = Object.fromEntries(overview.map((o) => [o.provider, o]))
 

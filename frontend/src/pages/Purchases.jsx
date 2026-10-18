@@ -7,6 +7,7 @@ import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
+import Pager from '../components/Pager'
 
 export const purchaseStatusColors = {
   ordered: 'bg-yellow-100 text-yellow-700',
@@ -25,6 +26,8 @@ export default function Purchases() {
   const navigate = useNavigate()
   const { translateColor } = useMasterData()
   const [purchases, setPurchases] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('')
@@ -33,10 +36,12 @@ export default function Purchases() {
   // Search is debounced; status and date apply immediately, and all three combine server-side.
   useEffect(() => {
     const timer = setTimeout(() => {
-      listPurchases({ status: statusFilter, search: search.trim(), date }).then(setPurchases)
+      listPurchases({ status: statusFilter, search: search.trim(), date, page }).then((res) => { setPurchases(res.items); setTotal(res.total) })
     }, 250)
     return () => clearTimeout(timer)
-  }, [statusFilter, search, date])
+  }, [statusFilter, search, date, page])
+  // a new filter or search starts at page 1
+  useEffect(() => { setPage(1) }, [statusFilter, search, date])
 
   function toggle(id) {
     setExpanded((cur) => {
@@ -159,6 +164,7 @@ export default function Purchases() {
           </tbody>
         </table>
       </div>
+      <Pager page={page} size={20} total={total} onPage={setPage} />
     </div>
   )
 }

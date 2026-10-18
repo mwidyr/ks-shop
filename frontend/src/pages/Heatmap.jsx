@@ -215,10 +215,10 @@ export default function Heatmap() {
         <p className="text-sm font-semibold text-[var(--text-primary)]">{range.from === range.to ? range.from : `${range.from} – ${range.to}`}</p>
       </div>
 
-      {loading || !grid ? (
+      {!grid ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <>
+        <div className={loading ? "opacity-60 transition-opacity space-y-4" : "transition-opacity space-y-4"} aria-busy={loading}>
           <div className="grid grid-cols-3 gap-4">
             <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_qty')}</p><Metric type="qty" className="text-lg">{fmtNum(summary.qty)}</Metric></div>
             <div className={`${cardClasses} p-4`}><p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{t('page_heatmap.total_ord')}</p><Metric type="ord" className="text-lg">{fmtNum(summary.ord)}</Metric></div>
@@ -342,7 +342,7 @@ export default function Heatmap() {
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {activeCell && <CellDetailModal cell={activeCell} onClose={() => setActiveCell(null)} />}

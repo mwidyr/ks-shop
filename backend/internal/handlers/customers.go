@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"ordermgmt/internal/cache"
 	appmw "ordermgmt/internal/middleware"
 )
 
@@ -143,6 +144,149 @@ type customerKPI struct {
 type customerStatsResponse struct {
 	KPI       customerKPI     `json:"kpi"`
 	Customers []customerStats `json:"customers"`
+	Total     int             `json:"total"`
+	Page      int             `json:"page"`
+	PageSize  int             `json:"page_size"`
+}
+
+// customerQuery is the Customers page's search, filters and sort, applied to the cached list.
+type customerQuery struct {
+	Q                    string
+	MinOrders, MaxOrders *int
+	MinSpend, MaxSpend   *float64
+	Tier                 string // "", "vip", "regular" or "blacklist"
+	From, To             string // Jakarta calendar days (YYYY-MM-DD) of the last purchase
+	Sort                 string // last_desc|last_asc|orders_desc|orders_asc|ltv_desc|ltv_asc
+}
+
+func parseCustomerQuery(r *http.Request) customerQuery {
+	q := r.URL.Query()
+	cq := customerQuery{Q: strings.ToLower(strings.TrimSpace(q.Get("q"))), Tier: q.Get("tier"), From: q.Get("from"), To: q.Get("to"), Sort: q.Get("sort")}
+	if n, err := strconv.Atoi(q.Get("min_orders")); err == nil {
+		cq.MinOrders = &n
+	}
+	if n, err := strconv.Atoi(q.Get("max_orders")); err == nil {
+		cq.MaxOrders = &n
+	}
+	if f, err := strconv.ParseFloat(q.Get("min_spend"), 64); err == nil {
+		cq.MinSpend = &f
+	}
+	if f, err := strconv.ParseFloat(q.Get("max_spend"), 64); err == nil {
+		cq.MaxSpend = &f
+	}
+	return cq
+}
+
+func hasLabel(c customerStats, label string) bool {
+	for _, l := range c.Labels {
+		if l == label {
+			return true
+		}
+	}
+	return false
+}
+
+// filterSortCustomers applies the query to the list without touching it. Customers without a purchase
+// are always last in the date and order sorts; ties keep the input order (newest purchase first).
+func filterSortCustomers(all []customerStats, cq customerQuery) []customerStats {
+	out := make([]customerStats, 0, len(all))
+	for _, c := range all {
+		if cq.Q != "" && !strings.Contains(strings.ToLower(c.Name), cq.Q) && !strings.Contains(c.Phone, cq.Q) {
+			continue
+		}
+		if cq.MinOrders != nil && c.OrderCount < *cq.MinOrders || cq.MaxOrders != nil && c.OrderCount > *cq.MaxOrders {
+			continue
+		}
+		if cq.MinSpend != nil && c.TotalSpend < *cq.MinSpend || cq.MaxSpend != nil && c.TotalSpend > *cq.MaxSpend {
+			continue
+		}
+		switch cq.Tier {
+		case "":
+		case "blacklist":
+			if !hasLabel(c, "blacklist") {
+				continue
+			}
+		default:
+			if c.Tier != cq.Tier {
+				continue
+			}
+		}
+		if cq.From != "" || cq.To != "" {
+			if c.LastOrderAt == nil {
+				continue
+			}
+			day := c.LastOrderAt.In(businessTZ).Format("2006-01-02")
+			if cq.From != "" && day < cq.From || cq.To != "" && day > cq.To {
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	less := func(i, j int) bool { return false } // default: keep the cached order (last purchase, newest first)
+	switch cq.Sort {
+	case "last_asc":
+		less = func(i, j int) bool { return lastBefore(out[i], out[j], false) }
+	case "orders_desc":
+		less = func(i, j int) bool { return out[i].OrderCount > out[j].OrderCount }
+	case "orders_asc":
+		less = func(i, j int) bool { return out[i].OrderCount < out[j].OrderCount }
+	case "ltv_desc":
+		less = func(i, j int) bool { return out[i].TotalSpend > out[j].TotalSpend }
+	case "ltv_asc":
+		less = func(i, j int) bool { return out[i].TotalSpend < out[j].TotalSpend }
+	}
+	sort.SliceStable(out, less)
+	return out
+}
+
+// lastBefore orders by last purchase ascending; customers without one go last in either direction.
+func lastBefore(a, b customerStats, _ bool) bool {
+	switch {
+	case a.LastOrderAt == nil:
+		return false
+	case b.LastOrderAt == nil:
+		return true
+	}
+	return a.LastOrderAt.Before(*b.LastOrderAt)
+}
+
+type customerStatsCache struct {
+	KPI  customerKPI
+	List []customerStats
+}
+
+// customersCacheTTL: the stats are rebuilt from every customer and order, so they are kept for a
+// minute and dropped as soon as an order, customer or label changes (invalidateOrderCaches).
+const customersCacheTTL = 60 * time.Second
+
+// Stats serves GET /customers/stats: the KPI cards plus ONE PAGE of customers (merged by phone),
+// searched, filtered and sorted on the server. Parameters: q, min_orders, max_orders, min_spend,
+// max_spend, tier, from, to, sort, page, page_size; export=1 returns every matching customer (the
+// Excel export), without paging.
+func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	st, err := cache.Get("customers:stats", customersCacheTTL, func() (customerStatsCache, error) {
+		kpi, list, err := h.computeCustomerStats(context.Background())
+		return customerStatsCache{KPI: kpi, List: list}, err
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch customers")
+		return
+	}
+	matches := filterSortCustomers(st.List, parseCustomerQuery(r))
+	if r.URL.Query().Get("export") == "1" {
+		respondJSON(w, http.StatusOK, customerStatsResponse{KPI: st.KPI, Customers: matches, Total: len(matches), Page: 1, PageSize: len(matches)})
+		return
+	}
+	pg := parsePage(r, 25, 100)
+	from := pg.Offset
+	if from > len(matches) {
+		from = len(matches)
+	}
+	to := from + pg.Size
+	if to > len(matches) {
+		to = len(matches)
+	}
+	respondJSON(w, http.StatusOK, customerStatsResponse{KPI: st.KPI, Customers: matches[from:to], Total: len(matches), Page: pg.Page, PageSize: pg.Size})
 }
 
 var nonDigits = regexp.MustCompile(`[^0-9]`)
@@ -166,15 +310,13 @@ const validOrderRevenueSQL = `
 		WHERE r.order_id = o.id AND r.status = 'completed' AND r.refund_type IN ('full','store_credit')
 	) rf ON true`
 
-// Stats returns the KPI cards and every customer (merged by phone) with order count, spending,
-// last purchase, average repurchase cycle and automatic tier, for the Customers page.
-func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
+// computeCustomerStats builds the KPI cards and every customer (merged by phone) with order count,
+// spending, last purchase, average repurchase cycle and automatic tier. It reads all customers and
+// all valid orders, so it is cached (see Stats) and never run per page or sort change.
+func (h *CustomerHandler) computeCustomerStats(ctx context.Context) (customerKPI, []customerStats, error) {
 	custRows, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,'') FROM customers ORDER BY id`)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch customers")
-		return
+		return customerKPI{}, nil, err
 	}
 	groups := map[string]*customerStats{}
 	groupOf := map[int]string{}
@@ -202,8 +344,7 @@ func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		WHERE o.status NOT IN ('cancelled','return')
 		ORDER BY o.created_at`)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch customer orders")
-		return
+		return customerKPI{}, nil, err
 	}
 	type agg struct {
 		days    map[string]time.Time // Jakarta calendar day -> that day (midnight)
@@ -421,7 +562,7 @@ func (h *CustomerHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		}
 		return a.After(*b)
 	})
-	respondJSON(w, http.StatusOK, customerStatsResponse{KPI: kpi, Customers: list})
+	return kpi, list, nil
 }
 
 // phoneGroupIDs returns every customers.id sharing the given customer's phone number, so label and
@@ -637,6 +778,7 @@ func (h *CustomerHandler) SetLabel(w http.ResponseWriter, r *http.Request) {
 		userID = &claims.UserID
 	}
 	logActivity(r.Context(), h.DB, "customer", customerID, action, userID, fmt.Sprintf("label: %s", req.Label))
+	invalidateOrderCaches()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -663,5 +805,6 @@ func (h *CustomerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to delete customer")
 		return
 	}
+	invalidateOrderCaches()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
