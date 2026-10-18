@@ -958,8 +958,8 @@ func (h *ProductHandler) StockHistory(w http.ResponseWriter, r *http.Request) {
 	args := []interface{}{}
 	argN := 1
 	if search := q.Get("q"); search != "" {
-		where += " AND (p.name ILIKE $" + strconv.Itoa(argN) + " OR p.names_search ILIKE $" + strconv.Itoa(argN) + " OR pv.sku ILIKE $" + strconv.Itoa(argN) + ")"
-		args = append(args, "%"+search+"%")
+		where += " AND " + productSearchSQL("p", "$"+strconv.Itoa(argN))
+		args = append(args, likePattern(search))
 		argN++
 	}
 	if direction := q.Get("direction"); direction == "in" {

@@ -120,7 +120,7 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 		where += " AND p.status = " + add(status)
 	}
 	if search := strings.TrimSpace(q.Get("search")); search != "" {
-		like := add("%" + search + "%")
+		like := add(likePattern(search))
 		where += ` AND (s.name ILIKE ` + like + ` OR p.po_number ILIKE ` + like + ` OR COALESCE(p.notes,'') ILIKE ` + like + `
 			OR EXISTS (SELECT 1 FROM purchase_requisition_suppliers prs JOIN purchase_requisitions pq ON pq.id = prs.requisition_id
 			           WHERE prs.purchase_id = p.id AND COALESCE(pq.note,'') ILIKE ` + like + `)

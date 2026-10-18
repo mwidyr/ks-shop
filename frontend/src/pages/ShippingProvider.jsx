@@ -5,7 +5,7 @@ import { listBatches } from '../api/shippingWorkbench'
 import CreateBatchModal from '../components/shipping/CreateBatchModal'
 import { BatchStatusPill, PROVIDERS, ProgressChips, StagePill, batchPath, formatDateTime, primaryBtn, providerBySlug } from '../components/shipping/shared'
 import { useCanEdit } from '../context/AccessContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import Pager from '../components/Pager'
 
 const STAGES = ['pending_order_matching', 'awaiting_3pl_shipment', 'shipped_awaiting_completion', 'closed']
@@ -23,7 +23,7 @@ export default function ShippingProvider() {
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
 
-  const debouncedQ = useDebouncedValue(q, 300)
+  const debouncedQ = useDebouncedValue(q, SEARCH_DEBOUNCE_MS)
   const load = useCallback(() => {
     if (provider) listBatches({ provider, filter, q: debouncedQ, sort: sortAsc ? 'oldest' : '', page, page_size: 20 }).then(setData)
   }, [provider, filter, debouncedQ, sortAsc, page])

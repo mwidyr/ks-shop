@@ -49,7 +49,7 @@ func (h *PickupLinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := q.Get("q"); search != "" {
 		query += ` AND label ILIKE $` + strconv.Itoa(argN)
-		args = append(args, "%"+search+"%")
+		args = append(args, likePattern(search))
 		argN++
 	}
 	query += ` ORDER BY created_at DESC`

@@ -15,7 +15,7 @@ import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { useAuth } from '../context/AuthContext'
 import { useCanEdit } from '../context/AccessContext'
-import { useDebouncedValue, useMediaQuery } from '../utils/hooks'
+import { useDebouncedValue, useMediaQuery, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // A product only has two statuses: Published (is_active) / Unpublished. Stock is shown as its own
 // number next to it and is deliberately NOT a status (no more Low Stock / Out of Stock badges).
@@ -230,7 +230,7 @@ export default function Products() {
   const [previewProduct, setPreviewProduct] = useState(null)
 
   // typing in the search box filters after a short pause, not on every keystroke
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const isDesktop = useMediaQuery('(min-width: 768px)')
   const requestId = useRef(0)
 

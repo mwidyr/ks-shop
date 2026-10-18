@@ -69,9 +69,8 @@ func (h *ProductHandler) Inventory(w http.ResponseWriter, r *http.Request) {
 	where := " WHERE p.deleted_at IS NULL"
 	var args []any
 	if q != "" {
-		args = append(args, "%"+q+"%")
-		where += ` AND (p.name ILIKE $1 OR COALESCE(p.sku,'') ILIKE $1 OR EXISTS (
-			SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND (v.sku ILIKE $1 OR v.color ILIKE $1 OR v.size ILIKE $1)))`
+		args = append(args, likePattern(q))
+		where += " AND " + productSearchSQL("p", "$1")
 	}
 	var total int
 	if err := h.DB.QueryRow(r.Context(), "SELECT COUNT(*) FROM products p"+where, args...).Scan(&total); err != nil {

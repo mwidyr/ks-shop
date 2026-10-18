@@ -63,7 +63,7 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 		rows, err = res, e
 	} else {
 		res, e := h.DB.Query(r.Context(), customerSearchColumns+`
-			WHERE c.name ILIKE '%'||$1||'%' OR c.phone ILIKE '%'||$1||'%' ORDER BY c.name LIMIT 50`, q)
+			WHERE c.name ILIKE $1 OR c.phone ILIKE $1 OR COALESCE(c.address,'') ILIKE $1 ORDER BY c.name LIMIT 50`, likePattern(q))
 		rows, err = res, e
 	}
 	if err != nil {
@@ -188,10 +188,30 @@ func hasLabel(c customerStats, label string) bool {
 
 // filterSortCustomers applies the query to the list without touching it. Customers without a purchase
 // are always last in the date and order sorts; ties keep the input order (newest purchase first).
+// customerMatches: q (already lower-cased and trimmed) is contained in the name, phone or address.
+// Digits are also compared without separators, so "0812" finds "+62 812-..." typed either way.
+func customerMatches(c customerStats, q string) bool {
+	if strings.Contains(strings.ToLower(c.Name), q) || strings.Contains(c.Phone, q) || strings.Contains(strings.ToLower(c.Address), q) {
+		return true
+	}
+	digits := onlyDigits(q)
+	return digits != "" && strings.Contains(onlyDigits(c.Phone), digits)
+}
+
+func onlyDigits(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 func filterSortCustomers(all []customerStats, cq customerQuery) []customerStats {
 	out := make([]customerStats, 0, len(all))
 	for _, c := range all {
-		if cq.Q != "" && !strings.Contains(strings.ToLower(c.Name), cq.Q) && !strings.Contains(c.Phone, cq.Q) {
+		if cq.Q != "" && !customerMatches(c, cq.Q) {
 			continue
 		}
 		if cq.MinOrders != nil && c.OrderCount < *cq.MinOrders || cq.MaxOrders != nil && c.OrderCount > *cq.MaxOrders {

@@ -9,7 +9,7 @@ import SalesChannelFilter from '../components/SalesChannelFilter'
 import { IconChevronDown } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useMasterData } from '../context/MasterDataContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import Pager from '../components/Pager'
 
 const PAGE_SIZE = 50
@@ -144,7 +144,7 @@ export default function ProductTrendAnalysis() {
   const [expanded, setExpanded] = useState(null) // product id; only one product open at a time
   const reqId = useRef(0)
 
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   // Every filter, the metric, the sort and the search live in one key: a new key means page 1,
   // so a change never fires one request for the old page and another for page 1.
   const filterKey = [range.from, range.to, channel, hostId, locationId, affiliateId, metric, sortBy, debouncedSearch].join('|')

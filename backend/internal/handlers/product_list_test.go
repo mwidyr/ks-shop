@@ -15,7 +15,7 @@ func TestProductQueryWhere(t *testing.T) {
 		t.Errorf("no filters: %q %v", w, args)
 	}
 	w, args := q("tab=active&q=silk&category=上衣&stock=low_stock").where()
-	for _, want := range []string{"a.is_active", "a.name ILIKE $1", "a.names_search ILIKE $1", "a.sku ILIKE $1", "a.category = $2", "a.stock > 0 AND a.stock <= 5"} {
+	for _, want := range []string{"a.is_active", "p.name ILIKE $1", "p.vendor_sku", "p.description", "COALESCE(sv.color,'') ILIKE $1", "a.category = $2", "a.stock > 0 AND a.stock <= 5"} {
 		if !strings.Contains(w, want) {
 			t.Errorf("where %q misses %q", w, want)
 		}

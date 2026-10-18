@@ -8,7 +8,7 @@ import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 import { useCanEdit } from '../context/AccessContext'
-import { useDebouncedValue, useMediaQuery } from '../utils/hooks'
+import { useDebouncedValue, useMediaQuery, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
 // exactly with the same columns in each variant row below it - label, 4 equal numeric columns,
@@ -266,7 +266,7 @@ function StockHistoryTab() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const historyRequest = useRef(0)
   useEffect(() => {
     const id = ++historyRequest.current
@@ -322,7 +322,7 @@ export default function Inventory() {
   const [fetching, setFetching] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const requestId = useRef(0)
 
   // One page (30 products) at a time, searched on the server. The old page stays on screen, dimmed,

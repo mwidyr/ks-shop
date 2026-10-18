@@ -64,8 +64,9 @@ func (q productQuery) where() (string, []any) {
 		conds = append(conds, "NOT a.is_active")
 	}
 	if q.Q != "" {
-		like := arg("%" + q.Q + "%")
-		conds = append(conds, "(a.name ILIKE "+like+" OR a.names_search ILIKE "+like+" OR a.sku ILIKE "+like+")")
+		// Every product field, one character is enough (see productSearchSQL).
+		like := arg(likePattern(q.Q))
+		conds = append(conds, "a.id IN (SELECT p.id FROM products p WHERE "+productSearchSQL("p", like)+")")
 	}
 	if q.Category != "" {
 		conds = append(conds, "a.category = "+arg(q.Category))
@@ -97,10 +98,17 @@ func (q productQuery) where() (string, []any) {
 // only that page's ids plus the total number of matches.
 func (h *ProductHandler) matchingProductIDs(r *http.Request, q productQuery, pg *pageParams) ([]int, int, error) {
 	where, args := q.where()
+	countArgs := args // the ranking parameter below is not part of the count query
 	order := pickSort(q.Sort, productSorts, productSorts["newest"])
+	if q.Q != "" && strings.TrimSpace(q.Sort) == "" {
+		// A short query matches a lot: list the codes / names that START with it first (C -> C001, C002...).
+		args = append(args, prefixPattern(q.Q))
+		pre := "$" + strconv.Itoa(len(args))
+		order = "(a.sku ILIKE " + pre + " OR a.name ILIKE " + pre + ") DESC, " + order
+	}
 	total := 0
 	if pg != nil {
-		if err := h.DB.QueryRow(r.Context(), productAggSQL+" SELECT COUNT(*) FROM a"+where, args...).Scan(&total); err != nil {
+		if err := h.DB.QueryRow(r.Context(), productAggSQL+" SELECT COUNT(*) FROM a"+where, countArgs...).Scan(&total); err != nil {
 			return nil, 0, err
 		}
 	}

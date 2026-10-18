@@ -66,3 +66,15 @@ func TestFilterSortCustomers(t *testing.T) {
 		t.Errorf("input list was modified: %v", got)
 	}
 }
+
+func TestCustomerMatchesAddressAndPhoneDigits(t *testing.T) {
+	c := customerStats{Name: "Siti", Phone: "0812-3456-7890", Address: "Jl. Mawar 5"}
+	for _, q := range []string{"s", "mawar", "812345", "0812"} {
+		if !customerMatches(c, q) {
+			t.Errorf("%q should match", q)
+		}
+	}
+	if customerMatches(c, "zzz") {
+		t.Errorf("zzz should not match")
+	}
+}

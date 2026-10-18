@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { listSuppliers, createSupplier } from '../api/suppliers'
 import TagsInput from '../components/TagsInput'
 import { useCanEdit } from '../context/AccessContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import Pager from '../components/Pager'
 
 const emptyForm = { name: '', category: '', source: '' }
@@ -22,7 +22,7 @@ export default function Suppliers() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   function reload() {
     listSuppliers(true, debouncedSearch, page).then((res) => { setSuppliers(res.items); setTotal(res.total) })
   }

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 
 // The value, but only after it has stopped changing for `delay` ms - for search boxes, so typing does
 // not fire one request per keystroke.
-export function useDebouncedValue(value, delay = 300) {
+// Search boxes use this delay and never wait for a minimum number of characters.
+export const SEARCH_DEBOUNCE_MS = 150
+
+export function useDebouncedValue(value, delay = SEARCH_DEBOUNCE_MS) {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
     const id = setTimeout(() => setDebounced(value), delay)

@@ -12,7 +12,7 @@ import DateRangePicker from '../components/DateRangePicker'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { useCanEdit } from '../context/AccessContext'
 import { useMasterData } from '../context/MasterDataContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 const statusTabs = [
   { key: 'all', value: '', labelKey: 'page_orders.tab_all', countKeys: null },
   { key: 'new', value: 'pending', labelKey: 'page_orders.tab_new_orders', countKeys: ['pending'] },
@@ -131,7 +131,7 @@ export default function Orders() {
 
   // Only the newest request may write the result: a slow earlier page must not overwrite a later one.
   const requestId = useRef(0)
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
 
   function fetchOrders() {
     if (!range) return

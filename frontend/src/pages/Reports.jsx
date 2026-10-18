@@ -7,7 +7,7 @@ import DateRangePicker, { presetRange } from '../components/DateRangePicker'
 import ExportReportModal from '../components/ExportReportModal'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import { useMasterData } from '../context/MasterDataContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 function SummaryCard({ summary, t }) {
   if (!summary) return null
@@ -40,7 +40,7 @@ export default function Reports() {
 
   useEffect(() => { listHosts(true).then(setHosts) }, [])
 
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const reportRequest = useRef(0)
   useEffect(() => {
     const id = ++reportRequest.current

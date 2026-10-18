@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import client from '../api/client'
 
@@ -21,16 +21,19 @@ export default function CustomerPicker({ onChange }) {
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState(null)
 
+  const reqId = useRef(0)
+
   async function handleNameChange(v) {
     setName(v)
     setSelected(null)
-    if (v.length < 2) {
+    const id = ++reqId.current // a slow answer for an earlier keystroke must not overwrite a newer one
+    if (!v.trim()) {
       setResults([])
       onChange({ name: v, phone, address: '' })
       return
     }
     const res = await client.get(`/customers?q=${encodeURIComponent(v)}`)
-    setResults(res.data)
+    if (id === reqId.current) setResults(res.data)
     onChange({ name: v, phone, address: '' })
   }
 

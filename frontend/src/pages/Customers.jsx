@@ -7,7 +7,7 @@ import { jakartaIsoDate } from '../utils/jakartaDate'
 import StatusPill from '../components/StatusPill'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useCanEdit } from '../context/AccessContext'
-import { useDebouncedValue } from '../utils/hooks'
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // The old manual "VIP" label is gone: VIP is now an automatic tier (cumulative valid spending of
 // NT$3,000 or more), computed by the backend. The other labels stay manual.
@@ -252,7 +252,7 @@ export default function Customers() {
 
   // Search, filters and sort are applied by the server, one page at a time. Only the newest request
   // may write its result, and the previous page stays on screen (dimmed) while the next one loads.
-  const debouncedSearch = useDebouncedValue(search, 300)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const requestId = useRef(0)
   const [fetching, setFetching] = useState(false)
   const queryParams = () => ({ q: debouncedSearch.trim(), sort, ...filterParams(filters) })

@@ -22,7 +22,7 @@ func (h *MemberAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 	args := []interface{}{}
 	where := ""
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		args = append(args, "%"+q+"%")
+		args = append(args, likePattern(q))
 		where = ` WHERE m.name ILIKE $1 OR m.email ILIKE $1 OR m.phone ILIKE $1 OR m.referral_code ILIKE $1`
 	}
 	pg := parsePage(r, 25, 100)

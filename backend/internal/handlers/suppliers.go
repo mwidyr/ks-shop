@@ -75,7 +75,7 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 		where = append(where, `status <> 'inactive'`)
 	}
 	if q := r.URL.Query().Get("q"); q != "" {
-		args = append(args, "%"+q+"%")
+		args = append(args, likePattern(q))
 		where = append(where, `(
 			name ILIKE $1 OR COALESCE(contact_name,'') ILIKE $1 OR COALESCE(phone,'') ILIKE $1
 			OR COALESCE(source,'') ILIKE $1 OR COALESCE(category,'') ILIKE $1

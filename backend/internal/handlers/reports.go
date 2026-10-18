@@ -430,7 +430,7 @@ func (h *ReportsHandler) Orders(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := q.Get("q"); search != "" {
 		where += " AND (c.name ILIKE $" + strconv.Itoa(argN) + " OR c.phone ILIKE $" + strconv.Itoa(argN) + ")"
-		args = append(args, "%"+search+"%")
+		args = append(args, likePattern(search))
 		argN++
 	}
 
