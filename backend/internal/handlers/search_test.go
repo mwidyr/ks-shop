@@ -36,3 +36,11 @@ func TestProductSearchSQLUsesOnlyGivenPlaceholder(t *testing.T) {
 		t.Errorf("unbalanced parentheses")
 	}
 }
+
+func TestSearchRankSQL(t *testing.T) {
+	s := searchRankSQL("a.sku", "a.name", "$4", "$1")
+	i0, i1, i2, i3 := strings.Index(s, "ILIKE $4 THEN 0"), strings.Index(s, "ILIKE $4 THEN 1"), strings.Index(s, "ILIKE $1 THEN 2"), strings.Index(s, "ILIKE $1 THEN 3")
+	if i0 < 0 || !(i0 < i1 && i1 < i2 && i2 < i3) || !strings.HasSuffix(s, "ELSE 4 END") {
+		t.Errorf("tiers out of order: %s", s)
+	}
+}

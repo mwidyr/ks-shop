@@ -10,4 +10,4 @@ purify.addHook('afterSanitizeAttributes', (node) => {
     if (/^https?:\/\//i.test(href) && !href.startsWith(window.location.origin)) node.setAttribute('target', '_blank')
   }
 })
-export const safeHtml = (html) => purify.sanitize(html || '', { ALLOWED_TAGS: ['strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'rel', 'target'], ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/(?!\/))/i })
+export const safeHtml = (html) => purify.sanitize(html || '', { ALLOWED_TAGS: ['strong', 'em', 'u', 'a', 'br', 'p', 'ul', 'ol', 'li'], ALLOWED_ATTR: ['href', 'rel', 'target'], ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/(?!\/))/i })

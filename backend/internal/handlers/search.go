@@ -50,3 +50,13 @@ func productSearchSQL(alias, like string) string {
 		` OR COALESCE(sv.color,'') ILIKE ` + like + ` OR COALESCE(sv.size,'') ILIKE ` + like +
 		` OR EXISTS (SELECT 1 FROM colors scl WHERE (scl.name_zh = sv.color OR scl.name_id = sv.color) AND (scl.name_zh ILIKE ` + like + ` OR scl.name_id ILIKE ` + like + `)))))`
 }
+
+// searchRankSQL orders a search's matches by relevance, strongest first: the code starts with the text
+// (0), the name starts with it (1), the code contains it (2), the name contains it (3), and everything
+// else, matched in some other field (4). A one-letter search such as "C" matches almost every product,
+// so this is what puts C001, C002 ... on the first page. prefix and like are placeholders ("$2", "$1")
+// holding prefixPattern and likePattern of the same text.
+func searchRankSQL(code, name, prefix, like string) string {
+	return "CASE WHEN COALESCE(" + code + ",'') ILIKE " + prefix + " THEN 0 WHEN " + name + " ILIKE " + prefix +
+		" THEN 1 WHEN COALESCE(" + code + ",'') ILIKE " + like + " THEN 2 WHEN " + name + " ILIKE " + like + " THEN 3 ELSE 4 END"
+}

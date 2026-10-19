@@ -546,16 +546,87 @@ type contentRow struct {
 	IsPublished bool       `json:"is_published"`
 	IsIndexed   bool       `json:"is_indexed"`
 	PublishedAt *time.Time `json:"published_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 	Author      string     `json:"author"`
 }
 
-// ContentList serves GET /admin/content.
+// contentTitleSQL is the title the list shows: the article's own language first, then any other.
+const contentTitleSQL = `COALESCE(NULLIF(c.title->>c.lang,''), NULLIF(c.title->>'id',''), NULLIF(c.title->>'en',''), NULLIF(c.title->>'zh',''), c.slug)`
+
+// contentDateRange turns the list's date filter into a [lo, hi) range on updated_at, in the business
+// timezone: "7d" = the last 7 days up to now, "last_month" = the previous CALENDAR month, "custom" =
+// from..to (both days inclusive, either may be empty). "all" / unknown = no filter (nil, nil).
+func contentDateRange(preset, from, to string, now time.Time) (lo, hi *time.Time) {
+	now = now.In(businessTZ)
+	day := func(s string) *time.Time {
+		t, err := time.ParseInLocation("2006-01-02", s, businessTZ)
+		if err != nil {
+			return nil
+		}
+		return &t
+	}
+	switch preset {
+	case "7d":
+		l := now.AddDate(0, 0, -7)
+		h := now.Add(time.Second)
+		return &l, &h
+	case "last_month":
+		first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, businessTZ)
+		l := first.AddDate(0, -1, 0)
+		return &l, &first
+	case "custom":
+		lo = day(from)
+		if t := day(to); t != nil {
+			e := t.AddDate(0, 0, 1)
+			hi = &e
+		}
+		return lo, hi
+	}
+	return nil, nil
+}
+
+// ContentList serves GET /admin/content. Filters: lang, q (title), date (all|7d|last_month|custom + from/to,
+// on the last updated date), sort (updated_desc|updated_asc). With ?page= it answers one page
+// {items,total,page,page_size} (10 per page by default); without it, the plain list (max 300) as before.
 func (h *SiteAdminHandler) ContentList(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	where := " WHERE 1=1"
+	var args []any
+	arg := func(v any) string { args = append(args, v); return "$" + strconv.Itoa(len(args)) }
+	if lang := q.Get("lang"); lang != "" {
+		where += " AND c.lang = " + arg(lang)
+	}
+	if like := likePattern(q.Get("q")); like != "" {
+		where += " AND " + contentTitleSQL + " ILIKE " + arg(like)
+	}
+	if lo, hi := contentDateRange(q.Get("date"), q.Get("from"), q.Get("to"), time.Now()); lo != nil || hi != nil {
+		if lo != nil {
+			where += " AND c.updated_at >= " + arg(*lo)
+		}
+		if hi != nil {
+			where += " AND c.updated_at < " + arg(*hi)
+		}
+	}
+	order := pickSort(q.Get("sort"), map[string]string{
+		"updated_desc": "c.updated_at DESC, c.id DESC",
+		"updated_asc":  "c.updated_at ASC, c.id ASC",
+	}, "c.updated_at DESC, c.id DESC")
+
+	paged := isPaged(r)
+	pg := parsePage(r, 10, 100)
+	total := 0
+	limit := " LIMIT 300"
+	if paged {
+		if err := h.DB.QueryRow(r.Context(), "SELECT COUNT(*) FROM content_pages c"+where, args...).Scan(&total); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to load content")
+			return
+		}
+		limit = " LIMIT " + arg(pg.Size) + " OFFSET " + arg(pg.Offset)
+	}
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT c.id, c.type, c.slug, c.lang, COALESCE(NULLIF(c.title->>c.lang,''), NULLIF(c.title->>'id',''), NULLIF(c.title->>'en',''), NULLIF(c.title->>'zh',''), c.slug), c.is_published, c.is_indexed, c.published_at,
+		SELECT c.id, c.type, c.slug, c.lang, `+contentTitleSQL+`, c.is_published, c.is_indexed, c.published_at, c.updated_at,
 		       COALESCE(NULLIF(c.author_name,''), ah.name, '')
-		FROM content_pages c LEFT JOIN hosts ah ON ah.id = c.author_host_id
-		WHERE ($1 = '' OR c.lang = $1) ORDER BY c.updated_at DESC LIMIT 300`, r.URL.Query().Get("lang"))
+		FROM content_pages c LEFT JOIN hosts ah ON ah.id = c.author_host_id`+where+" ORDER BY "+order+limit, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load content")
 		return
@@ -564,9 +635,13 @@ func (h *SiteAdminHandler) ContentList(w http.ResponseWriter, r *http.Request) {
 	out := []contentRow{}
 	for rows.Next() {
 		var c contentRow
-		if rows.Scan(&c.ID, &c.Type, &c.Slug, &c.Lang, &c.Title, &c.IsPublished, &c.IsIndexed, &c.PublishedAt, &c.Author) == nil {
+		if rows.Scan(&c.ID, &c.Type, &c.Slug, &c.Lang, &c.Title, &c.IsPublished, &c.IsIndexed, &c.PublishedAt, &c.UpdatedAt, &c.Author) == nil {
 			out = append(out, c)
 		}
+	}
+	if paged {
+		respondJSON(w, http.StatusOK, pageResponse(out, total, pg))
+		return
 	}
 	respondJSON(w, http.StatusOK, out)
 }
@@ -577,7 +652,8 @@ type contentDTO struct {
 	Slug          string                     `json:"slug"`
 	Lang          string                     `json:"lang"`
 	Title         map[string]string          `json:"title"`
-	Summary       map[string]string          `json:"summary"`
+	Summary       map[string]string          `json:"summary"`    // plain text of the introduction (previews, meta description)
+	IntroHTML     map[string]string          `json:"intro_html"` // the formatted introduction
 	Body          map[string]json.RawMessage `json:"body"`
 	CategoryLabel map[string]string          `json:"category_label"`
 	CoverURL      string                     `json:"cover_url"`
@@ -596,6 +672,10 @@ type contentDTO struct {
 	ProductIDs    []int                      `json:"product_ids"`
 	CategoryIDs   []int                      `json:"category_ids"`
 	HostIDs       []int                      `json:"host_ids"`
+	// Draft is the unpublished copy of a PUBLISHED article (same shape as this struct), null when there is none.
+	Draft        json.RawMessage `json:"draft,omitempty"`
+	DraftSavedAt *time.Time      `json:"draft_saved_at,omitempty"`
+	UpdatedAt    *time.Time      `json:"updated_at,omitempty"`
 }
 
 // ContentGet serves GET /admin/content/{id}.
@@ -607,11 +687,11 @@ func (h *SiteAdminHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 	}
 	var c contentDTO
 	err = h.DB.QueryRow(r.Context(), `
-		SELECT id, type, slug, lang, title, summary, body, category_label, COALESCE(cover_url,''), cover_alt, author_host_id, COALESCE(author_name,''), read_minutes, tags,
-		       seo_title, seo_description, COALESCE(canonical_url,''), is_published, is_indexed, is_featured, published_at
+		SELECT id, type, slug, lang, title, summary, intro_html, body, category_label, COALESCE(cover_url,''), cover_alt, author_host_id, COALESCE(author_name,''), read_minutes, tags,
+		       seo_title, seo_description, COALESCE(canonical_url,''), is_published, is_indexed, is_featured, published_at, draft, draft_saved_at, updated_at
 		FROM content_pages WHERE id=$1`, id).
-		Scan(&c.ID, &c.Type, &c.Slug, &c.Lang, &c.Title, &c.Summary, &c.Body, &c.CategoryLabel, &c.CoverURL, &c.CoverAlt, &c.AuthorHostID, &c.AuthorName, &c.ReadMinutes, &c.Tags,
-			&c.SEOTitle, &c.SEODesc, &c.Canonical, &c.IsPublished, &c.IsIndexed, &c.IsFeatured, &c.PublishedAt)
+		Scan(&c.ID, &c.Type, &c.Slug, &c.Lang, &c.Title, &c.Summary, &c.IntroHTML, &c.Body, &c.CategoryLabel, &c.CoverURL, &c.CoverAlt, &c.AuthorHostID, &c.AuthorName, &c.ReadMinutes, &c.Tags,
+			&c.SEOTitle, &c.SEODesc, &c.Canonical, &c.IsPublished, &c.IsIndexed, &c.IsFeatured, &c.PublishedAt, &c.Draft, &c.DraftSavedAt, &c.UpdatedAt)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "content not found")
 		return
@@ -622,8 +702,10 @@ func (h *SiteAdminHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, c)
 }
 
+var typeSlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,39}$`)
+
 func validateContent(c *contentDTO) string {
-	if c.Type != "topic" && c.Type != "article" && c.Type != "host_article" {
+	if !typeSlugRe.MatchString(c.Type) { // the type must also exist in content_types (checked on save)
 		return "tipe konten tidak valid"
 	}
 	c.Slug = strings.ToLower(strings.TrimSpace(c.Slug))
@@ -654,19 +736,28 @@ func (h *SiteAdminHandler) saveContent(w http.ResponseWriter, r *http.Request, i
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	mode := r.URL.Query().Get("mode") // "" = normal save, "draft" = autosave / Save Draft
 	if msg := validateContent(&c); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
-	for _, m := range []*map[string]string{&c.Title, &c.Summary, &c.CategoryLabel, &c.CoverAlt, &c.SEOTitle, &c.SEODesc} {
+	var typeOK bool
+	if err := h.DB.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM content_types WHERE slug=$1)`, c.Type).Scan(&typeOK); err != nil || !typeOK {
+		respondError(w, http.StatusBadRequest, "tipe konten tidak valid")
+		return
+	}
+	for _, m := range []*map[string]string{&c.Title, &c.Summary, &c.IntroHTML, &c.CategoryLabel, &c.CoverAlt, &c.SEOTitle, &c.SEODesc} {
 		*m = nonNilMap(*m)
 	}
 	if c.Body == nil {
 		c.Body = map[string]json.RawMessage{}
 	}
 	// one language per article: only its own language's text is kept; blocks are checked + sanitised
-	for _, m := range []*map[string]string{&c.Title, &c.Summary, &c.CategoryLabel, &c.CoverAlt, &c.SEOTitle, &c.SEODesc} {
+	for _, m := range []*map[string]string{&c.Title, &c.Summary, &c.IntroHTML, &c.CategoryLabel, &c.CoverAlt, &c.SEOTitle, &c.SEODesc} {
 		(*m) = onlyKey(*m, c.Lang)
+	}
+	if v, ok := c.IntroHTML[c.Lang]; ok {
+		c.IntroHTML[c.Lang] = sanitizeRichHTML(v)
 	}
 	cleaned, cerr := cleanBodyBlocks(c.Body[c.Lang])
 	if cerr != nil {
@@ -677,11 +768,38 @@ func (h *SiteAdminHandler) saveContent(w http.ResponseWriter, r *http.Request, i
 	if c.Tags == nil {
 		c.Tags = []string{}
 	}
+	ctx := r.Context()
+	if mode == "draft" {
+		if id != 0 {
+			var live bool
+			if err := h.DB.QueryRow(ctx, `SELECT is_published FROM content_pages WHERE id=$1`, id).Scan(&live); err != nil {
+				respondError(w, http.StatusNotFound, "content not found")
+				return
+			}
+			if live { // a published article keeps its live version: the form is stored as its draft
+				var taken bool
+				_ = h.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM content_pages WHERE slug=$1 AND id<>$2)`, c.Slug, id).Scan(&taken)
+				if taken {
+					respondError(w, http.StatusConflict, "slug sudah dipakai konten lain")
+					return
+				}
+				c.ID, c.Draft, c.DraftSavedAt, c.UpdatedAt = 0, nil, nil, nil
+				snap, _ := json.Marshal(c)
+				var at time.Time
+				if err := h.DB.QueryRow(ctx, `UPDATE content_pages SET draft=$2, draft_saved_at=now() WHERE id=$1 RETURNING draft_saved_at`, id, snap).Scan(&at); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to save draft")
+					return
+				}
+				respondJSON(w, http.StatusOK, map[string]interface{}{"id": id, "saved_as": "draft", "draft_saved_at": at})
+				return
+			}
+		}
+		c.IsPublished = false // not live yet: Save Draft keeps it a draft
+	}
 	if c.IsPublished && c.PublishedAt == nil {
 		now := time.Now()
 		c.PublishedAt = &now
 	}
-	ctx := r.Context()
 	tx, err := h.DB.Begin(ctx)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "db error")
@@ -690,18 +808,19 @@ func (h *SiteAdminHandler) saveContent(w http.ResponseWriter, r *http.Request, i
 	defer tx.Rollback(ctx)
 	if id == 0 {
 		err = tx.QueryRow(ctx, `
-			INSERT INTO content_pages (type, slug, lang, title, summary, body, category_label, cover_url, cover_alt, author_host_id, author_name, read_minutes, tags, seo_title, seo_description, canonical_url, is_published, is_indexed, is_featured, published_at)
-			VALUES ($1,$2,$20,$3,$4,$5,$6,NULLIF($7,''),$8,$9,NULLIF($10,''),$11,$12,$13,$14,NULLIF($15,''),$16,$17,$18,$19) RETURNING id`,
+			INSERT INTO content_pages (type, slug, lang, title, summary, body, category_label, cover_url, cover_alt, author_host_id, author_name, read_minutes, tags, seo_title, seo_description, canonical_url, is_published, is_indexed, is_featured, published_at, intro_html)
+			VALUES ($1,$2,$20,$3,$4,$5,$6,NULLIF($7,''),$8,$9,NULLIF($10,''),$11,$12,$13,$14,NULLIF($15,''),$16,$17,$18,$19,$21) RETURNING id`,
 			c.Type, c.Slug, c.Title, c.Summary, c.Body, c.CategoryLabel, c.CoverURL, c.CoverAlt, c.AuthorHostID, c.AuthorName, c.ReadMinutes, c.Tags, c.SEOTitle, c.SEODesc, c.Canonical,
-			c.IsPublished, c.IsIndexed, c.IsFeatured, c.PublishedAt, c.Lang).Scan(&id)
+			c.IsPublished, c.IsIndexed, c.IsFeatured, c.PublishedAt, c.Lang, c.IntroHTML).Scan(&id)
 	} else {
 		var ct int64
 		res, e := tx.Exec(ctx, `
 			UPDATE content_pages SET type=$2, slug=$3, lang=$21, title=$4, summary=$5, body=$6, category_label=$7, cover_url=NULLIF($8,''), cover_alt=$9, author_host_id=$10, author_name=NULLIF($11,''),
-			       read_minutes=$12, tags=$13, seo_title=$14, seo_description=$15, canonical_url=NULLIF($16,''), is_published=$17, is_indexed=$18, is_featured=$19, published_at=$20, updated_at=now()
+			       read_minutes=$12, tags=$13, seo_title=$14, seo_description=$15, canonical_url=NULLIF($16,''), is_published=$17, is_indexed=$18, is_featured=$19, published_at=$20, intro_html=$22,
+			       draft=NULL, draft_saved_at=NULL, updated_at=now()
 			WHERE id=$1`,
 			id, c.Type, c.Slug, c.Title, c.Summary, c.Body, c.CategoryLabel, c.CoverURL, c.CoverAlt, c.AuthorHostID, c.AuthorName, c.ReadMinutes, c.Tags, c.SEOTitle, c.SEODesc, c.Canonical,
-			c.IsPublished, c.IsIndexed, c.IsFeatured, c.PublishedAt, c.Lang)
+			c.IsPublished, c.IsIndexed, c.IsFeatured, c.PublishedAt, c.Lang, c.IntroHTML)
 		err = e
 		if e == nil {
 			ct = res.RowsAffected()

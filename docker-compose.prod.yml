@@ -29,6 +29,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PORT: 8080
       APP_BASE_URL: ${APP_BASE_URL}
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-onboarding@resend.dev}
       SMTP_HOST: ${SMTP_HOST:-}

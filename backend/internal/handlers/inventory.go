@@ -77,9 +77,16 @@ func (h *ProductHandler) Inventory(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to fetch inventory")
 		return
 	}
-	pageArgs := append(append([]any{}, args...), pg.Size, pg.Offset)
+	pageArgs := append([]any{}, args...)
+	order := "p.id"
+	if q != "" { // codes / names that start with the text first (C -> C001, C002 ...), then by id
+		pageArgs = append(pageArgs, prefixPattern(q))
+		order = searchRankSQL("p.sku", "p.name", "$"+strconv.Itoa(len(pageArgs)), "$1") +
+			", CASE WHEN p.sku ILIKE $" + strconv.Itoa(len(pageArgs)) + " THEN p.sku END, p.id"
+	}
+	pageArgs = append(pageArgs, pg.Size, pg.Offset)
 	rows, err := h.DB.Query(r.Context(), "SELECT p.id FROM products p"+where+
-		" ORDER BY p.id LIMIT $"+strconv.Itoa(len(pageArgs)-1)+" OFFSET $"+strconv.Itoa(len(pageArgs)), pageArgs...)
+		" ORDER BY "+order+" LIMIT $"+strconv.Itoa(len(pageArgs)-1)+" OFFSET $"+strconv.Itoa(len(pageArgs)), pageArgs...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch inventory")
 		return

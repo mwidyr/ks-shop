@@ -11,13 +11,15 @@ import { useProductList } from './Pickers'
 const T = { text: '#2B2B2E', text2: '#5F6168', soft: '#F7F7F8', border: '#E5E5E8', strong: '#B8432D', live: '#E5484D' }
 const tagPill = { height: 30, padding: '0 12px', borderRadius: 15, background: T.soft, color: T.text, fontSize: 12, display: 'flex', alignItems: 'center' }
 
-export default function ArticlePreview({ title, summary, coverUrl, categoryLabel, author, readMinutes, tags, type, blocks, onClose }) {
+export default function ArticlePreview({ title, summary, introHtml, coverAlt, coverUrl, categoryLabel, author, readMinutes, tags, type, blocks, onClose }) {
   const { t } = useTranslation()
   const products = useProductList()
   const byId = Object.fromEntries(products.map((p) => [p.id, p]))
   const toc = tocFromBlocks(blocks)
   const topic = type === 'topic'
   let tocDone = false
+  let h2Seen = 0
+  const heading = (b) => (b.html ? <span dangerouslySetInnerHTML={{ __html: safeInlineHtml(b.html) }} /> : b.text)
   useEffect(() => {
     const onKey = (ev) => { if (ev.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
@@ -26,8 +28,11 @@ export default function ArticlePreview({ title, summary, coverUrl, categoryLabel
 
   const rendered = blocks.map((b, i) => {
     const out = []
-    if (b.type === 'h2') out.push(<h2 key={b.id} id={`pv-s${i}`} style={{ margin: topic ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700 }}>{b.text}</h2>)
-    else if (b.type === 'h3') out.push(<h3 key={b.id} style={{ margin: '8px 0 0', fontSize: 17 }}>{b.text}</h3>)
+    if (b.type === 'h2') {
+      if (h2Seen > 0) out.push(<hr key={`hr${b.id}`} style={{ width: '100%', border: 0, borderTop: `1px solid ${T.border}`, margin: '12px 0 4px' }} />) // automatic divider above every H2 but the first
+      h2Seen += 1
+      out.push(<h2 key={b.id} id={`pv-s${i}`} style={{ margin: topic ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700 }}>{heading(b)}</h2>)
+    } else if (b.type === 'h3') out.push(<h3 key={b.id} style={{ margin: '8px 0 0', fontSize: 17 }}>{heading(b)}</h3>)
     else if (b.type === 'list' || b.type === 'olist') {
       const Tag = b.type === 'olist' ? 'ol' : 'ul'
       out.push(<Tag key={b.id} style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>{(b.items || []).map((x, n) => (b.items_html?.[n]
@@ -56,6 +61,8 @@ export default function ArticlePreview({ title, summary, coverUrl, categoryLabel
       }
     } else if (b.type === 'tags') {
       if ((b.items || []).length) out.push(<div key={b.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{b.items.map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>)
+    } else if (b.html && /<(p|ul|ol)\b/i.test(b.html)) {
+      out.push(<div key={b.id} className="preview-rich" style={{ fontSize: 15, lineHeight: 1.85, color: T.text }} dangerouslySetInnerHTML={{ __html: safeInlineHtml(b.html) }} />)
     } else if (b.html) {
       out.push(<p key={b.id} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: T.text, whiteSpace: 'pre-line' }} dangerouslySetInnerHTML={{ __html: safeInlineHtml(b.html) }} />)
     } else if ((b.text || '').trim()) {
@@ -79,15 +86,18 @@ export default function ArticlePreview({ title, summary, coverUrl, categoryLabel
           <span className="text-xs font-bold uppercase tracking-wide text-gray-500">{t('page_website.content.preview.title')}</span>
           <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">{t('page_website.content.preview.close')}</button>
         </div>
+        <style>{`.preview-rich > * { margin: 0 0 10px } .preview-rich > *:last-child { margin-bottom: 0 } .preview-rich ul { list-style: disc; padding-left: 20px } .preview-rich ol { list-style: decimal; padding-left: 20px } .preview-rich li > p { margin: 0 } .preview-rich a { color: #B8432D; text-decoration: underline }`}</style>
         <article style={{ color: T.text, fontFamily: 'Inter, "Noto Sans TC", sans-serif' }}>
           <header style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: topic ? T.strong : '#C2563B' }}>{categoryLabel}</span>
             <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, lineHeight: 1.35 }}>{title || t('page_website.content.preview.untitled')}</h1>
             <span style={{ fontSize: 12, color: T.text2 }}>{author}{author && readMinutes ? '・' : ''}{readMinutes ? t('page_website.content.preview.read_min', { n: readMinutes }) : ''}</span>
           </header>
-          {coverUrl && <img src={resolveUrl(coverUrl)} alt="" style={{ width: '100%', height: topic ? 280 : 300, objectFit: 'cover', objectPosition: 'center 30%', display: 'block' }} />}
+          {coverUrl && <img src={resolveUrl(coverUrl)} alt={coverAlt || ''} style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', objectPosition: 'center 30%', display: 'block' }} />}
           <div style={{ padding: '20px 16px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {summary && !blocks.length && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85 }}>{summary}</p>}
+            {introHtml
+              ? <div className="preview-rich" style={{ fontSize: 15, lineHeight: 1.85, color: T.text }} dangerouslySetInnerHTML={{ __html: safeInlineHtml(introHtml) }} />
+              : summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85, whiteSpace: 'pre-line' }}>{summary}</p>}
             {rendered}
             {!topic && tags?.length > 0 && !blocks.some((b) => b.type === 'tags') && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{tags.map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>}
           </div>

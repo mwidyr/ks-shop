@@ -7,7 +7,9 @@ import { blocksToDoc, docToBlocks, inlineToStored } from './contentBlocks'
 let counter = 0
 export const newId = () => `b${Date.now().toString(36)}${(counter += 1)}`
 
-export const BLOCK_TYPES = ['p', 'h2', 'h3', 'list', 'olist', 'image', 'product', 'tags']
+// The five block types staff can add. (list / olist / tags are legacy: they still render, and the editor
+// converts them to Text blocks / article tags when an old article is opened - see utils/richText.js.)
+export const BLOCK_TYPES = ['h2', 'h3', 'p', 'image', 'product']
 
 // A fresh, empty block of a type.
 export function emptyBlock(type) {
@@ -43,7 +45,7 @@ export function toStoredBlocks(blocks = []) {
   blocks.forEach(({ id, ...b }) => {
     switch (b.type) {
       case 'h2':
-      case 'h3': if (hasText(b.text)) out.push({ type: b.type, text: b.text.trim() }); break
+      case 'h3': if (hasText(b.text)) out.push(b.html ? { type: b.type, text: b.text.trim(), html: b.html } : { type: b.type, text: b.text.trim() }); break
       case 'p': if (hasText(b.text)) out.push(b.html ? { type: 'p', text: b.text, html: b.html } : { type: 'p', text: b.text }); break
       case 'list':
       case 'olist': {
@@ -86,6 +88,13 @@ export function docToListBlock(doc) {
   return b ? { items: b.items, items_html: b.items_html } : { items: [], items_html: undefined }
 }
 
+// A copy of block `index` right after it, with a new id.
+export function duplicateBlock(blocks, index) {
+  const src = blocks[index]
+  if (!src) return blocks
+  return insertBlock(blocks, index + 1, { ...src, id: newId() })
+}
+
 // ---- reordering
 export function moveBlock(blocks, from, to) {
   if (to < 0 || to >= blocks.length || from === to) return blocks
@@ -121,7 +130,7 @@ export function safeHrefValue(raw) {
 // unsaved text).
 export function safeInlineHtml(html = '') {
   return String(html)
-    .replace(/<(?!\/?(?:strong|em|br|a)\b)[^>]*>/gi, '')
+    .replace(/<(?!\/?(?:strong|em|u|br|a|p|ul|ol|li)\b)[^>]*>/gi, '')
     .replace(/<a\b([^>]*)>/gi, (m, attrs) => {
       const href = (attrs.match(/href\s*=\s*"([^"]*)"/i) || [])[1]
       const ok = href && safeHrefValue(href.replace(/&amp;/g, '&'))

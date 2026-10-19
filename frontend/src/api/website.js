@@ -16,10 +16,28 @@ export const listSiteHosts = () => get('/admin/site-hosts')
 export const getSiteHost = (id) => get(`/admin/site-hosts/${id}`)
 export const saveSiteHost = (id, body) => put(`/admin/site-hosts/${id}`, body)
 
-export const listContent = () => get('/admin/content')
+// Article list: no params = the plain list (max 300); with `page` = { items, total, page, page_size }.
+export const listContent = (params) => {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  const s = q.toString()
+  return get(`/admin/content${s ? `?${s}` : ''}`)
+}
 export const getContent = (id) => get(`/admin/content/${id}`)
-export const createContent = (body) => post('/admin/content', body)
-export const updateContent = (id, body) => put(`/admin/content/${id}`, body)
+export const createContent = (body, mode) => post(`/admin/content${mode ? `?mode=${mode}` : ''}`, body)
+// mode 'draft' = autosave / Save Draft: a published article keeps its live version and stores the form as its draft
+export const updateContent = (id, body, mode) => put(`/admin/content/${id}${mode ? `?mode=${mode}` : ''}`, body)
+export const discardContentDraft = (id) => client.delete(`/admin/content/${id}/draft`).then((r) => r.data)
+export const checkContentSlug = (slug, excludeId) => get(`/admin/content/slug-check?slug=${encodeURIComponent(slug)}${excludeId ? `&exclude_id=${excludeId}` : ''}`)
+export const listContentTags = (q) => get(`/admin/content/tags?q=${encodeURIComponent(q || '')}`)
+export const listContentTypes = () => get('/admin/content-types')
+export const createContentType = (names) => post('/admin/content-types', { names })
+export const updateContentType = (id, names) => put(`/admin/content-types/${id}`, { names })
+export const deleteContentType = (id) => client.delete(`/admin/content-types/${id}`).then((r) => r.data)
+export const listContentTemplates = () => get('/admin/content-templates')
+export const getContentTemplate = (id) => get(`/admin/content-templates/${id}`)
+export const createContentTemplate = (name, blocks) => post('/admin/content-templates', { name, blocks })
+export const updateContentTemplate = (id, name, blocks) => put(`/admin/content-templates/${id}`, { name, blocks })
+export const deleteContentTemplate = (id) => client.delete(`/admin/content-templates/${id}`).then((r) => r.data)
 export const deleteContent = (id) => client.delete(`/admin/content/${id}`).then((r) => r.data)
 
 export const getProductSite = (id) => get(`/admin/product-site/${id}`)

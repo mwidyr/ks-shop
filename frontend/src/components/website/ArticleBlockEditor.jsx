@@ -1,70 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Node } from '@tiptap/core'
-import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import { resolveUrl, uploadImageFile } from '../../utils/image'
-import {
-  BLOCK_TYPES, blockToDoc, docToListBlock, docToParagraphBlock, emptyBlock, insertBlock, moveBlock, safeHrefValue, tocFromBlocks, showToc,
-} from '../../utils/articleBlocks'
+import { BLOCK_TYPES, duplicateBlock, emptyBlock, insertBlock, moveBlock, tocFromBlocks, showToc } from '../../utils/articleBlocks'
 import { ProductSearch, useProductList } from './Pickers'
+import RichTextEditor from './RichTextEditor'
 
 const iconBtn = 'min-w-8 h-8 px-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent'
 const fieldCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm'
-
-// ---- one text / list block = a tiny Tiptap that only knows bold, italic and links ----------------
-// The document is forced to exactly one paragraph (text) or exactly one list, so a block can never
-// turn into something else; Enter inside a text block adds a line break instead of a new paragraph.
-function TextBlock({ block, onChange }) {
-  const { t } = useTranslation()
-  const e = (k) => t(`page_website.content.editor.${k}`)
-  const kind = block.type
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        document: false, heading: false, blockquote: false, codeBlock: false, horizontalRule: false, code: false, strike: false, underline: false,
-        trailingNode: false, dropcursor: false, gapcursor: false,
-        bulletList: kind === 'list' ? {} : false, orderedList: kind === 'olist' ? {} : false, listItem: kind === 'p' ? false : {}, listKeymap: kind === 'p' ? false : {},
-        link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener' } },
-      }),
-      Node.create({ name: 'doc', topNode: true, content: kind === 'list' ? 'bulletList' : kind === 'olist' ? 'orderedList' : 'paragraph' }),
-    ],
-    content: blockToDoc(block),
-    onUpdate: ({ editor: ed }) => onChange(kind === 'p' ? docToParagraphBlock(ed.getJSON()) : docToListBlock(ed.getJSON())),
-    editorProps: {
-      attributes: { class: 'article-block-text min-h-[64px] px-3 py-2 outline-none' },
-      handleKeyDown: (view, ev) => {
-        if (kind === 'p' && ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); return editor?.commands.setHardBreak() ?? false }
-        return false
-      },
-    },
-  })
-  if (!editor) return null
-
-  function setLink() {
-    const prev = editor.getAttributes('link').href || ''
-    const url = window.prompt(e('link_prompt'), prev)
-    if (url === null) return
-    const clean = safeHrefValue(url)
-    if (url.trim() === '') editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    else if (!clean) window.alert(e('link_invalid'))
-    else editor.chain().focus().extendMarkRange('link').setLink({ href: clean }).run()
-  }
-  const Tb = ({ active, onClick, title, children }) => (
-    <button type="button" title={title} aria-label={title} onMouseDown={(ev) => ev.preventDefault()} onClick={onClick}
-      className={`min-w-7 h-7 px-1.5 rounded-md text-xs font-semibold border ${active ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{children}</button>
-  )
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <div className="flex items-center gap-1 border-b border-gray-100 px-2 py-1.5 bg-gray-50 rounded-t-lg">
-        <Tb title={e('bold')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Tb>
-        <Tb title={e('italic')} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Tb>
-        <Tb title={e('link')} active={editor.isActive('link')} onClick={setLink}>{e('link')}</Tb>
-      </div>
-      <EditorContent editor={editor} />
-    </div>
-  )
-}
 
 function ImageBlock({ block, onChange }) {
   const { t } = useTranslation()
@@ -132,8 +74,8 @@ function TagsBlock({ block, onChange }) {
 function HeadingBlock({ block, onChange }) {
   const { t } = useTranslation()
   return (
-    <input value={block.text || ''} onChange={(ev) => onChange({ text: ev.target.value })} placeholder={t(`page_website.content.editor.${block.type}_placeholder`)}
-      className={`${fieldCls} ${block.type === 'h2' ? 'text-lg font-bold' : 'text-base font-bold'}`} />
+    <RichTextEditor mode="heading" value={block} onChange={onChange} placeholder={t(`page_website.content.editor.${block.type}_placeholder`)}
+      className={block.type === 'h2' ? 'text-lg font-bold' : 'text-base font-bold'} />
   )
 }
 
@@ -144,7 +86,7 @@ function BlockBody({ block, onChange }) {
     case 'image': return <ImageBlock block={block} onChange={onChange} />
     case 'product': return <ProductBlock block={block} onChange={onChange} />
     case 'tags': return <TagsBlock block={block} onChange={onChange} />
-    default: return <TextBlock block={block} onChange={onChange} />
+    default: return <RichTextEditor mode="text" value={block} onChange={onChange} />
   }
 }
 
@@ -182,7 +124,7 @@ function AddBlock({ onAdd, alwaysOpen }) {
 
 // The article body as a list of blocks. `blocks` are editor blocks (utils/articleBlocks.js); every change
 // calls onChange(nextBlocks). Blocks keep their `id` while they move, so their editor state is kept.
-export default function ArticleBlockEditor({ blocks, onChange }) {
+export default function ArticleBlockEditor({ blocks, onChange, hideToc = false }) {
   const { t } = useTranslation()
   const e = (k, o) => t(`page_website.content.editor.${k}`, o)
   const patch = (id, change) => onChange(blocks.map((b) => (b.id === id ? { ...b, ...change } : b)))
@@ -190,7 +132,7 @@ export default function ArticleBlockEditor({ blocks, onChange }) {
 
   return (
     <div className="space-y-1">
-      {toc.length > 0 && (
+      {!hideToc && toc.length > 0 && (
         <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600">
           <p className="font-semibold">{e('toc_title')} {!showToc(toc) && <span className="font-normal text-gray-400">· {e('toc_needs_two')}</span>}</p>
           <ol className="list-decimal list-inside mt-1 space-y-0.5">{toc.map((x) => <li key={x.i}>{x.text}</li>)}</ol>
@@ -212,6 +154,7 @@ export default function ArticleBlockEditor({ blocks, onChange }) {
                   <span className="flex items-center gap-1">
                     <button type="button" className={iconBtn} disabled={i === 0} title={e('move_up')} aria-label={e('move_up')} onClick={() => onChange(moveBlock(blocks, i, i - 1))}>↑</button>
                     <button type="button" className={iconBtn} disabled={i === blocks.length - 1} title={e('move_down')} aria-label={e('move_down')} onClick={() => onChange(moveBlock(blocks, i, i + 1))}>↓</button>
+                    <button type="button" className={iconBtn} title={e('duplicate_block')} aria-label={e('duplicate_block')} onClick={() => onChange(duplicateBlock(blocks, i))}>⧉</button>
                     <button type="button" className={`${iconBtn} text-red-600`} title={e('delete_block')} aria-label={e('delete_block')}
                       onClick={() => { if (window.confirm(e('delete_block_confirm'))) onChange(blocks.filter((x) => x.id !== b.id)) }}>✕</button>
                   </span>
@@ -229,6 +172,8 @@ export default function ArticleBlockEditor({ blocks, onChange }) {
         .article-block-text ul { list-style: disc; padding-left: 1.4rem }
         .article-block-text ol { list-style: decimal; padding-left: 1.4rem }
         .article-block-text a { color: #2563eb; text-decoration: underline }
+        .article-block-text li > p { margin: 0 }
+        .article-block-text u { text-decoration: underline }
       `}</style>
     </div>
   )

@@ -100,11 +100,12 @@ func (h *ProductHandler) matchingProductIDs(r *http.Request, q productQuery, pg 
 	where, args := q.where()
 	countArgs := args // the ranking parameter below is not part of the count query
 	order := pickSort(q.Sort, productSorts, productSorts["newest"])
-	if q.Q != "" && strings.TrimSpace(q.Sort) == "" {
-		// A short query matches a lot: list the codes / names that START with it first (C -> C001, C002...).
+	if q.Q != "" && (q.Sort == "" || q.Sort == "newest") {
+		// A short query matches a lot: with the default order, codes / names that START with the text come
+		// first (C -> C001, C002 ...). An explicit price / stock sort keeps its own order. The search text is $1.
 		args = append(args, prefixPattern(q.Q))
-		pre := "$" + strconv.Itoa(len(args))
-		order = "(a.sku ILIKE " + pre + " OR a.name ILIKE " + pre + ") DESC, " + order
+		order = searchRankSQL("a.sku", "a.name", "$"+strconv.Itoa(len(args)), "$1") +
+			", CASE WHEN a.sku ILIKE $" + strconv.Itoa(len(args)) + " THEN a.sku END, " + order // C001, C002 ... in code order
 	}
 	total := 0
 	if pg != nil {

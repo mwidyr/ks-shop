@@ -16,12 +16,19 @@ function Blocks({ blocks, products, topic, toc, hostName }) {
   const { t } = useTranslation()
   const byId = Object.fromEntries(products.map((p) => [p.id, p]))
   let tocDone = false
+  let h2Seen = 0
+  // headings may carry bold / italic / underline / links (b.html, inline only); plain text otherwise
+  const heading = (b) => (b.html ? <span dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} /> : b.text)
   return (
     <>
       {blocks.map((b, i) => {
         const out = []
-        if (b.type === 'h2') out.push(<h2 key={i} id={`s${i}`} style={{ margin: topic || hostName ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700, lineHeight: hostName ? 1.85 : undefined }}>{b.text}</h2>)
-        else if (b.type === 'h3') out.push(<h3 key={i} style={{ margin: '8px 0 0', fontSize: 17 }}>{b.text}</h3>)
+        if (b.type === 'h2') {
+          // a divider above every H2 section except the first (automatic, no divider block)
+          if (h2Seen > 0) out.push(<hr key={`hr${i}`} className="article-divider" />)
+          h2Seen += 1
+          out.push(<h2 key={i} id={`s${i}`} style={{ margin: topic || hostName ? 0 : '8px 0 0', fontSize: 20, fontWeight: 700, lineHeight: hostName ? 1.85 : undefined }}>{heading(b)}</h2>)
+        } else if (b.type === 'h3') out.push(<h3 key={i} style={{ margin: '8px 0 0', fontSize: 17 }}>{heading(b)}</h3>)
         else if (b.type === 'list' || b.type === 'olist') {
           const Tag = b.type === 'olist' ? 'ol' : 'ul'
           out.push(<Tag key={i} style={{ margin: 0, paddingLeft: 20, lineHeight: 1.9 }}>{(b.items || []).map((x, n) => (b.items_html?.[n]
@@ -45,6 +52,7 @@ function Blocks({ blocks, products, topic, toc, hostName }) {
               <span style={{ flex: 'none', ...(hostName ? { minHeight: 36, padding: '0 12px' } : { height: 36, padding: '0 14px', fontWeight: 700 }), borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, display: 'flex', alignItems: 'center' }}>{t('style.view_product')}</span>
             </Link>)
         } else if (b.type === 'tags') out.push(<div key={i} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{(b.items || []).map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>)
+        else if (b.html && /<(p|ul|ol)\b/i.test(b.html)) out.push(<div key={i} className="article-rich article-rich-block" style={{ fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)' }} dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} />)
         else if (b.html) out.push(<p key={i} className="article-rich" style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }} dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} />)
         else out.push(<p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }}>{b.text}</p>)
         if (!tocDone && !topic && toc.length > 1 && (b.type === 'p' || !b.type)) { tocDone = true; out.push(tocBox(toc, t)) }
@@ -88,6 +96,7 @@ export default function Content() {
   const px = desktop ? 40 : 16
   const topic = page.type === 'topic'
   const hostArt = page.type === 'host_article'
+  const customType = !['topic', 'article', 'host_article'].includes(page.type) // a type staff created: its name is shown
   const toc = d.blocks.map((b, i) => (b.type === 'h2' ? { i, text: b.text } : null)).filter(Boolean)
   const href = contentHref
   const dateDots = (iso) => fullDate(iso).replace(/\//g, '.')
@@ -110,7 +119,7 @@ export default function Content() {
       {!desktop && <PageHeader title="" to={hostArt ? `/hosts/${page.author_slug}` : '/style'} right={right} height={topic || hostArt ? 58 : 56} gap={topic || hostArt ? 8 : 4} />}
       {catLine}
       <header style={{ padding: `10px ${px}px ${hostArt ? 14 : 16}px`, display: 'flex', flexDirection: 'column', gap: topic ? 8 : 10, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
-        <span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: hostArt ? 'var(--color-primary-strong)' : eyebrowColor }}>{topic ? t('style.eyebrow_topic') : page.category_label}</span>
+        <span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: hostArt ? 'var(--color-primary-strong)' : eyebrowColor }}>{topic ? t('style.eyebrow_topic') : customType && d.type_name ? [d.type_name, page.category_label].filter(Boolean).join(' · ') : page.category_label}</span>
         <h1 style={{ margin: 0, fontSize: desktop ? 34 : 26, fontWeight: 700, lineHeight: hostArt ? 1.4 : 1.35 }}>{page.title}</h1>
         {hostArt ? (
           <Link to={`/hosts/${page.author_slug}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'var(--color-text)' }}>
@@ -127,9 +136,12 @@ export default function Content() {
             </div>
           )}
       </header>
-      {page.cover_url && <img src={sized(img(page.cover_url), 1200)} alt={page.cover_alt || page.title} fetchpriority="high" onError={onImgError} style={{ width: '100%', height: topic ? 280 : 300, objectFit: 'cover', objectPosition: 'center 30%', display: topic || hostArt ? 'inline' : 'block' }} />}
+      {/* one uploaded image is both the list thumbnail and this banner: it keeps a fixed shape (4:3 phone, 16:9 desktop) instead of a fixed height */}
+      {page.cover_url && <img src={sized(img(page.cover_url), 1200)} srcSet={[640, 900, 1200, 1600].map((w) => `${sized(img(page.cover_url), w)} ${w}w`).join(', ')} sizes="100vw" alt={page.cover_alt || page.title} fetchpriority="high" onError={onImgError} style={{ width: '100%', aspectRatio: desktop ? '16 / 9' : '4 / 3', maxHeight: desktop ? 520 : 'none', objectFit: 'cover', objectPosition: 'center 30%', display: 'block' }} />}
       <div style={{ padding: `${hostArt ? 18 : 20}px ${px}px 0`, display: 'flex', flexDirection: 'column', gap: hostArt ? 14 : 16, maxWidth: desktop ? 820 : 'none', margin: desktop ? '0 auto' : 0 }}>
-        {page.summary && !d.blocks.length && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85 }}>{page.summary}</p>}
+        {d.intro_html
+          ? <div className="article-rich article-rich-block" style={{ fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)' }} dangerouslySetInnerHTML={{ __html: safeHtml(d.intro_html) }} />
+          : page.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85, whiteSpace: 'pre-line' }}>{page.summary}</p>}
         <Blocks blocks={d.blocks} products={d.products} topic={topic} toc={toc} hostName={hostArt ? page.author : ''} />
         {!topic && page.tags?.length > 0 && !d.blocks.some((b) => b.type === 'tags') && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{page.tags.map((x) => <Link key={x} to="/style" style={tagPill}>#{x}</Link>)}</div>}
       </div>

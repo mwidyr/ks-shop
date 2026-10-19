@@ -53,3 +53,30 @@ func TestCleanBodyBlocks(t *testing.T) {
 		t.Errorf("nil -> %s", out)
 	}
 }
+
+func TestSanitizeRichHTML(t *testing.T) {
+	in := `<p>Hi <u>there</u> <strong>x</strong></p><ul><li>a</li><li><a href="javascript:alert(1)">b</a></li></ul><ol><li>c</li></ol><script>x()</script><div>d</div>`
+	got := sanitizeRichHTML(in)
+	want := `<p>Hi <u>there</u> <strong>x</strong></p><ul><li>a</li><li>b</li></ul><ol><li>c</li></ol>d`
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+	// inline sanitising (headings, list items) still drops the block tags but keeps underline
+	if got := sanitizeInlineHTML(`<p>a <u>b</u></p><ul><li>c</li></ul>`); got != `a <u>b</u>c` {
+		t.Errorf("inline = %s", got)
+	}
+}
+
+func TestCleanBodyBlocksRichByType(t *testing.T) {
+	raw := json.RawMessage(`[{"type":"p","text":"x","html":"<ul><li>a</li></ul>"},{"type":"h2","text":"T","html":"<p><u>T</u></p>"}]`)
+	out, err := cleanBodyBlocks(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back []map[string]any
+	_ = json.Unmarshal(out, &back)
+	s := back[0]["html"].(string) + "|" + back[1]["html"].(string)
+	if !strings.Contains(s, `<ul><li>a</li></ul>`) || !strings.Contains(s, `<u>T</u>`) || strings.Contains(s, `<p>`) {
+		t.Errorf("unexpected: %s", s)
+	}
+}

@@ -10,7 +10,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 import ArticleBlockEditor from './ArticleBlockEditor'
 import ArticlePreview from './ArticlePreview'
-import { toEditorBlocks, toStoredBlocks } from '../../utils/articleBlocks'
+import { duplicateBlock, toEditorBlocks, toStoredBlocks } from '../../utils/articleBlocks'
+import { modernizeBlocks } from '../../utils/richText'
 
 const sample = [
   { type: 'h2', text: 'Alpha' }, { type: 'p', text: 'Intro text', html: 'Intro <strong>text</strong>' },
@@ -35,7 +36,7 @@ describe('ArticleBlockEditor', () => {
     const el = document.createElement('div'); document.body.appendChild(el)
     const spy = {}
     await mount(el, <Harness initial={toEditorBlocks(sample)} spy={spy} />)
-    expect(el.querySelectorAll('input[placeholder="page_website.content.editor.h2_placeholder"]').length).toBe(2)
+    expect(el.querySelectorAll('[data-placeholder="page_website.content.editor.h2_placeholder"]').length).toBe(2)
     expect(el.textContent).toContain('Silk Blouse')
     expect(el.textContent).toContain('page_website.content.editor.toc_title')
     const down = [...el.querySelectorAll('button[aria-label="page_website.content.editor.move_down"]')]
@@ -99,5 +100,27 @@ describe('ArticlePreview', () => {
     const el = document.createElement('div'); document.body.appendChild(el)
     await mount(el, <ArticlePreview title="t" type="article" onClose={() => {}} blocks={[{ id: 'a', type: 'p', text: 'x', html: '<a href="javascript:alert(1)">x</a>' }]} />)
     expect(el.innerHTML).not.toContain('javascript:')
+  })
+})
+
+describe('five block types, tools and legacy blocks', () => {
+  it('converts old list / tags blocks to a Text block and article tags', () => {
+    const { blocks, tags } = modernizeBlocks(toEditorBlocks([
+      { type: 'list', items: ['a', 'b'], items_html: ['a', '<em>b</em>'] }, { type: 'olist', items: ['x'] }, { type: 'tags', items: ['spring', 'sale'] }, { type: 'h2', text: 'T' },
+    ]))
+    expect(blocks.map((b) => b.type)).toEqual(['p', 'p', 'h2'])
+    expect(blocks[0].html).toBe('<ul><li><p>a</p></li><li><p><em>b</em></p></li></ul>')
+    expect(blocks[1].html).toBe('<ol><li><p>x</p></li></ol>')
+    expect(tags).toEqual(['spring', 'sale'])
+  })
+  it('duplicates a block right after itself with a new id', () => {
+    const blocks = toEditorBlocks([{ type: 'h2', text: 'A' }, { type: 'p', text: 'B' }])
+    const next = duplicateBlock(blocks, 0)
+    expect(next.map((b) => b.text)).toEqual(['A', 'A', 'B'])
+    expect(next[1].id).not.toBe(next[0].id)
+  })
+  it('the add menu offers exactly H2, H3, Text, Image, Product', async () => {
+    const { BLOCK_TYPES } = await import('../../utils/articleBlocks')
+    expect(BLOCK_TYPES).toEqual(['h2', 'h3', 'p', 'image', 'product'])
   })
 })

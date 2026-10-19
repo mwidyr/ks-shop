@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -48,18 +49,7 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	// article URLs: /{lang}/style/{slug}, /{lang}/hosts/{host}/journal/{slug} (and the old unprefixed forms)
-	artSlug := ""
-	switch {
-	case len(parts) == 3 && validContentLang(parts[0]) && parts[1] == "style":
-		artSlug = parts[2]
-	case len(parts) == 5 && validContentLang(parts[0]) && parts[1] == "hosts" && parts[3] == "journal":
-		artSlug = parts[4]
-	case len(parts) == 2 && parts[0] == "style":
-		artSlug = parts[1]
-	case len(parts) == 4 && parts[0] == "hosts" && parts[2] == "journal":
-		artSlug = parts[3]
-	}
+	artSlug := articleSlugFromPath(parts)
 	switch {
 	case path == "/":
 		m.Title = ""
@@ -105,32 +95,35 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 			breadcrumb(base, []crumb{{"Home", "/"}, {"Hosts", "/hosts"}, {name, path}}))
 	case artSlug != "":
 		var typ, artLang, authorSlug string
-		var title, summary, seoT, seoD map[string]string
-		var cover, canonical, author string
+		var title, summary map[string]string
+		var body map[string][]map[string]interface{}
+		var cover, author string
 		var indexed bool
 		var published *string
 		if err := h.DB.QueryRow(ctx, `
-			SELECT c.type, c.lang, c.title, c.summary, c.seo_title, c.seo_description, COALESCE(c.cover_url,''), COALESCE(c.canonical_url,''), c.is_indexed,
+			SELECT c.type, c.lang, c.title, c.summary, c.body, COALESCE(c.cover_url,''), c.is_indexed,
 			       COALESCE(NULLIF(c.author_name,''), ah.name, ''), COALESCE(ah.slug,''), to_char(c.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 			FROM content_pages c LEFT JOIN hosts ah ON ah.id = c.author_host_id
 			WHERE c.slug=$1 AND c.is_published AND (c.published_at IS NULL OR c.published_at <= now())`, artSlug).
-			Scan(&typ, &artLang, &title, &summary, &seoT, &seoD, &cover, &canonical, &indexed, &author, &authorSlug, &published); err != nil {
+			Scan(&typ, &artLang, &title, &summary, &body, &cover, &indexed, &author, &authorSlug, &published); err != nil {
 			m.Index = false
 			m.Title = "404"
 			break
 		}
 		m.ContentLang = artLang
-		m.Title = firstNonEmpty(pickLang(seoT, artLang), pickLang(title, artLang))
-		m.Description = firstNonEmpty(pickLang(seoD, artLang), pickLang(summary, artLang))
+		// All automatic: the SEO title is the article's H1, the meta description the first ~150 characters of the
+		// introduction (the first text block when there is none), the canonical its own published URL.
+		m.Title = pickLang(title, artLang)
+		m.Description = articleMetaDescription(pickLang(summary, artLang), body[artLang])
 		m.Image = cover
-		// canonical: the article's own-language URL (also for the old unprefixed path / a wrong prefix)
+		m.OGType = "article"
 		own := contentPath(artLang, typ, artSlug, authorSlug)
 		m.Canonical = base + own
-		if canonical != "" {
-			m.Canonical = canonical
-		}
 		m.Index = m.Index && indexed
-		art := map[string]interface{}{"@context": "https://schema.org", "@type": "Article", "inLanguage": artLang, "headline": pickLang(title, artLang), "description": pickLang(summary, artLang), "image": nonEmptyList(cover), "author": map[string]interface{}{"@type": "Person", "name": author}}
+		if published != nil {
+			m.PublishedTime = *published
+		}
+		art := map[string]interface{}{"@context": "https://schema.org", "@type": "Article", "inLanguage": artLang, "headline": pickLang(title, artLang), "description": m.Description, "image": nonEmptyList(cover), "author": map[string]interface{}{"@type": "Person", "name": author}}
 		if published != nil {
 			art["datePublished"] = *published
 		}
@@ -183,6 +176,7 @@ func breadcrumb(base string, cs []crumb) map[string]interface{} {
 type seoMeta struct {
 	Title, Description, Canonical, Image string
 	ContentLang                          string // article language (og:locale); empty = the visitor's UI language
+	OGType, PublishedTime                string // "article" + its publish time for articles; og:type defaults to "website"
 	Index                                bool
 	JSONLD                               []map[string]interface{}
 }
@@ -215,12 +209,24 @@ func (m seoMeta) render(lang string) string {
 	} else {
 		b.WriteString("<meta name=\"robots\" content=\"noindex,nofollow\">\n")
 	}
-	fmt.Fprintf(&b, "<meta property=\"og:title\" content=\"%s\">\n<meta property=\"og:type\" content=\"website\">\n<meta property=\"og:url\" content=\"%s\">\n<meta property=\"og:locale\" content=\"%s\">\n", esc(title), esc(m.Canonical), map[string]string{"id": "id_ID", "en": "en_US", "zh": "zh_TW", "vi": "vi_VN"}[firstNonEmpty(m.ContentLang, lang)])
+	fmt.Fprintf(&b, "<meta property=\"og:title\" content=\"%s\">\n<meta property=\"og:type\" content=\"%s\">\n<meta property=\"og:url\" content=\"%s\">\n<meta property=\"og:locale\" content=\"%s\">\n", esc(title), esc(firstNonEmpty(m.OGType, "website")), esc(m.Canonical), map[string]string{"id": "id_ID", "en": "en_US", "zh": "zh_TW", "vi": "vi_VN"}[firstNonEmpty(m.ContentLang, lang)])
 	if m.Description != "" {
 		fmt.Fprintf(&b, "<meta property=\"og:description\" content=\"%s\">\n", esc(m.Description))
 	}
 	if m.Image != "" {
 		fmt.Fprintf(&b, "<meta property=\"og:image\" content=\"%s\">\n", esc(m.Image))
+	}
+	if m.PublishedTime != "" {
+		fmt.Fprintf(&b, "<meta property=\"article:published_time\" content=\"%s\">\n", esc(m.PublishedTime))
+	}
+	card := "summary"
+	if m.Image != "" {
+		card = "summary_large_image"
+	}
+	fmt.Fprintf(&b, "<meta name=\"twitter:card\" content=\"%s\">\n", card)
+	// Google Search Console ownership (the token comes from the company's Search Console account)
+	if v := strings.TrimSpace(os.Getenv("GOOGLE_SITE_VERIFICATION")); v != "" {
+		fmt.Fprintf(&b, "<meta name=\"google-site-verification\" content=\"%s\">\n", esc(v))
 	}
 	if m.Index {
 		for _, ld := range m.JSONLD {
@@ -289,4 +295,34 @@ func categoryDisplaySQL(lang string) string {
 		return "COALESCE(NULLIF(c.name_id,''), c.name)"
 	}
 	return "c.name"
+}
+
+// metaDescription is the plain text cut to about max characters at a word boundary, with an ellipsis; text
+// without spaces (Chinese) is cut at max characters.
+func metaDescription(text string, max int) string {
+	t := strings.Join(strings.Fields(text), " ")
+	r := []rune(t)
+	if len(r) <= max {
+		return t
+	}
+	cut := r[:max]
+	if i := strings.LastIndex(string(cut), " "); i > max/2 && r[max] != ' ' {
+		cut = []rune(string(cut)[:i])
+	}
+	return strings.TrimRight(string(cut), " ,.;:!?-") + "…"
+}
+
+// articleMetaDescription: the introduction's plain text, else the first Text block's.
+func articleMetaDescription(intro string, blocks []map[string]interface{}) string {
+	if strings.TrimSpace(intro) != "" {
+		return metaDescription(intro, 150)
+	}
+	for _, b := range blocks {
+		if t, _ := b["type"].(string); t == "p" || t == "" {
+			if text, _ := b["text"].(string); strings.TrimSpace(text) != "" {
+				return metaDescription(text, 150)
+			}
+		}
+	}
+	return ""
 }

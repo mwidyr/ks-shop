@@ -50,9 +50,14 @@ func safeHref(raw string) string {
 	return ""
 }
 
-// sanitizeInlineHTML keeps only <strong>, <em>, <br> and <a href> (http/https/mailto/tel/relative); every
+// sanitizeInlineHTML keeps only <strong>, <em>, <u>, <br> and <a href> (http/https/mailto/tel/relative); every
 // other tag is dropped (its text stays, script/style content goes) and text is re-escaped.
-func sanitizeInlineHTML(in string) string {
+func sanitizeInlineHTML(in string) string { return sanitizeHTML(in, false) }
+
+// sanitizeRichHTML is sanitizeInlineHTML plus the block tags of a Text block: <p>, <ul>, <ol>, <li>.
+func sanitizeRichHTML(in string) string { return sanitizeHTML(in, true) }
+
+func sanitizeHTML(in string, blocks bool) string {
 	in = dropWhole.ReplaceAllString(in, "")
 	var b strings.Builder
 	last := 0
@@ -81,9 +86,23 @@ func sanitizeInlineHTML(in string) string {
 			} else {
 				b.WriteString("<em>")
 			}
+		case "u":
+			if closing {
+				b.WriteString("</u>")
+			} else {
+				b.WriteString("<u>")
+			}
 		case "br":
 			if !closing {
 				b.WriteString("<br>")
+			}
+		case "p", "ul", "ol", "li":
+			if blocks {
+				if closing {
+					b.WriteString("</" + tag + ">")
+				} else {
+					b.WriteString("<" + tag + ">")
+				}
 			}
 		case "a":
 			if closing {
@@ -130,7 +149,11 @@ func cleanBodyBlocks(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, fmt.Errorf("tipe blok tidak dikenal: %s", typ)
 		}
 		if s, ok := b["html"].(string); ok {
-			b["html"] = sanitizeInlineHTML(s)
+			if typ == "p" { // a Text block may hold paragraphs and lists; headings only inline formatting
+				b["html"] = sanitizeRichHTML(s)
+			} else {
+				b["html"] = sanitizeInlineHTML(s)
+			}
 		}
 		if items, ok := b["items_html"].([]interface{}); ok {
 			for i, it := range items {

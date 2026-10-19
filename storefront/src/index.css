@@ -18,6 +18,12 @@ h1, h2, .serif { font-family: 'Noto Serif TC', 'Songti TC', serif; letter-spacin
 :focus-visible { outline: 2px solid var(--color-primary-strong); outline-offset: 2px; }
 /* inline formatting inside an article paragraph (links written in the admin editor) */
 .article-rich a, li a { color: var(--color-primary-strong); text-decoration: underline; }
+.article-rich-block > * { margin: 0 0 10px; }
+.article-rich-block > *:last-child { margin-bottom: 0; }
+.article-rich-block ul { list-style: disc; padding-left: 20px; }
+.article-rich-block ol { list-style: decimal; padding-left: 20px; }
+.article-rich-block li > p { margin: 0; }
+.article-divider { width: 100%; border: 0; border-top: 1px solid var(--color-border); margin: 12px 0 4px; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 

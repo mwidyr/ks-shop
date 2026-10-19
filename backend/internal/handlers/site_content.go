@@ -125,12 +125,11 @@ func (h *SiteHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 	card := cards[0]
 
 	var body map[string][]map[string]interface{}
-	var seoTitle, seoDesc map[string]string
-	var canonical string
+	var introHTML, typeNames map[string]string
 	var indexed bool
 	var authorHost *int
-	h.DB.QueryRow(ctx, `SELECT body, seo_title, seo_description, COALESCE(canonical_url,''), is_indexed, author_host_id FROM content_pages WHERE id=$1`, card.ID).
-		Scan(&body, &seoTitle, &seoDesc, &canonical, &indexed, &authorHost)
+	h.DB.QueryRow(ctx, `SELECT body, intro_html, is_indexed, author_host_id, COALESCE((SELECT names FROM content_types WHERE slug = content_pages.type), '{}') FROM content_pages WHERE id=$1`, card.ID).
+		Scan(&body, &introHTML, &indexed, &authorHost, &typeNames)
 	blocks := body[card.Lang]
 	if len(blocks) == 0 {
 		for _, l := range []string{"id", "en", "zh", "vi"} {
@@ -186,9 +185,11 @@ func (h *SiteHandler) ContentGet(w http.ResponseWriter, r *http.Request) {
 		h.DB.QueryRow(ctx, `SELECT height_cm FROM hosts WHERE id=$1`, *authorHost).Scan(&authorHeight)
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"intro_html": pickLang(introHTML, card.Lang), "type_name": firstNonEmpty(pickLang(typeNames, lang), pickLang(typeNames, "en")),
 		"author_height_cm": authorHeight, "page": card, "blocks": blocks, "products": products, "categories": cats, "hosts": hosts, "related": related,
+		// SEO is automatic: title = the H1, description = the first ~150 characters of the introduction, canonical = its own URL
 		"seo": map[string]interface{}{
-			"title": pickLang(seoTitle, card.Lang), "description": pickLang(seoDesc, card.Lang), "canonical": canonical, "index": indexed,
+			"title": card.Title, "description": articleMetaDescription(card.Summary, blocks), "canonical": "", "index": indexed,
 		},
 	})
 }

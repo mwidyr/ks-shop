@@ -22,7 +22,10 @@
     <link rel="stylesheet" href="/api/theme/published.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Crawlable article text (h1, intro, headings, paragraphs) for crawlers that do not run JavaScript: nginx (SSI)
+         pulls it from /api/public/store/seo-body for article URLs only (empty elsewhere); React replaces it on load. -->
+    <!--# block name="seo_empty" --><!--# endblock -->
+    <div id="root"><!--# include virtual="/api/public/store/seo-body?path=$request_uri" stub="seo_empty" --></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
