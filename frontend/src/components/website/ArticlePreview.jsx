@@ -81,10 +81,10 @@ export default function ArticlePreview({ title, summary, introHtml, coverAlt, co
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-[420px] rounded-3xl bg-white shadow-xl my-4 overflow-hidden" onClick={(ev) => ev.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 px-4 py-2.5">
-          <span className="text-xs font-bold uppercase tracking-wide text-gray-500">{t('page_website.content.preview.title')}</span>
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">{t('page_website.content.preview.close')}</button>
+      <div className="w-full max-w-[420px] rounded-3xl shadow-xl my-4 overflow-hidden" style={{ background: '#fff' }} onClick={(ev) => ev.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 px-4 py-2.5" style={{ background: '#fff' }}>
+          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#6B7280' }}>{t('page_website.content.preview.title')}</span>
+          <button type="button" onClick={onClose} className="rounded-lg border px-3 py-1 text-xs font-semibold" style={{ color: '#4B5563', borderColor: '#D1D5DB', background: '#fff' }}>{t('page_website.content.preview.close')}</button>
         </div>
         <style>{`.preview-rich > * { margin: 0 0 10px } .preview-rich > *:last-child { margin-bottom: 0 } .preview-rich ul { list-style: disc; padding-left: 20px } .preview-rich ol { list-style: decimal; padding-left: 20px } .preview-rich li > p { margin: 0 } .preview-rich a { color: #B8432D; text-decoration: underline }`}</style>
         <article style={{ color: T.text, fontFamily: 'Inter, "Noto Sans TC", sans-serif' }}>

@@ -146,7 +146,7 @@ export default function PerformanceDashboard() {
       {!summary ? (
         <div className={`${cardClasses} p-12 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
       ) : (
-        <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"} aria-busy={loading}>
+        <div className={loading ? "opacity-60 transition-opacity space-y-4" : "transition-opacity space-y-4"} aria-busy={loading}>
           {/* Desktop 3 + 3; mobile 2-1-2-1 (QTY|ORD, GMV, AVG QTY|AVG ORD, AVG GMV). AOV sits under ORD. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatCard label="QTY" value={fmtNum(summary.qty)} />

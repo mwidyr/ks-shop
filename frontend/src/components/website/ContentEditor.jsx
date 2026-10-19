@@ -226,7 +226,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
   return (
     <div className="max-w-4xl">
       {/* sticky action bar: stays visible while scrolling a long article */}
-      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
           <button type="button" onClick={back} className={btnGhost} aria-label={t('page_website.common.back_list')}>←</button>
           <div className="min-w-0">
@@ -244,7 +244,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
       <div className="px-4 sm:px-6 py-5 space-y-4">
         {msg && <div className={`text-sm px-4 py-2 rounded-lg ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`} role="alert">{msg.text}</div>}
         {draftBanner && (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-center justify-between gap-3 flex-wrap">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center justify-between gap-3 flex-wrap">
             <span>{e('draft_banner', { time: draftBanner.at ? new Date(draftBanner.at).toLocaleString() : '' })}</span>
             <span className="flex gap-2"><button type="button" onClick={continueDraft} className={btnCls}>{e('draft_continue')}</button><button type="button" onClick={discardDraft} className={btnGhost}>{e('draft_discard')}</button></span>
           </div>
