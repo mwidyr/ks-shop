@@ -1,0 +1,8 @@
+# Salin ke scripts/staging_sync.conf (file itu tidak di-commit) di VPS PRODUCTION, lalu sesuaikan.
+STAGING_HOST=116.193.191.197
+STAGING_USER=root
+STAGING_PORT=22
+# folder repo di VPS testing (relatif terhadap home user, atau path absolut)
+STAGING_DIR=ks-shop
+# private key di VPS production yang public key-nya sudah ada di ~/.ssh/authorized_keys VPS testing
+SSH_KEY=$HOME/.ssh/staging_sync

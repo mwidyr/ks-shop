@@ -27,3 +27,7 @@ docker-compose.override.yml
 .idea/
 .vscode/
 .DS_Store
+
+# Staging sync (scripts/staging_sync_from_prod.sh)
+scripts/staging_sync.conf
+backups/
