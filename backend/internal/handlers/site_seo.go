@@ -19,6 +19,9 @@ import (
 func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
+	// These fragments are pulled into index.html by nginx SSI, which cannot decompress a subrequest's answer: an
+	// explicit Content-Encoding makes the compression middleware leave the body alone (gzip bytes would show up as junk).
+	w.Header().Set("Content-Encoding", "identity")
 
 	q := r.URL.Query()
 	path := q.Get("path")

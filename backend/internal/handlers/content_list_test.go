@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func TestContentDateRange(t *testing.T) {
@@ -77,6 +81,25 @@ func TestArticleSlugFromPath(t *testing.T) {
 	for path, want := range map[string]string{"/id/style/a-b": "a-b", "/en/hosts/amy/journal/x": "x", "/style/old": "old", "/hosts/amy/journal/y": "y", "/p/12": "", "/": ""} {
 		if got := articleSlugFromPath(strings.Split(strings.Trim(path, "/"), "/")); got != want {
 			t.Errorf("%s -> %q, want %q", path, got, want)
+		}
+	}
+}
+
+// The SEO fragments are pulled into the page by nginx SSI, which cannot decompress: they must never be gzipped, even behind
+// the compression middleware and for a client that accepts gzip.
+func TestSEOFragmentsAreNeverCompressed(t *testing.T) {
+	h := &SiteHandler{} // no DB: "/" and an unknown path never reach a query
+	for name, fn := range map[string]http.HandlerFunc{"seo": h.SEO, "seo-body": h.SEOBody} {
+		srv := middleware.Compress(5, "text/html")(fn)
+		req := httptest.NewRequest("GET", "/x?path=/", nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		if enc := w.Header().Get("Content-Encoding"); enc == "gzip" {
+			t.Errorf("%s: response was gzipped (Content-Encoding=%q)", name, enc)
+		}
+		if name == "seo" && !strings.Contains(w.Body.String(), "<title>") {
+			t.Errorf("seo: body is not readable html: %q", w.Body.String())
 		}
 	}
 }
