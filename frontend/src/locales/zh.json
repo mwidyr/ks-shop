@@ -562,7 +562,6 @@
     "free_shipping_label": "免運費（手動）",
     "hide_advanced": "隱藏其他選項",
     "host_label": "直播主播",
-    "keep_date_hint": "新訂單會在此日期前 1 天進入撿貨排程。",
     "keep_date_label": "保留訂單至（選填）",
     "line_validation_error": "每一列都必須包含有效的主播、商品/款式與數量",
     "no_products_yet": "尚無商品，點選「新增商品」以選擇。",
@@ -649,7 +648,6 @@
     "host_live_label": "直播主播：{{names}}",
     "internal_notes_label": "內部備註",
     "keep_order_held_until": "保留至 {{date}}",
-    "keep_order_hint": "訂單會在此日期前 1 天進入撿貨排程。",
     "keep_order_label": "保留訂單",
     "locked_banner": "此訂單已匯出至物流，內容已鎖定（商品、價格、運費、客戶、配送、備註）。",
     "locked_status_hint": "僅倉庫與超級管理員可變更狀態。",
@@ -2903,5 +2901,14 @@
     "confirm_all_not_created_btn": "全部確認未建立（{{count}} 筆）",
     "confirm_all_not_created": "確認這 {{count}} 筆訂單「未」在平台建立？全部將納入重試檔。",
     "open_order": "開啟訂單詳情"
+  },
+  "keep_date": {
+    "type_label": "日期類型",
+    "type_shipping": "出貨日期",
+    "type_delivery": "預計送達日期",
+    "ship_date": "出貨日：{{date}}",
+    "export_from": "可匯出日：{{date}}",
+    "hint_shipping": "於此日期前 1 天可在出貨工作台匯出。",
+    "hint_delivery": "出貨日為此日期前 3 天；於此日期前 4 天可在出貨工作台匯出。"
   }
 }

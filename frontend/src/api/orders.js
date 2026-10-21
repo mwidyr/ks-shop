@@ -27,8 +27,8 @@ export function updateOrderNotes(id, payload) {
   return client.patch(`/orders/${id}/notes`, payload).then((res) => res.data)
 }
 
-export function updateOrderKeepDate(id, keepDate) {
-  return client.patch(`/orders/${id}/keep-date`, { keep_date: keepDate || null }).then((res) => res.data)
+export function updateOrderKeepDate(id, keepDate, keepDateType = 'shipping') {
+  return client.patch(`/orders/${id}/keep-date`, { keep_date: keepDate || null, keep_date_type: keepDateType }).then((res) => res.data)
 }
 
 export function updateOrderPickup(id, payload) {

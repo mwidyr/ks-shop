@@ -304,6 +304,9 @@ type orderDetailView struct {
 	CreatedBy                string          `json:"created_by"`
 	CreatedAt                string          `json:"created_at"`
 	KeepDate                 *string         `json:"keep_date"`
+	KeepDateType             string          `json:"keep_date_type"`
+	ShipDate                 *string         `json:"ship_date"`
+	ExportFrom               *string         `json:"export_from"`
 	ShippingFee              float64         `json:"shipping_fee"`
 	FreeShippingOverride     bool            `json:"free_shipping_override"`
 	ShipmentGroupID          *int            `json:"shipment_group_id"`
@@ -339,7 +342,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist'),
 		       o.shipping_address, pc.id, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
-		       COALESCE(o.internal_notes,''), o.is_urgent, o.notes_deadline, COALESCE(u.name,'system'), o.created_at, o.keep_date,
+		       COALESCE(o.internal_notes,''), o.is_urgent, o.notes_deadline, COALESCE(u.name,'system'), o.created_at, o.keep_date, o.keep_date_type,
 		       o.shipping_fee, o.free_shipping_override, pm.code, o.promotion_discount_amount
 		FROM orders o
 		JOIN customers c ON c.id=o.customer_id
@@ -350,7 +353,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerBlocked,
 			&o.ShippingAddress, &o.PickupChainID, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
-			&o.InternalNotes, &o.IsUrgent, &notesDeadline, &o.CreatedBy, &createdAt, &keepDate,
+			&o.InternalNotes, &o.IsUrgent, &notesDeadline, &o.CreatedBy, &createdAt, &keepDate, &o.KeepDateType,
 			&o.ShippingFee, &o.FreeShippingOverride, &o.PromotionCode, &o.PromotionDiscountAmount)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
@@ -360,6 +363,9 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	if keepDate != nil {
 		v := keepDate.Format("2006-01-02")
 		o.KeepDate = &v
+		ship, exp := keepDates(*keepDate, o.KeepDateType)
+		sv, ev := ship.Format("2006-01-02"), exp.Format("2006-01-02")
+		o.ShipDate, o.ExportFrom = &sv, &ev
 	}
 	if notesDeadline != nil {
 		v := notesDeadline.Format(time.RFC3339)
@@ -518,6 +524,7 @@ type createOrderRequest struct {
 	PromotionCode        string              `json:"promotion_code"`
 	AdditionalAmount     float64             `json:"additional_amount"`
 	KeepDate             *string             `json:"keep_date"`
+	KeepDateType         string              `json:"keep_date_type"`
 	FreeShippingOverride bool                `json:"free_shipping_override"`
 	ShippingFeeOverride  *float64            `json:"shipping_fee_override"`
 	InternalNotes        string              `json:"internal_notes"`
@@ -640,16 +647,22 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Website - Created by CS: a staff-keyed Website order with no Affiliate. (An Affiliate order
 	// belongs to that affiliate only, so website_source stays NULL; LIVE orders never have one.)
 	var websiteSource interface{}
+	keepType, kerr := normalizeKeep(req.KeepDate, req.KeepDateType)
+	if kerr != "" {
+		respondError(w, http.StatusBadRequest, kerr)
+		return
+	}
+	req.KeepDateType = keepType
 	if req.SalesChannel == "website" && req.AffiliateID == nil {
 		websiteSource = "cs"
 	}
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id, website_source)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, keep_date_type, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id, website_source)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
-		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
+		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.KeepDateType, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
 		req.SalesChannel, req.AffiliateID, websiteSource).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
@@ -1036,7 +1049,25 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateKeepDateRequest struct {
-	KeepDate *string `json:"keep_date"`
+	KeepDate     *string `json:"keep_date"`
+	KeepDateType string  `json:"keep_date_type"`
+}
+
+// normalizeKeep validates the optional keep date (YYYY-MM-DD) and its mode; an empty mode means
+// the original "shipping date" workflow. Returns the mode to store or a client-facing error.
+func normalizeKeep(date *string, keepType string) (string, string) {
+	if keepType == "" {
+		keepType = keepTypeShipping
+	}
+	if !validKeepType(keepType) {
+		return "", "keep_date_type must be shipping or delivery"
+	}
+	if date != nil && *date != "" {
+		if _, err := time.Parse("2006-01-02", *date); err != nil {
+			return "", "keep_date must be YYYY-MM-DD"
+		}
+	}
+	return keepType, ""
 }
 
 // UpdateKeepDate sets or clears the order's Keep date (nullable - clearing it makes the order
@@ -1052,10 +1083,18 @@ func (h *OrderHandler) UpdateKeepDate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	keepType, kerr := normalizeKeep(req.KeepDate, req.KeepDateType)
+	if kerr != "" {
+		respondError(w, http.StatusBadRequest, kerr)
+		return
+	}
+	if req.KeepDate != nil && *req.KeepDate == "" {
+		req.KeepDate = nil
+	}
 	if rejectIfLocked(w, r.Context(), h.DB, id) {
 		return
 	}
-	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET keep_date=$1 WHERE id=$2`, req.KeepDate, id)
+	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET keep_date=$1, keep_date_type=$2 WHERE id=$3`, req.KeepDate, keepType, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save keep date")
 		return
@@ -1129,15 +1168,16 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 	var websiteSource *string
 	var affiliateID *int
 	var keepDate, notesDeadline interface{}
+	var keepDateType string
 	var isUrgent bool
 	if err := tx.QueryRow(ctx, `
 		SELECT customer_id, COALESCE(sales_id,0), pickup_chain_id, shipping_address,
 		       COALESCE(pickup_store_name,''), COALESCE(pickup_store_code,''),
-		       sales_channel, website_source, affiliate_id, keep_date, is_urgent, notes_deadline,
+		       sales_channel, website_source, affiliate_id, keep_date, keep_date_type, is_urgent, notes_deadline,
 		       COALESCE(internal_notes,'')
 		FROM orders WHERE id=$1 FOR UPDATE`, id).
 		Scan(&customerID, &salesID, &pickupChainID, &shippingAddress, &pickupStoreName, &pickupStoreCode,
-			&salesChannel, &websiteSource, &affiliateID, &keepDate, &isUrgent, &notesDeadline, &internalNotes); err != nil {
+			&salesChannel, &websiteSource, &affiliateID, &keepDate, &keepDateType, &isUrgent, &notesDeadline, &internalNotes); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
@@ -1153,10 +1193,10 @@ func (h *OrderHandler) Split(w http.ResponseWriter, r *http.Request) {
 	var newOrderID int
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, parent_order_id,
-		                    sales_channel, website_source, affiliate_id, keep_date, is_urgent, notes_deadline, internal_notes)
-		VALUES ($1,$2,$3,(SELECT status FROM orders WHERE id=$4),$5,$6,$7,$8,$4,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+		                    sales_channel, website_source, affiliate_id, keep_date, keep_date_type, is_urgent, notes_deadline, internal_notes)
+		VALUES ($1,$2,$3,(SELECT status FROM orders WHERE id=$4),$5,$6,$7,$8,$4,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
 		newOrderNo, customerID, salesID, id, shippingAddress, pickupChainID, pickupStoreName, pickupStoreCode,
-		salesChannel, websiteSource, affiliateID, keepDate, isUrgent, notesDeadline, internalNotes).Scan(&newOrderID); err != nil {
+		salesChannel, websiteSource, affiliateID, keepDate, keepDateType, isUrgent, notesDeadline, internalNotes).Scan(&newOrderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create split order")
 		return
 	}

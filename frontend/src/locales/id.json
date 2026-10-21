@@ -562,7 +562,6 @@
     "free_shipping_label": "Gratis Ongkir (manual)",
     "hide_advanced": "Sembunyikan opsi lain",
     "host_label": "Host Live",
-    "keep_date_hint": "Order baru masuk antrian picking mulai H-1 dari tanggal ini.",
     "keep_date_label": "Keep Order sampai (opsional)",
     "line_validation_error": "Setiap baris harus memiliki host, produk/varian, dan qty yang valid",
     "no_products_yet": "Belum ada produk. Klik \"Tambah Produk\" untuk memilih.",
@@ -649,7 +648,6 @@
     "host_live_label": "Host Live: {{names}}",
     "internal_notes_label": "Catatan Internal",
     "keep_order_held_until": "Ditahan sampai {{date}}",
-    "keep_order_hint": "Order masuk antrian picking mulai H-1 dari tanggal ini.",
     "keep_order_label": "Keep Order",
     "locked_banner": "Order sudah di-export ke logistik, jadi detailnya terkunci (produk, harga, ongkir, pelanggan, pengiriman, catatan).",
     "locked_status_hint": "Hanya Warehouse dan Super Admin yang boleh mengubah status.",
@@ -2903,5 +2901,14 @@
     "confirm_all_not_created_btn": "Konfirmasi semua belum dibuat ({{count}})",
     "confirm_all_not_created": "Konfirmasi {{count}} pesanan TIDAK dibuat di platform? Semuanya masuk ke file coba ulang.",
     "open_order": "Buka detail pesanan"
+  },
+  "keep_date": {
+    "type_label": "Jenis tanggal",
+    "type_shipping": "Tanggal pengiriman",
+    "type_delivery": "Perkiraan tanggal tiba",
+    "ship_date": "Tanggal kirim: {{date}}",
+    "export_from": "Bisa diekspor mulai: {{date}}",
+    "hint_shipping": "Bisa diekspor di Shipping Workbench mulai H-1 dari tanggal ini.",
+    "hint_delivery": "Tanggal kirim H-3; bisa diekspor di Shipping Workbench mulai H-4 dari tanggal ini."
   }
 }

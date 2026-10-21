@@ -15,6 +15,7 @@ import { resolveUrl } from '../utils/image'
 import CustomerPicker, { TW_PHONE_REGEX } from '../components/CustomerPicker'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
+import KeepDateFields from '../components/KeepDateFields'
 
 const emptyOrder = () => ({
   salesChannel: 'live',
@@ -34,6 +35,7 @@ const emptyOrder = () => ({
   promotionResult: null,
   promotionError: '',
   keepDate: '',
+  keepDateType: 'shipping',
   internalNotes: '',
   isUrgent: false,
   notesDeadline: '',
@@ -302,8 +304,7 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
             </div>
             <div className="col-span-2">
               <label className="block text-[11px] text-gray-500 mb-1">{t('page_order_create.keep_date_label')}</label>
-              <input type="date" value={order.keepDate} onChange={(e) => onUpdate('keepDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              <p className="text-[10px] text-gray-400 mt-0.5">{t('page_order_create.keep_date_hint')}</p>
+              <KeepDateFields date={order.keepDate} type={order.keepDateType} onDate={(v) => onUpdate('keepDate', v)} onType={(v) => onUpdate('keepDateType', v)} />
             </div>
             <div className="col-span-2">
               <label className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 cursor-pointer bg-white">
@@ -474,6 +475,7 @@ export default function OrderCreate() {
         promotion_code: order.promotionResult ? order.promotionCode.trim() : '',
         additional_amount: Number(order.additionalAmount) || 0,
         keep_date: order.keepDate || null,
+        keep_date_type: order.keepDateType || 'shipping',
         shipping_fee_override: Number(order.shippingFee) || 0,
         internal_notes: order.internalNotes,
         is_urgent: order.isUrgent,

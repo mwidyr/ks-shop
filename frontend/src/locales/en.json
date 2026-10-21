@@ -562,7 +562,6 @@
     "free_shipping_label": "Free Shipping (manual)",
     "hide_advanced": "Hide other options",
     "host_label": "Live Host",
-    "keep_date_hint": "New orders enter the picking queue starting 1 day before this date.",
     "keep_date_label": "Keep Order Until (optional)",
     "line_validation_error": "Each line must have a valid host, product/variant, and quantity",
     "no_products_yet": "No products yet. Click \"Add Product\" to pick some.",
@@ -649,7 +648,6 @@
     "host_live_label": "Live Host: {{names}}",
     "internal_notes_label": "Internal Notes",
     "keep_order_held_until": "Held until {{date}}",
-    "keep_order_hint": "Order enters the picking queue starting 1 day before this date.",
     "keep_order_label": "Keep Order",
     "locked_banner": "This order was exported to logistics, so its details are locked (products, prices, shipping fee, customer, delivery, remarks).",
     "locked_status_hint": "Only Warehouse and Super Admin can change the status.",
@@ -2903,5 +2901,14 @@
     "confirm_all_not_created_btn": "Confirm all as not created ({{count}})",
     "confirm_all_not_created": "Confirm all {{count}} orders were NOT created on the platform? They will all be included in the retry file.",
     "open_order": "Open order details"
+  },
+  "keep_date": {
+    "type_label": "Date type",
+    "type_shipping": "Shipping date",
+    "type_delivery": "Expected delivery date",
+    "ship_date": "Ship date: {{date}}",
+    "export_from": "Available for export: {{date}}",
+    "hint_shipping": "Exportable in the Shipping Workbench 1 day before this date.",
+    "hint_delivery": "Ship date is 3 days before; exportable in the Shipping Workbench 4 days before this date."
   }
 }

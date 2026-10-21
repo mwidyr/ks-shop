@@ -1,4 +1,5 @@
 import { describeError } from '../utils/errorText'
+import KeepDateFields from '../components/KeepDateFields'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -385,6 +386,7 @@ export default function OrderDetail() {
   const [pendingAction, setPendingAction] = useState(null)
   const [error, setError] = useState('')
   const [keepDateDraft, setKeepDateDraft] = useState('')
+  const [keepDateType, setKeepDateType] = useState('shipping')
   const [keepDateSaving, setKeepDateSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copyFallbackText, setCopyFallbackText] = useState(null)
@@ -395,7 +397,7 @@ export default function OrderDetail() {
   const [pickupChains, setPickupChains] = useState([])
 
   function load() {
-    getOrder(id).then((o) => { setOrder(o); setKeepDateDraft(o.keep_date || '') })
+    getOrder(id).then((o) => { setOrder(o); setKeepDateDraft(o.keep_date || ''); setKeepDateType(o.keep_date_type || 'shipping') })
   }
 
   useEffect(() => { load() }, [id])
@@ -426,10 +428,10 @@ export default function OrderDetail() {
     load()
   }
 
-  async function saveKeepDate(value) {
+  async function saveKeepDate(value, type = keepDateType) {
     setKeepDateSaving(true)
     try {
-      await updateOrderKeepDate(id, value || null)
+      await updateOrderKeepDate(id, value || null, type)
       load()
     } finally {
       setKeepDateSaving(false)
@@ -600,13 +602,13 @@ export default function OrderDetail() {
                 </span>
               )}
             </div>
-            <input
-              type="date"
-              value={keepDateDraft}
-              onChange={(e) => setKeepDateDraft(e.target.value)}
-              onBlur={(e) => saveKeepDate(e.target.value)}
+            <KeepDateFields
+              date={keepDateDraft}
+              type={keepDateType}
+              onDate={setKeepDateDraft}
+              onType={setKeepDateType}
+              onCommit={saveKeepDate}
               disabled={keepDateSaving || locked}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
             />
             {keepDateDraft && !locked && (
               <button
@@ -616,7 +618,6 @@ export default function OrderDetail() {
                 {t('common.delete')}
               </button>
             )}
-            <p className="text-xs text-gray-400 mt-1">{t('page_order_detail.keep_order_hint')}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm divide-y">

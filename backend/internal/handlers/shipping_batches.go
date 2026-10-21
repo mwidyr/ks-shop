@@ -63,7 +63,11 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 	res := eligibleResult{Rows: []eligibleRow{}}
 	all, err := loadShipmentRows(r, db, `
 		WHERE o.status = 'pending' AND pc.chain_type = $1
-		  AND NOT EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)`, provider)
+		  AND NOT EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)
+		  AND NOT `+keepHeldSQL("o", "$2")+`
+		  AND NOT EXISTS (SELECT 1 FROM order_shipment_group_members gm2 JOIN orders o2 ON o2.id = gm2.order_id
+		                  WHERE gm2.group_id = gm.group_id AND `+keepHeldSQL("o2", "$2")+`)`,
+		provider, taipeiStartOfDay(now).Format("2006-01-02"))
 	if err != nil {
 		return res, err
 	}
