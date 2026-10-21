@@ -7,7 +7,7 @@ import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { topicText, waUrl } from '../lib/wa'
 import { whenLabel } from '../lib/when'
-import { Footer, MainHeader } from '../components/Layout'
+import { Footer } from '../components/Layout'
 import { HostCard, LiveBadge } from '../components/HostCard'
 import { IconHeadset, IconPlay, IconSearch, IconWhatsApp } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
@@ -231,7 +231,6 @@ export default function Home() {
 
   return (
     <div>
-      {desktop ? null : <MainHeader />}
       {!desktop && (
         <>
           <Link to="/search" style={{ margin: '12px 16px 0', minHeight: 48, borderRadius: 24, background: 'var(--color-surface)', border: '1.5px solid var(--color-border-strong)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', color: 'var(--color-text-2)', textDecoration: 'none', fontSize: 15 }}>

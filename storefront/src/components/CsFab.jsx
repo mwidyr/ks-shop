@@ -16,13 +16,13 @@ export default function CsFab({ bottom = 108, oneLine = false, tip = '' }) {
   return (
     <Link
       to="/service" aria-label={t('fab.aria')}
-      style={{ position: 'fixed', right: 12, bottom, zIndex: 20, display: 'flex', alignItems: 'flex-end', gap: 8, textDecoration: 'none' }}
+      style={{ position: 'fixed', right: 12, bottom: `calc(${bottom}px + env(safe-area-inset-bottom))`, maxWidth: 'calc(100vw - 24px)', zIndex: 20, display: 'flex', alignItems: 'flex-end', gap: 8, textDecoration: 'none' }}
     >
       {!tipOff && <span className="cs-tip" role="button" tabIndex={0} aria-label={t('common.close')} onClick={closeTip} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') closeTip(e) }} style={{ position: 'relative', cursor: 'pointer', padding: '8px 12px', borderRadius: '14px 14px 4px 14px', background: 'var(--color-surface)', color: 'var(--color-text)', boxShadow: '0 3px 14px rgba(20,40,38,0.22)', display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-success)' }}>
           <span style={{ width: 7, height: 7, borderRadius: 4, background: 'var(--color-success)' }} />{t('fab.online')}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 700, ...(oneLine ? { whiteSpace: 'nowrap' } : { maxWidth: 190, whiteSpace: 'normal', lineHeight: 1.35 }) }}>{tip || t('fab.tip')}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, ...(oneLine ? { whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } : { maxWidth: 190, whiteSpace: 'normal', lineHeight: 1.35 }) }}>{tip || t('fab.tip')}</span>
         <span aria-hidden style={{ position: 'absolute', top: -8, left: -8, width: 20, height: 20, borderRadius: 10, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, lineHeight: '20px', textAlign: 'center' }}>×</span>
       </span>}
       <span className="cs-shake" style={{ position: 'relative', width: 74, height: 74, borderRadius: 37, background: 'var(--color-primary)', border: '3px solid #FFFFFF', boxShadow: '0 6px 18px rgba(255,140,105,0.28)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-primary)' }}>

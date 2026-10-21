@@ -23,7 +23,9 @@ export function LiveButton() {
   )
 }
 
-// Mobile main header (home / category): logo + LIVE + search + menu.
+export const HDR_H = 104 // LangBar 46 + MainHeader 58
+
+// Mobile main header (pinned on every page by Layout): logo + LIVE + search + menu.
 export function MainHeader() {
   const { t } = useTranslation()
   return (
@@ -97,8 +99,8 @@ export function Footer() {
   )
 }
 
-// Pages that run their own bottom action bar (cart, checkout, product) hide the floating nav.
-const NO_NAV = [/^\/p\//, /^\/checkout(?!\/success)/, /^\/orders\/.+\/return/, /^\/login/, /^\/language/, /^\/menu/, /^\/cart/]
+// Pages that run their own bottom action bar (cart, checkout, product, return) hide the floating nav; every other page keeps it pinned.
+const NO_NAV = [/^\/p\//, /^\/checkout(?!\/success)/, /^\/orders\/.+\/return/, /^\/cart/]
 
 // Floating CS button: [bottom offset, single-line tip] per screen, as each artboard draws it.
 const FAB = [
@@ -133,8 +135,18 @@ export default function Layout() {
 
   return (
     <QuickAddProvider>
-      <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
-        {!bare && <LangBar />}
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)', '--hdr-h': bare || desktop ? '0px' : `calc(${HDR_H}px + env(safe-area-inset-top))` }}>
+        {!bare && desktop && <LangBar />}
+        {!bare && !desktop && (
+          <>
+            {/* pinned on every mobile page: language marquee + logo bar; the spacer keeps page content below it */}
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, maxWidth: 560, margin: '0 auto', zIndex: 45, paddingTop: 'env(safe-area-inset-top)', background: 'var(--color-bg)' }}>
+              <LangBar />
+              <MainHeader />
+            </div>
+            <div aria-hidden style={{ height: 'var(--hdr-h)' }} />
+          </>
+        )}
         {desktop && !bare && <DesktopHeader />}
         <div style={{ maxWidth: desktop ? 1280 : 560, margin: '0 auto', position: 'relative' }}>
           <Outlet context={{ desktop }} />

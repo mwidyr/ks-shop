@@ -51,9 +51,9 @@ export default function Search() {
 
   return (
     <div style={{ paddingBottom: 130 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 8px 4px', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 10, background: 'var(--color-bg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 8px 4px', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 'var(--hdr-h, 0px)', zIndex: 10, background: 'var(--color-bg)' }}>
         <button type="button" aria-label={t('common.back')} onClick={() => navigate(-1)} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
-        <label style={{ flex: 1, minHeight: 48, borderRadius: 24, border: '2px solid var(--color-primary-strong)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', color: 'var(--color-text-2)' }}>
+        <label style={{ flex: 1, minWidth: 0, minHeight: 48, borderRadius: 24, border: '2px solid var(--color-primary-strong)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', color: 'var(--color-text-2)' }}>
           <IconSearch size={18} />
           <input type="search" autoFocus={!sp.get('q')} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search.placeholder_input')} aria-label={t('search.title')} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 15, color: 'var(--color-text)', fontFamily: 'inherit' }} />
         </label>

@@ -3,7 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
+*, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+/* a single over-wide element must never widen the layout viewport (it clips fixed bars on phones); clip keeps sticky/fixed working */
+html, body { max-width: 100%; overflow-x: clip; }
 body { margin: 0; }
 body {
   margin: 0; background: var(--color-bg); color: var(--color-text);

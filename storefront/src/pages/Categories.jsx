@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { getHosts, getProducts, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { MainHeader } from '../components/Layout'
 import { HostCard, LiveBadge } from '../components/HostCard'
 import { IconPlay } from '../components/Icons'
 import { EmptyState, SectionHead } from '../components/ui'
@@ -25,7 +24,6 @@ export default function Categories() {
 
   return (
     <div>
-      {!desktop && <MainHeader />}
       <div style={{ padding: desktop ? '32px 40px 0' : '16px 16px 0' }}><h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t('cats.title')}</h1></div>
 
       {hosts.length > 0 && (

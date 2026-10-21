@@ -30,7 +30,7 @@ export function PageHeader({ title, back = true, onBack, right, to, height = 56,
     <button type="button" aria-label={t('common.back')} onClick={onBack || (() => window.history.back())} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
   )
   return (
-    <header style={{ height, display: 'flex', alignItems: 'center', gap, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 10 }}>
+    <header style={{ height, display: 'flex', alignItems: 'center', gap, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 'var(--hdr-h, 0px)', zIndex: 10 }}>
       {back ? backEl : <span style={{ width: 8 }} />}
       <h1 style={{ margin: 0, flex: 1, fontSize: 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h1>
       {right}

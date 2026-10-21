@@ -35,9 +35,9 @@ export default function Menu() {
   const close = () => (window.history.length > 1 ? navigate(-1) : navigate('/'))
   const hideSub = i18n.language === 'en'
   return (
-    <div style={{ position: 'fixed', top: 46, left: 0, right: 0, bottom: 0, zIndex: 150 }}>
+    <div style={{ position: 'fixed', top: 'calc(46px + env(safe-area-inset-top))', left: 0, right: 0, bottom: 0, zIndex: 150 }}>
       <div onClick={close} style={{ position: 'absolute', inset: 0, background: 'rgba(30,30,35,0.45)' }} />
-      <aside role="dialog" aria-modal="true" aria-label={t('menu.title')} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, maxWidth: '100%', background: 'var(--color-bg)', padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 8, boxShadow: '-12px 0 30px rgba(30,30,35,0.25)', boxSizing: 'content-box', overflowY: 'auto' }}>
+      <aside role="dialog" aria-modal="true" aria-label={t('menu.title')} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 320, maxWidth: '100%', boxSizing: 'border-box', background: 'var(--color-bg)', padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 8, boxShadow: '-12px 0 30px rgba(30,30,35,0.25)', boxSizing: 'content-box', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56 }}>
           <span className="serif" style={{ fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: 'var(--color-primary-strong)' }}>ralulu</span>
           <button type="button" onClick={close} aria-label={t('menu.close')} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)', background: 'none', border: 'none', padding: 0 }}>

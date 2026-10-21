@@ -17,7 +17,7 @@ export default function BottomNav() {
     <nav
       aria-label={t('nav.main')}
       style={{
-        position: 'fixed', left: 16, right: 16, bottom: 16, height: 68, zIndex: 30, padding: 6, boxSizing: 'border-box', borderRadius: 34,
+        position: 'fixed', left: 16, right: 16, bottom: 'calc(16px + env(safe-area-inset-bottom))', height: 68, zIndex: 30, padding: 6, boxSizing: 'border-box', borderRadius: 34,
         background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid var(--color-border)',
         boxShadow: '0 10px 28px rgba(30,30,35,0.16)', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', maxWidth: 528, margin: '0 auto',
       }}
