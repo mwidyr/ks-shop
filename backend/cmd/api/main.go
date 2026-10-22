@@ -240,6 +240,8 @@ func main() {
 			r.With(edit("website_home")).Put("/admin/home-modules", siteAdminH.SaveHomeModules)
 			r.With(view("store_profile")).Get("/admin/site-settings", siteAdminH.GetSettings)
 			r.With(edit("store_profile")).Patch("/admin/site-settings", siteAdminH.SaveSettings)
+			r.With(view("store_profile")).Get("/admin/store-tutorial", siteAdminH.GetTutorial)
+			r.With(edit("store_profile")).Put("/admin/store-tutorial", siteAdminH.SaveTutorial)
 			r.With(view("website_hosts")).Get("/admin/site-hosts", siteAdminH.Hosts)
 			r.With(view("website_hosts")).Get("/admin/site-hosts/{id}", siteAdminH.Host)
 			r.With(edit("website_hosts")).Put("/admin/site-hosts/{id}", siteAdminH.SaveHost)

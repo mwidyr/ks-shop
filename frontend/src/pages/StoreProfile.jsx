@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getStoreSettings, updateStoreSettings, getWebsiteLaunch, updateWebsiteLaunch } from '../api/storeSettings'
 import WebsiteSettingsCard from '../components/website/WebsiteSettingsCard'
+import TutorialCard from '../components/website/TutorialCard'
 
 export default function StoreProfile() {
   const { t } = useTranslation()
@@ -68,6 +69,7 @@ export default function StoreProfile() {
       </form>
 
       <WebsiteSettingsCard />
+      <TutorialCard />
 
       <form onSubmit={saveLaunchDate} className="bg-white rounded-2xl shadow-sm p-5 space-y-3 mb-6">
         <h2 className="font-bold text-gray-800">{t('page_store_profile.launch_card_title')}</h2>

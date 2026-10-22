@@ -11,6 +11,8 @@ export const saveHomeModules = (list) => put('/admin/home-modules', list)
 
 export const getSiteSettings = () => get('/admin/site-settings')
 export const saveSiteSettings = (body) => patch('/admin/site-settings', body)
+export const getStoreTutorial = () => get('/admin/store-tutorial')
+export const saveStoreTutorial = (body) => put('/admin/store-tutorial', body)
 
 export const listSiteHosts = () => get('/admin/site-hosts')
 export const getSiteHost = (id) => get(`/admin/site-hosts/${id}`)

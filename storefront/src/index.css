@@ -51,3 +51,7 @@ h1, h2, .serif { font-family: 'Noto Serif TC', 'Songti TC', serif; letter-spacin
 .sheet-up { animation: sheetUp .22s ease-out; }
 @keyframes toastIn { from { transform: translate(-50%, 12px); opacity: 0 } to { transform: translate(-50%, 0); opacity: 1 } }
 .toast-in { animation: toastIn .2s ease-out; }
+
+.tutorial-rich p { margin: 0 0 8px; }
+.tutorial-rich ul, .tutorial-rich ol { margin: 0 0 8px; padding-left: 22px; }
+.tutorial-rich a { color: var(--color-primary-strong); }

@@ -420,6 +420,8 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		"free_shipping_end":        site.setting(ctx, "free_shipping_end", ""),
 		"shipping_options":         chains,
 		"whatsapp_number":          waNumber,
+		"line_id":                  site.setting(ctx, "line_id", defaultLineID),
+		"store_tutorial":           site.loadTutorial(r),
 		"cs_hours":                 site.setting(ctx, "cs_hours", ""),
 		"cs_hours_note":            site.setting(ctx, "cs_hours_note", ""),
 		"rewards": func() map[string]interface{} {
@@ -492,7 +494,8 @@ func priceCart(ctx context.Context, db storeDB, req storeQuoteRequest, strict bo
 
 	if phone := strings.TrimSpace(req.Phone); phone != "" {
 		var cid int
-		if db.QueryRow(ctx, `SELECT id FROM customers WHERE phone=$1 ORDER BY id LIMIT 1`, phone).Scan(&cid) == nil {
+		// older customers may have been stored as typed (+886...), newer ones in the local 09 format
+		if db.QueryRow(ctx, `SELECT id FROM customers WHERE phone = ANY($1) ORDER BY id LIMIT 1`, []string{NormalizeTWPhone(phone), phone}).Scan(&cid) == nil {
 			q.customerID = &cid
 		}
 	}
@@ -575,9 +578,18 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	req.Name, req.Phone, req.Email = strings.TrimSpace(req.Name), strings.TrimSpace(req.Phone), strings.TrimSpace(req.Email)
-	if req.Name == "" || len(req.Name) > 150 || !phonePattern.MatchString(req.Phone) {
-		respondError(w, http.StatusBadRequest, "nama dan nomor HP yang valid wajib diisi")
+	req.Name, req.Email = strings.TrimSpace(req.Name), strings.TrimSpace(req.Email)
+	// Phones are stored in the local Taiwan format (09xxxxxxxx) so the ERP and shipping exports agree.
+	// Storefront checkout must be a Taiwan mobile; an order a staff member keys in for a customer may
+	// carry another country's number.
+	req.Phone = NormalizeTWPhone(req.Phone)
+	staffOrder := req.Source == "cs_assisted"
+	if req.Name == "" || len(req.Name) > 150 || !(IsTWMobile(req.Phone) || (staffOrder && phonePattern.MatchString(req.Phone))) {
+		respondError(w, http.StatusBadRequest, "nama dan nomor HP Taiwan yang valid (09xxxxxxxx) wajib diisi")
+		return
+	}
+	if req.Email != "" && !validEmailAddress(req.Email) {
+		respondError(w, http.StatusBadRequest, "format email tidak valid")
 		return
 	}
 	if req.PickupChainID == 0 {
@@ -659,6 +671,11 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		var n int
 		_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM cvs_stores WHERE chain_type=$1 AND store_code=$2`, chainType, req.PickupStoreCode).Scan(&n)
 		verified = n > 0 && !req.StoreUnlisted
+		if !verified && source == "self_checkout" {
+			// An unknown store number is no longer accepted from the storefront: the customer is sent to CS.
+			respondError(w, http.StatusBadRequest, "nomor toko tidak ditemukan - silakan hubungi CS")
+			return
+		}
 		if !verified {
 			notes = strings.TrimSpace("[Nomor toko belum terverifikasi di direktori - mohon dicek CS]\n" + notes)
 		}
@@ -738,7 +755,8 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 // guessing an order number alone reveals nothing.
 func (h *StorefrontHandler) Track(w http.ResponseWriter, r *http.Request) {
 	orderNo := strings.TrimSpace(r.URL.Query().Get("order_no"))
-	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	rawPhone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	phone := NormalizeTWPhone(rawPhone)
 	if orderNo == "" || phone == "" {
 		respondError(w, http.StatusBadRequest, "nomor pesanan dan nomor HP wajib diisi")
 		return
@@ -769,7 +787,7 @@ func (h *StorefrontHandler) Track(w http.ResponseWriter, r *http.Request) {
 		       o.shipping_fee, o.promotion_discount_amount + o.discount_amount,
 		       pc.name, pc.chain_type, COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.pickup_store_verified
 		FROM orders o JOIN customers c ON c.id = o.customer_id JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
-		WHERE o.order_no=$1 AND c.phone=$2`, orderNo, phone).
+		WHERE o.order_no=$1 AND c.phone = ANY($2)`, orderNo, []string{phone, rawPhone}).
 		Scan(&id, &o.OrderNo, &o.Status, &created, &updated, &o.Tracking, &o.Customer, &o.Address, &o.ShipFee, &o.Discount,
 			&o.Chain, &o.ChainType, &o.StoreName, &o.StoreCode, &o.Verified)
 	if err != nil {

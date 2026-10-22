@@ -60,3 +60,13 @@ export function storeHelpText(lang, chain, last) {
   const t = L(lang)
   return `${t.hello}\n${t.store} ${chain}${last ? `\n${t.storeLast}: ${last}` : ''}`
 }
+
+// Final step after checkout: both buttons open our CS chat with the real order number filled in.
+export const confirmText = (orderNo) => `halo kak saya mau konfirmasi pesanan ${orderNo}`
+
+// https://line.me/R/oaMessage/%40<id>/?<url-encoded message>; "@" must be %40 and spaces %20.
+export function lineUrl(lineId, text) {
+  const id = String(lineId || '').trim()
+  if (!id) return ''
+  return `https://line.me/R/oaMessage/${encodeURIComponent(id.startsWith('@') ? id : `@${id}`)}/?${encodeURIComponent(text || '')}`
+}

@@ -137,7 +137,7 @@ func nonNilMap(m map[string]string) map[string]string {
 
 // ---------------------------------------------------------------- site settings (WhatsApp, CS, socials, free shipping)
 
-var siteSettingKeys = []string{"whatsapp_number", "cs_hours", "cs_hours_note", "social_youtube", "social_instagram", "social_facebook", "social_tiktok", "free_shipping_active", "free_shipping_start", "free_shipping_end"}
+var siteSettingKeys = []string{"whatsapp_number", "line_id", "cs_hours", "cs_hours_note", "social_youtube", "social_instagram", "social_facebook", "social_tiktok", "free_shipping_active", "free_shipping_start", "free_shipping_end"}
 
 // GetSettings serves GET /admin/site-settings.
 func (h *SiteAdminHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +173,14 @@ func (h *SiteAdminHandler) SaveSettings(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		req["whatsapp_number"] = n
+	}
+	if v, ok := req["line_id"]; ok {
+		id, valid := normalizeLineID(v)
+		if !valid {
+			respondError(w, http.StatusBadRequest, "LINE ID tidak valid (contoh: @ohlalashop888)")
+			return
+		}
+		req["line_id"] = id
 	}
 	for _, d := range []string{"free_shipping_start", "free_shipping_end"} {
 		if v := strings.TrimSpace(req[d]); v != "" {

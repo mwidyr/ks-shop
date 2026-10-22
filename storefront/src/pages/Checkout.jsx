@@ -9,17 +9,17 @@ import { useCart } from '../lib/cart'
 import { money } from '../lib/format'
 import { saveLocalOrder } from '../lib/localOrders'
 import { readProfile, rememberStore, writeProfile } from '../lib/profile'
+import { isTwMobile, normPhone } from '../lib/phone'
 import { useQuote } from '../lib/quote'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
+import { safeHtml } from '../lib/safeHtml'
 import { storeHelpText, waUrl } from '../lib/wa'
 import { IconAlert, IconBack, IconCheck, IconChevDown, IconHeadset, IconSearch, IconSpinner, IconTruck } from '../components/Icons'
 import { btnDark, btnOutline, btnPrimary, EmptyState, Field, iconBtn, inputStyle, Sheet } from '../components/ui'
 
 const KEY = 'ralulu_checkout_v1'
 const EMPTY = { step: 1, view: '', picked: false, name: '', phone: '', email: '', method: '', store: null, address: '', addrName: '', addrPhone: '', coupon: '' }
-const PHONE_RE = /^09\d{8}$/
-const normPhone = (s) => s.replace(/[\s-]/g, '').replace(/^\+886/, '0')
 
 function ReceiptArt() {
   return (
@@ -35,20 +35,28 @@ function ReceiptArt() {
 }
 
 function TutorialSheet({ open, onClose, chainName, csUrl }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { settings } = useStore()
+  // instructions + picture edited in Ralulu Hub (Store Profile); empty = the built-in tutorial
+  const custom = settings.store_tutorial?.html?.[i18n.language] || ''
+  const customImage = settings.store_tutorial?.image_url || ''
   const steps = [t('checkout.tut_1', { chain: chainName }), t('checkout.tut_2'), t('checkout.tut_3'), t('checkout.tut_4')]
   return (
     <Sheet open={open} onClose={onClose} title={t('checkout.tut_title')} footer={<button type="button" onClick={onClose} style={{ ...btnPrimary, width: '100%' }}>{t('checkout.tut_ok')}</button>}>
-      <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {steps.map((s, i) => (
-          <li key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
-            <span style={{ flex: 'none', width: 26, height: 26, borderRadius: 13, background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>{s}
-          </li>
-        ))}
-      </ol>
+      {custom ? (
+        <div data-testid="tutorial-custom" className="tutorial-rich" style={{ fontSize: 15, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: safeHtml(custom) }} />
+      ) : (
+        <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {steps.map((s, i) => (
+            <li key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15 }}>
+              <span style={{ flex: 'none', width: 26, height: 26, borderRadius: 13, background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>{s}
+            </li>
+          ))}
+        </ol>
+      )}
       <div style={{ margin: '14px 0 4px' }}><span style={{ fontSize: 11, letterSpacing: 2, fontWeight: 700, color: 'var(--color-primary-strong)' }}>{t('checkout.example').toUpperCase()}</span></div>
-      <ReceiptArt />
-      <span style={{ display: 'block', textAlign: 'center', fontSize: 12, color: 'var(--color-text-2)', marginTop: 4 }}>{t('checkout.example_note')}</span>
+      {customImage ? <img data-testid="tutorial-image" src={img(customImage)} alt={t('checkout.example')} loading="lazy" onError={onImgError} style={{ display: 'block', width: '100%', maxWidth: 360, margin: '0 auto', borderRadius: 12 }} /> : <ReceiptArt />}
+      {!customImage && <span style={{ display: 'block', textAlign: 'center', fontSize: 12, color: 'var(--color-text-2)', marginTop: 4 }}>{t('checkout.example_note')}</span>}
       <p style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.6 }}>
         {t('checkout.tut_no_receipt')} <a href={csUrl} target="_blank" rel="noreferrer">{t('checkout.tut_ask_cs')}</a>.
       </p>
@@ -214,17 +222,15 @@ const pillBtn = (kind) => ({ minHeight: 44, padding: '0 18px', borderRadius: 22,
   ...(kind === 'primary' ? { background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none' } : kind === 'dark' ? { background: 'var(--color-text)', color: '#FFFFFF', border: 'none' } : { background: 'transparent', color: 'var(--color-text)', border: '1.5px solid var(--color-text)' }) })
 
 // ---- store search screen (number or name) ----
-function StoreScreen({ chain, onPick, csUrl, last, setLast, setUnverified }) {
+function StoreScreen({ chain, onPick, csUrl, last, setLast }) {
   const { t } = useTranslation()
   const chainName = chainLabel(chain)
   const [q, setQ] = useState(last || '')
   const [status, setStatus] = useState('idle') // idle | loading | found | candidates | not_found | fail
   const [res, setRes] = useState(null)
   const [tutorial, setTutorial] = useState(false)
-  const [unlistedName, setUnlistedName] = useState('')
   const text = q.trim()
   const isCode = /^\d+$/.test(text)
-  const six = /^\d{6}$/.test(text)
 
   async function search(e) {
     e?.preventDefault()
@@ -317,13 +323,10 @@ function StoreScreen({ chain, onPick, csUrl, last, setLast, setUnverified }) {
           <ol style={{ margin: 0, paddingLeft: 20, fontSize: 15, lineHeight: 1.9 }}>
             <li>{t('co.check_1')}</li><li>{t('co.check_2')}</li><li>{t('co.check_3')}</li><li>{t('co.check_4')}</li>
           </ol>
-          {six && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, borderTop: '1px dashed var(--color-border-strong)' }}>
-              <span style={{ fontSize: 13 }}>{t('co.unverified_note')}</span>
-              <input value={unlistedName} onChange={(e) => setUnlistedName(e.target.value)} placeholder={t('co.unverified_name')} aria-label={t('co.unverified_name')} style={inputStyle(false)} />
-              <button type="button" onClick={() => { setUnverified?.(); onPick({ code: text, name: unlistedName.trim(), addr: '', verified: false }) }} style={{ ...pillBtn('outline'), minHeight: 44 }}>{t('co.unverified_use', { code: text })}</button>
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, borderTop: '1px dashed var(--color-border-strong)' }}>
+            <span style={{ fontSize: 13 }}>{t('co.nf_cs_note')}</span>
+            <a href={csUrl} target="_blank" rel="noreferrer" style={{ ...pillBtn('dark'), minHeight: 48, borderRadius: 24 }}><IconHeadset size={16} />{t('co.nf_cs_btn')}</a>
+          </div>
           <button type="button" onClick={() => { setStatus('idle'); setQ('') }} style={{ ...pillBtn('primary'), minHeight: 50, borderRadius: 25 }}>{t('co.retype')}</button>
         </section>
       )}
@@ -402,7 +405,7 @@ export default function Checkout() {
   const csUrl = waUrl(settings.whatsapp_number, storeHelpText(i18n.language, chainName || 'CVS', lastQuery))
   const helpUrl = waUrl(settings.whatsapp_number, storeHelpText(i18n.language, 'checkout', ''))
 
-  const phoneOk = PHONE_RE.test(normPhone(s.phone))
+  const phoneOk = isTwMobile(s.phone)
   const emailOk = !s.email.trim() || /^\S+@\S+\.\S+$/.test(s.email.trim())
   const nameOk = Boolean(s.name.trim())
   const step1Errors = [!nameOk && { id: 'c-name', label: t('co.err_name_li') }, !phoneOk && { id: 'c-phone', label: t('co.err_phone_li') }, !emailOk && { id: 'c-email', label: t('co.err_email_li') }].filter(Boolean)
@@ -551,7 +554,7 @@ export default function Checkout() {
     <section style={section}>
       <h2 style={h2()}>{t('checkout.addr_title')}</h2>
       <Field label={t('checkout.addr_name')} htmlFor="a-name"><input id="a-name" value={s.addrName || s.name} onChange={(e) => set({ addrName: e.target.value })} style={inputStyle(false)} /></Field>
-      <Field label={t('checkout.addr_phone')} htmlFor="a-phone"><input id="a-phone" value={s.addrPhone || s.phone} onChange={(e) => set({ addrPhone: e.target.value })} inputMode="tel" style={inputStyle(false)} /></Field>
+      <Field label={t('checkout.addr_phone')} htmlFor="a-phone"><input id="a-phone" value={s.addrPhone || s.phone} onChange={(e) => set({ addrPhone: e.target.value })} onBlur={() => { const n = normPhone(s.addrPhone || s.phone); if (n !== (s.addrPhone || s.phone)) set({ addrPhone: n }) }} inputMode="tel" style={inputStyle(false)} /></Field>
       <Field label={t('checkout.addr')} required hint={t('checkout.addr_hint')} error={tried && !addrOk ? t('checkout.addr_err') : ''} htmlFor="a-addr">
         <textarea id="a-addr" rows={3} value={s.address} onChange={(e) => set({ address: e.target.value })} style={{ ...inputStyle(tried && !addrOk), minHeight: 88, padding: 12 }} />
       </Field>
@@ -588,13 +591,13 @@ export default function Checkout() {
             <span style={{ fontSize: 15, fontWeight: 700 }}>{t('co.phone')} <span style={{ color: 'var(--color-live)' }}>*</span></span>
             <span style={{ display: 'flex', gap: 8 }}>
               <span style={{ flex: 'none', minHeight: 50, padding: '0 12px', borderRadius: 12, border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', fontSize: 15 }}>+886 <IconChevDown size={12} /></span>
-              <input id="c-phone" type="tel" value={s.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="0912 345 678" autoComplete="tel" aria-invalid={tried && !phoneOk} aria-describedby={tried && !phoneOk ? 'e-phone' : undefined} style={field(tried && !phoneOk)} />
+              <input id="c-phone" type="tel" value={s.phone} onChange={(e) => set({ phone: e.target.value })} onBlur={() => { const n = normPhone(s.phone); if (n !== s.phone) set({ phone: n }) }} placeholder="0912 345 678" autoComplete="tel" aria-invalid={tried && !phoneOk} aria-describedby={tried && !phoneOk ? 'e-phone' : undefined} style={field(tried && !phoneOk)} />
             </span>
             {tried && !phoneOk ? <span id="e-phone" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}><IconAlert size={16} />{t('co.err_phone')}</span> : <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('co.phone_hint')}</span>}
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 15, fontWeight: 700 }}>{t('co.email')} <span style={{ fontWeight: 400, color: 'var(--color-text-2)' }}>{t('co.optional')}</span></span>
-            <span style={{ display: 'flex', gap: 8 }}><input id="c-email" type="text" value={s.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@email.com" autoComplete="email" aria-invalid={tried && !emailOk} style={field(tried && !emailOk)} /></span>
+            <span style={{ display: 'flex', gap: 8 }}><input id="c-email" type="text" inputMode="email" value={s.email} onChange={(e) => set({ email: e.target.value })} onBlur={() => { const v = s.email.trim(); if (v !== s.email) set({ email: v }) }} placeholder="name@email.com" autoComplete="email" aria-invalid={tried && !emailOk} style={field(tried && !emailOk)} /></span>
             {tried && !emailOk && <span role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}><IconAlert size={16} />{t('co.err_email')}</span>}
           </label>
         </section>
@@ -683,7 +686,7 @@ export default function Checkout() {
         <p style={{ margin: '12px 16px 0', fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.6 }}>{t('co.agree')} <Link to="/info/terms">{t('co.terms')}</Link> {t('co.and')} <Link to="/info/returns">{t('co.return_policy')}</Link>。</p>
       </>
     )
-    bar = <BottomBar total={total} label={submit === 'sending' ? t('co.sending') : t('co.confirm')} onClick={place} busy={submit === 'sending'} disabled={submit === 'sending' || !quote} minWidth={150} />
+    bar = <BottomBar total={total} label={submit === 'sending' ? t('co.sending') : t('co.continue_final')} onClick={place} busy={submit === 'sending'} disabled={submit === 'sending' || !quote} minWidth={150} />
   }
 
   const titleText = s.view === 'store' ? t('co.pick_store_title') : s.step === 3 ? t('co.review_title') : t('co.title')

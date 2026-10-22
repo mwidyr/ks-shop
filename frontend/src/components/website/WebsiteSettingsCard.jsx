@@ -29,6 +29,11 @@ export default function WebsiteSettingsCard() {
         <p className="text-xs text-gray-500 mt-1">{s('wa_hint')}</p>
         {digits && <p className="text-xs mt-1">{s('wa_link')}: <a className="text-brand-700 underline" href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">wa.me/{digits}</a></p>}
       </div>
+      <div>
+        <label className="text-sm font-medium text-gray-700">{s('line')}</label>
+        <input value={f.line_id || ''} onChange={(e) => set('line_id', e.target.value)} className={inputCls} placeholder="@ohlalashop888" />
+        <p className="text-xs text-gray-500 mt-1">{s('line_hint')}</p>
+      </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <div><label className="text-sm font-medium text-gray-700">{s('hours')}</label><input value={f.cs_hours || ''} onChange={(e) => set('cs_hours', e.target.value)} className={inputCls} /></div>
         <div><label className="text-sm font-medium text-gray-700">{s('hours_note')}</label><input value={f.cs_hours_note || ''} onChange={(e) => set('cs_hours_note', e.target.value)} className={inputCls} /></div>
