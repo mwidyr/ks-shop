@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,54 +26,129 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// buildVariantSKU derives a variant's SKU as PRODUCT-CODE-COLOR-SIZE. The backend always computes
-// this itself (never trusts a client-submitted SKU for a variant) so it can never drift from the
-// one guarantee that actually matters: product.sku is unique per product (enforced by its own DB
-// constraint), so prefixing with it makes every variant SKU unique too, without depending on the
-// product's name/color/size never colliding with another unrelated product's - see the "variant
-// SKU already used by another product" incident this replaced.
-func buildVariantSKU(productCode, color, size string) string {
-	parts := []string{strings.ToUpper(strings.TrimSpace(productCode))}
-	if color != "" {
-		runes := []rune(strings.ToUpper(color))
-		if len(runes) > 3 {
-			runes = runes[:3]
+// buildVariantSKU derives a variant's SKU as PRODUCT CODE - COLOR - SIZE (e.g. C002-黑-F), the
+// format the 3PL warehouse picks and packs by (see 106_variant_sku_restructure.sql, which applied
+// the same rule to every existing variant). colorZh is the full Chinese color name from Color
+// Master (resolveColorZh). Spaces are removed from each part, empty parts are skipped. product.sku
+// is unique per product, so prefixing with it keeps variant SKUs apart across products.
+func buildVariantSKU(productCode, colorZh, size string) string {
+	var parts []string
+	for _, part := range []string{productCode, colorZh, size} {
+		if part = strings.ToUpper(strings.Join(strings.Fields(part), "")); part != "" {
+			parts = append(parts, part)
 		}
-		parts = append(parts, string(runes))
-	}
-	if size != "" {
-		parts = append(parts, strings.ToUpper(size))
 	}
 	return strings.Join(parts, "-")
 }
 
-// buildUniqueVariantSKU wraps buildVariantSKU with a collision check: product_variants.sku is
-// unique across the WHOLE table (not scoped per product), and two colors that share the same
-// first-3-rune uppercase prefix (e.g. "Red"/"red", or two legacy color strings) produce the exact
-// same base SKU for the same size - item 075's "duplicate SKU" bug. Rather than let that surface
-// as a raw unique-violation on save, append a numeric suffix (-2, -3, ...) until it's unique.
-// excludeVariantID lets an update check against every OTHER variant without colliding with itself.
-//
-// requestedSKU, when non-empty, is used as the base instead of auto-computing one (item 075
-// follow-up: staff asked for the SKU field back, editable, as a manual escape hatch for whatever
-// case the automatic PRODUCT-CODE-COLOR-SIZE derivation doesn't handle well) - the frontend
-// pre-fills it with the same live preview as before, so leaving it untouched behaves exactly
-// like full auto-generation; typing over it is a deliberate override. Either way, the collision
-// check below still applies, so a manual value can never hard-fail into a raw unique-violation.
-func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size, requestedSKU string) string {
-	base := strings.ToUpper(strings.TrimSpace(requestedSKU))
+// resolveColorZh maps a variant's stored color to its Color Master Chinese name: an exact Chinese
+// name, else a legacy Indonesian name (case-insensitive), else the text as stored.
+func resolveColorZh(ctx context.Context, db queryRower, color string) string {
+	color = strings.TrimSpace(color)
+	if color == "" {
+		return ""
+	}
+	var zh string
+	if err := db.QueryRow(ctx, `
+		SELECT name_zh FROM colors WHERE name_zh = $1 OR lower(name_id) = lower($1)
+		ORDER BY (name_zh = $1) DESC, id LIMIT 1`, color).Scan(&zh); err == nil {
+		return zh
+	}
+	return color
+}
+
+// errSKUSuffixesExhausted: the base SKU and all nine 1-digit suffixes are already taken.
+var errSKUSuffixesExhausted = errors.New("SKU already used and no free 1-digit suffix is left - change the product code, color or size")
+
+// skuSuffixOrder is the random order the 1-digit suffixes -1..-9 are tried in when a SKU collides.
+var skuSuffixOrder = func() []int { return rand.Perm(9) }
+
+// buildUniqueVariantSKU returns base (requestedSKU when a super_user typed one, else
+// buildVariantSKU) when no OTHER variant uses it; otherwise base plus a random 1-digit suffix
+// (-1..-9) that is still free. excludeVariantID lets an update check against every other variant.
+func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size, requestedSKU string) (string, error) {
+	base := strings.ToUpper(strings.Join(strings.Fields(requestedSKU), ""))
 	if base == "" {
-		base = buildVariantSKU(productCode, color, size)
+		base = buildVariantSKU(productCode, resolveColorZh(ctx, db, color), size)
 	}
-	sku := base
-	for suffix := 2; suffix < 100; suffix++ {
-		var count int
-		if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE sku=$1 AND id != $2`, sku, excludeVariantID).Scan(&count); err != nil || count == 0 {
-			return sku
+	taken := func(sku string) (bool, error) {
+		var n int
+		err := db.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE sku=$1 AND id != $2`, sku, excludeVariantID).Scan(&n)
+		return n > 0, err
+	}
+	used, err := taken(base)
+	if err != nil || !used {
+		return base, err
+	}
+	for _, i := range skuSuffixOrder() {
+		sku := fmt.Sprintf("%s-%d", base, i+1)
+		if used, err := taken(sku); err != nil || !used {
+			return sku, err
 		}
-		sku = fmt.Sprintf("%s-%d", base, suffix)
 	}
-	return sku
+	return "", errSKUSuffixesExhausted
+}
+
+// recordSKUChange keeps an old SKU findable after it changed (variant_sku_history).
+func recordSKUChange(ctx context.Context, tx pgx.Tx, variantID int, oldSKU, newSKU, reason string, userID *int) error {
+	if oldSKU == newSKU || oldSKU == "" {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO variant_sku_history (variant_id, old_sku, new_sku, reason, changed_by) VALUES ($1,$2,$3,$4,$5)`,
+		variantID, oldSKU, newSKU, reason, userID)
+	return err
+}
+
+// requestedVariantSKU is the SKU a caller asked for: only a super_user may set one by hand
+// (skuManual); everyone else always gets the automatic SKU.
+func requestedVariantSKU(r *http.Request, sku string, skuManual bool) (string, bool) {
+	if skuManual && isAdmin(r) && strings.TrimSpace(sku) != "" {
+		return sku, true
+	}
+	return "", false
+}
+
+// regenerateProductVariantSKUsTx recomputes the automatic SKU of every non-manual variant of a
+// product (after its Product Code changed), keeping the old ones in the history.
+func regenerateProductVariantSKUsTx(ctx context.Context, tx pgx.Tx, productID int, userID *int) error {
+	var code *string
+	if err := tx.QueryRow(ctx, `SELECT sku FROM products WHERE id=$1`, productID).Scan(&code); err != nil || code == nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, `SELECT id, sku, color, size FROM product_variants WHERE product_id=$1 AND NOT sku_manual ORDER BY id`, productID)
+	if err != nil {
+		return err
+	}
+	type vrow struct {
+		id               int
+		sku, color, size string
+	}
+	var vs []vrow
+	for rows.Next() {
+		var v vrow
+		if err := rows.Scan(&v.id, &v.sku, &v.color, &v.size); err != nil {
+			rows.Close()
+			return err
+		}
+		vs = append(vs, v)
+	}
+	rows.Close()
+	for _, v := range vs {
+		sku, err := buildUniqueVariantSKU(ctx, tx, v.id, *code, v.color, v.size, "")
+		if err != nil {
+			return err
+		}
+		if sku == v.sku {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE product_variants SET sku=$1 WHERE id=$2`, sku, v.id); err != nil {
+			return err
+		}
+		if err := recordSKUChange(ctx, tx, v.id, v.sku, sku, "product_code_change", userID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type ProductHandler struct {
@@ -82,6 +158,7 @@ type ProductHandler struct {
 type Variant struct {
 	ID             int     `json:"id"`
 	SKU            string  `json:"sku"`
+	SKUManual      bool    `json:"sku_manual"` // typed by a super_user, not recomputed automatically
 	Color          string  `json:"color"`
 	Size           string  `json:"size"`
 	Price          float64 `json:"price"`
@@ -152,7 +229,7 @@ func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, er
 	ctx := r.Context()
 	rows, err := h.DB.Query(ctx, `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, names, description, category, COALESCE(brand,''),
-		       supplier_id, base_price, cost, is_active, allow_oversell,
+		       supplier_id, base_price, cost_rmb, is_active, allow_oversell,
 		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
 		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
 		       created_at
@@ -203,7 +280,7 @@ func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, er
 	}
 
 	vrows, err := h.DB.Query(ctx, `
-		SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
+		SELECT pv.id, pv.product_id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv
@@ -221,7 +298,7 @@ func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, er
 	for vrows.Next() {
 		var v Variant
 		var productID int
-		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
+		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders); err != nil {
 			continue
 		}
@@ -316,7 +393,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var namesRaw []byte
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT id, COALESCE(sku,''), COALESCE(vendor_sku,''), name, names, description, category, COALESCE(brand,''),
-		       supplier_id, base_price, cost, is_active, allow_oversell,
+		       supplier_id, base_price, cost_rmb, is_active, allow_oversell,
 		       COALESCE(measurement_bust,''), COALESCE(measurement_waist,''), COALESCE(measurement_length,''),
 		       COALESCE(measurement_bottom_length,''), COALESCE(measurement_elasticity,''), COALESCE(measurement_note,''),
 		       created_at
@@ -347,7 +424,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vrows, err := h.DB.Query(r.Context(), `
-		SELECT pv.id, pv.sku, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
+		SELECT pv.id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
@@ -362,7 +439,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	p.Variants = []Variant{}
 	for vrows.Next() {
 		var v Variant
-		vrows.Scan(&v.ID, &v.SKU, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
+		vrows.Scan(&v.ID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders)
 		v.TotalStock = v.AvailableStock + v.IncomingStock - v.ReservedForOrders
 		p.Variants = append(p.Variants, v)
@@ -386,6 +463,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 type variantInput struct {
 	SKU            string  `json:"sku"`
+	SKUManual      bool    `json:"sku_manual"` // honored for super_user only (requestedVariantSKU)
 	Color          string  `json:"color"`
 	Size           string  `json:"size"`
 	Price          float64 `json:"price"`
@@ -461,7 +539,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	err = tx.QueryRow(ctx, `
-		INSERT INTO products (sku, vendor_sku, name, names, names_search, description, category, brand, supplier_id, base_price, cost, is_active, allow_oversell,
+		INSERT INTO products (sku, vendor_sku, name, names, names_search, description, category, brand, supplier_id, base_price, cost_rmb, is_active, allow_oversell,
 		                       measurement_bust, measurement_waist, measurement_length, measurement_bottom_length, measurement_elasticity, measurement_note)
 		VALUES (NULLIF($1,''),NULLIF($2,''),$3,$18,$19,$4,$5,$6,$7,$8,$9,$10,$11,NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),NULLIF($15,''),NULLIF($16,''),NULLIF($17,'')) RETURNING id`,
 		req.SKU, req.VendorSKU, req.Name, req.Description, req.Category, req.Brand, req.SupplierID, req.BasePrice, cost, isActive, req.AllowOversell,
@@ -481,7 +559,12 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, v := range req.Variants {
-		v.SKU = buildUniqueVariantSKU(ctx, tx, 0, req.SKU, v.Color, v.Size, v.SKU)
+		requested, manual := requestedVariantSKU(r, v.SKU, v.SKUManual)
+		if v.SKU, err = buildUniqueVariantSKU(ctx, tx, 0, req.SKU, v.Color, v.Size, requested); err != nil {
+			respondError(w, http.StatusConflict, err.Error())
+			return
+		}
+		v.SKUManual = manual
 		if err := insertVariant(ctx, tx, id, v); err != nil {
 			if isUniqueViolation(err) {
 				respondError(w, http.StatusConflict, "variant SKU \""+v.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
@@ -552,9 +635,10 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Category  string
 		BasePrice float64
 		IsActive  bool
+		Code      string
 	}
-	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active FROM products WHERE id=$1`, id).
-		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive)
+	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active, COALESCE(sku,'') FROM products WHERE id=$1`, id).
+		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive, &before.Code)
 
 	if strings.TrimSpace(req.SKU) == "" {
 		// Every variant's SKU is derived as PRODUCT-CODE-COLOR-SIZE (see buildVariantSKU) - clearing
@@ -593,10 +677,36 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A new Product Code flows into every automatic variant SKU (PRODUCT CODE - COLOR - SIZE).
+	if strings.TrimSpace(req.SKU) != "" && !strings.EqualFold(strings.TrimSpace(req.SKU), before.Code) {
+		var actor *int
+		if c := getClaimsSafe(r); c != nil {
+			actor = &c.UserID
+		}
+		tx, err := h.DB.Begin(ctx)
+		if err == nil {
+			defer tx.Rollback(ctx)
+			err = regenerateProductVariantSKUsTx(ctx, tx, id, actor)
+			if err == nil {
+				err = tx.Commit(ctx)
+			}
+		}
+		if err != nil {
+			respondError(w, http.StatusConflict, "product saved, but its variant SKUs could not be regenerated: "+err.Error())
+			return
+		}
+	}
+
 	// Cost is updated separately, and only for super_user - a non-admin's request body never
 	// includes it, but even a crafted one is ignored rather than allowed to change the stored value.
-	if isAdmin(r) && req.Cost != nil {
-		h.DB.Exec(ctx, `UPDATE products SET cost=$1 WHERE id=$2`, *req.Cost, id)
+	// Product Cost is the RMB default cost (#133); a manual change is kept in the cost history too.
+	if isAdmin(r) && req.Cost != nil && *req.Cost >= 0 {
+		claims := appmw.GetClaims(r)
+		h.DB.Exec(ctx, `
+			WITH old AS (SELECT cost_rmb FROM products WHERE id=$2),
+			     upd AS (UPDATE products SET cost_rmb=$1 WHERE id=$2 AND cost_rmb <> $1 RETURNING id)
+			INSERT INTO product_cost_history (product_id, old_cost, new_cost, source, changed_by)
+			SELECT upd.id, old.cost_rmb, $1, 'manual', $3 FROM upd, old`, *req.Cost, id, claims.UserID)
 	}
 
 	var changes []string
@@ -751,7 +861,12 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before adding variants")
 		return
 	}
-	v.SKU = buildUniqueVariantSKU(ctx, tx, 0, *productCode, v.Color, v.Size, v.SKU)
+	requested, manual := requestedVariantSKU(r, v.SKU, v.SKUManual)
+	if v.SKU, err = buildUniqueVariantSKU(ctx, tx, 0, *productCode, v.Color, v.Size, requested); err != nil {
+		respondError(w, http.StatusConflict, err.Error())
+		return
+	}
+	v.SKUManual = manual
 
 	variantID, err := insertVariantReturningID(ctx, tx, productID, v)
 	if err != nil {
@@ -771,6 +886,7 @@ func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
 
 type updateVariantRequest struct {
 	SKU            string  `json:"sku"`
+	SKUManual      bool    `json:"sku_manual"` // honored for super_user only (requestedVariantSKU)
 	Color          string  `json:"color"`
 	Size           string  `json:"size"`
 	Price          float64 `json:"price"`
@@ -828,14 +944,36 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "this product has no Product Code yet - set one before editing variants")
 		return
 	}
-	req.SKU = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size, req.SKU)
-
 	var beforePrice float64
-	tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice)
+	var beforeSKU string
+	var wasManual bool
+	tx.QueryRow(ctx, `SELECT price, sku, sku_manual FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice, &beforeSKU, &wasManual)
+	requested, manual := requestedVariantSKU(r, req.SKU, req.SKUManual)
+	if wasManual && !isAdmin(r) {
+		// a super_user's hand-typed SKU stays as it is when someone else edits the variant
+		requested, manual = beforeSKU, true
+	}
+	if req.SKU, err = buildUniqueVariantSKU(ctx, tx, variantID, *productCode, req.Color, req.Size, requested); err != nil {
+		respondError(w, http.StatusConflict, err.Error())
+		return
+	}
+	claims := getClaimsSafe(r)
+	var actor *int
+	if claims != nil {
+		actor = &claims.UserID
+	}
+	reason := "variant_edit"
+	if manual {
+		reason = "manual"
+	}
+	if err := recordSKUChange(ctx, tx, variantID, beforeSKU, req.SKU, reason, actor); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to record the SKU change")
+		return
+	}
 
 	if _, err := tx.Exec(ctx, `
-		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7, is_active=$8 WHERE id=$9`,
-		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, req.IsActive, variantID); err != nil {
+		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7, is_active=$8, sku_manual=$10 WHERE id=$9`,
+		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, req.IsActive, variantID, manual); err != nil {
 		if isUniqueViolation(err) {
 			respondError(w, http.StatusConflict, "variant SKU \""+req.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
 			return
@@ -850,7 +988,6 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := getClaimsSafe(r)
 	logAdjustment(ctx, tx, variantID, "available_stock", before.Available, req.AvailableStock, claims)
 	logAdjustment(ctx, tx, variantID, "broken_stock", before.Broken, req.BrokenStock, claims)
 	logAdjustment(ctx, tx, variantID, "reserve_stock", before.Reserve, req.ReserveStock, claims)
@@ -883,9 +1020,9 @@ func insertVariantReturningID(ctx context.Context, tx pgx.Tx, productID int, v v
 	}
 	var variantID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price, allow_oversell, is_active)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice, v.AllowOversell, isActive).Scan(&variantID); err != nil {
+		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price, allow_oversell, is_active, sku_manual)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice, v.AllowOversell, isActive, v.SKUManual).Scan(&variantID); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `

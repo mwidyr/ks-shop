@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
 import { tabLevel } from './AccessContext'
-import { matrixGroups, tabForPath, navGroups, TOP_ITEMS, VISIBLE_TAB_KEYS, groupItems } from '../components/navConfig'
+import { matrixGroups, tabForPath, navGroups, TOP_ITEMS, VISIBLE_TAB_KEYS, SUPER_ONLY_TABS, groupItems } from '../components/navConfig'
 
 describe('tabLevel', () => {
   const view = { loaded: true, isSuperUser: false, access: { orders: 'view', products: 'edit' } }
@@ -33,7 +33,7 @@ describe('permission matrix list', () => {
   const tabs = matrixGroups().flatMap((g) => g.tabs)
   it('has exactly the tabs the sidebar shows', () => {
     const sidebar = [...TOP_ITEMS, ...navGroups.flatMap(groupItems)].map((i) => i.key).filter((k) => VISIBLE_TAB_KEYS.has(k))
-    const expected = sidebar.filter((k) => k !== 'telegram_settings' && k !== 'website_requests')
+    const expected = sidebar.filter((k) => !SUPER_ONLY_TABS.has(k) && k !== 'website_requests')
     expect([...tabs].sort()).toEqual([...expected].sort())
   })
   it('no longer lists features that were removed from the sidebar', () => {

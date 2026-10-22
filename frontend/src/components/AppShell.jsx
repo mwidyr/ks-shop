@@ -8,7 +8,7 @@ import { getStoreSettings } from '../api/storeSettings'
 import PreferencesModal from './PreferencesModal'
 import { IconBell, IconChevronDown, IconLogout, IconSliders } from './icons'
 
-import { navGroups, TOP_ITEMS, VISIBLE_TAB_KEYS, groupItems } from './navConfig'
+import { navGroups, TOP_ITEMS, VISIBLE_TAB_KEYS, SUPER_ONLY_TABS, groupItems } from './navConfig'
 
 // Title lookup: built from the nav itself, plus overrides for routes that aren't
 // literal nav destinations (detail/create/edit/print pages).
@@ -102,7 +102,7 @@ export default function AppShell({ children, lock }) {
   // missing entry means "none". Still loading (access === null) shows everything to avoid a
   // flash of a mostly-empty sidebar before the real access map arrives.
   function canSeeTab(tabKey) {
-    if (tabKey === 'telegram_settings') return access !== null && isSuperUser // Super Admin only
+    if (SUPER_ONLY_TABS.has(tabKey)) return access !== null && isSuperUser // Super Admin only
     if (tabKey === 'website_requests') tabKey = 'orders' // restock / return requests follow Orders access
     if (isSuperUser || access === null) return true
     return !!access[tabKey]

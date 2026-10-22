@@ -149,7 +149,11 @@ export default function PurchaseDetail() {
 
   const open = isOpen(purchase.status)
   const waiting = purchase.status === 'ordered' || purchase.status === 'pending_arrival'
-  const total = purchase.items.reduce((s, it) => s + it.qty * it.unit_cost, 0)
+  const itemsTotal = purchase.items.reduce((s, it) => s + it.qty * it.unit_cost, 0)
+  // #134: discount / shipping / extra make the PO total match the supplier invoice (RMB).
+  const adjFields = ['discount_amount', 'shipping_amount', 'extra_amount']
+  const adjOf = (src) => (Number(src.shipping_amount) || 0) + (Number(src.extra_amount) || 0) - (Number(src.discount_amount) || 0)
+  const total = itemsTotal + adjOf(editing && form ? form : purchase)
   const totalQty = purchase.items.reduce((s, it) => s + it.qty, 0)
   const receivedQty = purchase.items.reduce((s, it) => s + (it.received_qty || 0), 0)
 
@@ -158,6 +162,10 @@ export default function PurchaseDetail() {
       expected_arrival_date: purchase.expected_arrival_date || '',
       notes: purchase.notes || '',
       items: purchase.items.map((it) => ({ id: it.id, qty: it.qty, unit_cost: it.unit_cost })),
+      exchange_rate: purchase.exchange_rate ?? '',
+      discount_amount: purchase.discount_amount || 0,
+      shipping_amount: purchase.shipping_amount || 0,
+      extra_amount: purchase.extra_amount || 0,
     })
     setEditing(true)
   }
@@ -168,7 +176,16 @@ export default function PurchaseDetail() {
     try { await fn() } catch (err) { setError(err.response?.data?.error || t('page_purchases.delete_failed')) } finally { setBusy(false) }
   }
 
-  const saveEdit = () => run(async () => { await updatePurchase(purchase.id, form); setEditing(false); await reload() })
+  const saveEdit = () => run(async () => {
+    const { exchange_rate: rate, ...rest } = form
+    await updatePurchase(purchase.id, {
+      ...rest,
+      ...Object.fromEntries(adjFields.map((f) => [f, Number(form[f]) || 0])),
+      ...(rate !== '' && rate != null ? { exchange_rate: Number(rate) } : {}),
+    })
+    setEditing(false)
+    await reload()
+  })
   const changeStatus = (status) => run(async () => { await updatePurchaseStatus(purchase.id, status); await reload() })
   const remove = () => run(async () => { await deletePurchase(purchase.id); navigate('/purchases') })
 
@@ -224,6 +241,24 @@ export default function PurchaseDetail() {
         </div>
         <PRNotes notes={purchase.pr_notes} />
 
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 text-sm">
+          <div><p className="text-[11px] text-gray-400 uppercase">{t('page_purchases.label_items_total')}</p><p className="text-gray-700">{formatCNY(itemsTotal)}</p></div>
+          {adjFields.map((f) => (
+            <div key={f}>
+              <p className="text-[11px] text-gray-400 uppercase">{t(`page_purchases.label_${f}`)}</p>
+              {editing
+                ? <input type="number" min="0" step="0.01" value={form[f]} onChange={(e) => setForm((s) => ({ ...s, [f]: e.target.value }))} className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                : <p className="text-gray-700">{formatCNY(purchase[f] || 0)}</p>}
+            </div>
+          ))}
+          <div title={t('page_purchases.exchange_rate_hint')}>
+            <p className="text-[11px] text-gray-400 uppercase">{t('page_purchases.label_exchange_rate')}</p>
+            {editing
+              ? <input type="number" min="0" step="0.0001" value={form.exchange_rate} onChange={(e) => setForm((s) => ({ ...s, exchange_rate: e.target.value }))} className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+              : <p className={purchase.exchange_rate ? 'text-gray-700' : 'text-amber-600'}>{purchase.exchange_rate || t('page_purchases.exchange_rate_missing')}</p>}
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-3 pt-3 mt-3 border-t border-gray-100">
           <div><p className="text-lg font-bold text-gray-800">{purchase.items.length}</p><p className="text-xs text-gray-400">{t('page_purchases.items_title')}</p></div>
           <div><p className="text-lg font-bold text-gray-800">{receivedQty} / {totalQty}</p><p className="text-xs text-gray-400">{t('page_purchases.received_vs_ordered')}</p></div>
@@ -249,6 +284,7 @@ export default function PurchaseDetail() {
                 <th className="p-2">{t('page_purchases.col_color_size')}</th>
                 <th className="p-2">{t('page_purchases.col_order_qty')}</th>
                 <th className="p-2">{t('page_purchases.col_unit_cost')}</th>
+                <th className="p-2" title={t('page_purchases.col_landed_cost_hint')}>{t('page_purchases.col_landed_cost')}</th>
                 <th className="p-2 pr-4">{t('page_purchases.col_amount')}</th>
               </tr>
             </thead>
@@ -259,7 +295,10 @@ export default function PurchaseDetail() {
               return (
                 <tbody key={it.id} className={`${tbodyClasses} border-t border-[var(--table-divider)]`}>
                   <tr>
-                    <td className="p-2 pl-4 font-mono text-xs text-brand-600">{it.product_sku || it.sku}</td>
+                    <td className="p-2 pl-4 font-mono text-xs text-brand-600">
+                      {it.product_sku || it.sku}
+                      {it.supplier_product_code && <p className="text-[11px] text-gray-400">{it.supplier_product_code}</p>}
+                    </td>
                     <td className="p-2 text-[var(--text-primary)]">{it.product_name}</td>
                     <td className="p-2 text-[var(--text-secondary)]">{translateColor(it.color)}/{it.size}</td>
                     <td className="p-2">
@@ -282,10 +321,11 @@ export default function PurchaseDetail() {
                           className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
                       ) : <span className="text-[var(--text-secondary)]">{formatCNY(it.unit_cost)}</span>}
                     </td>
+                    <td className="p-2 text-[var(--text-secondary)]">{formatCNY(it.landed_unit_cost ?? it.unit_cost)}</td>
                     <td className="p-2 pr-4 font-semibold text-[var(--text-primary)]">{formatCNY(qty * cost)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={6} className="p-0">
+                    <td colSpan={7} className="p-0">
                       <ItemBatches item={it} canEdit={open && !editing} onChanged={reload} onError={setError} />
                     </td>
                   </tr>

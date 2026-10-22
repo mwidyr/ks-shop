@@ -96,6 +96,7 @@ func main() {
 	supplierH := &handlers.SupplierHandler{DB: pool}
 	purchaseH := &handlers.PurchaseHandler{DB: pool}
 	purchaseRequisitionH := &handlers.PurchaseRequisitionHandler{DB: pool}
+	openingInventoryH := &handlers.OpeningInventoryHandler{DB: pool}
 	replenishmentH := &handlers.ReplenishmentHandler{DB: pool}
 	hostH := &handlers.HostHandler{DB: pool}
 	hostLocationH := &handlers.HostLocationHandler{DB: pool}
@@ -311,6 +312,10 @@ func main() {
 			r.With(edit("products")).Delete("/products/{id}", productH.Delete)
 			r.With(view("products")).Get("/products/{id}/purchase-rules", productH.GetPurchaseRules)
 			r.With(edit("products")).Patch("/products/{id}/purchase-rules", productH.UpdatePurchaseRules)
+			r.With(appmw.RequireRole("super_user")).Get("/products/sku-report", productH.SKUReport)
+			r.With(view("products")).Get("/products/{id}/variant-suppliers", productH.ListVariantSuppliers)
+			r.With(edit("products")).Put("/products/{id}/variant-suppliers", productH.SaveVariantSuppliers)
+			r.With(view("products")).Get("/products/{id}/cost-history", productH.CostHistory)
 			r.With(edit("products")).Post("/products/{id}/images", imageH.AddImage)
 			r.With(edit("products")).Delete("/products/{id}/images/{imageId}", imageH.DeleteImage)
 			r.With(edit("products")).Post("/uploads/image", uploadH.UploadImage)
@@ -452,6 +457,7 @@ func main() {
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/items", purchaseRequisitionH.AddItem)
 			r.With(edit("purchase_requisitions")).Delete("/purchase-requisitions/items/{itemId}", purchaseRequisitionH.RemoveItem)
 			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/items/{itemId}/planned-qty", purchaseRequisitionH.UpdateItemQty)
+			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/items/{itemId}/supplier", purchaseRequisitionH.ChangeItemSupplier)
 			r.With(edit("purchase_requisitions")).Patch("/purchase-requisitions/supplier-groups/{supplierGroupId}", purchaseRequisitionH.UpdateSupplierGroup)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/submit-for-confirmation", purchaseRequisitionH.SubmitForConfirmation)
 			r.With(edit("purchase_requisitions")).Post("/purchase-requisitions/{id}/confirm-order", purchaseRequisitionH.ConfirmOrder)
@@ -507,6 +513,16 @@ func main() {
 			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/custom", perfComparisonH.Custom)
 			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
 			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
+
+			// FIFO go-live, Initial Inventory Setup (#132): Super Admin only.
+			r.Route("/opening-inventory", func(r chi.Router) {
+				r.Use(appmw.RequireRole("super_user"))
+				r.Get("/imports", openingInventoryH.List)
+				r.Get("/imports/{id}", openingInventoryH.Detail)
+				r.Post("/imports", openingInventoryH.Create)
+				r.Post("/imports/{id}/approve", openingInventoryH.Approve)
+				r.Post("/imports/{id}/reject", openingInventoryH.Reject)
+			})
 
 			// Telegram Settings: Super Admin only (no tab permission, nobody else can be granted it).
 			r.Route("/telegram", func(r chi.Router) {

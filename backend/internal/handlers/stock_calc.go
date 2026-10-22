@@ -159,6 +159,10 @@ func (h *OrderHandler) ReturnReceived(w http.ResponseWriter, r *http.Request) {
 			}
 			if ct.RowsAffected() == 1 {
 				tx.Exec(ctx, `UPDATE stock_buckets SET available_stock = available_stock + $1 WHERE variant_id=$2`, l.Resellable, l.VariantID)
+				if err := reverseReturnCostTx(ctx, tx, id, l.VariantID, l.Resellable, true); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to reverse the returned cost")
+					return
+				}
 			}
 		}
 		if l.Broken > 0 {
@@ -174,6 +178,10 @@ func (h *OrderHandler) ReturnReceived(w http.ResponseWriter, r *http.Request) {
 			}
 			if ct.RowsAffected() == 1 {
 				tx.Exec(ctx, `UPDATE stock_buckets SET broken_stock = broken_stock + $1 WHERE variant_id=$2`, l.Broken, l.VariantID)
+				if err := reverseReturnCostTx(ctx, tx, id, l.VariantID, l.Broken, false); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to reverse the returned cost")
+					return
+				}
 			}
 		}
 	}

@@ -24,20 +24,8 @@ export default function Profit() {
         <p className="text-gray-500 py-10 text-center">{t('page_profit.loading')}</p>
       ) : (
         <div className="grid sm:grid-cols-3 gap-6">
-            {data.margin_pct != null && (
-              <div className="bg-white rounded-2xl shadow-sm p-6 text-center">
-                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">{t('page_profit.profit_margin')}</p>
-                <p className="text-4xl font-extrabold text-brand-600">{data.margin_pct.toFixed(1)}%</p>
-                <p className="text-xs text-gray-400 mt-1">{t('page_profit.of_gross_sales')}</p>
-              </div>
-            )}
-            {data.gross_profit != null && (
-              <div className="bg-white rounded-2xl shadow-sm p-6">
-                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">{t('page_profit.gross_profit')}</p>
-                <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.gross_profit)}</p>
-                <p className="text-xs text-gray-400 mt-1">{t('page_profit.gross_profit_formula')}</p>
-              </div>
-            )}
+            {/* #135: gross profit and margin are no longer shown - purchasing costs are in RMB with no
+                TWD conversion, so they can't be compared with TWD sales. Sales figures stay. */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <p className="text-xs text-gray-400 uppercase font-semibold mb-2">{t('page_profit.net_sales')}</p>
               <p className="text-2xl font-extrabold text-gray-800">{formatCurrency(data.net_sales)}</p>

@@ -150,7 +150,8 @@ func (h *PurchaseHandler) List(w http.ResponseWriter, r *http.Request) {
 		       COALESCE((SELECT COUNT(*) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
 		       COALESCE((SELECT SUM(pi.qty) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
 		       COALESCE((SELECT SUM(COALESCE(pi.received_qty,0)) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
-		       COALESCE((SELECT SUM(pi.qty * pi.unit_cost) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0),
+		       COALESCE((SELECT SUM(pi.qty * pi.unit_cost) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0)
+		         + p.shipping_amount + p.extra_amount - p.discount_amount,
 		       p.created_at::text
 		FROM purchases p
 		JOIN suppliers s ON s.id = p.supplier_id`+where+`
@@ -239,7 +240,10 @@ type purchaseItemView struct {
 	ProductSKU  string  `json:"product_sku"` // the internal Product Code (e.g. C011), not the variant SKU
 	Qty         int     `json:"qty"`
 	UnitCost    float64 `json:"unit_cost"`
-	ReceivedQty *int    `json:"received_qty"`
+	// LandedUnitCost is UnitCost with the PO's discount/shipping/extra spread pro rata (RMB).
+	LandedUnitCost      float64 `json:"landed_unit_cost"`
+	SupplierProductCode string  `json:"supplier_product_code"`
+	ReceivedQty         *int    `json:"received_qty"`
 	// Remaining is what is still outstanding in Incoming for this line (qty - received).
 	Remaining int                 `json:"remaining"`
 	Batches   []purchaseBatchView `json:"batches"`
@@ -269,6 +273,13 @@ type purchaseDetailView struct {
 	ExpectedArrivalDate *string              `json:"expected_arrival_date"`
 	Status              string               `json:"status"`
 	Notes               string               `json:"notes"`
+	Currency            string               `json:"currency"`
+	ExchangeRate        *float64             `json:"exchange_rate"`
+	DiscountAmount      float64              `json:"discount_amount"`
+	ShippingAmount      float64              `json:"shipping_amount"`
+	ExtraAmount         float64              `json:"extra_amount"`
+	ItemsTotal          float64              `json:"items_total"`
+	TotalCost           float64              `json:"total_cost"`
 	PRNotes             []purchasePRNote     `json:"pr_notes"`
 	Items               []purchaseItemView   `json:"items"`
 	ChangeLog           []purchaseChangeView `json:"change_log"`
@@ -288,10 +299,11 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var receivedAt *string
 	if err := h.DB.QueryRow(ctx, `
 		SELECT p.id, p.po_number, p.supplier_id, s.name, p.order_date::text, p.expected_arrival_date::text, p.status,
-		       COALESCE(p.notes,''), p.created_at::text, p.received_at::text
+		       COALESCE(p.notes,''), p.created_at::text, p.received_at::text,
+		       p.currency, p.exchange_rate, p.discount_amount, p.shipping_amount, p.extra_amount
 		FROM purchases p JOIN suppliers s ON s.id = p.supplier_id WHERE p.id=$1`, id).
 		Scan(&p.ID, &p.PONumber, &p.SupplierID, &p.SupplierName, &p.OrderDate, &p.ExpectedArrivalDate, &p.Status,
-			&p.Notes, &p.CreatedAt, &receivedAt); err != nil {
+			&p.Notes, &p.CreatedAt, &receivedAt, &p.Currency, &p.ExchangeRate, &p.DiscountAmount, &p.ShippingAmount, &p.ExtraAmount); err != nil {
 		respondError(w, http.StatusNotFound, "purchase not found")
 		return
 	}
@@ -306,7 +318,8 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(ctx, `
-		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, COALESCE(pr.sku,''), pi.qty, pi.unit_cost, pi.received_qty
+		SELECT pi.id, pi.variant_id, `+productNameSQL(r, "pr")+`, pv.color, pv.size, pv.sku, COALESCE(pr.sku,''), pi.qty, pi.unit_cost, pi.received_qty,
+		       COALESCE(pi.supplier_product_code,'')
 		FROM purchase_items pi
 		JOIN product_variants pv ON pv.id = pi.variant_id
 		JOIN products pr ON pr.id = pv.product_id
@@ -316,7 +329,8 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 		for rows.Next() {
 			var it purchaseItemView
-			if err := rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.UnitCost, &it.ReceivedQty); err != nil {
+			if err := rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.UnitCost, &it.ReceivedQty,
+				&it.SupplierProductCode); err != nil {
 				continue
 			}
 			it.Batches = []purchaseBatchView{}
@@ -357,6 +371,16 @@ func (h *PurchaseHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			p.Items[i].PlanMismatch = p.Items[i].PlanTotal != p.Items[i].Qty
 		}
 	}
+	totalQty := 0
+	for _, it := range p.Items {
+		p.ItemsTotal += float64(it.Qty) * it.UnitCost
+		totalQty += it.Qty
+	}
+	adjustment := p.ShippingAmount + p.ExtraAmount - p.DiscountAmount
+	for i := range p.Items {
+		p.Items[i].LandedUnitCost = round2(landedUnitCost(p.Items[i].UnitCost, p.ItemsTotal, totalQty, adjustment))
+	}
+	p.TotalCost = p.ItemsTotal + adjustment
 
 	p.ChangeLog = []purchaseChangeView{}
 	if clRows, err := h.DB.Query(ctx, `
@@ -378,6 +402,21 @@ type createPurchaseItem struct {
 	VariantID int     `json:"variant_id"`
 	Qty       int     `json:"qty"`
 	UnitCost  float64 `json:"unit_cost"`
+	// SupplierProductCode defaults to the supplier's code linked to the variant (variant_suppliers).
+	SupplierProductCode *string `json:"supplier_product_code"`
+}
+
+// purchaseAdjustments are the PO-level RMB figures (#134): the exchange rate used only to value
+// FIFO layers on receipt, and the whole-order discount / shipping / extra charges.
+type purchaseAdjustments struct {
+	ExchangeRate   *float64 `json:"exchange_rate"`
+	DiscountAmount float64  `json:"discount_amount"`
+	ShippingAmount float64  `json:"shipping_amount"`
+	ExtraAmount    float64  `json:"extra_amount"`
+}
+
+func (a purchaseAdjustments) valid() bool {
+	return (a.ExchangeRate == nil || *a.ExchangeRate > 0) && a.DiscountAmount >= 0 && a.ShippingAmount >= 0 && a.ExtraAmount >= 0
 }
 
 type createPurchaseRequest struct {
@@ -386,6 +425,33 @@ type createPurchaseRequest struct {
 	ExpectedArrivalDate string               `json:"expected_arrival_date"`
 	Notes               string               `json:"notes"`
 	Items               []createPurchaseItem `json:"items"`
+	purchaseAdjustments
+}
+
+// syncProductCostTx (#133): a finalized (ordered) PO's agreed RMB unit price becomes the product's
+// default cost in Product Management when it differs, with the change kept in product_cost_history.
+// Historical POs are never touched. A zero price is ignored.
+func syncProductCostTx(ctx context.Context, tx pgx.Tx, variantID int, unitCost float64, purchaseID, userID int) error {
+	if unitCost <= 0 {
+		return nil
+	}
+	var productID int
+	var old float64
+	if err := tx.QueryRow(ctx, `
+		SELECT p.id, p.cost_rmb FROM products p JOIN product_variants pv ON pv.product_id = p.id
+		WHERE pv.id=$1 FOR UPDATE OF p`, variantID).Scan(&productID, &old); err != nil {
+		return err
+	}
+	if round2(old) == round2(unitCost) {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `UPDATE products SET cost_rmb=$1 WHERE id=$2`, unitCost, productID); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO product_cost_history (product_id, old_cost, new_cost, source, purchase_id, changed_by)
+		VALUES ($1,$2,$3,'purchase_order',$4,$5)`, productID, old, unitCost, purchaseID, userID)
+	return err
 }
 
 // createPurchaseTx inserts one purchases row + its purchase_items + reserves incoming_stock per
@@ -393,7 +459,7 @@ type createPurchaseRequest struct {
 // create) and the Purchase Requisition Submit flow (one call per confirmed supplier group) -
 // the only two places a real Purchase Order is ever created, so both funnel through here to
 // keep the "PO number assignment + incoming_stock reservation" logic in exactly one place.
-func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate string, expectedArrivalDate string, notes string, createdBy int, items []createPurchaseItem) (int, error) {
+func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate string, expectedArrivalDate string, notes string, createdBy int, items []createPurchaseItem, adj purchaseAdjustments) (int, error) {
 	var expectedArrival interface{}
 	if expectedArrivalDate != "" {
 		expectedArrival = expectedArrivalDate
@@ -405,9 +471,11 @@ func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate 
 	// overwrite it with the real PO-#### value right below.
 	var purchaseID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO purchases (po_number, supplier_id, order_date, expected_arrival_date, notes, created_by)
-		VALUES ('P' || substr(md5(clock_timestamp()::text || random()::text), 1, 20), $1,$2,$3,$4,$5) RETURNING id`,
-		supplierID, orderDate, expectedArrival, notes, createdBy).Scan(&purchaseID); err != nil {
+		INSERT INTO purchases (po_number, supplier_id, order_date, expected_arrival_date, notes, created_by,
+		                       exchange_rate, discount_amount, shipping_amount, extra_amount)
+		VALUES ('P' || substr(md5(clock_timestamp()::text || random()::text), 1, 20), $1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		supplierID, orderDate, expectedArrival, notes, createdBy,
+		adj.ExchangeRate, adj.DiscountAmount, adj.ShippingAmount, adj.ExtraAmount).Scan(&purchaseID); err != nil {
 		return 0, fmt.Errorf("failed to create purchase: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE purchases SET po_number = 'PO-' || LPAD($1::text, 5, '0') WHERE id=$1`, purchaseID); err != nil {
@@ -416,9 +484,14 @@ func createPurchaseTx(ctx context.Context, tx pgx.Tx, supplierID int, orderDate 
 	for _, it := range items {
 		var itemID int
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost) VALUES ($1,$2,$3,$4) RETURNING id`,
-			purchaseID, it.VariantID, it.Qty, it.UnitCost).Scan(&itemID); err != nil {
+			INSERT INTO purchase_items (purchase_id, variant_id, qty, unit_cost, supplier_product_code)
+			VALUES ($1,$2,$3,$4, COALESCE($5, (SELECT supplier_product_code FROM variant_suppliers WHERE variant_id=$2 AND supplier_id=$6)))
+			RETURNING id`,
+			purchaseID, it.VariantID, it.Qty, it.UnitCost, it.SupplierProductCode, supplierID).Scan(&itemID); err != nil {
 			return 0, fmt.Errorf("failed to add purchase item: %w", err)
+		}
+		if err := syncProductCostTx(ctx, tx, it.VariantID, it.UnitCost, purchaseID, createdBy); err != nil {
+			return 0, fmt.Errorf("failed to update the product cost: %w", err)
 		}
 		// Every item starts with one delivery batch for the full qty; "Split Delivery" adds more.
 		if _, err := tx.Exec(ctx, `INSERT INTO purchase_item_batches (purchase_item_id, batch_no, planned_qty) VALUES ($1, 1, $2)`, itemID, it.Qty); err != nil {
@@ -440,6 +513,10 @@ func (h *PurchaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "supplier_id, order_date and at least one item are required")
 		return
 	}
+	if !req.purchaseAdjustments.valid() {
+		respondError(w, http.StatusBadRequest, "exchange rate must be positive and adjustments must not be negative")
+		return
+	}
 	for _, it := range req.Items {
 		if it.VariantID == 0 || it.Qty <= 0 || it.UnitCost < 0 {
 			respondError(w, http.StatusBadRequest, "each item requires variant_id, a positive qty and a non-negative unit_cost")
@@ -456,7 +533,7 @@ func (h *PurchaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	purchaseID, err := createPurchaseTx(ctx, tx, req.SupplierID, req.OrderDate, req.ExpectedArrivalDate, req.Notes, claims.UserID, req.Items)
+	purchaseID, err := createPurchaseTx(ctx, tx, req.SupplierID, req.OrderDate, req.ExpectedArrivalDate, req.Notes, claims.UserID, req.Items, req.purchaseAdjustments)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -479,6 +556,10 @@ type updatePurchaseRequest struct {
 	Notes               *string              `json:"notes"`
 	Reason              string               `json:"reason"`
 	Items               []updatePurchaseItem `json:"items"`
+	ExchangeRate        *float64             `json:"exchange_rate"`
+	DiscountAmount      *float64             `json:"discount_amount"`
+	ShippingAmount      *float64             `json:"shipping_amount"`
+	ExtraAmount         *float64             `json:"extra_amount"`
 }
 
 // Update edits a purchase pre-receipt: Expected Arrival Date, per-item Qty/Unit Cost, and Notes.
@@ -539,6 +620,10 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'notes',$2,$3,$4,$5)`,
 			id, oldNotes, *req.Notes, claims.UserID, req.Reason)
 	}
+	if msg := updatePurchaseAmountsTx(ctx, tx, id, req, claims.UserID); msg != "" {
+		respondError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	for _, itUpdate := range req.Items {
 		var oldQty int
@@ -579,6 +664,12 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 			tx.Exec(ctx, `UPDATE purchase_items SET unit_cost=$1 WHERE id=$2`, *itUpdate.UnitCost, itUpdate.ID)
 			tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'unit_cost',$2,$3,$4,$5)`,
 				id, fmt.Sprintf("%.2f", oldUnitCost), fmt.Sprintf("%.2f", *itUpdate.UnitCost), claims.UserID, req.Reason)
+			var variantID int
+			tx.QueryRow(ctx, `SELECT variant_id FROM purchase_items WHERE id=$1`, itUpdate.ID).Scan(&variantID)
+			if err := syncProductCostTx(ctx, tx, variantID, *itUpdate.UnitCost, id, claims.UserID); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to update the product cost")
+				return
+			}
 		}
 	}
 
@@ -592,6 +683,48 @@ func (h *PurchaseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// updatePurchaseAmountsTx applies the PO-level exchange rate and discount/shipping/extra edits,
+// each change logged. Returns a user-facing error message ("" on success).
+func updatePurchaseAmountsTx(ctx context.Context, tx pgx.Tx, id int, req updatePurchaseRequest, userID int) string {
+	var rate *float64
+	var amounts [3]float64
+	if err := tx.QueryRow(ctx, `SELECT exchange_rate, discount_amount, shipping_amount, extra_amount FROM purchases WHERE id=$1`, id).
+		Scan(&rate, &amounts[0], &amounts[1], &amounts[2]); err != nil {
+		return "purchase not found"
+	}
+	if req.ExchangeRate != nil {
+		if *req.ExchangeRate <= 0 {
+			return "exchange rate must be greater than 0"
+		}
+		if rate == nil || *rate != *req.ExchangeRate {
+			old := ""
+			if rate != nil {
+				old = strconv.FormatFloat(*rate, 'f', -1, 64)
+			}
+			tx.Exec(ctx, `UPDATE purchases SET exchange_rate=$1 WHERE id=$2`, *req.ExchangeRate, id)
+			tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,'exchange_rate',$2,$3,$4,$5)`,
+				id, old, strconv.FormatFloat(*req.ExchangeRate, 'f', -1, 64), userID, req.Reason)
+		}
+	}
+	fields := []struct {
+		name string
+		val  *float64
+	}{{"discount_amount", req.DiscountAmount}, {"shipping_amount", req.ShippingAmount}, {"extra_amount", req.ExtraAmount}}
+	for i, f := range fields {
+		if f.val == nil || *f.val == amounts[i] {
+			continue
+		}
+		if *f.val < 0 {
+			return f.name + " must not be negative"
+		}
+		// the column name comes from the fixed list above, never from the request
+		tx.Exec(ctx, `UPDATE purchases SET `+f.name+`=$1 WHERE id=$2`, *f.val, id)
+		tx.Exec(ctx, `INSERT INTO purchase_change_log (purchase_id, field_name, old_value, new_value, changed_by, reason) VALUES ($1,$2,$3,$4,$5,$6)`,
+			id, f.name, fmt.Sprintf("%.2f", amounts[i]), fmt.Sprintf("%.2f", *f.val), userID, req.Reason)
+	}
+	return ""
 }
 
 type updatePurchaseStatusRequest struct {
@@ -877,7 +1010,12 @@ func confirmBatchTx(ctx context.Context, tx pgx.Tx, batchID, actual, userID int)
 		INSERT INTO stock_movements (variant_id, bucket_from, bucket_to, qty, event_type, user_id, note)
 		VALUES ($1,'(supplier)','available_stock',$2,'purchase_received',$3,$4)`,
 		variantID, actual, userID, fmt.Sprintf("purchase #%d batch received", purchaseID))
-	return ""
+	// FIFO (#127): the received units become a cost layer - only physically received goods do.
+	msg, err := addReceiptLayerTx(ctx, tx, batchID, purchaseID, itemID, variantID, actual)
+	if err != nil {
+		return "failed to record the FIFO cost layer"
+	}
+	return msg
 }
 
 type batchRequest struct {

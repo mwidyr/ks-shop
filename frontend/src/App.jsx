@@ -80,6 +80,7 @@ const HostManagement = lazy(() => import('./pages/HostManagement'))
 const Affiliates = lazy(() => import('./pages/Affiliates'))
 const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
 const TelegramSettings = lazy(() => import('./pages/TelegramSettings'))
+const OpeningInventory = lazy(() => import('./pages/OpeningInventory'))
 
 // `lock`: the page is an editor, so a view-only role gets it with every field and button disabled
 // (components/EditLock.jsx). Pages that mix filters with actions are not locked as a whole; they hide
@@ -223,6 +224,7 @@ export default function App() {
         <Route path="/system/roles" element={<ProtectedRoute lock><RolesMatrix /></ProtectedRoute>} />
         <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="/settings/telegram" element={<ProtectedRoute><TelegramSettings /></ProtectedRoute>} />
+        <Route path="/opening-inventory" element={<ProtectedRoute><OpeningInventory /></ProtectedRoute>} />
 
         <Route path="/hosts" element={<ProtectedRoute lock><HostManagement /></ProtectedRoute>} />
         <Route path="/affiliates" element={<ProtectedRoute lock><Affiliates /></ProtectedRoute>} />

@@ -92,3 +92,25 @@ export function updateProductPurchaseRules(productId, payload) {
 export function getInventoryValue() {
   return client.get('/inventory/value').then((res) => res.data.inventory_value).catch(() => null)
 }
+
+// Multi-supplier per variant (#125): every link of every variant of the product.
+export function listVariantSuppliers(productId) {
+  return client.get(`/products/${productId}/variant-suppliers`).then((res) => res.data)
+}
+
+// Replaces all links of the product's variants: [{ variant_id, supplier_id, supplier_product_code,
+// url_1688, ref_price, currency, is_active, is_preferred }].
+export function saveVariantSuppliers(productId, links) {
+  return client.put(`/products/${productId}/variant-suppliers`, { links }).then((res) => res.data)
+}
+
+// Changes of the RMB default Product Cost (#133), newest first - super_user only.
+export function getProductCostHistory(productId) {
+  return client.get(`/products/${productId}/cost-history`).then((res) => res.data)
+}
+
+// Variants whose SKU still needs tidying before go-live (placeholder product code, color outside
+// Color Master, collision suffix, manual SKU) - super_user only.
+export function getSkuReport() {
+  return client.get('/products/sku-report').then((res) => res.data)
+}

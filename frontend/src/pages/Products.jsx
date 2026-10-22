@@ -15,6 +15,7 @@ import PasswordConfirmModal from '../components/PasswordConfirmModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { useAuth } from '../context/AuthContext'
 import { useCanEdit } from '../context/AccessContext'
+import SkuReportPanel from '../components/SkuReportPanel'
 import { useDebouncedValue, useMediaQuery, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // A product only has two statuses: Published (is_active) / Unpublished. Stock is shown as its own
@@ -203,6 +204,7 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
 export default function Products() {
   const { t, i18n } = useTranslation()
   const canEdit = useCanEdit()
+  const { user } = useAuth()
   const { translateCategory, translateColor, colors: masterColors } = useMasterData()
   // Category / Color Management link here with ?category=<name> or ?color=<name_zh> (the product
   // count there is clickable) - the list opens already filtered.
@@ -463,6 +465,8 @@ export default function Products() {
           </Link>
         )}
       </div>
+
+      {user?.role === 'super_user' && <SkuReportPanel />}
 
       {selected.size > 0 && canEdit && (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-3 mb-4 flex items-center gap-2 flex-wrap">

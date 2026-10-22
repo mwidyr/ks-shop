@@ -131,7 +131,9 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 			" OR COALESCE(o.shipping_address,'') ILIKE " + likeArg + " OR COALESCE(o.recipient_email,'') ILIKE " + likeArg +
 			" OR COALESCE(o.pickup_store_name,'') ILIKE " + likeArg + " OR COALESCE(o.pickup_store_code,'') ILIKE " + likeArg +
 			" OR EXISTS (SELECT 1 FROM order_items osi JOIN product_variants osv ON osv.id = osi.variant_id JOIN products osp ON osp.id = osv.product_id" +
-			" WHERE osi.order_id = o.id AND (osv.sku ILIKE " + likeArg + " OR COALESCE(osp.sku,'') ILIKE " + likeArg + " OR osp.name ILIKE " + likeArg + " OR osp.names_search ILIKE " + likeArg + ")))"
+			" WHERE osi.order_id = o.id AND (osv.sku ILIKE " + likeArg +
+			" OR EXISTS (SELECT 1 FROM variant_sku_history osh WHERE osh.variant_id = osv.id AND osh.old_sku ILIKE " + likeArg + ")" +
+			" OR COALESCE(osp.sku,'') ILIKE " + likeArg + " OR osp.name ILIKE " + likeArg + " OR osp.names_search ILIKE " + likeArg + ")))"
 	}
 	if q.Get("blacklist_only") == "true" {
 		baseWhere += " AND EXISTS (SELECT 1 FROM customer_labels cl WHERE cl.customer_id = o.customer_id AND cl.label = 'blacklist')"

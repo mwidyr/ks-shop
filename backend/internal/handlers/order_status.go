@@ -20,6 +20,20 @@ func applyStatusChange(ctx context.Context, tx pgx.Tx, orderID int, from, to str
 			return err
 		}
 	}
+	// FIFO cost (fifo.go): reserved when the shipping Excel is first exported, final on the
+	// confirmed shipment, given back to the layers when cancelled before shipment.
+	var costErr error
+	switch {
+	case from == "pending" && to == "processing":
+		costErr = reserveOrderCostTx(ctx, tx, orderID)
+	case to == "shipped":
+		costErr = finalizeOrderCostTx(ctx, tx, orderID)
+	case to == "cancelled":
+		costErr = releaseOrderCostTx(ctx, tx, orderID)
+	}
+	if costErr != nil {
+		return costErr
+	}
 	if _, err := tx.Exec(ctx, `UPDATE orders SET status=$1, updated_at=now() WHERE id=$2`, to, orderID); err != nil {
 		return err
 	}

@@ -67,6 +67,7 @@ export const navGroups = [
       { to: '/purchases', key: 'purchases', icon: IconClipboard },
       { to: '/purchase-requisitions', key: 'purchase_requisitions', icon: IconClipboard },
       { to: '/replenishment-planning', key: 'replenishment_planning', icon: IconChecklist },
+      { to: '/opening-inventory', key: 'opening_inventory', icon: IconChecklist },
     ],
   },
   {
@@ -133,7 +134,7 @@ export const VISIBLE_TAB_KEYS = new Set([
   'panel_siaran', 'orders', 'shipping_workbench', 'products', 'categories', 'colors', 'inventory', 'customers', 'settings',
   'reports', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
-  'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
+  'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning', 'opening_inventory',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
   'website_home', 'website_hosts', 'website_live', 'website_content', 'theme', 'website_requests', 'members',
 ])
@@ -145,7 +146,7 @@ export const groupItems = (group) => [...group.items, ...(group.subgroups || [])
 // Tabs that follow another tab's access: restock / return requests follow Orders.
 export const TAB_ALIAS = { website_requests: 'orders' }
 // Tabs only the Super Admin sees (never a cell of the permission matrix).
-export const SUPER_ONLY_TABS = new Set(['telegram_settings'])
+export const SUPER_ONLY_TABS = new Set(['telegram_settings', 'opening_inventory'])
 
 // The permission matrix lists exactly what the sidebar shows, in the sidebar's order and grouping:
 // every visible tab of TOP_ITEMS and navGroups, minus the ones that are not matrix cells.

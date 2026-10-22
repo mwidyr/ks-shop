@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listLanguages } from '../api/languages'
-import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage } from '../api/products'
+import { getProduct, createProduct, updateProduct, createVariant, updateVariant, deleteVariant, addProductImage, deleteProductImage, getProductCostHistory } from '../api/products'
 import { listSuppliers } from '../api/suppliers'
 import { listColors } from '../api/colors'
 import PhotoSlots from '../components/PhotoSlots'
 import ProductWebsiteSection from '../components/website/ProductWebsiteSection'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import CategorySelect from '../components/CategorySelect'
+import VariantSuppliersSection from '../components/VariantSuppliersSection'
+import { formatCNY } from '../utils/format'
 import { useAuth } from '../context/AuthContext'
 import { useMasterData } from '../context/MasterDataContext'
 
@@ -29,22 +31,17 @@ function parseList(text) {
   return result
 }
 
-// Variant SKU is always PRODUCT-CODE-COLOR-SIZE - prefixing with the parent product's own code
-// (unique per product, enforced server-side) guarantees the variant SKU is unique too, without
-// relying on the product's name (which two unrelated products can easily share the same
-// initials/color/size combination for - see the "variant SKU already used by another product"
-// incident this replaced). The backend recomputes this itself on every create/update regardless
-// of what's sent here, so this is a live preview only, not the final source of truth.
-function suggestSku(productCode, variant) {
-  const codePart = (productCode || '').trim().toUpperCase()
-  const colorPart = (variant.color || '').slice(0, 3).toUpperCase()
-  const sizePart = (variant.size || '').toUpperCase()
-  return [codePart, colorPart, sizePart].filter(Boolean).join('-')
+// Variant SKU is PRODUCT CODE - COLOR - SIZE with the full Chinese color name from Color Master,
+// e.g. C002-黑-F - the format the 3PL picks by. Same rule as buildVariantSKU in the backend, which
+// always recomputes it on save (only a super_user may type one by hand); this is a live preview.
+function suggestSku(productCode, variant, toChineseColor = (c) => c) {
+  const part = (v) => (v || '').split(/\s+/).join('').toUpperCase()
+  return [part(productCode), part(toChineseColor(variant.color)), part(variant.size)].filter(Boolean).join('-')
 }
 
-function freshVariantRow(color, size, product) {
+function freshVariantRow(color, size, product, toChineseColor) {
   return {
-    sku: suggestSku(product.sku, { color, size }), color, size,
+    sku: suggestSku(product.sku, { color, size }, toChineseColor), sku_manual: false, color, size,
     price: product.base_price || '', compare_at_price: 0, cost_price: 0,
     allow_oversell: product.allow_oversell, is_active: true,
     available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
@@ -58,7 +55,7 @@ export default function ProductForm() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { translateColor } = useMasterData()
+  const { translateColor, toChineseColor } = useMasterData()
   // Product Cost is admin-only: the field is only ever present in the API response for
   // super_user, and the backend silently ignores it from anyone else's write - this check is
   // just what decides whether to show the input at all.
@@ -83,6 +80,11 @@ export default function ProductForm() {
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [costHistory, setCostHistory] = useState([])
+
+  useEffect(() => {
+    if (isEdit && isAdmin) getProductCostHistory(id).then(setCostHistory).catch(() => {})
+  }, [id, isEdit, isAdmin])
 
   useEffect(() => {
     if (!isEdit) return
@@ -172,7 +174,7 @@ export default function ProductForm() {
       for (const color of colorList) {
         for (const size of sizeList) {
           const existing = prev.find((v) => v.color === color && v.size === size)
-          next.push(existing || freshVariantRow(color, size, product))
+          next.push(existing || freshVariantRow(color, size, product, toChineseColor))
         }
       }
       const nextKeys = new Set(next.map((v) => `${v.color}|${v.size}`))
@@ -194,7 +196,7 @@ export default function ProductForm() {
 
   function variantBody(v) {
     return {
-      sku: v.sku, color: v.color, size: v.size, price: Number(v.price) || 0,
+      sku: v.sku, sku_manual: Boolean(v.sku_manual), color: v.color, size: v.size, price: Number(v.price) || 0,
       compare_at_price: Number(v.compare_at_price) || 0, cost_price: Number(v.cost_price) || 0,
       allow_oversell: Boolean(v.allow_oversell), is_active: v.is_active !== false,
       available_stock: Number(v.available_stock) || 0, broken_stock: Number(v.broken_stock) || 0,
@@ -371,6 +373,18 @@ export default function ProductForm() {
                 placeholder="0" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <p className="text-[10px] text-gray-400 mt-0.5">{t('page_product_form.cost_hint')}</p>
+              {costHistory.length > 0 && (
+                <details className="mt-1">
+                  <summary className="text-[11px] text-gray-500 cursor-pointer">{t('page_product_form.cost_history_title', { count: costHistory.length })}</summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {costHistory.map((c, i) => (
+                      <li key={i} className="text-[11px] text-gray-500">
+                        {formatCNY(c.old_cost)} → {formatCNY(c.new_cost)} · {c.po_number || t(`page_product_form.cost_source_${c.source}`)} · {c.changed_by} · {new Date(c.changed_at).toLocaleString()}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
           <div>
@@ -478,18 +492,19 @@ export default function ProductForm() {
                     <p className="text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0">
                       {v.color ? translateColor(v.color) : t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
                     </p>
-                    {/* SKU is auto-computed and normally doesn't need touching - pre-filled with
-                        the same live preview as before (suggestSku) - but editable as a manual
-                        escape hatch: if save ever fails, this can be fixed by hand and retried
-                        instead of being stuck. The backend still auto-disambiguates on collision
-                        either way (buildUniqueVariantSKU), so this can never hard-fail either. */}
+                    {/* SKU is computed (PRODUCT CODE - Chinese COLOR - SIZE, a 1-digit suffix on a
+                        collision). Only a super_user may type one by hand - it is then marked manual
+                        and never recomputed; clearing the field goes back to automatic. */}
                     <input
                       type="text"
                       value={v.sku}
-                      onChange={(e) => updateVariantField(idx, 'sku', e.target.value)}
-                      title={t('page_product_form.variant_sku_hint')}
-                      className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-600"
+                      readOnly={!isAdmin}
+                      onChange={(e) => setVariants((vs) => vs.map((x, i) => (i === idx ? { ...x, sku: e.target.value, sku_manual: e.target.value.trim() !== '' } : x)))}
+                      onBlur={() => { if (!v.sku.trim()) setVariants((vs) => vs.map((x, i) => (i === idx ? { ...x, sku: suggestSku(product.sku, x, toChineseColor), sku_manual: false } : x))) }}
+                      title={t(isAdmin ? 'page_product_form.variant_sku_hint' : 'page_product_form.variant_sku_auto_hint')}
+                      className={`flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-600 ${isAdmin ? '' : 'bg-gray-50'}`}
                     />
+                    {v.sku_manual && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">{t('page_product_form.variant_sku_manual')}</span>}
                   </div>
                   {!isEdit && variants.length > 1 && (
                     <button type="button" onClick={() => removeVariantRow(idx)} className="text-xs text-red-600 hover:underline shrink-0">
@@ -576,6 +591,7 @@ export default function ProductForm() {
           </button>
         </div>
       </form>
+      {isEdit && <VariantSuppliersSection productId={id} variants={variants} suppliers={suppliers} />}
       {isEdit && <ProductWebsiteSection productId={id} />}
       {previewIndex !== null && <ImagePreviewModal images={images} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
     </div>

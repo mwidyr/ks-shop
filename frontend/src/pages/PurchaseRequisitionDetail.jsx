@@ -5,7 +5,7 @@ import {
   getPurchaseRequisition, addRequisitionItem, removeRequisitionItem, updateRequisitionItemQty,
   updateRequisitionSupplierGroup, submitForConfirmation, confirmOrder,
   updatePurchaseRequisition, deletePurchaseRequisition,
-  addRequisitionNote, updateRequisitionNote, deleteRequisitionNote,
+  addRequisitionNote, updateRequisitionNote, deleteRequisitionNote, changeRequisitionItemSupplier,
 } from '../api/purchaseRequisitions'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { formatCNY } from '../utils/format'
@@ -82,7 +82,69 @@ function NotesLog({ groupId, notes, onChanged }) {
   )
 }
 
-function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
+// Whole-order RMB adjustments of a supplier group (#134): discount lowers, shipping / extra charges
+// raise the total so it matches the supplier invoice. Carried into the PO on Confirm Order, where
+// they are spread over the lines pro rata for the received cost.
+const ADJ_FIELDS = ['discount_amount', 'shipping_amount', 'extra_amount']
+function adjustmentTotal(adj) {
+  return (Number(adj?.shipping_amount) || 0) + (Number(adj?.extra_amount) || 0) - (Number(adj?.discount_amount) || 0)
+}
+
+function GroupAdjustments({ group, editable, subtotal, onLiveAdj, onChanged }) {
+  const { t } = useTranslation()
+  const initial = () => ({
+    ...Object.fromEntries(ADJ_FIELDS.map((f) => [f, group[f] ? String(group[f]) : ''])),
+    exchange_rate: group.exchange_rate ? String(group.exchange_rate) : '',
+  })
+  const [adj, setAdj] = useState(initial)
+  const [error, setError] = useState('')
+  useEffect(() => { onLiveAdj?.(group.id, adj) }, [adj]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save() {
+    setError('')
+    try {
+      await updateRequisitionSupplierGroup(group.id, {
+        ...Object.fromEntries(ADJ_FIELDS.map((f) => [f, Number(adj[f]) || 0])),
+        ...(adj.exchange_rate !== '' ? { exchange_rate: Number(adj.exchange_rate) } : {}),
+      })
+      onChanged()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_purchase_requisitions.adj_save_failed'))
+    }
+  }
+
+  const final = subtotal + adjustmentTotal(adj)
+  const field = (name, label) => (
+    <div>
+      <label className="block text-[11px] text-gray-500 mb-0.5">{label}</label>
+      {editable ? (
+        <input type="number" min="0" step="0.01" value={adj[name]} onChange={(e) => setAdj((a) => ({ ...a, [name]: e.target.value }))} onBlur={save}
+          className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+      ) : (
+        <p className="text-sm text-[var(--text-secondary)]">{name === 'exchange_rate' ? (adj[name] || '–') : formatCNY(Number(adj[name]) || 0)}</p>
+      )}
+    </div>
+  )
+  return (
+    <div className="p-4 border-t border-[var(--table-divider)] grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
+      <div>
+        <p className="text-[11px] text-gray-500">{t('page_purchase_requisitions.adj_subtotal')}</p>
+        <p className="text-sm text-[var(--text-primary)]">{formatCNY(subtotal)}</p>
+      </div>
+      {field('discount_amount', t('page_purchase_requisitions.adj_discount'))}
+      {field('shipping_amount', t('page_purchase_requisitions.adj_shipping'))}
+      {field('extra_amount', t('page_purchase_requisitions.adj_extra'))}
+      <div title={t('page_purchase_requisitions.adj_rate_hint')}>{field('exchange_rate', t('page_purchase_requisitions.adj_rate'))}</div>
+      <div>
+        <p className="text-[11px] text-gray-500">{t('page_purchase_requisitions.adj_final_total')}</p>
+        <p className="text-sm font-bold text-brand-600">{formatCNY(final)}</p>
+      </div>
+      {error && <p className="col-span-2 sm:col-span-6 text-xs text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive, onLiveAdj }) {
   const { t } = useTranslation()
   // translateColor is deliberately NOT used in handleCopy's grouping below - that text is sent
   // to the (Chinese-speaking) supplier and must always show the Chinese color name, regardless
@@ -120,6 +182,20 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
   // flows into the supplier PO and Incoming on the backend. Only a completed requisition is locked.
   const canEditPlanned = requisitionStatus === 'draft' || isPendingContact || requisitionStatus === 'ordered'
   const canConfirm = isPendingContact
+  // #126: a line whose variant is linked to several suppliers can move to another one until the
+  // order is confirmed; #134: the group's adjustments are editable over the same period.
+  const canChangeSupplier = requisitionStatus === 'draft' || isPendingContact
+  const [supplierError, setSupplierError] = useState('')
+
+  async function changeSupplier(item, supplierId) {
+    setSupplierError('')
+    try {
+      await changeRequisitionItemSupplier(item.id, Number(supplierId))
+      onChanged()
+    } catch (err) {
+      setSupplierError(err.response?.data?.error || t('page_purchase_requisitions.change_supplier_failed'))
+    }
+  }
 
   // Tell the page what is being typed so its header totals (Total Quantity / Total Amount) move
   // instantly too, not only after the save-on-blur round trip.
@@ -243,7 +319,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
         <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]" onClick={(e) => e.stopPropagation()}>
           <span>{group.items.length} {t('page_purchase_requisitions.stat_products')}</span>
           <span>{totalQty} {t('page_purchase_requisitions.pcs_suffix')}</span>
-          <span className="font-semibold text-[var(--text-primary)]">{formatCNY(total)}</span>
+          <span className="font-semibold text-[var(--text-primary)]">{formatCNY(total + adjustmentTotal(group))}</span>
           <button
             type="button"
             onClick={handleCopy}
@@ -281,6 +357,7 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
               <th className="p-2 pl-4">{t('page_purchase_requisitions.col_product_code')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_product_name')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_color_size')}</th>
+              <th className="p-2">{t('page_purchase_requisitions.col_supplier')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_planned_qty')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_unit_cost')}</th>
               <th className="p-2">{t('page_purchase_requisitions.col_amount')}</th>
@@ -296,6 +373,25 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
                   <td className="p-2 pl-4 font-mono text-xs text-brand-600">{it.product_sku}</td>
                   <td className="p-2 text-[var(--text-primary)]">{it.product_name}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{translateColor(it.color)}/{it.size}</td>
+                  <td className="p-2">
+                    {canChangeSupplier && (it.supplier_options || []).length > 1 ? (
+                      <select value={group.supplier_id} onChange={(e) => changeSupplier(it, e.target.value)}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs max-w-[10rem]">
+                        {(it.supplier_options || []).some((o) => o.supplier_id === group.supplier_id) ? null : <option value={group.supplier_id}>{group.supplier_name}</option>}
+                        {it.supplier_options.map((o) => (
+                          <option key={o.supplier_id} value={o.supplier_id}>
+                            {o.supplier_name}{o.is_preferred ? ' ★' : ''}{o.ref_price != null ? ` · ${formatCNY(o.ref_price)}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-[var(--text-secondary)]">{group.supplier_name}</span>
+                    )}
+                    {(() => {
+                      const code = (it.supplier_options || []).find((o) => o.supplier_id === group.supplier_id)?.supplier_product_code
+                      return code ? <p className="text-[11px] font-mono text-gray-400">{code}</p> : null
+                    })()}
+                  </td>
                   <td className="p-2">
                     {canEditPlanned ? (
                       <input
@@ -334,6 +430,8 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive }) {
       </div>
 
       {qtyError && <p className="px-4 pb-2 text-xs text-red-600">{qtyError}</p>}
+      {supplierError && <p className="px-4 pb-2 text-xs text-red-600">{supplierError}</p>}
+      <GroupAdjustments group={group} editable={canChangeSupplier} subtotal={total} onLiveAdj={onLiveAdj} onChanged={onChanged} />
       <NotesLog groupId={group.id} notes={group.notes_log || []} onChanged={onChanged} />
       </>
       )}
@@ -356,6 +454,11 @@ export default function PurchaseRequisitionDetail() {
   // follow Planned QTY / Unit Cost instantly instead of waiting for the save-on-blur reload.
   const [live, setLive] = useState({})
   const onLive = useCallback((groupId, items) => setLive((cur) => (cur[groupId] === items ? cur : { ...cur, [groupId]: items })), [])
+  const [liveAdj, setLiveAdj] = useState({})
+  const onLiveAdj = useCallback((groupId, adj) => setLiveAdj((cur) => (cur[groupId] === adj ? cur : { ...cur, [groupId]: adj })), [])
+  // #136: products that can't be added because they have no supplier, listed once each (name +
+  // SKU) above the product list instead of one error per variant at the bottom of the page.
+  const [missingSupplier, setMissingSupplier] = useState([])
 
   function reload() {
     getPurchaseRequisition(id).then(setDetail)
@@ -391,6 +494,7 @@ export default function PurchaseRequisitionDetail() {
 
   async function handleAddProducts(pickerItems) {
     setError('')
+    setMissingSupplier([])
     // Each item is independent (item 076) - previously a single `for...await` loop meant one
     // failing item (e.g. a product with no Supplier set, which AddItem rejects) silently aborted
     // every item after it with zero feedback, looking exactly like "can't add a second product".
@@ -400,8 +504,19 @@ export default function PurchaseRequisitionDetail() {
     const failed = results
       .map((res, i) => ({ res, it: pickerItems[i] }))
       .filter(({ res }) => res.status === 'rejected')
-    if (failed.length > 0) {
-      setError(failed.map(({ res, it }) => `${it.productName}: ${res.reason?.response?.data?.error || t('page_purchase_requisitions.add_product_failed')}`).join(' / '))
+    const noSupplier = failed.filter(({ res }) => res.reason?.response?.status === 422)
+    const other = failed.filter(({ res }) => res.reason?.response?.status !== 422)
+    if (noSupplier.length > 0) {
+      const seen = new Set()
+      setMissingSupplier(noSupplier.map(({ it }) => it).filter((it) => {
+        const key = it.sku || it.productName
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).map((it) => ({ name: it.productName, sku: it.sku })))
+    }
+    if (other.length > 0) {
+      setError(other.map(({ res, it }) => `${it.productName}: ${res.reason?.response?.data?.error || t('page_purchase_requisitions.add_product_failed')}`).join(' / '))
     }
     reload()
   }
@@ -436,7 +551,8 @@ export default function PurchaseRequisitionDetail() {
     return v && v.unit_cost !== '' && v.unit_cost != null ? (Number(v.unit_cost) || 0) : (it.unit_cost || 0)
   }
   const totalQty = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it), 0), 0)
-  const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it) * liveCost(g, it), 0), 0)
+  const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it) * liveCost(g, it), 0)
+    + adjustmentTotal(liveAdj[g.id] || g), 0)
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-6xl space-y-4">
@@ -502,6 +618,21 @@ export default function PurchaseRequisitionDetail() {
         </div>
       </div>
 
+      {missingSupplier.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-semibold text-amber-800">{t('page_purchase_requisitions.missing_supplier_title', { count: missingSupplier.length })}</p>
+            <button onClick={() => setMissingSupplier([])} className="text-xs text-amber-700 hover:underline shrink-0">{t('page_purchase_requisitions.missing_supplier_dismiss')}</button>
+          </div>
+          <p className="text-xs text-amber-700 mt-0.5">{t('page_purchase_requisitions.missing_supplier_hint')}</p>
+          <ul className="mt-2 space-y-0.5">
+            {missingSupplier.map((p) => (
+              <li key={p.sku || p.name} className="text-amber-900">{p.name} <span className="font-mono text-xs text-amber-700">{p.sku}</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {isDraft && (
         <button
           onClick={() => setPickerOpen(true)}
@@ -517,7 +648,7 @@ export default function PurchaseRequisitionDetail() {
       )}
 
       {detail.suppliers.map((g) => (
-        <SupplierGroupCard key={g.id} group={{ ...g, requisition_id: detail.id }} requisitionStatus={detail.status} onChanged={reload} onLive={onLive} />
+        <SupplierGroupCard key={g.id} group={{ ...g, requisition_id: detail.id }} requisitionStatus={detail.status} onChanged={reload} onLive={onLive} onLiveAdj={onLiveAdj} />
       ))}
 
       {detail.suppliers.length === 0 && (

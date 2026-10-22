@@ -63,3 +63,8 @@ export function updateRequisitionNote(noteId, note) {
 export function deleteRequisitionNote(noteId) {
   return client.delete(`/purchase-requisitions/notes/${noteId}`).then((res) => res.data)
 }
+
+// Moves a line to another supplier linked to its variant (#126) - before the order is confirmed.
+export function changeRequisitionItemSupplier(itemId, supplierId) {
+  return client.patch(`/purchase-requisitions/items/${itemId}/supplier`, { supplier_id: supplierId }).then((res) => res.data)
+}

@@ -4,11 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { getPurchaseHistory } from '../api/purchases'
 import { listSuppliers } from '../api/suppliers'
 import DateRangePicker from '../components/DateRangePicker'
-import { formatCurrency } from '../utils/format'
+import { formatCNY } from '../utils/format'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useDebouncedValue } from '../utils/hooks'
-
-function fmtPct(n) { return n == null ? '—' : `${n.toFixed(1)}%` }
 
 export default function PurchaseHistory() {
   const { t } = useTranslation()
@@ -48,12 +46,10 @@ export default function PurchaseHistory() {
       </div>
 
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.total_amount')}</p><p className="text-lg font-bold text-gray-800">{formatCurrency(summary.total_purchase_amount)}</p></div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.total_amount')}</p><p className="text-lg font-bold text-gray-800">{formatCNY(summary.total_purchase_amount)}</p></div>
           <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.total_qty')}</p><p className="text-lg font-bold text-gray-800">{summary.total_purchase_qty.toLocaleString()}</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.avg_cost')}</p><p className="text-lg font-bold text-gray-800">{summary.average_purchase_cost == null ? '—' : formatCurrency(summary.average_purchase_cost)}</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.gross_profit')}</p><p className="text-lg font-bold text-brand-600">{formatCurrency(summary.gross_profit)}</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.gross_margin')}</p><p className="text-lg font-bold text-gray-800">{fmtPct(summary.gross_margin)}</p></div>
+          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-[11px] uppercase text-gray-400 mb-1">{t('page_purchase_history.avg_cost')}</p><p className="text-lg font-bold text-gray-800">{summary.average_purchase_cost == null ? '—' : formatCNY(summary.average_purchase_cost)}</p></div>
         </div>
       )}
 
@@ -82,8 +78,8 @@ export default function PurchaseHistory() {
                   <td className="p-2 text-[var(--text-secondary)]">{row.purchase_date}</td>
                   <td className="p-2 text-[var(--text-primary)]">{row.product_sku} · {row.product_name}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{row.qty}</td>
-                  <td className="p-2 text-[var(--text-secondary)]">{formatCurrency(row.unit_cost)}</td>
-                  <td className="p-2 font-semibold text-[var(--text-primary)]">{formatCurrency(row.total_cost)}</td>
+                  <td className="p-2 text-[var(--text-secondary)]">{formatCNY(row.unit_cost)}</td>
+                  <td className="p-2 font-semibold text-[var(--text-primary)]">{formatCNY(row.total_cost)}</td>
                   <td className="p-2 text-[var(--text-secondary)]">{row.received_date ? row.received_date.slice(0, 10) : '-'}</td>
                 </tr>
               ))}

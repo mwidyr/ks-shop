@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,6 +70,9 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 		           JOIN purchase_requisition_items pri ON pri.requisition_supplier_id = prs.id
 		           JOIN product_variants pv ON pv.id = pri.variant_id
 		           WHERE prs.requisition_id = pr.id
+		       ), 0) + COALESCE((
+		           SELECT SUM(prs.shipping_amount + prs.extra_amount - prs.discount_amount)
+		           FROM purchase_requisition_suppliers prs WHERE prs.requisition_id = pr.id
 		       ), 0)
 		FROM purchase_requisitions pr
 		ORDER BY pr.created_at DESC, pr.id DESC`+limit, listArgs...)
@@ -105,6 +109,17 @@ type requisitionItemView struct {
 	PlannedQty  int      `json:"planned_qty"`
 	UnitCost    *float64 `json:"unit_cost"`
 	RuleWarning string   `json:"rule_warning,omitempty"`
+	// SupplierOptions are the variant's active linked suppliers (#126) - more than one means the
+	// line's supplier can be switched (ChangeItemSupplier).
+	SupplierOptions []requisitionSupplierOption `json:"supplier_options"`
+}
+
+type requisitionSupplierOption struct {
+	SupplierID          int      `json:"supplier_id"`
+	SupplierName        string   `json:"supplier_name"`
+	SupplierProductCode string   `json:"supplier_product_code"`
+	RefPrice            *float64 `json:"ref_price"`
+	IsPreferred         bool     `json:"is_preferred"`
 }
 
 type requisitionNoteView struct {
@@ -125,6 +140,12 @@ type requisitionSupplierView struct {
 	PurchaseID   *int                  `json:"purchase_id"`
 	PONumber     *string               `json:"po_number"`
 	Items        []requisitionItemView `json:"items"`
+	// Whole-order RMB adjustments so the group total matches the supplier invoice (#134), plus
+	// the RMB->TWD rate carried to the PO (used only for FIFO valuation on receipt).
+	ExchangeRate   *float64 `json:"exchange_rate"`
+	DiscountAmount float64  `json:"discount_amount"`
+	ShippingAmount float64  `json:"shipping_amount"`
+	ExtraAmount    float64  `json:"extra_amount"`
 }
 
 type requisitionDetailView struct {
@@ -172,7 +193,8 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	}
 
 	supRows, err := h.DB.Query(ctx, `
-		SELECT prs.id, prs.supplier_id, s.name, prs.status, COALESCE(prs.notes,''), prs.purchase_id, p.po_number
+		SELECT prs.id, prs.supplier_id, s.name, prs.status, COALESCE(prs.notes,''), prs.purchase_id, p.po_number,
+		       prs.exchange_rate, prs.discount_amount, prs.shipping_amount, prs.extra_amount
 		FROM purchase_requisition_suppliers prs
 		JOIN suppliers s ON s.id = prs.supplier_id
 		LEFT JOIN purchases p ON p.id = prs.purchase_id
@@ -184,7 +206,8 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 	d.Suppliers = []requisitionSupplierView{}
 	for supRows.Next() {
 		var sv requisitionSupplierView
-		if err := supRows.Scan(&sv.ID, &sv.SupplierID, &sv.SupplierName, &sv.Status, &sv.Notes, &sv.PurchaseID, &sv.PONumber); err != nil {
+		if err := supRows.Scan(&sv.ID, &sv.SupplierID, &sv.SupplierName, &sv.Status, &sv.Notes, &sv.PurchaseID, &sv.PONumber,
+			&sv.ExchangeRate, &sv.DiscountAmount, &sv.ShippingAmount, &sv.ExtraAmount); err != nil {
 			continue
 		}
 		sv.Items = []requisitionItemView{}
@@ -202,8 +225,8 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 		JOIN products p ON p.id = pv.product_id
 		WHERE prs.requisition_id = $1`, id)
 	if err == nil {
-		defer itemRows.Close()
 		byGroup := map[int][]requisitionItemView{}
+		variantIDs := []int{}
 		for itemRows.Next() {
 			var groupID int
 			var it requisitionItemView
@@ -211,10 +234,34 @@ func (h *PurchaseRequisitionHandler) Detail(w http.ResponseWriter, r *http.Reque
 				&it.PlannedQty, &it.UnitCost); err != nil {
 				continue
 			}
+			it.SupplierOptions = []requisitionSupplierOption{}
 			byGroup[groupID] = append(byGroup[groupID], it)
+			variantIDs = append(variantIDs, it.VariantID)
+		}
+		itemRows.Close()
+		options := map[int][]requisitionSupplierOption{}
+		if optRows, err := h.DB.Query(ctx, `
+			SELECT vs.variant_id, vs.supplier_id, s.name, COALESCE(vs.supplier_product_code,''), vs.ref_price, vs.is_preferred
+			FROM variant_suppliers vs JOIN suppliers s ON s.id = vs.supplier_id
+			WHERE vs.variant_id = ANY($1) AND vs.is_active
+			ORDER BY vs.is_preferred DESC, s.name`, variantIDs); err == nil {
+			for optRows.Next() {
+				var vid int
+				var o requisitionSupplierOption
+				if optRows.Scan(&vid, &o.SupplierID, &o.SupplierName, &o.SupplierProductCode, &o.RefPrice, &o.IsPreferred) == nil {
+					options[vid] = append(options[vid], o)
+				}
+			}
+			optRows.Close()
 		}
 		for i := range d.Suppliers {
-			d.Suppliers[i].Items = byGroup[d.Suppliers[i].ID]
+			items := byGroup[d.Suppliers[i].ID]
+			for j := range items {
+				if o := options[items[j].VariantID]; o != nil {
+					items[j].SupplierOptions = o
+				}
+			}
+			d.Suppliers[i].Items = items
 		}
 	}
 
@@ -288,16 +335,56 @@ func (h *PurchaseRequisitionHandler) UpdateRequisition(w http.ResponseWriter, r 
 }
 
 type addRequisitionItemRequest struct {
-	VariantID  int `json:"variant_id"`
-	PlannedQty int `json:"planned_qty"`
+	VariantID  int  `json:"variant_id"`
+	PlannedQty int  `json:"planned_qty"`
+	SupplierID *int `json:"supplier_id"`
 }
 
-// AddItem adds one product's variant + Planned QTY to the requisition. The Supplier is
-// auto-detected from the variant's product and the item is grouped into (or merged with) that
-// Supplier's group automatically - the caller never picks a supplier. Adding the same variant
-// again updates its planned_qty rather than erroring, so re-opening a product and changing the
-// qty just works. Allowed in both Draft and Pending Contact (Planned QTY stays editable through
-// Pending Contact per the Adjustments PDF), locked once Ordered.
+// errMissingSupplier is AddItem's answer for a product with no supplier at all. It uses its own
+// status (422) so the page can collect these into one warning above the product list (#136).
+const errMissingSupplier = "this product has no Supplier set - assign one in Product Management first"
+
+// resolveRequisitionSupplier picks the supplier for a variant (#125, #126): the requested one when
+// it is linked to the variant (or is the product's default supplier), else the variant's preferred
+// active supplier, else any active linked one, else the product's default supplier. ok=false: none.
+func resolveRequisitionSupplier(ctx context.Context, db *pgxpool.Pool, variantID int, requested *int) (supplierID int, ok bool) {
+	var productSupplier *int
+	db.QueryRow(ctx, `SELECT p.supplier_id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`, variantID).Scan(&productSupplier)
+	if requested != nil {
+		var linked bool
+		db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM variant_suppliers WHERE variant_id=$1 AND supplier_id=$2 AND is_active)`, variantID, *requested).Scan(&linked)
+		if linked || (productSupplier != nil && *productSupplier == *requested) {
+			return *requested, true
+		}
+		return 0, false
+	}
+	if err := db.QueryRow(ctx, `
+		SELECT supplier_id FROM variant_suppliers WHERE variant_id=$1 AND is_active
+		ORDER BY is_preferred DESC, id LIMIT 1`, variantID).Scan(&supplierID); err == nil {
+		return supplierID, true
+	}
+	if productSupplier != nil {
+		return *productSupplier, true
+	}
+	return 0, false
+}
+
+// requisitionDefaultCostSQL is a line's default RMB unit cost (#134): the chosen supplier's
+// reference price for the variant, else the product's default cost from Product Management.
+// $1 = variant id, $2 = supplier id.
+const requisitionDefaultCostSQL = `
+	SELECT COALESCE(
+	    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = $2),
+	    NULLIF(p.cost_rmb, 0), 0)
+	FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $1`
+
+// AddItem adds one product's variant + Planned QTY to the requisition. The Supplier defaults to the
+// variant's preferred supplier (resolveRequisitionSupplier) and the item is grouped into (or merged
+// with) that Supplier's group; a variant linked to several suppliers can be switched later
+// (ChangeItemSupplier). Adding the same variant again updates its planned_qty rather than
+// erroring, so re-opening a product and changing the qty just works. Allowed in both Draft and
+// Pending Contact (Planned QTY stays editable through Pending Contact per the Adjustments PDF),
+// locked once Ordered.
 func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 	requisitionID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -321,28 +408,28 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var supplierID *int
 	var productID int
-	var costPrice float64
-	// Unit Cost defaults from the parent product's own Cost field when set (so every variant of
-	// that product shares the same cost), falling back to the variant's own cost_price otherwise.
-	if err := h.DB.QueryRow(ctx, `
-		SELECT p.id, p.supplier_id, COALESCE(NULLIF(p.cost, 0), pv.cost_price)
-		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id=$1`,
-		req.VariantID).Scan(&productID, &supplierID, &costPrice); err != nil {
+	if err := h.DB.QueryRow(ctx, `SELECT product_id FROM product_variants WHERE id=$1`, req.VariantID).Scan(&productID); err != nil {
 		respondError(w, http.StatusNotFound, "variant not found")
 		return
 	}
-	if supplierID == nil {
-		respondError(w, http.StatusBadRequest, "this product has no Supplier set - assign one in Product Management first")
+	supplierID, ok := resolveRequisitionSupplier(ctx, h.DB, req.VariantID, req.SupplierID)
+	if !ok {
+		if req.SupplierID != nil {
+			respondError(w, http.StatusBadRequest, "this supplier is not linked to the product")
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, errMissingSupplier)
 		return
 	}
+	var costPrice float64
+	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, req.VariantID, supplierID).Scan(&costPrice)
 
 	var groupID int
 	if err := h.DB.QueryRow(ctx, `
 		INSERT INTO purchase_requisition_suppliers (requisition_id, supplier_id) VALUES ($1,$2)
 		ON CONFLICT (requisition_id, supplier_id) DO UPDATE SET supplier_id = EXCLUDED.supplier_id
-		RETURNING id`, requisitionID, *supplierID).Scan(&groupID); err != nil {
+		RETURNING id`, requisitionID, supplierID).Scan(&groupID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to group by supplier")
 		return
 	}
@@ -366,7 +453,91 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 	h.DB.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, req.VariantID).Scan(&unitPrice)
 	warning := checkPurchaseRule(rules, req.PlannedQty, unitPrice*float64(req.PlannedQty))
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{"supplier_id": *supplierID, "rule_warning": warning})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"supplier_id": supplierID, "rule_warning": warning})
+}
+
+type changeItemSupplierRequest struct {
+	SupplierID int `json:"supplier_id"`
+}
+
+// ChangeItemSupplier moves a line to another of its variant's linked suppliers (#126): the line
+// joins (or opens) that supplier's group with the supplier's reference price as unit cost, and a
+// group left empty is removed. Only before the order is confirmed; the receiving group goes back
+// to Waiting so its new line is confirmed with the supplier too.
+func (h *PurchaseRequisitionHandler) ChangeItemSupplier(w http.ResponseWriter, r *http.Request) {
+	itemID, err := strconv.Atoi(chi.URLParam(r, "itemId"))
+	var req changeItemSupplierRequest
+	if err != nil || decodeJSON(r, &req) != nil || req.SupplierID == 0 {
+		respondError(w, http.StatusBadRequest, "supplier_id is required")
+		return
+	}
+	ctx := r.Context()
+	var requisitionID, oldGroupID, oldSupplierID, variantID, plannedQty int
+	var status string
+	if err := h.DB.QueryRow(ctx, `
+		SELECT pr.id, pr.status, prs.id, prs.supplier_id, pri.variant_id, pri.planned_qty
+		FROM purchase_requisition_items pri
+		JOIN purchase_requisition_suppliers prs ON prs.id = pri.requisition_supplier_id
+		JOIN purchase_requisitions pr ON pr.id = prs.requisition_id
+		WHERE pri.id=$1`, itemID).Scan(&requisitionID, &status, &oldGroupID, &oldSupplierID, &variantID, &plannedQty); err != nil {
+		respondError(w, http.StatusNotFound, "item not found")
+		return
+	}
+	if status != "draft" && status != "pending_contact" {
+		respondError(w, http.StatusBadRequest, "the supplier can only be changed before the order is confirmed")
+		return
+	}
+	if req.SupplierID == oldSupplierID {
+		respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+	supplierID, ok := resolveRequisitionSupplier(ctx, h.DB, variantID, &req.SupplierID)
+	if !ok {
+		respondError(w, http.StatusBadRequest, "this supplier is not linked to the product")
+		return
+	}
+	var costPrice float64
+	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, variantID, supplierID).Scan(&costPrice)
+
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var groupID int
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO purchase_requisition_suppliers (requisition_id, supplier_id) VALUES ($1,$2)
+		ON CONFLICT (requisition_id, supplier_id) DO UPDATE SET status = 'pending_contact'
+		RETURNING id`, requisitionID, supplierID).Scan(&groupID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to group by supplier")
+		return
+	}
+	// The same variant already in the target group: merge the quantities.
+	ct, err := tx.Exec(ctx, `UPDATE purchase_requisition_items SET planned_qty = planned_qty + $1 WHERE requisition_supplier_id=$2 AND variant_id=$3`,
+		plannedQty, groupID, variantID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to move item")
+		return
+	}
+	if ct.RowsAffected() > 0 {
+		_, err = tx.Exec(ctx, `DELETE FROM purchase_requisition_items WHERE id=$1`, itemID)
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE purchase_requisition_items SET requisition_supplier_id=$1, unit_cost=$2 WHERE id=$3`, groupID, costPrice, itemID)
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to move item")
+		return
+	}
+	tx.Exec(ctx, `
+		DELETE FROM purchase_requisition_suppliers prs WHERE prs.id=$1
+		AND NOT EXISTS (SELECT 1 FROM purchase_requisition_items WHERE requisition_supplier_id=$1)`, oldGroupID)
+	tx.Exec(ctx, `UPDATE purchase_requisitions SET updated_at=now() WHERE id=$1`, requisitionID)
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]int{"supplier_id": supplierID, "group_id": groupID})
 }
 
 func (h *PurchaseRequisitionHandler) RemoveItem(w http.ResponseWriter, r *http.Request) {
@@ -397,6 +568,11 @@ type updateSupplierGroupRequest struct {
 	Status *string             `json:"status"`
 	Notes  *string             `json:"notes"`
 	Items  []confirmItemUpdate `json:"items"`
+	// RMB adjustments + exchange rate (#134), carried into the PO on ConfirmOrder.
+	ExchangeRate   *float64 `json:"exchange_rate"`
+	DiscountAmount *float64 `json:"discount_amount"`
+	ShippingAmount *float64 `json:"shipping_amount"`
+	ExtraAmount    *float64 `json:"extra_amount"`
 }
 
 // UpdateSupplierGroup is the Supplier Confirmation step: per-item Unit Cost, plus the group's
@@ -420,7 +596,25 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 		respondError(w, http.StatusBadRequest, "status must be pending_contact or confirmed")
 		return
 	}
+	for _, v := range []*float64{req.DiscountAmount, req.ShippingAmount, req.ExtraAmount} {
+		if v != nil && *v < 0 {
+			respondError(w, http.StatusBadRequest, "adjustments must not be negative")
+			return
+		}
+	}
+	if req.ExchangeRate != nil && *req.ExchangeRate <= 0 {
+		respondError(w, http.StatusBadRequest, "exchange rate must be greater than 0")
+		return
+	}
 	ctx := r.Context()
+
+	if req.ExchangeRate != nil || req.DiscountAmount != nil || req.ShippingAmount != nil || req.ExtraAmount != nil {
+		h.DB.Exec(ctx, `
+			UPDATE purchase_requisition_suppliers SET
+			    exchange_rate = COALESCE($1, exchange_rate), discount_amount = COALESCE($2, discount_amount),
+			    shipping_amount = COALESCE($3, shipping_amount), extra_amount = COALESCE($4, extra_amount)
+			WHERE id=$5`, req.ExchangeRate, req.DiscountAmount, req.ShippingAmount, req.ExtraAmount, groupID)
+	}
 
 	for _, it := range req.Items {
 		if it.UnitCost != nil {
@@ -435,9 +629,12 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 	if req.Status != nil && *req.Status == "confirmed" {
 		// Default any still-unset Confirmed QTY/Unit Cost before locking the group in.
 		h.DB.Exec(ctx, `
-			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(NULLIF(p.cost, 0), pv.cost_price)
-			FROM product_variants pv JOIN products p ON p.id = pv.product_id
-			WHERE pri.variant_id = pv.id AND pri.requisition_supplier_id=$1 AND pri.unit_cost IS NULL`, groupID)
+			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(
+			    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = prs.supplier_id),
+			    NULLIF(p.cost_rmb, 0), 0)
+			FROM purchase_requisition_suppliers prs, product_variants pv JOIN products p ON p.id = pv.product_id
+			WHERE prs.id = pri.requisition_supplier_id AND pri.variant_id = pv.id
+			  AND pri.requisition_supplier_id=$1 AND pri.unit_cost IS NULL`, groupID)
 	}
 	if req.Status != nil {
 		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET status=$1 WHERE id=$2`, *req.Status, groupID)
@@ -525,8 +722,11 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 		ID         int
 		SupplierID int
 		Status     string
+		Adj        purchaseAdjustments
 	}
-	groupRows, err := tx.Query(ctx, `SELECT id, supplier_id, status FROM purchase_requisition_suppliers WHERE requisition_id=$1`, id)
+	groupRows, err := tx.Query(ctx, `
+		SELECT id, supplier_id, status, exchange_rate, discount_amount, shipping_amount, extra_amount
+		FROM purchase_requisition_suppliers WHERE requisition_id=$1`, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load supplier groups")
 		return
@@ -534,7 +734,7 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 	var groups []group
 	for groupRows.Next() {
 		var g group
-		if groupRows.Scan(&g.ID, &g.SupplierID, &g.Status) == nil {
+		if groupRows.Scan(&g.ID, &g.SupplierID, &g.Status, &g.Adj.ExchangeRate, &g.Adj.DiscountAmount, &g.Adj.ShippingAmount, &g.Adj.ExtraAmount) == nil {
 			groups = append(groups, g)
 		}
 	}
@@ -574,7 +774,9 @@ func (h *PurchaseRequisitionHandler) ConfirmOrder(w http.ResponseWriter, r *http
 			continue
 		}
 
-		purchaseID, err := createPurchaseTx(ctx, tx, g.SupplierID, today, "", poNotes, claims.UserID, items)
+		// Creating the PO finalizes it (status ordered): its prices update the products' default
+		// RMB cost here (#133/#134), never earlier while the requisition is being edited.
+		purchaseID, err := createPurchaseTx(ctx, tx, g.SupplierID, today, "", poNotes, claims.UserID, items, g.Adj)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
