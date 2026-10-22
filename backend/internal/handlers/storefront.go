@@ -35,9 +35,9 @@ func (h *StorefrontHandler) memberFrom(r *http.Request) int {
 func storeColorSQL(r *http.Request, col string) string {
 	switch requestLang(r) {
 	case "":
-		return "COALESCE((SELECT name_id FROM colors sc WHERE sc.name_zh = " + col + " OR sc.name_id = " + col + " LIMIT 1), " + col + ")"
+		return "COALESCE((SELECT name_id FROM colors sc WHERE lower(btrim(sc.name_zh)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_id)) = lower(btrim(" + col + ")) ORDER BY (sc.name_zh = " + col + " OR sc.name_id = " + col + ") DESC LIMIT 1), " + col + ")"
 	case "zh":
-		return "COALESCE((SELECT name_zh FROM colors sc WHERE sc.name_zh = " + col + " OR sc.name_id = " + col + " LIMIT 1), " + col + ")"
+		return "COALESCE((SELECT name_zh FROM colors sc WHERE lower(btrim(sc.name_zh)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_id)) = lower(btrim(" + col + ")) ORDER BY (sc.name_zh = " + col + " OR sc.name_id = " + col + ") DESC LIMIT 1), " + col + ")"
 	}
 	return col
 }
@@ -412,6 +412,7 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 	waNumber := site.setting(ctx, "whatsapp_number", "")
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"shop_name":                shop,
+		"logo_url":                 site.setting(ctx, "site_logo_url", ""),
 		"free_shipping_minimarket": values["free_shipping_threshold_minimarket"],
 		"free_shipping_courier":    values["free_shipping_threshold_pos"],
 		"free_shipping_active":     site.setting(ctx, "free_shipping_active", "true") != "false",

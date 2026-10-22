@@ -14,6 +14,17 @@ const MasterDataContext = createContext({
   toChineseColor: (v) => v,
 })
 
+// Stored product text is free-typed, so "Biru abu abu" must still find the master "Biru Abu Abu":
+// compare ignoring case and stray/repeated spaces. An exact match always wins over a loose one.
+export const normalizeMasterName = (v) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+export function findMaster(list, raw) {
+  const exact = list.find((item) => item.name_zh === raw || item.name_id === raw)
+  if (exact) return exact
+  const key = normalizeMasterName(raw)
+  if (!key) return undefined
+  return list.find((item) => normalizeMasterName(item.name_zh) === key || normalizeMasterName(item.name_id) === key)
+}
+
 export function MasterDataProvider({ children }) {
   const { i18n } = useTranslation()
   const { user } = useAuth()
@@ -35,7 +46,7 @@ export function MasterDataProvider({ children }) {
   // lookup silently fails to translate those when switching to Chinese.
   function translate(list, raw) {
     if (!raw) return raw
-    const match = list.find((item) => item.name_zh === raw || item.name_id === raw)
+    const match = findMaster(list, raw)
     if (!match) return raw
     return i18n.language === 'id' ? match.name_id : match.name_zh
   }
@@ -46,7 +57,7 @@ export function MasterDataProvider({ children }) {
   // legacy Indonesian text (see the matching comment on translate() above).
   function toChinese(list, raw) {
     if (!raw) return raw
-    const match = list.find((item) => item.name_zh === raw || item.name_id === raw)
+    const match = findMaster(list, raw)
     return match ? match.name_zh : raw
   }
 

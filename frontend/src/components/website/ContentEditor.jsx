@@ -9,6 +9,7 @@ import { uploadImageFile, resolveUrl } from '../../utils/image'
 import { toEditorBlocks, toStoredBlocks, tocFromBlocks, showToc } from '../../utils/articleBlocks'
 import { modernizeBlocks } from '../../utils/richText'
 import { EMPTY_FORM, LANGS, TEXT_KEYS, buildPayload, loadForm, publishProblems, slugify, snapshotOf, typeLabel } from '../../utils/contentForm'
+import Toast, { useToast } from '../Toast'
 import ArticleBlockEditor from './ArticleBlockEditor'
 import ArticlePreview from './ArticlePreview'
 import ContentTypeManager from './ContentTypeManager'
@@ -51,6 +52,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [msg, setMsg] = useState(null)
+  const { toast, showToast } = useToast()
   const [draftBanner, setDraftBanner] = useState(null) // { at, dto }
   const [slugTouched, setSlugTouched] = useState(Boolean(initialId))
   const [slugState, setSlugState] = useState('') // '' | ok | taken | invalid
@@ -127,7 +129,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
       }
       if (!form.id) setForm((cur) => ({ ...cur, id: res.id }))
       setSavedSnap(taken); setEverSaved(true)
-      if (kind === 'publish') setMsg({ ok: true, text: live ? e('updated') : e('published') })
+      if (kind === 'publish') { setMsg(null); showToast(live ? e('toast_updated') : e('toast_published')) }
       else if (kind === 'draft') setMsg({ ok: true, text: e('draft_saved') })
       onSaved?.()
       return true
@@ -225,6 +227,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
   const statusText = { saving: e('status_saving'), saved: e('status_saved'), unsaved: e('status_unsaved') }[status]
   return (
     <div className="max-w-4xl">
+      <Toast toast={toast} />
       {/* sticky action bar: stays visible while scrolling a long article */}
       <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">

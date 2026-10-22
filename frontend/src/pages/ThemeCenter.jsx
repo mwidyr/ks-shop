@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createThemePreview, getThemeDraft, listThemePresets, listThemeVersions, publishTheme, restoreThemeVersion, saveThemeDraft } from '../api/website'
 import { btnCls, btnGhost, cardCls } from '../components/website/Pickers'
+import LogoCard from '../components/website/LogoCard'
+import { resolveUrl } from '../utils/image'
 
 const ROLES = ['primary', 'onPrimary', 'primaryHover', 'primaryStrong', 'primarySoft', 'secondary', 'bg', 'bgSoft', 'surface', 'text', 'text2', 'text3', 'disabled', 'border', 'borderStrong', 'success', 'warning', 'error', 'info', 'live']
 const CSS = { primary: 'primary', onPrimary: 'on-primary', primaryHover: 'primary-hover', primaryStrong: 'primary-strong', primarySoft: 'primary-soft', secondary: 'secondary', bg: 'bg', bgSoft: 'bg-soft', surface: 'surface', text: 'text', text2: 'text-2', text3: 'text-3', disabled: 'disabled', border: 'border', borderStrong: 'border-strong', success: 'success', warning: 'warning', error: 'error', info: 'info', live: 'live' }
@@ -35,14 +37,16 @@ function checksFor(role, tk) {
   }
 }
 
-function Preview({ tokens, mode }) {
+function Preview({ tokens, mode, logo }) {
   const t = tokens
   const bg = mode === 'soft' ? t.bgSoft : t.bg
   const vars = Object.fromEntries(Object.entries(CSS).map(([k, v]) => [`--color-${v}`, k === 'bg' ? bg : t[k]]))
   return (
     <div style={{ ...vars, background: 'var(--color-bg)', color: 'var(--color-text)', borderRadius: 18, padding: 14, border: '1px solid var(--color-border)', fontFamily: "'Noto Sans TC', sans-serif" }} className="text-sm">
       <div className="flex items-center gap-2 mb-3">
-        <b className="text-2xl italic" style={{ color: 'var(--color-primary-strong)', fontFamily: 'serif' }}>ralulu</b>
+        {logo
+          ? <img src={resolveUrl(logo)} alt="logo" style={{ height: 28, maxWidth: 160, objectFit: 'contain' }} />
+          : <b className="text-2xl italic" style={{ color: 'var(--color-primary-strong)', fontFamily: 'serif' }}>ralulu</b>}
         <span style={{ background: 'var(--color-live)', color: '#fff', borderRadius: 6, padding: '2px 8px', fontWeight: 900, fontSize: 11 }}>● LIVE</span>
       </div>
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 12 }} className="mb-3">
@@ -76,6 +80,7 @@ export default function ThemeCenter() {
   const [msg, setMsg] = useState(null)
   const [link, setLink] = useState('')
   const [busy, setBusy] = useState('')
+  const [logo, setLogo] = useState('')
 
   const load = useCallback(async () => {
     const [d, p, v] = await Promise.all([getThemeDraft(), listThemePresets(), listThemeVersions()])
@@ -119,6 +124,8 @@ export default function ThemeCenter() {
         </div>
         {msg && <div className={`text-sm px-4 py-2 rounded-lg ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>}
         {link && <div className="text-sm bg-blue-50 text-blue-800 px-4 py-2 rounded-lg break-all">{th('link_made')}: <a href={link} target="_blank" rel="noreferrer" className="underline">{link}</a></div>}
+
+        <LogoCard onChange={setLogo} />
 
         <div className={`${cardCls} space-y-3`}>
           <h2 className="font-bold text-gray-800">{th('presets')}</h2>
@@ -196,7 +203,7 @@ export default function ThemeCenter() {
 
       <div className="xl:sticky xl:top-4 space-y-2">
         <h2 className="font-bold text-gray-800">{th('preview')}</h2>
-        <Preview tokens={draft.tokens} mode={draft.mode} />
+        <Preview tokens={draft.tokens} mode={draft.mode} logo={logo} />
       </div>
     </div>
   )

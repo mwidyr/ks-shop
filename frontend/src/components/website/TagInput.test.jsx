@@ -50,4 +50,29 @@ describe('TagInput', () => {
     await type(input, 'totally new'); await key(input, 'Enter')
     expect(spy.get()).toContain('totally new')
   })
+  it('a comma ends a tag: typing "a," adds it and keeps the rest of the text', async () => {
+    const { spy, input } = await mount([])
+    await type(input, 'outfit wanita, ootd')
+    expect(spy.get()).toEqual(['outfit wanita'])
+    expect(input.value).toBe('ootd')
+    await type(input, 'ootd, mix and match，')
+    expect(spy.get()).toEqual(['outfit wanita', 'ootd', 'mix and match'])
+    expect(input.value).toBe('')
+  })
+  it('pasting a comma-separated list splits it into tags without Enter, skipping duplicates and blanks', async () => {
+    const { spy, input } = await mount(['ootd'])
+    await act(async () => {
+      const ev = new Event('paste', { bubbles: true, cancelable: true })
+      ev.clipboardData = { getData: () => 'outfit wanita casual, OOTD, , mix and match outfit,#wanita taiwan' }
+      input.dispatchEvent(ev)
+    })
+    expect(spy.get()).toEqual(['ootd', 'outfit wanita casual', 'mix and match outfit', 'wanita taiwan'])
+  })
+  it('text without a comma stays as typed until Enter or blur', async () => {
+    const { spy, input } = await mount([])
+    await type(input, 'single phrase')
+    expect(spy.get()).toEqual([])
+    await act(async () => { input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })
+    expect(spy.get()).toEqual(['single phrase'])
+  })
 })

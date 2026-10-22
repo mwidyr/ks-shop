@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getHosts, img, onImgError, sized } from '../lib/api'
-import { formatNumber } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { storeHelpText, waUrl } from '../lib/wa'
@@ -28,16 +27,14 @@ export default function Hosts() {
     return (all || []).filter((h) => (filter === 'all' || h.live_status === 'live') && (!text || h.name.toLowerCase().includes(text) || (h.alias || []).some((a) => a.toLowerCase().includes(text))))
   }, [all, q, filter])
   const liveCount = (all || []).filter((h) => h.live_status === 'live').length
-  const letters = [...new Set((all || []).map((h) => h.name[0]?.toUpperCase()))].sort()
   // typo help: hosts whose name shares most letters with the query
   const near = (all || []).filter((h) => q.trim() && [...q.trim().toLowerCase()].filter((c) => h.name.toLowerCase().includes(c)).length >= Math.ceil(q.trim().length * 0.6)).slice(0, 3)
 
   const sameDay = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString()
   const todayCount = (all || []).filter((h) => h.live_status === 'live' || sameDay(h.next_live_at)).length
   const pill = (on) => ({ flex: 'none', minHeight: 34, padding: '0 14px', borderRadius: 17, fontSize: 13, display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'content-box', ...(on ? { background: 'var(--color-text)', color: '#FFFFFF', fontWeight: 700, border: 'none' } : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }) })
-  const shown = hosts.filter((h) => filter === 'today' ? (h.live_status === 'live' || sameDay(h.next_live_at)) : filter === 'replay' ? h.has_replay : true)
+  const shown = hosts.filter((h) => filter === 'today' ? (h.live_status === 'live' || sameDay(h.next_live_at)) : true)
   const groups = [...new Set(shown.map((h) => h.name[0]?.toUpperCase()))].sort().map((l) => [l, shown.filter((h) => h.name[0]?.toUpperCase() === l).sort((x, y) => x.name.localeCompare(y.name))])
-  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
   return (
     <div style={{ paddingBottom: 130 }}>
@@ -49,7 +46,6 @@ export default function Hosts() {
         <button type="button" onClick={() => setFilter('all')} style={pill(filter === 'all')}>{t('hosts.all', { n: (all || []).length })}</button>
         <button type="button" onClick={() => setFilter('live')} style={pill(filter === 'live')}>{t('hosts.live', { n: liveCount })}</button>
         <button type="button" onClick={() => setFilter('today')} style={pill(filter === 'today')}>{t('hosts.today')}</button>
-        <button type="button" onClick={() => setFilter('replay')} style={pill(filter === 'replay')}>{t('hosts.replay')}</button>
       </div>
 
       {!all && !error && <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={240} r={16} />)}</div>}
@@ -84,13 +80,13 @@ export default function Hosts() {
                     <Link to={`/hosts/${h.slug}`} style={{ position: 'relative', flex: 'none', width: 96, height: 128, borderRadius: 12, overflow: 'hidden', display: 'block' }}>
                       <img src={sized(img(h.avatar_url), 240)} alt={h.name} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%', background: 'var(--color-bg-soft)' }} />
                       <span style={{ position: 'absolute', left: 6, top: 6 }}>
-                        {live ? <LiveBadge text={t('host.live_now')} /> : !h.next_live_at && h.has_replay ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: 'var(--color-bg)', color: 'var(--color-text)', fontSize: 11, fontWeight: 700 }}><IconPlay size={10} />{t('host.has_replay')}</span> : null}
+                        {live ? <LiveBadge text={t('host.live_now')} /> : null}
                       </span>
                     </Link>
                     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <b style={{ fontSize: 17 }}>{h.name}</b>
                       <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>
-                        {live ? t('hosts.live_now_with', { n: formatNumber(h.viewer_count || 0) }) : h.next_live_at ? t('hosts.next_live', { when: whenLabel(h.next_live_at, t, i18n.language) }) : h.has_replay ? t('hosts.last_replay') : ''}
+                        {live ? t('host.live_now') : h.next_live_at ? t('hosts.next_live', { when: whenLabel(h.next_live_at, t, i18n.language) }) : ''}
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {(h.thumbs || []).slice(0, 3).map((u, i) => <img key={u + i} src={sized(img(u), 120)} alt="" loading="lazy" onError={onImgError} style={{ width: 36, height: 46, borderRadius: 6, objectFit: 'cover' }} />)}
@@ -109,9 +105,6 @@ export default function Hosts() {
           </div>
         ))}
       </div>
-      <nav aria-label={t('hosts.az')} style={{ position: 'fixed', right: 4, top: 420, display: 'flex', flexDirection: 'column', padding: '6px 0', borderRadius: 14, background: 'rgba(255,255,255,0.92)', boxShadow: '0 1px 4px rgba(30,30,35,.08)', zIndex: 15 }}>
-        {ALPHA.map((l) => <a key={l} href={`#g${l}`} style={{ width: 28, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: groups.some(([g]) => g === l) ? 'var(--color-text)' : 'var(--color-disabled)', textDecoration: 'none' }}>{l}</a>)}
-      </nav>
     </div>
   )
 }

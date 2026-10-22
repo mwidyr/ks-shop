@@ -54,6 +54,7 @@ export const navGroups = [
     title: 'website', icon: IconPalette, items: [
       { to: '/website/home', key: 'website_home', icon: IconSliders },
       { to: '/website/hosts', key: 'website_hosts', icon: IconUser },
+      { to: '/website/live', key: 'website_live', icon: IconBroadcast },
       { to: '/website/content', key: 'website_content', icon: IconBook },
       { to: '/website/theme', key: 'theme', icon: IconPalette },
       { to: '/website/members', key: 'members', icon: IconUsers },
@@ -134,7 +135,7 @@ export const VISIBLE_TAB_KEYS = new Set([
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
-  'website_home', 'website_hosts', 'website_content', 'theme', 'website_requests', 'members',
+  'website_home', 'website_hosts', 'website_live', 'website_content', 'theme', 'website_requests', 'members',
 ])
 
 

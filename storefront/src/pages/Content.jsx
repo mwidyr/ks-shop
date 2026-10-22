@@ -12,10 +12,9 @@ import { ProductCard, StripCard } from '../components/ProductCard'
 import { EmptyState, ErrorState, iconBtn, PageHeader, SectionHead, Skeleton, btnPrimary } from '../components/ui'
 
 // Topic / article / host-journal page (artboards Topic / Article). Body = blocks {type: h2|h3|p|list|image|product|products|tags}.
-function Blocks({ blocks, products, topic, toc, hostName }) {
+function Blocks({ blocks, products, topic, hostName }) {
   const { t } = useTranslation()
   const byId = Object.fromEntries(products.map((p) => [p.id, p]))
-  let tocDone = false
   let h2Seen = 0
   // headings may carry bold / italic / underline / links (b.html, inline only); plain text otherwise
   const heading = (b) => (b.html ? <span dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} /> : b.text)
@@ -55,7 +54,6 @@ function Blocks({ blocks, products, topic, toc, hostName }) {
         else if (b.html && /<(p|ul|ol)\b/i.test(b.html)) out.push(<div key={i} className="article-rich article-rich-block" style={{ fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)' }} dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} />)
         else if (b.html) out.push(<p key={i} className="article-rich" style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }} dangerouslySetInnerHTML={{ __html: safeHtml(b.html) }} />)
         else out.push(<p key={i} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)', whiteSpace: 'pre-line' }}>{b.text}</p>)
-        if (!tocDone && !topic && toc.length > 1 && (b.type === 'p' || !b.type)) { tocDone = true; out.push(tocBox(toc, t)) }
         return out
       })}
     </>
@@ -97,7 +95,8 @@ export default function Content() {
   const topic = page.type === 'topic'
   const hostArt = page.type === 'host_article'
   const customType = !['topic', 'article', 'host_article'].includes(page.type) // a type staff created: its name is shown
-  const toc = d.blocks.map((b, i) => (b.type === 'h2' ? { i, text: b.text } : null)).filter(Boolean)
+  // same rule as the admin preview: at least 2 headings with text; the box always sits right under the introduction
+  const toc = d.blocks.map((b, i) => (b.type === 'h2' && String(b.text || '').trim() ? { i, text: String(b.text).trim() } : null)).filter(Boolean)
   const href = contentHref
   const dateDots = (iso) => fullDate(iso).replace(/\//g, '.')
   const isSaved = saved.has(page.slug)
@@ -142,7 +141,8 @@ export default function Content() {
         {d.intro_html
           ? <div className="article-rich article-rich-block" style={{ fontSize: 15, lineHeight: 1.85, color: 'var(--color-text)' }} dangerouslySetInnerHTML={{ __html: safeHtml(d.intro_html) }} />
           : page.summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85, whiteSpace: 'pre-line' }}>{page.summary}</p>}
-        <Blocks blocks={d.blocks} products={d.products} topic={topic} toc={toc} hostName={hostArt ? page.author : ''} />
+        {!topic && toc.length > 1 && tocBox(toc, t)}
+        <Blocks blocks={d.blocks} products={d.products} topic={topic} hostName={hostArt ? page.author : ''} />
         {!topic && page.tags?.length > 0 && !d.blocks.some((b) => b.type === 'tags') && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{page.tags.map((x) => <Link key={x} to="/style" style={tagPill}>#{x}</Link>)}</div>}
       </div>
 

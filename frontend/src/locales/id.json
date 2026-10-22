@@ -96,7 +96,8 @@
       "theme": "Tema & Tampilan",
       "website_requests": "Permintaan Pelanggan",
       "members": "Member",
-      "shipping_workbench": "Shipping Workbench"
+      "shipping_workbench": "Shipping Workbench",
+      "website_live": "Pengaturan LIVE Global"
     },
     "settings": "Pengaturan Sistem"
   },
@@ -567,6 +568,7 @@
     "no_products_yet": "Belum ada produk. Klik \"Tambah Produk\" untuk memilih.",
     "order_block_title": "Order {{index}}",
     "picker_available_stock": "Stok Tersedia",
+    "picker_not_sellable": "Tidak dijual",
     "picker_empty": "Produk tidak ditemukan",
     "picker_search_placeholder": "Cari nama produk atau SKU",
     "picker_selected_count": "{{count}} varian dipilih",
@@ -2309,7 +2311,10 @@
       "slug_required": "Isi slug sebelum host ditampilkan",
       "pick_product": "Pilih produk",
       "search_product": "Cari nama produk / SKU",
-      "pick_variant": "Pilih varian"
+      "pick_variant": "Pilih varian",
+      "live_moved_title": "Urutan tampil",
+      "live_moved": "Link LIVE, jadwal, dan status diatur di",
+      "live_moved_link": "Pengaturan LIVE Global"
     },
     "content": {
       "ed": {
@@ -2324,6 +2329,8 @@
         "draft_saved": "Draf disimpan.",
         "published": "Artikel diterbitkan.",
         "updated": "Artikel diperbarui.",
+        "toast_updated": "Berhasil diperbarui",
+        "toast_published": "Berhasil dipublikasikan",
         "unpublished": "Artikel ditarik dari website.",
         "unpublish": "Tarik dari website",
         "unpublish_confirm": "Tarik artikel ini? Artikel hilang dari website sampai diterbitkan lagi.",
@@ -2519,6 +2526,20 @@
       }
     },
     "theme": {
+      "logo": {
+        "title": "Logo website",
+        "hint": "Tampil di header website. PNG, JPG atau WebP, maksimal 2 MB; PNG transparan selebar sekitar 400 px paling baik. Logo yang disimpan langsung dipakai di website.",
+        "alt": "Logo website",
+        "none": "Belum ada logo - teks ralulu yang tampil",
+        "upload": "Unggah logo",
+        "change": "Ganti logo",
+        "remove": "Hapus",
+        "saved": "Logo diperbarui",
+        "removed": "Logo dihapus",
+        "bad_type": "Gunakan gambar PNG, JPG atau WebP.",
+        "too_big": "Ukuran logo maksimal 2 MB.",
+        "failed": "Logo gagal disimpan. Coba lagi."
+      },
       "title": "Tema & Tampilan",
       "intro": "Warna seluruh website adalah design token. Perubahan tampil langsung di sini; belum live sebelum dipublikasikan.",
       "live_version": "Live: {{name}}",
@@ -2618,6 +2639,51 @@
       "add_host": "Tambah host",
       "wear_size": "Ukuran dipakai",
       "saved": "Detail website tersimpan"
+    },
+    "live": {
+      "title": "Pengaturan LIVE Global",
+      "intro": "Atur jam LIVE sekali saja. Host mengikuti shift dan lokasi di Host Management; website otomatis menampilkan siapa yang sedang LIVE dan siapa berikutnya. Semua jam memakai waktu Taiwan (UTC+8).",
+      "load_failed": "Pengaturan LIVE gagal dimuat.",
+      "save_failed": "Gagal menyimpan. Coba lagi.",
+      "saved": "Tersimpan",
+      "shifts_title": "Jam shift",
+      "shifts_hint": "Jam LIVE default tiap shift. Semua host di shift itu mengikuti jam ini. Shift malam kosong sampai jamnya diatur.",
+      "shift_empty": "Belum ada jam - host di shift ini tidak tampil sebagai LIVE.",
+      "from": "Dari",
+      "to": "Sampai",
+      "remove": "Hapus",
+      "add_range": "+ Tambah jam",
+      "save_default": "Simpan sebagai Default",
+      "locations_title": "Hari kerja per lokasi",
+      "locations_hint": "Hari kerja diatur per lokasi dan berlaku untuk semua host di lokasi itu. Tambahkan hari libur khusus untuk libur nasional atau tutup studio.",
+      "day_0": "Min",
+      "day_1": "Sen",
+      "day_2": "Sel",
+      "day_3": "Rab",
+      "day_4": "Kam",
+      "day_5": "Jum",
+      "day_6": "Sab",
+      "days_off": "Hari libur tambahan",
+      "note": "Catatan (opsional)",
+      "add_day_off": "Tambah libur",
+      "save": "Simpan",
+      "hosts_title": "Host",
+      "hosts_hint": "Nama, lokasi dan shift diambil dari Host Management. Tempel link TikTok LIVE tiap host di sini; bisa diubah kapan saja. End LIVE hanya menghentikan sesi yang sedang berjalan.",
+      "col_host": "Host",
+      "col_location": "Lokasi",
+      "col_shift": "Shift",
+      "col_url": "URL LIVE",
+      "col_status": "Status",
+      "no_shift": "Belum ada shift",
+      "end_live": "End LIVE",
+      "end_confirm": "Akhiri LIVE {{name}} yang sedang berjalan? Sesi terjadwal berikutnya tetap mulai seperti biasa.",
+      "ended": "LIVE sesi ini diakhiri",
+      "url_saved": "Link LIVE tersimpan",
+      "status_live": "LIVE",
+      "status_scheduled": "Segera mulai",
+      "status_offline": "Offline",
+      "next": "Berikutnya",
+      "until": "Sampai"
     }
   },
   "page_members": {

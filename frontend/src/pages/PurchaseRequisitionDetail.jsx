@@ -510,7 +510,7 @@ export default function PurchaseRequisitionDetail() {
           <IconPlus width={14} height={14} /> {t('page_purchase_requisitions.add_product_button')}
         </button>
       )}
-      {pickerOpen && <ProductPickerModal onClose={() => setPickerOpen(false)} onAdd={handleAddProducts} nameLang="zh" />}
+      {pickerOpen && <ProductPickerModal onClose={() => setPickerOpen(false)} onAdd={handleAddProducts} nameLang="zh" includeInactive />}
 
       {(isPendingContact || isOrdered || detail.status === 'completed') && (
         <p className="text-xs text-gray-400">{t('page_purchase_requisitions.completes_hint')}</p>

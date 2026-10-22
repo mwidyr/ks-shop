@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,6 +75,7 @@ func (h *SiteHandler) scanHostCards(ctx context.Context, sql string, args ...int
 		}
 		out = append(out, c)
 	}
+	h.applyLiveSchedule(ctx, out, time.Now())
 	return out
 }
 
@@ -258,29 +260,11 @@ func (h *SiteHandler) Host(w http.ResponseWriter, r *http.Request) {
 		crows.Close()
 	}
 
-	type replay struct {
-		ID          int    `json:"id"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
-		DurationSec *int   `json:"duration_sec"`
-		AiredOn     string `json:"aired_on"`
-	}
-	replays := []replay{}
-	if rrows, err := h.DB.Query(ctx, `SELECT id, title, url, duration_sec, COALESCE(aired_on::text,'') FROM host_replays WHERE host_id=$1 ORDER BY aired_on DESC NULLS LAST, sort_order, id LIMIT 12`, id); err == nil {
-		for rrows.Next() {
-			var rp replay
-			if rrows.Scan(&rp.ID, &rp.Title, &rp.URL, &rp.DurationSec, &rp.AiredOn) == nil {
-				replays = append(replays, rp)
-			}
-		}
-		rrows.Close()
-	}
-
 	journal := h.contentCards(ctx, lang, `c.type='host_article' AND c.author_host_id=$1`, []interface{}{id}, 6)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"host": hostInfo, "blocks": blocks, "showing": showing, "worn": worn, "picks": picks,
-		"outfits": outfits, "coupons": coupons, "replays": replays, "journal": journal,
+		"outfits": outfits, "coupons": coupons, "journal": journal,
 	})
 }
 
@@ -291,57 +275,20 @@ func (h *SiteHandler) hostsForProduct(ctx context.Context, productID int) []site
 		OR EXISTS (SELECT 1 FROM order_items oi JOIN product_variants v ON v.id = oi.variant_id WHERE oi.host_id = h.id AND v.product_id = $1))`+hostOrder, productID)
 }
 
-// Live serves GET /public/store/live: the live room page.
+// Live serves GET /public/store/live: who is LIVE right now (from the schedule) and who is next.
+// Nothing else: no replays, viewer counts or product lists. The watch link is the host's saved LIVE URL.
 func (h *SiteHandler) Live(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	hosts := h.scanHostCards(ctx, hostCardSelect+hostOrder)
-	var live, scheduled []siteHostCard
+	hosts := h.scanHostCards(r.Context(), hostCardSelect+hostOrder)
+	live, upcoming := []siteHostCard{}, []siteHostCard{}
 	for _, c := range hosts {
-		switch c.LiveStatus {
-		case "live":
+		switch {
+		case c.LiveStatus == "live":
 			live = append(live, c)
-		case "scheduled":
-			scheduled = append(scheduled, c)
+		case c.NextLiveAt != nil:
+			upcoming = append(upcoming, c)
 		}
 	}
-	// Products on screen right now = "showing" rows of the live hosts, else their live-coded products.
-	showing := []int{}
-	for _, c := range live {
-		showing = append(showing, h.hostProductIDs(ctx, c.ID, "showing")...)
-	}
-	products := h.cards(ctx, r, showing)
-
-	type replay struct {
-		ID          int    `json:"id"`
-		HostName    string `json:"host_name"`
-		HostSlug    string `json:"host_slug"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
-		DurationSec *int   `json:"duration_sec"`
-		AiredOn     string `json:"aired_on"`
-	}
-	replays := []replay{}
-	if rows, err := h.DB.Query(ctx, `
-		SELECT hr.id, h.name, h.slug, hr.title, hr.url, hr.duration_sec, COALESCE(hr.aired_on::text,'')
-		FROM host_replays hr JOIN hosts h ON h.id = hr.host_id
-		WHERE h.is_active AND h.is_public ORDER BY hr.aired_on DESC NULLS LAST, hr.id DESC LIMIT 6`); err == nil {
-		for rows.Next() {
-			var rp replay
-			if rows.Scan(&rp.ID, &rp.HostName, &rp.HostSlug, &rp.Title, &rp.URL, &rp.DurationSec, &rp.AiredOn) == nil {
-				replays = append(replays, rp)
-			}
-		}
-		rows.Close()
-	}
-	var perk float64
-	var perkCode string
-	h.DB.QueryRow(ctx, `
-		SELECT COALESCE(p.code,''), p.value FROM host_coupons hc JOIN promotions p ON p.id = hc.promotion_id
-		WHERE p.is_active AND p.code IS NOT NULL AND p.type='fixed_amount'
-		  AND (p.end_date IS NULL OR p.end_date >= now()) ORDER BY p.value DESC LIMIT 1`).Scan(&perkCode, &perk)
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"live": live, "scheduled": scheduled, "hosts": hosts, "products": products, "replays": replays,
-		"coupon": map[string]interface{}{"code": perkCode, "value": perk},
-	})
+	// RFC 3339 timestamps in one zone sort as text; every card's next_live_at carries the same +08:00 offset
+	sort.SliceStable(upcoming, func(i, j int) bool { return *upcoming[i].NextLiveAt < *upcoming[j].NextLiveAt })
+	respondJSON(w, http.StatusOK, map[string]interface{}{"live": live, "scheduled": upcoming})
 }

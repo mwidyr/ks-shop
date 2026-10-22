@@ -66,6 +66,7 @@ const Reports = lazy(() => import('./pages/Reports'))
 const StoreProfile = lazy(() => import('./pages/StoreProfile'))
 const WebsiteHome = lazy(() => import('./pages/WebsiteHome'))
 const WebsiteHosts = lazy(() => import('./pages/WebsiteHosts'))
+const WebsiteLive = lazy(() => import('./pages/WebsiteLive'))
 const WebsiteContent = lazy(() => import('./pages/WebsiteContent'))
 const ThemeCenter = lazy(() => import('./pages/ThemeCenter'))
 const WebsiteRequests = lazy(() => import('./pages/WebsiteRequests'))
@@ -208,6 +209,7 @@ export default function App() {
         <Route path="/store/profile" element={<ProtectedRoute lock><StoreProfile /></ProtectedRoute>} />
         <Route path="/website/home" element={<ProtectedRoute lock><WebsiteHome /></ProtectedRoute>} />
         <Route path="/website/hosts" element={<ProtectedRoute lock><WebsiteHosts /></ProtectedRoute>} />
+        <Route path="/website/live" element={<ProtectedRoute lock><WebsiteLive /></ProtectedRoute>} />
         <Route path="/website/content" element={<ProtectedRoute lock><WebsiteContent /></ProtectedRoute>} />
         <Route path="/website/theme" element={<ProtectedRoute lock><ThemeCenter /></ProtectedRoute>} />
         <Route path="/website/members" element={<ProtectedRoute lock><Members /></ProtectedRoute>} />

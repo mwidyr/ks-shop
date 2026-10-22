@@ -32,7 +32,10 @@ function PickerVariantRow({ product, variant, qty, onChangeQty }) {
     <tr className={qty > 0 ? 'bg-brand-50/40' : 'hover:bg-[var(--table-row-hover)]'}>
       <td className="p-3">
         <p className="text-sm text-[var(--text-primary)]">{product.sku} · {translateColor(variant.color)}/{variant.size}</p>
-        <p className="text-xs text-[var(--text-secondary)]">{formatCurrency(variant.price)}</p>
+        <p className="text-xs text-[var(--text-secondary)]">
+          {formatCurrency(variant.price)}
+          {variant.is_active === false && <span className="ml-2 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px]">{t('page_order_create.picker_not_sellable')}</span>}
+        </p>
       </td>
       <td className="p-3 text-center">
         <span className={isOversell ? 'text-red-600 font-bold' : 'text-[var(--text-secondary)]'}>{variant.total_stock}</span>
@@ -59,13 +62,14 @@ export function pickerProductName(product, nameLang) {
   return (nameLang === 'zh' && product.names?.zh) || product.name
 }
 
-function PickerProductCard({ product, pending, setQty, nameLang }) {
+function PickerProductCard({ product, pending, setQty, nameLang, includeInactive }) {
   // Always starts collapsed, search results included - variants only show once the product is clicked.
   const [open, setOpen] = useState(false)
   const [zoom, setZoom] = useState(false) // tap the thumbnail to enlarge the photo (same viewer as Products / Stock)
   const isOpen = open
   const selectedInProduct = product.variants.filter((v) => pending[v.id] > 0).length
-  const activeVariants = product.variants.filter((v) => v.is_active !== false)
+  const shownVariants = product.variants.filter((v) => includeInactive || v.is_active !== false)
+  const activeVariants = shownVariants
   const prices = activeVariants.map((v) => Number(v.price) || 0)
   const minPrice = prices.length ? Math.min(...prices) : 0
   const maxPrice = prices.length ? Math.max(...prices) : 0
@@ -104,7 +108,7 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
       {isOpen && (
         <table className="w-full text-sm border-t">
           <tbody className="divide-y">
-            {product.variants.filter((variant) => variant.is_active !== false).map((variant) => (
+            {shownVariants.map((variant) => (
               <PickerVariantRow
                 key={variant.id}
                 product={product}
@@ -124,7 +128,9 @@ function PickerProductCard({ product, pending, setQty, nameLang }) {
 // real available stock, set quantities across as many products as needed, then commit them all
 // at once with "Simpan" - mirrors Inventory.jsx's card/row pattern but with qty inputs instead
 // of stock-editing controls.
-export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLang }) {
+// includeInactive: Purchase Requisition buys variants that are not yet sellable (e.g. a new colour), so it
+// lists every variant; order creation keeps hiding the ones marked not sellable.
+export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLang, includeInactive = false }) {
   const { translateColor, translateCategory } = useMasterData()
   const { t } = useTranslation()
   const [products, setProducts] = useState([])
@@ -211,7 +217,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
             <p className="text-center text-gray-400 py-8">{t('page_order_create.picker_empty')}</p>
           ) : (
             filtered.map((product) => (
-              <PickerProductCard key={product.id} product={product} pending={pending} setQty={setQty} nameLang={nameLang} />
+              <PickerProductCard key={product.id} product={product} pending={pending} setQty={setQty} nameLang={nameLang} includeInactive={includeInactive} />
             ))
           )}
         </div>

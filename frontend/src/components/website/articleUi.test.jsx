@@ -74,14 +74,16 @@ describe('ArticleBlockEditor', () => {
 
 describe('ArticlePreview', () => {
   const stored = toStoredBlocks(toEditorBlocks(sample)).map((b, i) => ({ ...b, id: `pv${i}` }))
-  it('renders the blocks in order with the table of contents after the first paragraph', async () => {
+  it('renders the table of contents right under the introduction, before every body block (even a leading paragraph)', async () => {
     const el = document.createElement('div'); document.body.appendChild(el)
-    await mount(el, <ArticlePreview title="My title" blocks={stored} type="article" tags={['x']} onClose={() => {}} />)
+    await mount(el, <ArticlePreview title="My title" introHtml="<p>Opening words</p>" blocks={stored} type="article" tags={['x']} onClose={() => {}} />)
     const text = el.textContent
     expect(text).toContain('My title')
-    expect(text.indexOf('Alpha')).toBeLessThan(text.indexOf('Intro text'))
-    expect(text.indexOf('Intro text')).toBeLessThan(text.indexOf('page_website.content.preview.toc'))
-    expect(text.indexOf('page_website.content.preview.toc')).toBeLessThan(text.indexOf('Beta', text.indexOf('preview.toc') + 5))
+    const toc = text.indexOf('page_website.content.preview.toc')
+    expect(text.indexOf('Opening words')).toBeLessThan(toc)
+    expect(toc).toBeLessThan(text.indexOf('Intro text')) // the first paragraph block comes AFTER the table of contents
+    expect(toc).toBeLessThan(text.indexOf('Alpha', toc + 5))
+    expect(text.indexOf('Alpha', toc + 5)).toBeLessThan(text.indexOf('Beta', toc + 5))
     expect(text).toContain('Silk Blouse')
     expect(text).toContain('NT$700')
     expect(text).toContain('Cap')

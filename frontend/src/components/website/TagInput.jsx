@@ -5,8 +5,11 @@ import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../../utils/hooks'
 export const MAX_TAGS = 30
 export const MAX_TAG_LENGTH = 60
 
-// Free-text tags: Enter adds the typed text as a chip (long-tail keywords and multi-word phrases are fine), each chip can
-// be removed, and tags used on other articles are suggested while typing. Nothing is restricted to a list.
+const SEPARATORS = /[,，、\n]/
+
+// Free-text tags: Enter or a comma adds the typed text as a chip (long-tail keywords and multi-word phrases are fine), pasting
+// "a, b, c" splits it into three chips at once, each chip can be removed, and tags used on other articles are suggested while
+// typing. Nothing is restricted to a list.
 export default function TagInput({ value = [], onChange, placeholder = '', hint = '' }) {
   const [text, setText] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -21,11 +24,25 @@ export default function TagInput({ value = [], onChange, placeholder = '', hint 
   }, [debounced, open])
 
   const lower = new Set(value.map((x) => x.toLowerCase()))
-  function add(raw) {
-    const tag = String(raw || '').replace(/\s+/g, ' ').replace(/^#/, '').trim().slice(0, MAX_TAG_LENGTH)
-    if (!tag || lower.has(tag.toLowerCase()) || value.length >= MAX_TAGS) { setText(''); return }
-    onChange([...value, tag])
-    setText('')
+  // Adds every comma-separated piece in one onChange (a per-piece loop would all read the same stale `value`).
+  function addMany(raw, keep = '') {
+    const next = [...value]
+    const seen = new Set(next.map((x) => x.toLowerCase()))
+    for (const piece of String(raw || '').split(SEPARATORS)) {
+      const tag = piece.replace(/\s+/g, ' ').replace(/^#/, '').trim().slice(0, MAX_TAG_LENGTH)
+      if (!tag || seen.has(tag.toLowerCase()) || next.length >= MAX_TAGS) continue
+      seen.add(tag.toLowerCase())
+      next.push(tag)
+    }
+    if (next.length !== value.length) onChange(next)
+    setText(keep)
+  }
+  const add = (raw) => addMany(raw)
+  function onType(v) {
+    setOpen(true)
+    if (!SEPARATORS.test(v)) { setText(v); return }
+    const cut = Math.max(v.lastIndexOf(','), v.lastIndexOf('，'), v.lastIndexOf('、'), v.lastIndexOf('\n'))
+    addMany(v.slice(0, cut), v.slice(cut + 1).replace(/^\s+/, ''))
   }
   const shown = suggestions.filter((s) => !lower.has(s.toLowerCase())).slice(0, 8)
 
@@ -40,8 +57,12 @@ export default function TagInput({ value = [], onChange, placeholder = '', hint 
         ))}
         <input
           value={text} placeholder={value.length ? '' : placeholder}
-          onChange={(e) => { setText(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={(e) => onType(e.target.value)}
+          onPaste={(e) => {
+            const pasted = e.clipboardData?.getData('text') || ''
+            if (SEPARATORS.test(pasted)) { e.preventDefault(); addMany(`${text} ${pasted}`) }
+          }}
+          onFocus={() => setOpen(true)} onBlur={() => { if (text.trim()) add(text); setTimeout(() => setOpen(false), 150) }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); add(text) }
             else if (e.key === 'Backspace' && !text && value.length) onChange(value.slice(0, -1))

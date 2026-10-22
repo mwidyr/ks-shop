@@ -96,7 +96,8 @@
       "theme": "品牌視覺設定",
       "website_requests": "顧客請求",
       "members": "會員",
-      "shipping_workbench": "出貨工作台"
+      "shipping_workbench": "出貨工作台",
+      "website_live": "全域直播設定"
     },
     "settings": "系統設定"
   },
@@ -567,6 +568,7 @@
     "no_products_yet": "尚無商品，點選「新增商品」以選擇。",
     "order_block_title": "訂單 {{index}}",
     "picker_available_stock": "可售庫存",
+    "picker_not_sellable": "未上架",
     "picker_empty": "找不到商品",
     "picker_search_placeholder": "搜尋商品名稱或 SKU",
     "picker_selected_count": "已選擇 {{count}} 個款式",
@@ -2309,7 +2311,10 @@
       "slug_required": "顯示主播前請先設定 slug",
       "pick_product": "選擇商品",
       "search_product": "搜尋商品名稱／SKU",
-      "pick_variant": "選擇規格"
+      "pick_variant": "選擇規格",
+      "live_moved_title": "顯示順序",
+      "live_moved": "直播連結、時段與狀態請在以下頁面管理：",
+      "live_moved_link": "全域直播設定"
     },
     "content": {
       "ed": {
@@ -2324,6 +2329,8 @@
         "draft_saved": "草稿已儲存。",
         "published": "文章已發佈。",
         "updated": "文章已更新。",
+        "toast_updated": "更新成功",
+        "toast_published": "發佈成功",
         "unpublished": "文章已下架。",
         "unpublish": "下架",
         "unpublish_confirm": "要下架這篇文章嗎？重新發佈前網站不會顯示。",
@@ -2519,6 +2526,20 @@
       }
     },
     "theme": {
+      "logo": {
+        "title": "網站標誌",
+        "hint": "顯示於網站頁首。PNG、JPG 或 WebP，最大 2 MB；建議使用約 400 px 寬的透明 PNG。儲存後網站立即使用。",
+        "alt": "網站標誌",
+        "none": "尚未設定標誌，顯示文字 ralulu",
+        "upload": "上傳標誌",
+        "change": "更換標誌",
+        "remove": "移除",
+        "saved": "標誌已更新",
+        "removed": "標誌已移除",
+        "bad_type": "請使用 PNG、JPG 或 WebP 圖片。",
+        "too_big": "標誌大小不可超過 2 MB。",
+        "failed": "無法儲存標誌，請再試一次。"
+      },
       "title": "品牌視覺設定",
       "intro": "整個網站的顏色都是設計變數。變更會在此即時預覽；發佈前不會影響線上網站。",
       "live_version": "線上：{{name}}",
@@ -2618,6 +2639,51 @@
       "add_host": "新增主播",
       "wear_size": "穿的尺寸",
       "saved": "網站資料已儲存"
+    },
+    "live": {
+      "title": "全域直播設定",
+      "intro": "直播時段只需設定一次。主播依其主播管理中的班別與據點自動排程；網站會自動顯示正在直播與下一場直播。所有時間皆為台灣時間 (UTC+8)。",
+      "load_failed": "無法載入直播設定。",
+      "save_failed": "儲存失敗，請再試一次。",
+      "saved": "已儲存",
+      "shifts_title": "班別時段",
+      "shifts_hint": "各班別的預設直播時段，該班別的所有主播都依此時段。晚班在設定時段前為空。",
+      "shift_empty": "尚未設定時段，此班別的主播不會顯示為直播中。",
+      "from": "開始",
+      "to": "結束",
+      "remove": "移除",
+      "add_range": "+ 新增時段",
+      "save_default": "儲存為預設",
+      "locations_title": "據點工作日",
+      "locations_hint": "工作日依據點設定，適用於該據點的所有主播。遇到假日或休館可另外新增休息日。",
+      "day_0": "日",
+      "day_1": "一",
+      "day_2": "二",
+      "day_3": "三",
+      "day_4": "四",
+      "day_5": "五",
+      "day_6": "六",
+      "days_off": "額外休息日",
+      "note": "備註（選填）",
+      "add_day_off": "新增休息日",
+      "save": "儲存",
+      "hosts_title": "主播",
+      "hosts_hint": "名稱、據點與班別來自主播管理。請在此貼上每位主播的 TikTok 直播連結，可隨時更換。結束直播只會停止目前進行中的場次。",
+      "col_host": "主播",
+      "col_location": "據點",
+      "col_shift": "班別",
+      "col_url": "直播連結",
+      "col_status": "狀態",
+      "no_shift": "未設定班別",
+      "end_live": "結束直播",
+      "end_confirm": "要結束 {{name}} 目前的直播嗎？下一場排定的直播仍會照常開始。",
+      "ended": "已結束本場直播",
+      "url_saved": "直播連結已儲存",
+      "status_live": "直播中",
+      "status_scheduled": "即將開始",
+      "status_offline": "未開播",
+      "next": "下一場",
+      "until": "直到"
     }
   },
   "page_members": {

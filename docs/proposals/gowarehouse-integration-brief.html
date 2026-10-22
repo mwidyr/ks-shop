@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GoWarehouse Integration Brief</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1f2937; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4px; color: #86163B; }
+  h2 { font-size: 14pt; margin: 22px 0 8px; color: #86163B; border-bottom: 2px solid #F8E8ED; padding-bottom: 4px; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; break-after: avoid; }
+  p { margin: 5px 0; }
+  .sub { color: #6b7280; font-size: 10pt; margin-bottom: 14px; }
+  table { width: calc(100% - 2px); table-layout: fixed; border-collapse: collapse; margin: 8px 0; font-size: 9.5pt; break-inside: auto; }
+  th { background: #F3F2EE; text-align: left; }
+  th, td { border: 1px solid #e5e7eb; padding: 5px 7px; vertical-align: top; overflow-wrap: anywhere; }
+  tr { break-inside: avoid; }
+  code { font-family: Menlo, Consolas, monospace; font-size: 8.8pt; background: #f3f4f6; padding: 0 3px; border-radius: 3px; }
+  ul, ol { margin: 4px 0 4px 20px; padding: 0; }
+  li { margin: 2px 0; }
+  .box { border: 1px solid #EBC1CC; background: #FBF1F4; border-radius: 8px; padding: 9px 12px; margin: 10px 0; break-inside: avoid; }
+  .warn { border-color: #fcd34d; background: #fffbeb; }
+  .tag { display: inline-block; font-size: 8.5pt; font-weight: 700; padding: 1px 7px; border-radius: 9px; }
+  .must { background: #fee2e2; color: #991b1b; } .rec { background: #fef3c7; color: #92400e; }
+  .later { background: #dbeafe; color: #1e40af; } .skip { background: #e5e7eb; color: #374151; }
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
+  .step { position: relative; border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 8px; background: #fff; font-size: 9pt; }
+  .step b { display: block; font-size: 9.5pt; margin-bottom: 2px; }
+  .step.gw { border: 2px solid #9E1B46; background: #FBF1F4; }
+  .step:not(:last-child)::after { content: '\2192'; position: absolute; right: -9px; top: 38%; color: #9ca3af; font-size: 12pt; background: #fff; line-height: 1; z-index: 1; }
+  .flow .step:nth-child(4)::after { content: ''; }
+  .pb { break-before: page; }
+  .small { font-size: 9pt; color: #6b7280; }
+  .q td:first-child { width: 26px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>GoWarehouse Integration Brief</h1>
+<p class="sub">Ralulu ERP &middot; prepared for discussion with the client &middot; based on the Partners API 2026-09 documentation (sharedhd.gowarehouse.ai/partners/docs/en/2026-09) and the current ERP code. No live API call has been made yet (no token).</p>
+
+<h2>1. Summary</h2>
+<p>GoWarehouse (GW) offers a REST API for products, orders, shipments, inventory, inbounds and returns. Our ERP already has a Shipping Workbench with a <b>3PL stage</b>, but that stage is manual today: staff download a packing Excel and later upload a confirmation file, and neither file format is final. The GW API can fill exactly these two gaps.</p>
+<div class="box"><b>Proposal</b>
+<ol>
+<li><b>Phase 1:</b> SKU sync (ERP to GW) and a &ldquo;Send to GoWarehouse&rdquo; button in the Shipping Workbench batch page, replacing the packing-Excel download for the 3PL.</li>
+<li><b>Phase 2:</b> pull shipment status and tracking numbers from GW and use them to confirm shipment automatically (replacing the 3PL confirmation upload).</li>
+<li><b>Later / manual for now:</b> inventory comparison, inbound (from Procurement Orders), returns.</li>
+</ol>
+Existing ERP logic (eligibility, batches, platform export and import, stock rules) stays unchanged. The new code only adds an alternative path for the two 3PL steps.</div>
+<p><b>Decisions we need first:</b> (a) whether GW prints the 7-Eleven / FamilyMart / HCT labels we already create, or creates its own carrier shipment; (b) the codes and formats GW expects (section 5).</p>
+
+<h2>2. How the ERP works today (from the code)</h2>
+<div class="flow">
+  <div class="step"><b>1. New order</b>status <code>pending</code></div>
+  <div class="step"><b>2. Eligible &amp; batch</b>Shipping Workbench checks the rules, staff create a batch</div>
+  <div class="step"><b>3. Platform export</b>Excel to 7-Eleven / FamilyMart / HCT &rarr; <code>processing</code></div>
+  <div class="step"><b>4. Platform result import</b>platform order no. + shipping no. &rarr; <code>ready_to_ship</code></div>
+</div>
+<div class="flow">
+  <div class="step gw"><b>5. 3PL packing file</b>Excel downloaded by staff (placeholder format)</div>
+  <div class="step gw"><b>6. 3PL shipment confirmation</b>Excel uploaded by staff (parser not built, format unknown)</div>
+  <div class="step"><b>7. Shipped</b>stock deducted, status <code>shipped</code></div>
+  <div class="step"><b>8. Delivered</b>platform delivery import &rarr; <code>delivered</code></div>
+</div>
+<p class="small">Highlighted boxes (5 and 6) are where GoWarehouse would plug in.</p>
+
+<h3>Eligibility rules (computeEligible in <code>shipping_batches.go</code>)</h3>
+<ul>
+<li>Order status <code>pending</code>, not already in a batch, delivery provider matches (7-Eleven, FamilyMart or courier).</li>
+<li>Created before 00:00 Taiwan time today (UTC+8), so same-day orders wait.</li>
+<li>Kept orders are held until 1 day (shipping date mode) or 4 days (expected delivery mode) before their kept date.</li>
+<li>Each shipment is classified ready / problem / insufficient stock; physical stock is allocated oldest first and never promised twice. Unknown store codes are flagged.</li>
+<li>Orders merged into one shipment are batched as a whole.</li>
+</ul>
+
+<h3>Stock model (<code>stock_calc.go</code>, <code>order_status.go</code>)</h3>
+<ul>
+<li><b>Actual</b> (physical stock) only drops when an order moves to <code>shipped</code>, which happens when the 3PL shipment is confirmed. Creating, batching, exporting or cancelling never touches it.</li>
+<li><b>Ordered</b> is derived from orders in pending / processing / ready_to_ship, so it cannot drift. Available = Actual + Incoming &minus; Ordered.</li>
+<li>Every status change goes through one function (<code>applyStatusChange</code>), so stock, promo, wallet and points side effects stay consistent.</li>
+</ul>
+
+<h3>Data we already have</h3>
+<ul>
+<li>SKU: <code>product_variants.sku</code> (unique, up to 60 characters), one per colour/size variant.</li>
+<li>Order fields: order number, customer name / phone / address, pickup chain and store code, <code>platform_order_no</code>, <code>tracking_number</code>, shipping fee, <code>exported_at</code>, and the keep date with its type.</li>
+<li>Logs: <code>order_export_log</code> (what was exported, when) and <code>shipping_import_log</code> / issues (what was imported and what could not be matched).</li>
+</ul>
+
+<h3>What is manual or unfinished today</h3>
+<ul>
+<li>The 3PL packing Excel is a placeholder &ldquo;until the 3PL confirms its real format&rdquo; (<code>excel.js</code>).</li>
+<li>The 3PL shipment-confirmation and delivery parsers refuse to guess formats (<code>parsers.js</code>); the backend rules for applying them already exist.</li>
+<li>Products are created only inside the ERP, with no warehouse catalogue to keep in sync.</li>
+</ul>
+
+<h2>3. What we learned from the GW API</h2>
+<table>
+<tr><th style="width:24%">Topic</th><th>What the documentation says</th></tr>
+<tr><td>Access</td><td>Base path <code>/api/partners/2026-09</code>. Bearer token per integration, with scopes per endpoint (e.g. <code>products:write</code>, <code>orders:write</code>). The token can be restricted to an IP allowlist.</td></tr>
+<tr><td>Limits</td><td>180 requests / minute, 10 / second, and 10,000 / day per merchant. Throttled calls return 429 with <code>Retry-After</code>. This is comfortably enough for our order volume.</td></tr>
+<tr><td>Format</td><td>Flat JSON bodies (no wrapper), money and weights as strings, dates <code>YYYY-MM-DD</code>, timestamps in UTC, cursor pagination (<code>page_size</code>, <code>since_id</code>, <code>has_more</code>) and <code>updated_at_min</code> filters for incremental sync. Errors are machine codes (e.g. <code>validation_failed</code>).</td></tr>
+<tr><td>Webhooks</td><td>9 events: <code>order.created</code>, <code>order.shipped</code>, <code>order.cancelled</code>, <code>shipment.shipped</code>, <code>shipment.status_changed</code>, <code>inventory.updated</code>, <code>inbound.completed</code>, <code>return_receipt.verified</code>, <code>return_order.received</code>. Signed with a secret; requires a public HTTPS endpoint. Polling is a valid alternative.</td></tr>
+</table>
+
+<h3>Endpoints</h3>
+<table>
+<tr><th style="width:21%">Area</th><th style="width:30%">Endpoints</th><th>Notes</th></tr>
+<tr><td>Products</td><td><code>GET/POST /products</code>, <code>GET/PATCH/DELETE /products/{id}</code></td><td>Only <code>name</code> and <code>sku</code> are required on create. Optional: barcode, brand, category, dimensions, weight, note. SKU is unique per merchant.</td></tr>
+<tr><td>Orders</td><td><code>GET/POST /orders</code>, <code>GET/PATCH /orders/{id}</code>, <code>POST /orders/{id}/cancel</code></td><td>Required: <code>name</code> (order number) and <code>items</code>. Each item needs <code>sku</code>, <code>quantity</code> and <code>inventory_type</code>. Also receiver name, phone, address, <code>convenience_store_code</code>, <code>cod_amount</code>, <code>shipping_type</code>, <code>warehouse</code>, <code>scheduled_shipping_date</code>, <code>sales_channel</code>, <code>note</code>. An item <code>identifier</code> is echoed back so we can match lines.</td></tr>
+<tr><td>Shipments</td><td><code>GET /shipments</code>, <code>GET /shipments/{id}</code></td><td><b>Read-only</b>: created by the warehouse. Fields: <code>status</code> (waiting, shipped, in_transit, arrived_at_hub, arrived_at_destination, received, returned, returned_to_sender, problem), <code>tracking_number</code>, <code>orders</code> (names, several when merged), <code>shipped_at</code>.</td></tr>
+<tr><td>Inventory</td><td><code>GET /inventory_levels</code>, <code>GET /inventories</code></td><td>Per product, warehouse and inventory type: available, pickable, on-hand, allocated and held quantities.</td></tr>
+<tr><td>Inbounds</td><td><code>GET/POST/PATCH /inbounds</code>, <code>POST /inbounds/{id}/cancel</code></td><td>Create needs <code>name</code>, <code>eta</code> and items. Editable only while <code>pending</code>.</td></tr>
+<tr><td>Returns</td><td><code>GET /return_orders</code></td><td>Read-only (pending, partial_received, received, done, canceled).</td></tr>
+<tr><td>Other</td><td>Invoices and credit notes, contact addresses, sales channels, attribute definitions, webhook management</td><td>Invoices only matter if e-invoices are issued through GW.</td></tr>
+</table>
+
+<h3>Things that affect our design</h3>
+<ul>
+<li>If an order contains an SKU GW does not know, GW <b>silently creates an &ldquo;UnknownProduct&rdquo;</b> and still accepts the order, unless strict mode is enabled for the merchant. So SKU sync must come first.</li>
+<li><code>inventory_type</code> is required on every order item and must exist in GW (the docs mention values like normal, damaged and expired).</li>
+<li>An order can only be edited in GW while it is still <code>pending</code>; after that it can only be cancelled (irreversible).</li>
+<li>Shipments cannot be created through the API, so tracking and status always come from GW.</li>
+<li>The API does not expose a field specifically for a carrier tracking number on the order we send. We can pass our platform order number and shipping number in <code>extra_name</code> or <code>note</code>, but this must be agreed with GW.</li>
+</ul>
+
+<h2>4. Recommendation</h2>
+<table>
+<tr><th style="width:18%">Priority</th><th style="width:27%">Item</th><th>Approach</th></tr>
+<tr><td><span class="tag must">Must</span></td><td>Product SKU sync</td><td>ERP to GW only. A &ldquo;Sync SKUs&rdquo; button creates missing SKUs (<code>POST /products</code>) and updates changed names; a sync log shows what succeeded or failed. Run it before the first order is sent.</td></tr>
+<tr><td><span class="tag must">Must</span></td><td>Send orders</td><td>New &ldquo;Send to GoWarehouse&rdquo; button on the batch page, for orders in <code>ready_to_ship</code> that were not sent yet. It replaces the packing-Excel download. Result per order is shown (sent / failed + reason).</td></tr>
+<tr><td><span class="tag rec">Strongly recommended</span></td><td>Shipment status and tracking</td><td>Poll <code>GET /shipments</code> every 10&ndash;15 minutes with <code>updated_at_min</code> (roughly 100 to 150 calls a day). When GW reports an order shipped, move it <code>ready_to_ship</code> to <code>shipped</code> through the existing status function, which deducts stock and logs it. Webhooks can replace polling later.</td></tr>
+<tr><td><span class="tag later">Later</span></td><td>Inventory</td><td>Read-only comparison of GW on-hand vs ERP Actual. Do not overwrite ERP stock automatically.</td></tr>
+<tr><td><span class="tag later">Later</span></td><td>Inbound</td><td>Create a GW inbound from a Procurement Order (<code>po_number</code>, supplier, ETA, items). Can stay manual at first.</td></tr>
+<tr><td><span class="tag later">Later</span></td><td>Returns</td><td>Read GW return orders; staff still process the return in the ERP. Low volume.</td></tr>
+<tr><td><span class="tag skip">Skip</span></td><td>Invoices, addresses, attributes</td><td>Not needed unless GW issues invoices for us.</td></tr>
+</table>
+
+<h3>Proposed order mapping (ERP to <code>POST /orders</code>)</h3>
+<table>
+<tr><th style="width:32%">GW field</th><th>Value from the ERP</th></tr>
+<tr><td><code>name</code></td><td>ERP order number (<code>order_no</code>)</td></tr>
+<tr><td><code>items[].sku / quantity</code></td><td>Variant SKU and quantity of each order line</td></tr>
+<tr><td><code>items[].identifier</code></td><td>Our order item ID (comes back in GW events, so lines match one to one)</td></tr>
+<tr><td><code>items[].inventory_type</code></td><td>A fixed code from GW (setting, e.g. normal) &ndash; to be confirmed</td></tr>
+<tr><td><code>receiver_name / phone / address</code></td><td>Customer name, phone and shipping address</td></tr>
+<tr><td><code>convenience_store_code</code></td><td>Our validated store code (<code>pickup_store_code</code>) for 7-Eleven and FamilyMart</td></tr>
+<tr><td><code>shipping_type / warehouse</code></td><td>Mapped from our delivery provider; GW codes to be confirmed</td></tr>
+<tr><td><code>cod_amount</code></td><td>Total to pay for cash-on-delivery orders</td></tr>
+<tr><td><code>extra_name / note</code></td><td>Platform order number and platform shipping number, if GW needs them to print the existing labels</td></tr>
+<tr><td><code>scheduled_shipping_date</code></td><td>Optional: ship date from the keep-order setting</td></tr>
+</table>
+
+<h3>Minimal ERP changes</h3>
+<ul>
+<li>One GW client module (token and base URL in settings, never in the repository).</li>
+<li>New columns: <code>gw_order_id</code> and <code>gw_sent_at</code> on orders, <code>gw_synced_at</code> on variants, and one sync-log table.</li>
+<li>Safeguards: an order with a GW id cannot be sent twice; rate-limit and error handling with retry; every send is logged with the user who triggered it.</li>
+<li>Nothing is removed. The Excel path stays available as a manual fallback.</li>
+</ul>
+
+<h2 class="pb">5. Questions for the client and GoWarehouse</h2>
+<p>Each question has our recommended answer, so the client can simply confirm or correct it.</p>
+<table class="q">
+<tr><th style="width:38px">#</th><th style="width:44%">Question</th><th>Our recommended answer</th></tr>
+<tr><td>1</td><td><b>Labels:</b> does GW print the 7-Eleven / FamilyMart / HCT labels created through our platform step, or does it create its own carrier shipment and tracking?</td><td>Keep our platform step (least change) and pass the platform order and shipping numbers to GW. If GW creates its own shipments, the platform export step may become redundant and we should redesign. Needs GW&rsquo;s answer first.</td></tr>
+<tr><td>2</td><td><b>Codes:</b> which <code>inventory_type</code>, warehouse name and <code>shipping_type</code> codes should we send for 7-Eleven, FamilyMart and home courier?</td><td>Ask GW for the exact list. We store them as settings, not in code. We expect <code>normal</code> for sellable stock but have not confirmed it.</td></tr>
+<tr><td>3</td><td><b>Store code:</b> which format does <code>convenience_store_code</code> expect?</td><td>Our 6-digit store codes; GW to confirm. We can convert if they differ.</td></tr>
+<tr><td>4</td><td><b>Strict SKU mode and sandbox:</b> can strict mode be enabled, and is there a test merchant?</td><td>Yes to strict mode, so unknown SKUs are rejected instead of silently accepted. Test in a sandbox first; if none exists, test with one low-value real order.</td></tr>
+<tr><td>5</td><td><b>Stock ownership:</b> when does stock go down?</td><td>Keep today&rsquo;s rule: ERP Actual drops when the order becomes <code>shipped</code> (GW confirmed), and GW stock is shown for comparison only. This avoids deducting twice.</td></tr>
+<tr><td>6</td><td><b>Merged shipments:</b> when several ERP orders ship together, how should GW receive them?</td><td>Send each ERP order separately with the same note reference; GW shipments already list several order names. GW to confirm.</td></tr>
+<tr><td>7</td><td><b>Changes and cancellation:</b> what happens if a customer cancels after we sent the order?</td><td>The ERP already locks orders after export. If GW is still <code>pending</code> we call cancel; after that it is a manual case with GW.</td></tr>
+<tr><td>8</td><td><b>Kept orders:</b> should GW hold orders until the kept ship date?</td><td>No. The ERP already holds them and only sends when they are due; <code>scheduled_shipping_date</code> is optional.</td></tr>
+<tr><td>9</td><td><b>Webhooks:</b> do we use webhooks or polling for shipment updates?</td><td>Start with polling every 10&ndash;15 minutes (no public endpoint needed), add webhooks later.</td></tr>
+<tr><td>10</td><td><b>Access:</b> IP allowlist and token scopes.</td><td>Register our production server IP. Scopes: <code>products:read/write</code>, <code>orders:read/write</code>. Add <code>inventories:read</code>, <code>inbounds:write</code>, <code>return_orders:read</code> only when those phases start.</td></tr>
+<tr><td>11</td><td><b>Returns and invoices:</b> who receives returned goods, and does GW issue invoices?</td><td>Returns handled manually first; invoices skipped unless GW issues them.</td></tr>
+</table>
+
+<h2>6. What we have not verified</h2>
+<ul>
+<li>No token or sandbox was available, so no call to the live API was made. Everything in section 3 comes from the published documentation.</li>
+<li>The code description in section 2 comes from reading the repository, not from running the Workbench against production data.</li>
+<li>The effort and phasing are estimates; they depend mainly on questions 1, 2 and 4.</li>
+</ul>
+
+</body>
+</html>

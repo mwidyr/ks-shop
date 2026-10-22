@@ -17,7 +17,6 @@ export default function ArticlePreview({ title, summary, introHtml, coverAlt, co
   const byId = Object.fromEntries(products.map((p) => [p.id, p]))
   const toc = tocFromBlocks(blocks)
   const topic = type === 'topic'
-  let tocDone = false
   let h2Seen = 0
   const heading = (b) => (b.html ? <span dangerouslySetInnerHTML={{ __html: safeInlineHtml(b.html) }} /> : b.text)
   useEffect(() => {
@@ -68,14 +67,6 @@ export default function ArticlePreview({ title, summary, introHtml, coverAlt, co
     } else if ((b.text || '').trim()) {
       out.push(<p key={b.id} style={{ margin: 0, fontSize: 15, lineHeight: 1.85, color: T.text, whiteSpace: 'pre-line' }}>{b.text}</p>)
     }
-    if (!tocDone && !topic && showToc(toc) && b.type === 'p' && (b.text || '').trim()) {
-      tocDone = true
-      out.push(
-        <div key="toc" style={{ padding: '14px 16px', borderRadius: 14, background: T.soft, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 15 }}>
-          <b>{t('page_website.content.preview.toc')}</b>
-          {toc.map((x, n) => <a key={x.i} href={`#pv-s${x.i}`} style={{ color: T.strong }}>{n + 1}. {x.text.replace(/^\d+\.\s*/, '')}</a>)}
-        </div>)
-    }
     return out
   })
 
@@ -98,6 +89,12 @@ export default function ArticlePreview({ title, summary, introHtml, coverAlt, co
             {introHtml
               ? <div className="preview-rich" style={{ fontSize: 15, lineHeight: 1.85, color: T.text }} dangerouslySetInnerHTML={{ __html: safeInlineHtml(introHtml) }} />
               : summary && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.85, whiteSpace: 'pre-line' }}>{summary}</p>}
+            {!topic && showToc(toc) && (
+              <div key="toc" style={{ padding: '14px 16px', borderRadius: 14, background: T.soft, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 15 }}>
+                <b>{t('page_website.content.preview.toc')}</b>
+                {toc.map((x, n) => <a key={x.i} href={`#pv-s${x.i}`} style={{ color: T.strong }}>{n + 1}. {x.text.replace(/^\d+\.\s*/, '')}</a>)}
+              </div>
+            )}
             {rendered}
             {!topic && tags?.length > 0 && !blocks.some((b) => b.type === 'tags') && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>{tags.map((x) => <span key={x} style={tagPill}>#{x}</span>)}</div>}
           </div>

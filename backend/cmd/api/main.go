@@ -243,6 +243,12 @@ func main() {
 			r.With(view("website_hosts")).Get("/admin/site-hosts", siteAdminH.Hosts)
 			r.With(view("website_hosts")).Get("/admin/site-hosts/{id}", siteAdminH.Host)
 			r.With(edit("website_hosts")).Put("/admin/site-hosts/{id}", siteAdminH.SaveHost)
+			// Global LIVE Settings: shift hours, location working days, each host's LIVE link, End LIVE.
+			r.With(view("website_live")).Get("/admin/live/settings", siteAdminH.LiveSettings)
+			r.With(edit("website_live")).Put("/admin/live/shifts/{shift}", siteAdminH.SaveLiveShift)
+			r.With(edit("website_live")).Put("/admin/live/locations/{id}", siteAdminH.SaveLiveLocation)
+			r.With(edit("website_live")).Put("/admin/live/hosts/{id}/url", siteAdminH.SaveLiveURL)
+			r.With(edit("website_live")).Post("/admin/live/hosts/{id}/end", siteAdminH.EndLive)
 			r.With(view("website_content")).Get("/admin/content", siteAdminH.ContentList)
 			r.With(view("website_content")).Get("/admin/content/slug-check", siteAdminH.ContentSlugCheck)
 			r.With(view("website_content")).Get("/admin/content/tags", siteAdminH.ContentTags)
@@ -285,6 +291,8 @@ func main() {
 			r.With(view("theme")).Get("/admin/theme/versions", themeH.Versions)
 			r.With(edit("theme")).Post("/admin/theme/versions/{id}/restore", themeH.Restore)
 			r.With(view("theme")).Get("/admin/theme/presets", themeH.Presets)
+			r.With(view("theme")).Get("/admin/theme/logo", siteAdminH.GetLogo)
+			r.With(edit("theme")).Put("/admin/theme/logo", siteAdminH.SaveLogo)
 
 			r.With(view("products")).Get("/products", productH.List)
 			r.With(view("products")).Get("/products/{id}", productH.Detail)

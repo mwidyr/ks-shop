@@ -74,7 +74,11 @@ func (h *SiteAdminHandler) moduleCount(ctx context.Context, m homeModuleDTO) int
 	}
 	switch m.Key {
 	case "live":
-		h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM hosts WHERE is_active AND is_public AND live_status IN ('live','scheduled')`).Scan(&n)
+		for _, c := range (&SiteHandler{DB: h.DB}).scanHostCards(ctx, hostCardSelect) {
+			if c.LiveStatus == "live" || c.LiveStatus == "scheduled" {
+				n++
+			}
+		}
 	case "categories":
 		h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM categories c WHERE EXISTS (SELECT 1 FROM products p WHERE p.category = c.name AND p.is_active AND p.deleted_at IS NULL)`).Scan(&n)
 	case "best_sellers":
@@ -195,6 +199,51 @@ func (h *SiteAdminHandler) SaveSettings(w http.ResponseWriter, r *http.Request) 
 	h.GetSettings(w, r)
 }
 
+// ---------------------------------------------------------------- website logo (Theme & Appearance)
+
+const siteLogoKey = "site_logo_url"
+
+// validLogoURL accepts "" (no logo: the website shows its text wordmark), an uploaded file path or an
+// absolute http(s) URL, and nothing else (no javascript:, data: or protocol-relative values).
+func validLogoURL(v string) bool {
+	if v == "" {
+		return true
+	}
+	if len(v) > 500 || strings.ContainsAny(v, " \t\r\n\"'<>\\") {
+		return false
+	}
+	return (strings.HasPrefix(v, "/uploads/") && !strings.Contains(v, "..")) || strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")
+}
+
+// GetLogo serves GET /admin/theme/logo.
+func (h *SiteAdminHandler) GetLogo(w http.ResponseWriter, r *http.Request) {
+	url := ""
+	h.DB.QueryRow(r.Context(), `SELECT value FROM store_settings WHERE key=$1`, siteLogoKey).Scan(&url)
+	respondJSON(w, http.StatusOK, map[string]string{"logo_url": url})
+}
+
+// SaveLogo serves PUT /admin/theme/logo {logo_url}; an empty value removes the logo. The logo is
+// used by the website header straight away (it is not part of the theme draft/publish flow).
+func (h *SiteAdminHandler) SaveLogo(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LogoURL string `json:"logo_url"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	url := strings.TrimSpace(req.LogoURL)
+	if !validLogoURL(url) {
+		respondError(w, http.StatusBadRequest, "logo_url must be an uploaded file or an http(s) address")
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `INSERT INTO store_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, siteLogoKey, url); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"logo_url": url})
+}
+
 // ---------------------------------------------------------------- host public profiles
 
 type siteHostRow struct {
@@ -210,7 +259,7 @@ type siteHostRow struct {
 // Hosts serves GET /admin/site-hosts.
 func (h *SiteAdminHandler) Hosts(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT h.id, h.name, COALESCE(h.slug,''), h.is_public, h.live_status, COALESCE(h.avatar_url,''),
+		SELECT h.id, h.name, COALESCE(h.slug,''), h.is_public, 'offline', COALESCE(h.avatar_url,''),
 		       (SELECT COUNT(*) FROM host_products hp WHERE hp.host_id = h.id)
 		FROM hosts h WHERE h.is_active ORDER BY h.is_public DESC, h.display_order, h.name`)
 	if err != nil {
@@ -223,6 +272,16 @@ func (h *SiteAdminHandler) Hosts(w http.ResponseWriter, r *http.Request) {
 		var x siteHostRow
 		if rows.Scan(&x.ID, &x.Name, &x.Slug, &x.IsPublic, &x.LiveStatus, &x.Avatar, &x.Items) == nil {
 			out = append(out, x)
+		}
+	}
+	ids := make([]int32, len(out))
+	for i, x := range out {
+		ids[i] = int32(x.ID)
+	}
+	info := loadHostLive(r.Context(), h.DB, ids)
+	for i := range out {
+		if x := info[out[i].ID]; x != nil {
+			out[i].LiveStatus = liveStateAt(time.Now(), x.Rule, x.Ended).Status
 		}
 	}
 	respondJSON(w, http.StatusOK, out)
@@ -241,14 +300,6 @@ type siteHostProfile struct {
 	UsualSize      string          `json:"usual_size"`
 	StyleNote      string          `json:"style_note"`
 	Favorites      string          `json:"favorites"`
-	TiktokURL      string          `json:"tiktok_url"`
-	LiveURL        string          `json:"live_url"`
-	LiveURLExpires *time.Time      `json:"live_url_expires_at"`
-	LiveStatus     string          `json:"live_status"`
-	LiveTitle      string          `json:"live_title"`
-	NextLiveAt     *time.Time      `json:"next_live_at"`
-	NextLiveTitle  string          `json:"next_live_title"`
-	ViewerCount    *int            `json:"viewer_count"`
 	DisplayOrder   int             `json:"display_order"`
 	IsPublic       bool            `json:"is_public"`
 	SEOTitle       string          `json:"seo_title"`
@@ -269,12 +320,6 @@ type hostRelations struct {
 		Tag        string `json:"tag"`
 		VariantIDs []int  `json:"variant_ids"`
 	} `json:"outfits"`
-	Replays []struct {
-		Title       string `json:"title"`
-		URL         string `json:"url"`
-		DurationSec *int   `json:"duration_sec"`
-		AiredOn     string `json:"aired_on"`
-	} `json:"replays"`
 	Coupons []struct {
 		PromotionID int    `json:"promotion_id"`
 		Code        string `json:"code,omitempty"`
@@ -293,12 +338,11 @@ func (h *SiteAdminHandler) Host(w http.ResponseWriter, r *http.Request) {
 	var p siteHostProfile
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT id, name, COALESCE(slug,''), alias, COALESCE(avatar_url,''), COALESCE(cover_url,''), COALESCE(bio,''), height_cm, weight_kg,
-		       COALESCE(usual_size,''), COALESCE(style_note,''), COALESCE(favorites,''), COALESCE(tiktok_url,''), COALESCE(live_url,''), live_url_expires_at,
-		       live_status, COALESCE(live_title,''), next_live_at, COALESCE(next_live_title,''), viewer_count, display_order, is_public,
+		       COALESCE(usual_size,''), COALESCE(style_note,''), COALESCE(favorites,''), display_order, is_public,
 		       COALESCE(seo_title,''), COALESCE(seo_description,''), blocks
 		FROM hosts WHERE id=$1 AND is_active`, id).
 		Scan(&p.ID, &p.Name, &p.Slug, &p.Alias, &p.AvatarURL, &p.CoverURL, &p.Bio, &p.HeightCM, &p.WeightKG, &p.UsualSize, &p.StyleNote, &p.Favorites,
-			&p.TiktokURL, &p.LiveURL, &p.LiveURLExpires, &p.LiveStatus, &p.LiveTitle, &p.NextLiveAt, &p.NextLiveTitle, &p.ViewerCount, &p.DisplayOrder, &p.IsPublic,
+			&p.DisplayOrder, &p.IsPublic,
 			&p.SEOTitle, &p.SEODescription, &p.Blocks)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "host not found")
@@ -344,20 +388,6 @@ func (h *SiteAdminHandler) Host(w http.ResponseWriter, r *http.Request) {
 				VariantIDs []int  `json:"variant_ids"`
 			}{o.title, o.tag, ids})
 		}
-	}
-	if rows, err := h.DB.Query(r.Context(), `SELECT title, url, duration_sec, COALESCE(aired_on::text,'') FROM host_replays WHERE host_id=$1 ORDER BY aired_on DESC NULLS LAST, id`, id); err == nil {
-		for rows.Next() {
-			var x struct {
-				Title       string `json:"title"`
-				URL         string `json:"url"`
-				DurationSec *int   `json:"duration_sec"`
-				AiredOn     string `json:"aired_on"`
-			}
-			if rows.Scan(&x.Title, &x.URL, &x.DurationSec, &x.AiredOn) == nil {
-				rel.Replays = append(rel.Replays, x)
-			}
-		}
-		rows.Close()
 	}
 	if rows, err := h.DB.Query(r.Context(), `SELECT hc.promotion_id, COALESCE(p.code,''), COALESCE(hc.title,''), COALESCE(hc.subtitle,'') FROM host_coupons hc JOIN promotions p ON p.id = hc.promotion_id WHERE hc.host_id=$1 ORDER BY hc.sort_order`, id); err == nil {
 		for rows.Next() {
@@ -427,21 +457,6 @@ func (h *SiteAdminHandler) SaveHost(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "slug hanya huruf kecil, angka, dan tanda hubung")
 		return
 	}
-	switch p.LiveStatus {
-	case "live", "scheduled", "offline":
-	default:
-		p.LiveStatus = "offline"
-	}
-	if p.LiveStatus == "scheduled" && p.NextLiveAt == nil {
-		respondError(w, http.StatusBadRequest, "isi jam live berikutnya untuk status terjadwal")
-		return
-	}
-	for _, u := range []string{p.TiktokURL, p.LiveURL} {
-		if u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
-			respondError(w, http.StatusBadRequest, "link harus diawali https://")
-			return
-		}
-	}
 	if p.Blocks == nil {
 		p.Blocks = map[string]bool{}
 	}
@@ -460,12 +475,10 @@ func (h *SiteAdminHandler) SaveHost(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx, `
 		UPDATE hosts SET slug=NULLIF($2,''), alias=$3, avatar_url=NULLIF($4,''), cover_url=NULLIF($5,''), bio=NULLIF($6,''), height_cm=$7, weight_kg=$8,
-		       usual_size=NULLIF($9,''), style_note=NULLIF($10,''), favorites=NULLIF($11,''), tiktok_url=NULLIF($12,''), live_url=NULLIF($13,''), live_url_expires_at=$14,
-		       live_status=$15, live_title=NULLIF($16,''), next_live_at=$17, next_live_title=NULLIF($18,''), viewer_count=$19, display_order=$20, is_public=$21,
-		       seo_title=NULLIF($22,''), seo_description=NULLIF($23,''), blocks=$24
+		       usual_size=NULLIF($9,''), style_note=NULLIF($10,''), favorites=NULLIF($11,''), display_order=$12, is_public=$13,
+		       seo_title=NULLIF($14,''), seo_description=NULLIF($15,''), blocks=$16
 		WHERE id=$1`,
-		id, slug, alias, p.AvatarURL, p.CoverURL, p.Bio, p.HeightCM, p.WeightKG, p.UsualSize, p.StyleNote, p.Favorites, p.TiktokURL, p.LiveURL, p.LiveURLExpires,
-		p.LiveStatus, p.LiveTitle, p.NextLiveAt, p.NextLiveTitle, p.ViewerCount, p.DisplayOrder, p.IsPublic, p.SEOTitle, p.SEODescription, p.Blocks); err != nil {
+		id, slug, alias, p.AvatarURL, p.CoverURL, p.Bio, p.HeightCM, p.WeightKG, p.UsualSize, p.StyleNote, p.Favorites, p.DisplayOrder, p.IsPublic, p.SEOTitle, p.SEODescription, p.Blocks); err != nil {
 		if strings.Contains(err.Error(), "idx_hosts_slug") {
 			respondError(w, http.StatusConflict, "slug sudah dipakai host lain")
 			return
@@ -487,7 +500,7 @@ func (h *SiteAdminHandler) SaveHost(w http.ResponseWriter, r *http.Request) {
 }
 
 func replaceHostRelations(ctx context.Context, tx pgx.Tx, id int, rel *hostRelations) error {
-	for _, q := range []string{`DELETE FROM host_products WHERE host_id=$1`, `DELETE FROM host_outfits WHERE host_id=$1`, `DELETE FROM host_replays WHERE host_id=$1`, `DELETE FROM host_coupons WHERE host_id=$1`} {
+	for _, q := range []string{`DELETE FROM host_products WHERE host_id=$1`, `DELETE FROM host_outfits WHERE host_id=$1`, `DELETE FROM host_coupons WHERE host_id=$1`} {
 		if _, err := tx.Exec(ctx, q, id); err != nil {
 			return err
 		}
@@ -513,18 +526,6 @@ func replaceHostRelations(ctx context.Context, tx pgx.Tx, id int, rel *hostRelat
 			if _, err := tx.Exec(ctx, `INSERT INTO host_outfit_items (outfit_id, variant_id, sort_order) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, oid, v, j); err != nil {
 				return err
 			}
-		}
-	}
-	for i, x := range rel.Replays {
-		if strings.TrimSpace(x.Title) == "" || !strings.HasPrefix(x.URL, "http") {
-			continue
-		}
-		var aired interface{}
-		if x.AiredOn != "" {
-			aired = x.AiredOn
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO host_replays (host_id, title, url, duration_sec, aired_on, sort_order) VALUES ($1,$2,$3,$4,$5,$6)`, id, x.Title, x.URL, x.DurationSec, aired, i); err != nil {
-			return err
 		}
 	}
 	for i, x := range rel.Coupons {

@@ -96,7 +96,8 @@
       "theme": "Theme & Appearance",
       "website_requests": "Customer Requests",
       "members": "Members",
-      "shipping_workbench": "Shipping Workbench"
+      "shipping_workbench": "Shipping Workbench",
+      "website_live": "Global LIVE Settings"
     },
     "settings": "System Settings"
   },
@@ -381,7 +382,7 @@
     "select_all": "Select all",
     "selected_count": "{{count}} selected",
     "shift_evening": "Evening",
-    "shift_middle": "Middle",
+    "shift_middle": "Afternoon",
     "shift_morning": "Morning",
     "shift_none": "No shift",
     "title": "Live Hosts"
@@ -567,6 +568,7 @@
     "no_products_yet": "No products yet. Click \"Add Product\" to pick some.",
     "order_block_title": "Order {{index}}",
     "picker_available_stock": "Available Stock",
+    "picker_not_sellable": "Not for sale",
     "picker_empty": "No products found",
     "picker_search_placeholder": "Search product name or SKU",
     "picker_selected_count": "{{count}} variant(s) selected",
@@ -2309,7 +2311,10 @@
       "slug_required": "Set a slug before showing this host",
       "pick_product": "Pick a product",
       "search_product": "Search product name / SKU",
-      "pick_variant": "Choose variant"
+      "pick_variant": "Choose variant",
+      "live_moved_title": "Display order",
+      "live_moved": "LIVE links, schedules and status are managed in",
+      "live_moved_link": "Global LIVE Settings"
     },
     "content": {
       "ed": {
@@ -2324,6 +2329,8 @@
         "draft_saved": "Draft saved.",
         "published": "Article published.",
         "updated": "Article updated.",
+        "toast_updated": "Updated Successfully",
+        "toast_published": "Published Successfully",
         "unpublished": "Article unpublished.",
         "unpublish": "Unpublish",
         "unpublish_confirm": "Unpublish this article? It disappears from the website until you publish it again.",
@@ -2519,6 +2526,20 @@
       }
     },
     "theme": {
+      "logo": {
+        "title": "Website logo",
+        "hint": "Shown in the website header. PNG, JPG or WebP, up to 2 MB; a transparent PNG about 400 px wide works best. A saved logo is used on the website straight away.",
+        "alt": "Website logo",
+        "none": "No logo - the text ralulu is shown",
+        "upload": "Upload logo",
+        "change": "Change logo",
+        "remove": "Remove",
+        "saved": "Logo updated",
+        "removed": "Logo removed",
+        "bad_type": "Use a PNG, JPG or WebP image.",
+        "too_big": "The logo must be 2 MB or smaller.",
+        "failed": "Could not save the logo. Please try again."
+      },
       "title": "Theme & Appearance",
       "intro": "Colours of the whole website are design tokens. Changes show here live; nothing goes live until you publish.",
       "live_version": "Live: {{name}}",
@@ -2618,6 +2639,51 @@
       "add_host": "Add host",
       "wear_size": "Size worn",
       "saved": "Website details saved"
+    },
+    "live": {
+      "title": "Global LIVE Settings",
+      "intro": "Set the LIVE hours once. Hosts follow the shift and location they have in Host Management; the website shows who is LIVE and who is next automatically. All times are Taiwan time (UTC+8).",
+      "load_failed": "Could not load the LIVE settings.",
+      "save_failed": "Could not save. Please try again.",
+      "saved": "Saved",
+      "shifts_title": "Shift hours",
+      "shifts_hint": "Default LIVE hours of each shift. Every host on a shift follows these hours. Evening is empty until you set its hours.",
+      "shift_empty": "No hours yet - hosts on this shift are not shown as LIVE.",
+      "from": "From",
+      "to": "To",
+      "remove": "Remove",
+      "add_range": "+ Add hours",
+      "save_default": "Save as Default",
+      "locations_title": "Location working days",
+      "locations_hint": "Working days are set per location and apply to every host of that location. Add extra days off for holidays or closures.",
+      "day_0": "Sun",
+      "day_1": "Mon",
+      "day_2": "Tue",
+      "day_3": "Wed",
+      "day_4": "Thu",
+      "day_5": "Fri",
+      "day_6": "Sat",
+      "days_off": "Extra days off",
+      "note": "Note (optional)",
+      "add_day_off": "Add day off",
+      "save": "Save",
+      "hosts_title": "Hosts",
+      "hosts_hint": "Name, location and shift come from Host Management. Paste the TikTok LIVE link of each host here; it can be changed at any time. End LIVE only stops the session that is running now.",
+      "col_host": "Host",
+      "col_location": "Location",
+      "col_shift": "Shift",
+      "col_url": "LIVE URL",
+      "col_status": "Status",
+      "no_shift": "No shift",
+      "end_live": "End LIVE",
+      "end_confirm": "End the current LIVE of {{name}}? The next scheduled session starts as usual.",
+      "ended": "LIVE ended for this session",
+      "url_saved": "LIVE link saved",
+      "status_live": "LIVE",
+      "status_scheduled": "Starts soon",
+      "status_offline": "Offline",
+      "next": "Next",
+      "until": "Until"
     }
   },
   "page_members": {

@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useCart } from '../lib/cart'
 import FreeShipBar from './FreeShipBar'
 import { useStore } from '../lib/store'
+import { img } from '../lib/api'
 import { useDesktop } from '../hooks/useMedia'
 import { waUrl, topicText } from '../lib/wa'
 import BottomNav from './BottomNav'
@@ -12,6 +13,21 @@ import LangBar from './LangBar'
 import Toast from './Toast'
 import { QuickAddProvider } from './QuickAdd'
 import { IconCart, IconHeadset, IconMenu, IconSearch, IconUser } from './Icons'
+
+// Brand mark: the logo uploaded in the admin (Theme & Appearance) or, without one, the text wordmark.
+function Logo({ size = 32, pad = 0 }) {
+  const { settings } = useStore()
+  const url = settings?.logo_url
+  const [broken, setBroken] = useState(false)
+  useEffect(() => { setBroken(false) }, [url])
+  return (
+    <Link to="/" className="serif" aria-label={settings?.shop_name || 'ralulu'} style={{ ...logo(size), paddingLeft: pad, display: 'flex', alignItems: 'center' }}>
+      {url && !broken
+        ? <img src={img(url)} alt={settings?.shop_name || 'ralulu'} onError={() => setBroken(true)} style={{ height: size === 32 ? 30 : size, maxWidth: 150, objectFit: 'contain', display: 'block' }} />
+        : 'ralulu'}
+    </Link>
+  )
+}
 
 const logo = (size = 32) => ({ fontSize: size, fontWeight: 700, fontStyle: 'italic', color: 'var(--color-primary-strong)', textDecoration: 'none' })
 
@@ -30,7 +46,7 @@ export function MainHeader() {
   const { t } = useTranslation()
   return (
     <header style={{ height: 58, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
-      <Link to="/" className="serif" style={{ ...logo(), paddingLeft: 8 }}>ralulu</Link>
+      <Logo pad={8} />
       <LiveButton />
       <span style={{ flex: 1 }} />
       <Link to="/search" aria-label={t('nav.search_aria')} style={iconLink}><IconSearch size={20} /></Link>
@@ -48,7 +64,7 @@ export function DesktopHeader() {
   const link = ({ isActive }) => ({ fontSize: 15, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--color-primary-strong)' : 'var(--color-text)', textDecoration: 'none' })
   return (
     <header style={{ height: 72, display: 'flex', alignItems: 'center', gap: 28, padding: '0 40px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 40 }}>
-      <Link to="/" className="serif" style={logo()}>ralulu</Link>
+      <Logo />
       <LiveButton />
       <nav aria-label={t('nav.main')} style={{ display: 'flex', gap: 22 }}>
         <NavLink to="/" end style={link}>{t('nav.home')}</NavLink>

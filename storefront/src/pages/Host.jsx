@@ -132,7 +132,7 @@ export default function Host() {
 
       {show('live') && live && (
         <section style={{ margin: `22px ${px}px 0`, padding: 12, borderRadius: 20, background: 'var(--color-surface)', border: '1.5px solid var(--color-live-soft)', color: 'var(--color-text)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><b style={{ fontSize: 17 }}>{t('host.live_now')}・{host.live_title}</b>{host.viewer_count != null && <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('host.viewers', { n: formatNumber(host.viewer_count) })}</span>}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><b style={{ fontSize: 17 }}>{t('host.live_now')}{host.live_title ? `・${host.live_title}` : ''}</b>{host.viewer_count != null && <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('host.viewers', { n: formatNumber(host.viewer_count) })}</span>}</div>
           <a href={host.watch_url || '#'} target="_blank" rel="noreferrer" className="live-pulse" style={{ position: 'relative', display: 'block', height: 260, borderRadius: 14, overflow: 'hidden', border: '2.5px solid var(--color-live)' }}>
             <img src={sized(img(host.avatar_url), 700)} alt={t('host.preview_alt')} onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 20%' }} />
             <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ width: 56, height: 56, borderRadius: 28, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF' }}><IconPlay size={22} /></span></span>
@@ -229,20 +229,6 @@ export default function Host() {
 
       {!hasItems && (
         <EmptyState title={t('host.no_items_title', { name: host.name })} text={t('host.no_items_text')} action={<Link to="/hosts" style={{ ...btnPrimary, marginTop: 8 }}>{t('host.see_other')}</Link>} />
-      )}
-
-      {d.replays.length > 0 && (
-        <section style={{ padding: '26px 0 0' }}>
-          <div style={{ padding: `0 ${px}px 12px` }}>{head('REPLAYS', t('host.replay_title'))}</div>
-          <div style={{ padding: `0 ${px}px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {d.replays.map((r) => (
-              <a key={r.id} href={r.url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, border: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
-                <span style={{ width: 40, height: 40, borderRadius: 20, background: 'var(--color-bg-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconPlay size={14} /></span>
-                <span style={{ flex: 1, fontSize: 14 }}><b>{duration(r.duration_sec)}</b>・{r.aired_on ? shortDate(r.aired_on) : ''} {r.title}</span>
-              </a>
-            ))}
-          </div>
-        </section>
       )}
 
       {show('journal') && d.journal.length > 0 && (
