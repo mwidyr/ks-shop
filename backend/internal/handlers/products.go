@@ -26,14 +26,14 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// buildVariantSKU derives a variant's SKU as PRODUCT CODE - COLOR - SIZE (e.g. C002-黑-F), the
-// format the 3PL warehouse picks and packs by (see 106_variant_sku_restructure.sql, which applied
-// the same rule to every existing variant). colorZh is the full Chinese color name from Color
-// Master (resolveColorZh). Spaces are removed from each part, empty parts are skipped. product.sku
-// is unique per product, so prefixing with it keeps variant SKUs apart across products.
-func buildVariantSKU(productCode, colorZh, size string) string {
+// buildVariantSKU derives a variant's SKU as PRODUCT CODE - COLOR - SIZE (e.g. C002-BLACK-F), the
+// format the 3PL warehouse picks and packs by (see 107_color_english_sku.sql, which applied the
+// same rule to every existing variant). color is the English Color Master name (resolveSKUColor).
+// Each part is upper-cased with its spaces removed (Light Blue -> LIGHTBLUE), empty parts are
+// skipped. product.sku is unique per product, so prefixing with it keeps SKUs apart across products.
+func buildVariantSKU(productCode, color, size string) string {
 	var parts []string
-	for _, part := range []string{productCode, colorZh, size} {
+	for _, part := range []string{productCode, color, size} {
 		if part = strings.ToUpper(strings.Join(strings.Fields(part), "")); part != "" {
 			parts = append(parts, part)
 		}
@@ -41,18 +41,21 @@ func buildVariantSKU(productCode, colorZh, size string) string {
 	return strings.Join(parts, "-")
 }
 
-// resolveColorZh maps a variant's stored color to its Color Master Chinese name: an exact Chinese
-// name, else a legacy Indonesian name (case-insensitive), else the text as stored.
-func resolveColorZh(ctx context.Context, db queryRower, color string) string {
+// resolveSKUColor maps a variant's stored color to the English Color Master name used in its SKU:
+// the color matched by its Chinese name first, else by its Indonesian (legacy free text) or English
+// name, case-insensitive. A color outside the master, or without an English name yet, is kept as
+// stored (the SKU report flags both).
+func resolveSKUColor(ctx context.Context, db queryRower, color string) string {
 	color = strings.TrimSpace(color)
 	if color == "" {
 		return ""
 	}
-	var zh string
+	var en string
 	if err := db.QueryRow(ctx, `
-		SELECT name_zh FROM colors WHERE name_zh = $1 OR lower(name_id) = lower($1)
-		ORDER BY (name_zh = $1) DESC, id LIMIT 1`, color).Scan(&zh); err == nil {
-		return zh
+		SELECT name_en FROM colors
+		WHERE COALESCE(name_en,'') <> '' AND (name_zh = $1 OR lower(name_id) = lower($1) OR lower(name_en) = lower($1))
+		ORDER BY (name_zh = $1) DESC, id LIMIT 1`, color).Scan(&en); err == nil {
+		return en
 	}
 	return color
 }
@@ -69,7 +72,7 @@ var skuSuffixOrder = func() []int { return rand.Perm(9) }
 func buildUniqueVariantSKU(ctx context.Context, db queryRower, excludeVariantID int, productCode, color, size, requestedSKU string) (string, error) {
 	base := strings.ToUpper(strings.Join(strings.Fields(requestedSKU), ""))
 	if base == "" {
-		base = buildVariantSKU(productCode, resolveColorZh(ctx, db, color), size)
+		base = buildVariantSKU(productCode, resolveSKUColor(ctx, db, color), size)
 	}
 	taken := func(sku string) (bool, error) {
 		var n int
@@ -111,22 +114,43 @@ func requestedVariantSKU(r *http.Request, sku string, skuManual bool) (string, b
 // regenerateProductVariantSKUsTx recomputes the automatic SKU of every non-manual variant of a
 // product (after its Product Code changed), keeping the old ones in the history.
 func regenerateProductVariantSKUsTx(ctx context.Context, tx pgx.Tx, productID int, userID *int) error {
-	var code *string
-	if err := tx.QueryRow(ctx, `SELECT sku FROM products WHERE id=$1`, productID).Scan(&code); err != nil || code == nil {
-		return err
+	return regenerateVariantSKUsTx(ctx, tx, `pv.product_id = $1`, productID, "product_code_change", userID)
+}
+
+// regenerateColorVariantSKUsTx does the same for every variant stored with one of the given color
+// texts (a Color Master entry's English name changed, or a color was merged into another).
+func regenerateColorVariantSKUsTx(ctx context.Context, tx pgx.Tx, colorNames []string, reason string, userID *int) error {
+	return regenerateVariantSKUsTx(ctx, tx, `lower(btrim(pv.color)) = ANY($1)`, lowerAll(colorNames), reason, userID)
+}
+
+func lowerAll(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
+			out = append(out, s)
+		}
 	}
-	rows, err := tx.Query(ctx, `SELECT id, sku, color, size FROM product_variants WHERE product_id=$1 AND NOT sku_manual ORDER BY id`, productID)
+	return out
+}
+
+// regenerateVariantSKUsTx recomputes the automatic SKU of the non-manual variants matching cond
+// (a WHERE fragment on pv with one $1 argument), recording each change.
+func regenerateVariantSKUsTx(ctx context.Context, tx pgx.Tx, cond string, arg any, reason string, userID *int) error {
+	rows, err := tx.Query(ctx, `
+		SELECT pv.id, pv.sku, COALESCE(pv.color,''), COALESCE(pv.size,''), COALESCE(p.sku,'')
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE NOT pv.sku_manual AND `+cond+` ORDER BY pv.id`, arg)
 	if err != nil {
 		return err
 	}
 	type vrow struct {
-		id               int
-		sku, color, size string
+		id                     int
+		sku, color, size, code string
 	}
 	var vs []vrow
 	for rows.Next() {
 		var v vrow
-		if err := rows.Scan(&v.id, &v.sku, &v.color, &v.size); err != nil {
+		if err := rows.Scan(&v.id, &v.sku, &v.color, &v.size, &v.code); err != nil {
 			rows.Close()
 			return err
 		}
@@ -134,7 +158,10 @@ func regenerateProductVariantSKUsTx(ctx context.Context, tx pgx.Tx, productID in
 	}
 	rows.Close()
 	for _, v := range vs {
-		sku, err := buildUniqueVariantSKU(ctx, tx, v.id, *code, v.color, v.size, "")
+		if strings.TrimSpace(v.code) == "" {
+			continue
+		}
+		sku, err := buildUniqueVariantSKU(ctx, tx, v.id, v.code, v.color, v.size, "")
 		if err != nil {
 			return err
 		}
@@ -144,7 +171,7 @@ func regenerateProductVariantSKUsTx(ctx context.Context, tx pgx.Tx, productID in
 		if _, err := tx.Exec(ctx, `UPDATE product_variants SET sku=$1 WHERE id=$2`, sku, v.id); err != nil {
 			return err
 		}
-		if err := recordSKUChange(ctx, tx, v.id, v.sku, sku, "product_code_change", userID); err != nil {
+		if err := recordSKUChange(ctx, tx, v.id, v.sku, sku, reason, userID); err != nil {
 			return err
 		}
 	}

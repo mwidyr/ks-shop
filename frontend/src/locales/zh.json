@@ -977,14 +977,14 @@
     "variant_allow_oversell": "允許此款式超賣",
     "variant_is_active": "可銷售",
     "variant_name_label": "款式名稱",
-    "variant_sku_auto_hint": "自動：商品代碼 - 中文顏色 - 尺寸",
+    "variant_sku_auto_hint": "自動：商品代碼 - 英文顏色 - 尺寸",
     "variant_no_color_label": "款式",
     "variant_required": "至少需要一個款式",
     "variants_heading": "商品款式",
     "vendor_sku": "供應商貨號",
     "add_color_from_master": "從顏色清單新增...",
     "product_saved_variant_failed_prefix": "商品資料已儲存，但其中一個款式失敗：",
-    "variant_sku_hint": "商品代碼 - 中文顏色 - 尺寸。在此輸入即為手動 SKU（僅限超級管理員）；清空即恢復自動。",
+    "variant_sku_hint": "商品代碼 - 英文顏色 - 尺寸。在此輸入即為手動 SKU（僅限超級管理員）；清空即恢復自動。",
     "names_by_language": "各語言名稱",
     "names_by_language_hint": "選填。留空則使用主要名稱（印尼文）。採購請求的一鍵複製一律使用中文名稱；若未填寫，則使用主要名稱。",
     "main_name_hint": "主要名稱（印尼文）",
@@ -1076,12 +1076,13 @@
     "color_filter_label": "顏色：{{color}}",
     "color_filter_clear": "清除篩選",
     "sku_report_title": "上線前 SKU 檢查",
-    "sku_report_hint": "每個 SKU 應為 商品代碼 - 中文顏色 - 尺寸。請在商品表單修正，SKU 會自動更新。",
+    "sku_report_hint": "每個 SKU 應為 商品代碼 - 英文顏色 - 尺寸。請在商品表單或顏色管理修正，SKU 會自動更新。",
     "sku_report_clean": "所有 SKU 均符合格式。",
     "sku_issue_placeholder_code": "商品代碼仍為暫用 (PRD-…)",
     "sku_issue_color_not_in_master": "顏色不在顏色主檔",
     "sku_issue_suffixed": "重複 - 已加數字後綴",
-    "sku_issue_manual": "手動 SKU"
+    "sku_issue_manual": "手動 SKU",
+    "sku_issue_color_no_english": "顏色主檔缺少英文名稱"
   },
   "page_profit": {
     "ad_cost": "廣告成本",
@@ -2008,7 +2009,11 @@
     "merge_target_placeholder": "選擇目標顏色",
     "merge_confirm_button": "確認",
     "merge_confirm": "將「{{source}}」合併至「{{target}}」？所有使用「{{source}}」的款式將移至「{{target}}」，並刪除「{{source}}」。",
-    "view_products": "查看使用此顏色的商品"
+    "view_products": "查看使用此顏色的商品",
+    "name_en_placeholder": "英文名稱 (SKU)",
+    "name_en_hint": "作為每個款式 SKU 的顏色部分，例如 C002-BLACK-F",
+    "name_en_missing": "未填寫",
+    "name_en_change_confirm": "修改英文名稱會同時變更此顏色所有款式的 SKU（{{count}} 個商品）。確定繼續？"
   },
   "page_live_data_upload": {
     "awt_hint": "請以 MM:SS 格式輸入（例如：1:06 或 14:49）",

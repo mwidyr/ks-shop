@@ -977,14 +977,14 @@
     "variant_allow_oversell": "Izinkan oversell untuk varian ini",
     "variant_is_active": "Dapat Dijual",
     "variant_name_label": "Nama Varian",
-    "variant_sku_auto_hint": "Otomatis: Kode Produk - warna Mandarin - Ukuran",
+    "variant_sku_auto_hint": "Otomatis: Kode Produk - warna Inggris - Ukuran",
     "variant_no_color_label": "Varian",
     "variant_required": "Minimal harus ada satu varian",
     "variants_heading": "Varian",
     "vendor_sku": "Kode Barang Vendor",
     "add_color_from_master": "Tambah dari daftar warna...",
     "product_saved_variant_failed_prefix": "Data produk sudah tersimpan, tapi salah satu varian gagal:",
-    "variant_sku_hint": "Kode Produk - warna Mandarin - Ukuran. Mengetik di sini membuat SKU manual (khusus super admin); kosongkan untuk kembali otomatis.",
+    "variant_sku_hint": "Kode Produk - warna Inggris - Ukuran. Mengetik di sini membuat SKU manual (khusus super admin); kosongkan untuk kembali otomatis.",
     "names_by_language": "Nama per bahasa",
     "names_by_language_hint": "Opsional. Kosong = memakai nama utama (Indonesia). Salin teks Purchase Requisition selalu memakai nama Mandarin; jika kosong, memakai nama utama.",
     "main_name_hint": "Nama utama (Bahasa Indonesia)",
@@ -1076,12 +1076,13 @@
     "color_filter_label": "Warna: {{color}}",
     "color_filter_clear": "Hapus filter",
     "sku_report_title": "Cek SKU sebelum go-live",
-    "sku_report_hint": "Setiap SKU harus Kode Produk - warna Mandarin - Ukuran. Perbaiki di form produk; SKU otomatis mengikuti.",
+    "sku_report_hint": "Setiap SKU harus Kode Produk - warna Inggris - Ukuran. Perbaiki di form produk atau Color Management; SKU otomatis mengikuti.",
     "sku_report_clean": "Semua SKU sudah sesuai format.",
     "sku_issue_placeholder_code": "Kode produk masih sementara (PRD-…)",
     "sku_issue_color_not_in_master": "Warna tidak ada di Color Master",
     "sku_issue_suffixed": "Duplikat - diberi akhiran angka",
-    "sku_issue_manual": "SKU manual"
+    "sku_issue_manual": "SKU manual",
+    "sku_issue_color_no_english": "Warna belum punya nama Inggris di Color Master"
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -2008,7 +2009,11 @@
     "merge_target_placeholder": "Pilih warna tujuan",
     "merge_confirm_button": "Konfirmasi",
     "merge_confirm": "Gabungkan \"{{source}}\" ke \"{{target}}\"? Semua varian yang memakai \"{{source}}\" akan dipindah ke \"{{target}}\", dan \"{{source}}\" akan dihapus.",
-    "view_products": "Lihat produk dengan warna ini"
+    "view_products": "Lihat produk dengan warna ini",
+    "name_en_placeholder": "Nama Inggris (SKU)",
+    "name_en_hint": "Dipakai sebagai bagian warna di setiap SKU varian, contoh C002-BLACK-F",
+    "name_en_missing": "belum diisi",
+    "name_en_change_confirm": "Mengubah nama Inggris juga mengubah SKU semua varian dengan warna ini ({{count}} produk). Lanjutkan?"
   },
   "page_live_data_upload": {
     "awt_hint": "Harap isi dengan format MM:SS (contoh: 1:06 atau 14:49)",

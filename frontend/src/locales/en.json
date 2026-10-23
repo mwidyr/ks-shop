@@ -977,14 +977,14 @@
     "variant_allow_oversell": "Allow oversell for this variant",
     "variant_is_active": "Sellable",
     "variant_name_label": "Variant Name",
-    "variant_sku_auto_hint": "Automatic: Product Code - Chinese color - Size",
+    "variant_sku_auto_hint": "Automatic: Product Code - English color - Size",
     "variant_no_color_label": "Variant",
     "variant_required": "At least one variant is required",
     "variants_heading": "Variants",
     "vendor_sku": "Vendor Item Code",
     "add_color_from_master": "Add from color list...",
     "product_saved_variant_failed_prefix": "Product details were saved, but one of the variants failed:",
-    "variant_sku_hint": "Product Code - Chinese color - Size. Typing here sets a manual SKU (super admin only); clear it to go back to automatic.",
+    "variant_sku_hint": "Product Code - English color - Size. Typing here sets a manual SKU (super admin only); clear it to go back to automatic.",
     "names_by_language": "Names by language",
     "names_by_language_hint": "Optional. Empty = the main (Indonesian) name is used. Purchase Requisition copy always uses the Chinese name; if empty, it uses the main name.",
     "main_name_hint": "Main name (Indonesian)",
@@ -1076,12 +1076,13 @@
     "color_filter_label": "Color: {{color}}",
     "color_filter_clear": "Clear filter",
     "sku_report_title": "SKU check before go-live",
-    "sku_report_hint": "Every SKU should be Product Code - Chinese color - Size. Fix these in the product form; the SKUs follow automatically.",
+    "sku_report_hint": "Every SKU should be Product Code - English color - Size. Fix these in the product form or Color Management; the SKUs follow automatically.",
     "sku_report_clean": "All SKUs follow the format.",
     "sku_issue_placeholder_code": "Product code is still a placeholder (PRD-…)",
     "sku_issue_color_not_in_master": "Color not in Color Master",
     "sku_issue_suffixed": "Duplicate - got a number suffix",
-    "sku_issue_manual": "Manual SKU"
+    "sku_issue_manual": "Manual SKU",
+    "sku_issue_color_no_english": "Color has no English name in Color Master"
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -2008,7 +2009,11 @@
     "merge_target_placeholder": "Choose target color",
     "merge_confirm_button": "Confirm",
     "merge_confirm": "Merge \"{{source}}\" into \"{{target}}\"? Every variant using \"{{source}}\" will be moved to \"{{target}}\", and \"{{source}}\" will be removed.",
-    "view_products": "View products using this color"
+    "view_products": "View products using this color",
+    "name_en_placeholder": "English name (SKU)",
+    "name_en_hint": "Used as the color part of every variant SKU, e.g. C002-BLACK-F",
+    "name_en_missing": "not set",
+    "name_en_change_confirm": "Changing the English name also changes the SKU of every variant in this color ({{count}} products). Continue?"
   },
   "page_live_data_upload": {
     "awt_hint": "Format MM:SS (example: 1:06 or 14:49)",

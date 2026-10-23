@@ -49,7 +49,7 @@ func productSearchSQL(alias, like string) string {
 		` OR EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = ` + a + `id AND (sv.sku ILIKE ` + like +
 		` OR EXISTS (SELECT 1 FROM variant_sku_history svh WHERE svh.variant_id = sv.id AND svh.old_sku ILIKE ` + like + `)` +
 		` OR COALESCE(sv.color,'') ILIKE ` + like + ` OR COALESCE(sv.size,'') ILIKE ` + like +
-		` OR EXISTS (SELECT 1 FROM colors scl WHERE (scl.name_zh = sv.color OR scl.name_id = sv.color) AND (scl.name_zh ILIKE ` + like + ` OR scl.name_id ILIKE ` + like + `)))))`
+		` OR EXISTS (SELECT 1 FROM colors scl WHERE (scl.name_zh = sv.color OR scl.name_id = sv.color) AND (scl.name_zh ILIKE ` + like + ` OR scl.name_id ILIKE ` + like + ` OR COALESCE(scl.name_en,'') ILIKE ` + like + `)))))`
 }
 
 // searchRankSQL orders a search's matches by relevance, strongest first: the code starts with the text

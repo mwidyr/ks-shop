@@ -9,10 +9,12 @@ export default function ColorManagement() {
   const [loading, setLoading] = useState(true)
   const [nameZh, setNameZh] = useState('')
   const [nameId, setNameId] = useState('')
+  const [nameEn, setNameEn] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
-  const [editNameId, setEditNameId] = useState('')
+  const [editField, setEditField] = useState('name_id') // name_id | name_en
+  const [editValue, setEditValue] = useState('')
   const [mergingId, setMergingId] = useState(null)
   const [mergeTarget, setMergeTarget] = useState('')
 
@@ -27,13 +29,14 @@ export default function ColorManagement() {
 
   async function handleAdd(e) {
     e.preventDefault()
-    if (!nameZh.trim() || !nameId.trim()) return
+    if (!nameZh.trim() || !nameId.trim() || !nameEn.trim()) return
     setAdding(true)
     setError('')
     try {
-      await createColor(nameZh.trim(), nameId.trim())
+      await createColor(nameZh.trim(), nameId.trim(), nameEn.trim())
       setNameZh('')
       setNameId('')
+      setNameEn('')
       reload()
     } catch (err) {
       setError(err.response?.data?.error || t('page_colors.add_failed'))
@@ -47,13 +50,27 @@ export default function ColorManagement() {
     reload()
   }
 
-  function startEdit(c) {
+  function startEdit(c, field) {
     setEditingId(c.id)
-    setEditNameId(c.name_id)
+    setEditField(field)
+    setEditValue(c[field] || '')
   }
 
+  // A new English name also recomputes the SKUs of every variant in this color (C002-BLACK-F).
   async function saveEdit() {
-    await updateColor(editingId, editNameId.trim())
+    const value = editValue.trim()
+    const current = colors.find((x) => x.id === editingId)
+    if (!value || value === (current?.[editField] || '')) { setEditingId(null); return }
+    if (editField === 'name_en' && current?.used_count > 0 && !window.confirm(t('page_colors.name_en_change_confirm', { count: current.used_count }))) {
+      setEditingId(null)
+      return
+    }
+    setError('')
+    try {
+      await updateColor(editingId, { [editField]: value })
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_colors.add_failed'))
+    }
     setEditingId(null)
     reload()
   }
@@ -77,7 +94,7 @@ export default function ColorManagement() {
     <div className="px-4 sm:px-6 py-6">
       <div className="bg-white rounded-2xl shadow-sm p-5 mb-4">
         <h2 className="font-bold text-gray-800 mb-1">{t('page_colors.add_color_title')}</h2>
-        <form onSubmit={handleAdd} className="flex gap-2 mt-3">
+        <form onSubmit={handleAdd} className="flex flex-wrap gap-2 mt-3">
           <input
             value={nameZh}
             onChange={(e) => setNameZh(e.target.value)}
@@ -88,6 +105,13 @@ export default function ColorManagement() {
             value={nameId}
             onChange={(e) => setNameId(e.target.value)}
             placeholder={t('page_colors.name_id_placeholder')}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <input
+            value={nameEn}
+            onChange={(e) => setNameEn(e.target.value)}
+            placeholder={t('page_colors.name_en_placeholder')}
+            title={t('page_colors.name_en_hint')}
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
           />
           <button type="submit" disabled={adding} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">
@@ -109,20 +133,22 @@ export default function ColorManagement() {
             <div key={c.id} className="flex items-center justify-between p-4 gap-3">
               <div className="flex-1">
                 <span className="text-sm font-medium text-gray-800">{c.name_zh}</span>
-                {editingId === c.id ? (
+                {['name_id', 'name_en'].map((field) => (editingId === c.id && editField === field ? (
                   <input
+                    key={field}
                     autoFocus
-                    value={editNameId}
-                    onChange={(e) => setEditNameId(e.target.value)}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
                     onBlur={saveEdit}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit() } }}
                     className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm"
                   />
                 ) : (
-                  <button type="button" onClick={() => startEdit(c)} className="ml-2 text-sm text-gray-500 hover:underline">
-                    {c.name_id}
+                  <button key={field} type="button" onClick={() => startEdit(c, field)} title={field === 'name_en' ? t('page_colors.name_en_hint') : undefined}
+                    className={`ml-2 text-sm hover:underline ${field === 'name_en' && !c.name_en ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {field === 'name_en' ? `EN: ${c.name_en || t('page_colors.name_en_missing')}` : c.name_id}
                   </button>
-                )}
+                )))}
               </div>
               {mergingId === c.id ? (
                 <div className="flex items-center gap-2">
@@ -133,7 +159,7 @@ export default function ColorManagement() {
                   >
                     <option value="">{t('page_colors.merge_target_placeholder')}</option>
                     {colors.filter((x) => x.id !== c.id).map((x) => (
-                      <option key={x.id} value={x.id}>{x.name_zh} / {x.name_id}</option>
+                      <option key={x.id} value={x.id}>{x.name_zh} / {x.name_id}{x.name_en ? ` / ${x.name_en}` : ''}</option>
                     ))}
                   </select>
                   <button onClick={() => confirmMerge(c)} disabled={!mergeTarget} className="text-xs font-semibold text-brand-600 hover:underline disabled:opacity-40">{t('page_colors.merge_confirm_button')}</button>

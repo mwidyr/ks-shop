@@ -6,12 +6,14 @@ export function listColors() {
   return client.get('/colors').then((res) => res.data).catch(() => [])
 }
 
-export function createColor(nameZh, nameId) {
-  return client.post('/colors', { name_zh: nameZh, name_id: nameId }).then((res) => res.data)
+// name_en (English) is also the color part of every variant SKU (C002-BLACK-F).
+export function createColor(nameZh, nameId, nameEn) {
+  return client.post('/colors', { name_zh: nameZh, name_id: nameId, name_en: nameEn }).then((res) => res.data)
 }
 
-export function updateColor(id, nameId) {
-  return client.patch(`/colors/${id}`, { name_id: nameId }).then((res) => res.data)
+// fields: { name_id?, name_en? } - a new English name recomputes the SKUs of that color.
+export function updateColor(id, fields) {
+  return client.patch(`/colors/${id}`, fields).then((res) => res.data)
 }
 
 export function deleteColor(id) {

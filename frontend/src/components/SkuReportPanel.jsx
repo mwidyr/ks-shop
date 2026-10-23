@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { getSkuReport } from '../api/products'
 
-// Super admin check before go-live: variants whose SKU isn't clean PRODUCT CODE - Chinese COLOR -
-// SIZE yet (placeholder product code, color outside Color Master, collision suffix, manual SKU).
+// Super admin check before go-live: variants whose SKU isn't clean PRODUCT CODE - English COLOR -
+// SIZE yet (placeholder product code, color outside Color Master or without an English name,
+// collision suffix, manual SKU).
 export default function SkuReportPanel() {
   const { t } = useTranslation()
   const [rows, setRows] = useState(null)

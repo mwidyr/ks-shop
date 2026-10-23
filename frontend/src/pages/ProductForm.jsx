@@ -31,17 +31,18 @@ function parseList(text) {
   return result
 }
 
-// Variant SKU is PRODUCT CODE - COLOR - SIZE with the full Chinese color name from Color Master,
-// e.g. C002-黑-F - the format the 3PL picks by. Same rule as buildVariantSKU in the backend, which
-// always recomputes it on save (only a super_user may type one by hand); this is a live preview.
-function suggestSku(productCode, variant, toChineseColor = (c) => c) {
+// Variant SKU is PRODUCT CODE - COLOR - SIZE with the English Color Master name, e.g. C002-BLACK-F
+// (Light Blue -> LIGHTBLUE) - the format the 3PL picks by. Same rule as buildVariantSKU in the
+// backend, which always recomputes it on save (only a super_user may type one by hand); this is a
+// live preview.
+function suggestSku(productCode, variant, toEnglishColor = (c) => c) {
   const part = (v) => (v || '').split(/\s+/).join('').toUpperCase()
-  return [part(productCode), part(toChineseColor(variant.color)), part(variant.size)].filter(Boolean).join('-')
+  return [part(productCode), part(toEnglishColor(variant.color)), part(variant.size)].filter(Boolean).join('-')
 }
 
-function freshVariantRow(color, size, product, toChineseColor) {
+function freshVariantRow(color, size, product, toEnglishColor) {
   return {
-    sku: suggestSku(product.sku, { color, size }, toChineseColor), sku_manual: false, color, size,
+    sku: suggestSku(product.sku, { color, size }, toEnglishColor), sku_manual: false, color, size,
     price: product.base_price || '', compare_at_price: 0, cost_price: 0,
     allow_oversell: product.allow_oversell, is_active: true,
     available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
@@ -55,7 +56,7 @@ export default function ProductForm() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { translateColor, toChineseColor } = useMasterData()
+  const { translateColor, toEnglishColor } = useMasterData()
   // Product Cost is admin-only: the field is only ever present in the API response for
   // super_user, and the backend silently ignores it from anyone else's write - this check is
   // just what decides whether to show the input at all.
@@ -174,7 +175,7 @@ export default function ProductForm() {
       for (const color of colorList) {
         for (const size of sizeList) {
           const existing = prev.find((v) => v.color === color && v.size === size)
-          next.push(existing || freshVariantRow(color, size, product, toChineseColor))
+          next.push(existing || freshVariantRow(color, size, product, toEnglishColor))
         }
       }
       const nextKeys = new Set(next.map((v) => `${v.color}|${v.size}`))
@@ -492,7 +493,7 @@ export default function ProductForm() {
                     <p className="text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0">
                       {v.color ? translateColor(v.color) : t('page_product_form.variant_no_color_label')}{v.size ? ` / ${v.size}` : ''}
                     </p>
-                    {/* SKU is computed (PRODUCT CODE - Chinese COLOR - SIZE, a 1-digit suffix on a
+                    {/* SKU is computed (PRODUCT CODE - English COLOR - SIZE, a 1-digit suffix on a
                         collision). Only a super_user may type one by hand - it is then marked manual
                         and never recomputed; clearing the field goes back to automatic. */}
                     <input
@@ -500,7 +501,7 @@ export default function ProductForm() {
                       value={v.sku}
                       readOnly={!isAdmin}
                       onChange={(e) => setVariants((vs) => vs.map((x, i) => (i === idx ? { ...x, sku: e.target.value, sku_manual: e.target.value.trim() !== '' } : x)))}
-                      onBlur={() => { if (!v.sku.trim()) setVariants((vs) => vs.map((x, i) => (i === idx ? { ...x, sku: suggestSku(product.sku, x, toChineseColor), sku_manual: false } : x))) }}
+                      onBlur={() => { if (!v.sku.trim()) setVariants((vs) => vs.map((x, i) => (i === idx ? { ...x, sku: suggestSku(product.sku, x, toEnglishColor), sku_manual: false } : x))) }}
                       title={t(isAdmin ? 'page_product_form.variant_sku_hint' : 'page_product_form.variant_sku_auto_hint')}
                       className={`flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-600 ${isAdmin ? '' : 'bg-gray-50'}`}
                     />

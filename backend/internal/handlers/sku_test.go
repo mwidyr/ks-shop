@@ -9,11 +9,11 @@ import (
 
 func TestBuildVariantSKU(t *testing.T) {
 	cases := []struct{ code, color, size, want string }{
-		{"c002", "黑", "f", "C002-黑-F"},
-		{"P026", "白", "M", "P026-白-M"},
-		{" P026 ", "米 白", " XL ", "P026-米白-XL"},
+		{"c002", "Black", "f", "C002-BLACK-F"},
+		{"P026", "White", "M", "P026-WHITE-M"},
+		{" P026 ", "Light Blue", " XL ", "P026-LIGHTBLUE-XL"},
 		{"P026", "", "M", "P026-M"},
-		{"P026", "深藍", "", "P026-深藍"},
+		{"P026", "Off White", "", "P026-OFFWHITE"},
 		{"A1", "Broken White", "S", "A1-BROKENWHITE-S"},
 	}
 	for _, c := range cases {
@@ -47,14 +47,10 @@ func TestVariantSKUAgainstDatabase(t *testing.T) {
 		t.Fatalf("%d variants left on a placeholder SKU", bad)
 	}
 
-	if got := resolveColorZh(ctx, tx, "Hitam"); got != "黑" {
-		t.Fatalf("legacy Indonesian color resolved to %q", got)
-	}
-	if got := resolveColorZh(ctx, tx, "黑"); got != "黑" {
-		t.Fatalf("Chinese color resolved to %q", got)
-	}
-	if got := resolveColorZh(ctx, tx, "Neon Lime"); got != "Neon Lime" {
-		t.Fatalf("unknown color resolved to %q", got)
+	for in, want := range map[string]string{"黑": "Black", "Hitam": "Black", "hitam": "Black", "BLACK": "Black", "淺藍": "Light Blue", "Neon Lime": "Neon Lime"} {
+		if got := resolveSKUColor(ctx, tx, in); got != want {
+			t.Fatalf("resolveSKUColor(%q) = %q, want %q", in, got, want)
+		}
 	}
 
 	var productID int
@@ -62,7 +58,7 @@ func TestVariantSKUAgainstDatabase(t *testing.T) {
 	must(tx.QueryRow(ctx, `INSERT INTO products (name, sku) VALUES ('T-SKU', $1) RETURNING id`, code).Scan(&productID))
 	first, err := buildUniqueVariantSKU(ctx, tx, 0, code, "Hitam", "f", "")
 	must(err)
-	if first != code+"-黑-F" {
+	if first != code+"-BLACK-F" {
 		t.Fatalf("first SKU %q", first)
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, color, size, price) VALUES ($1,$2,'Hitam','F',1)`, productID, first)
@@ -88,7 +84,7 @@ func TestVariantSKUAgainstDatabase(t *testing.T) {
 	must(err)
 	must(regenerateProductVariantSKUsTx(ctx, tx, productID, nil))
 	var moved, history int
-	must(tx.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE product_id=$1 AND sku LIKE $2`, productID, code+"X-黑-F%").Scan(&moved))
+	must(tx.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE product_id=$1 AND sku LIKE $2`, productID, code+"X-BLACK-F%").Scan(&moved))
 	must(tx.QueryRow(ctx, `SELECT COUNT(*) FROM variant_sku_history h JOIN product_variants pv ON pv.id=h.variant_id WHERE pv.product_id=$1 AND h.reason='product_code_change'`, productID).Scan(&history))
 	if moved != 10 || history != 10 {
 		t.Fatalf("regenerated %d, history %d, want 10 each", moved, history)
@@ -97,5 +93,14 @@ func TestVariantSKUAgainstDatabase(t *testing.T) {
 	must(tx.QueryRow(ctx, `SELECT sku FROM product_variants WHERE id=$1`, manualID).Scan(&kept))
 	if kept != "KEEP-ME" {
 		t.Fatalf("manual SKU changed to %q", kept)
+	}
+
+	// a new English color name flows into the SKUs of every variant stored in that color
+	_, err = tx.Exec(ctx, `UPDATE colors SET name_en='Jet Black' WHERE name_zh='黑'`)
+	must(err)
+	must(regenerateColorVariantSKUsTx(ctx, tx, []string{"黑", "Hitam", "Black", "Jet Black"}, "color_rename", nil))
+	must(tx.QueryRow(ctx, `SELECT COUNT(*) FROM product_variants WHERE product_id=$1 AND sku LIKE $2`, productID, code+"X-JETBLACK-F%").Scan(&moved))
+	if moved != 10 {
+		t.Fatalf("color rename moved %d SKUs, want 10", moved)
 	}
 }
