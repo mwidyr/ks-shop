@@ -74,8 +74,10 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 		// localized name via the same SQL helper as the API
 		_ = h.DB.QueryRow(ctx, `SELECT `+productNameSQLLang(lang, "p")+` FROM products p WHERE p.id=$1`, id).Scan(&name)
 		m.Title = name
-		m.Description = firstNonEmpty(truncateRunes(desc, 160), fmt.Sprintf("%s · NT$%.0f", name, price))
+		m.Description = firstNonEmpty(truncateRunes(oneLine(desc), 160), fmt.Sprintf("%s · NT$%.0f", name, price))
+		image = absoluteURL(base, image)
 		m.Image = image
+		m.OGType, m.PriceAmount, m.Currency = "product", price, "TWD"
 		avail := "https://schema.org/OutOfStock"
 		if inStock {
 			avail = "https://schema.org/InStock"
@@ -93,6 +95,7 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 		}
 		m.Title = firstNonEmpty(seoT, name)
 		m.Description = firstNonEmpty(seoD, truncateRunes(bio, 160), name)
+		avatar = absoluteURL(base, avatar)
 		m.Image = avatar
 		m.JSONLD = append(m.JSONLD, map[string]interface{}{"@context": "https://schema.org", "@type": "Person", "name": name, "description": bio, "image": avatar, "url": m.Canonical},
 			breadcrumb(base, []crumb{{"Home", "/"}, {"Hosts", "/hosts"}, {name, path}}))
@@ -118,6 +121,7 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 		// introduction (the first text block when there is none), the canonical its own published URL.
 		m.Title = pickLang(title, artLang)
 		m.Description = articleMetaDescription(pickLang(summary, artLang), body[artLang])
+		cover = absoluteURL(base, cover)
 		m.Image = cover
 		m.OGType = "article"
 		own := contentPath(artLang, typ, artSlug, authorSlug)
@@ -163,8 +167,24 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 	if path == "/products" && extraParams {
 		m.Index = false
 	}
+	m.Image = absoluteURL(base, m.Image) // link previews (WhatsApp, LINE ...) only load an absolute https image
 	_, _ = w.Write([]byte(m.render(lang)))
 }
+
+// absoluteURL turns a stored "/uploads/x.jpg" into a full URL on the public site; full URLs stay as they are.
+func absoluteURL(base, u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" || strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+		return u
+	}
+	if strings.HasPrefix(u, "//") {
+		return "https:" + u
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(u, "/")
+}
+
+// oneLine collapses a description's line breaks and repeated spaces for a meta tag.
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 type crumb struct{ Name, Path string }
 
@@ -178,8 +198,10 @@ func breadcrumb(base string, cs []crumb) map[string]interface{} {
 
 type seoMeta struct {
 	Title, Description, Canonical, Image string
-	ContentLang                          string // article language (og:locale); empty = the visitor's UI language
-	OGType, PublishedTime                string // "article" + its publish time for articles; og:type defaults to "website"
+	ContentLang                          string  // article language (og:locale); empty = the visitor's UI language
+	OGType, PublishedTime                string  // "article" + its publish time for articles; og:type defaults to "website"
+	PriceAmount                          float64 // product pages: product:price:amount / :currency (OGType "product")
+	Currency                             string
 	Index                                bool
 	JSONLD                               []map[string]interface{}
 }
@@ -216,8 +238,12 @@ func (m seoMeta) render(lang string) string {
 	if m.Description != "" {
 		fmt.Fprintf(&b, "<meta property=\"og:description\" content=\"%s\">\n", esc(m.Description))
 	}
+	fmt.Fprintf(&b, "<meta property=\"og:site_name\" content=\"ralulu\">\n")
 	if m.Image != "" {
-		fmt.Fprintf(&b, "<meta property=\"og:image\" content=\"%s\">\n", esc(m.Image))
+		fmt.Fprintf(&b, "<meta property=\"og:image\" content=\"%s\">\n<meta property=\"og:image:alt\" content=\"%s\">\n", esc(m.Image), esc(firstNonEmpty(m.Title, "ralulu")))
+	}
+	if m.Currency != "" {
+		fmt.Fprintf(&b, "<meta property=\"product:price:amount\" content=\"%.2f\">\n<meta property=\"product:price:currency\" content=\"%s\">\n", m.PriceAmount, esc(m.Currency))
 	}
 	if m.PublishedTime != "" {
 		fmt.Fprintf(&b, "<meta property=\"article:published_time\" content=\"%s\">\n", esc(m.PublishedTime))

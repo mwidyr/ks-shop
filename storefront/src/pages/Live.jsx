@@ -41,18 +41,22 @@ export default function Live() {
         {d.live.length === 0 ? (
           <EmptyState title={t('live.none')} text={t('live.none_text')} />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: desktop ? 'repeat(auto-fill, minmax(260px, 1fr))' : 'minmax(0, 1fr)', gap: 14 }}>
+          // Phone: always 2 columns (up to 15 hosts can be live at once, so cards stay compact: portrait photo,
+          // name + button over the bottom edge). Desktop: as many 260px+ cards as fit.
+          <div style={{ display: 'grid', gridTemplateColumns: desktop ? 'repeat(auto-fill, minmax(260px, 1fr))' : 'repeat(2, minmax(0, 1fr))', gap: desktop ? 14 : 10 }}>
             {d.live.map((host) => (
-              <div key={host.id} className="live-pulse" style={{ position: 'relative', height: desktop ? 420 : 460, borderRadius: 20, overflow: 'hidden', border: '3px solid var(--color-live)', background: 'var(--color-text)', color: '#FFFFFF' }}>
-                <img src={sized(img(host.avatar_url), 800)} alt={host.name} onError={onImgError} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 20%' }} />
-                <span style={{ position: 'absolute', top: 12, left: 12 }}><LiveBadge text={t('host.live_now')} /></span>
-                <Link to={`/hosts/${host.slug}`} style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px 4px 4px', borderRadius: 20, background: 'rgba(0,0,0,0.55)', color: '#FFFFFF', textDecoration: 'none', fontSize: 13, fontWeight: 700 }}>
-                  <span style={{ width: 28, height: 28, borderRadius: 14, overflow: 'hidden', border: '2px solid var(--color-live)', display: 'flex' }}>{avatar(host, 24)}</span>
-                  {host.name}
+              <div key={host.id} className="live-pulse" style={{ position: 'relative', ...(desktop ? { height: 420 } : { aspectRatio: '3 / 4' }), borderRadius: desktop ? 20 : 16, overflow: 'hidden', border: `${desktop ? 3 : 2.5}px solid var(--color-live)`, boxSizing: 'border-box', background: 'var(--color-text)', color: '#FFFFFF' }}>
+                <img src={sized(img(host.avatar_url), desktop ? 800 : 500)} alt={host.name} loading="lazy" onError={onImgError} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 20%' }} />
+                <span style={{ position: 'absolute', top: desktop ? 12 : 8, left: desktop ? 12 : 8 }}><LiveBadge text={t('host.live_now')} /></span>
+                <Link to={`/hosts/${host.slug}`} style={desktop
+                  ? { position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px 4px 4px', borderRadius: 20, background: 'rgba(0,0,0,0.55)', color: '#FFFFFF', textDecoration: 'none', fontSize: 13, fontWeight: 700 }
+                  : { position: 'absolute', left: 8, right: 8, bottom: host.watch_url ? 52 : 8, display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 3px', borderRadius: 16, background: 'rgba(0,0,0,0.55)', color: '#FFFFFF', textDecoration: 'none', fontSize: 13, fontWeight: 700, minWidth: 0 }}>
+                  <span style={{ width: 28, height: 28, borderRadius: 14, overflow: 'hidden', border: '2px solid var(--color-live)', display: 'flex', flex: 'none' }}>{avatar(host, 24)}</span>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{host.name}</span>
                 </Link>
                 {host.watch_url && (
-                  <a href={host.watch_url} target="_blank" rel="noreferrer" style={{ position: 'absolute', left: 12, right: 12, bottom: 14, height: 56, borderRadius: 14, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 17, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}>
-                    <IconPlay size={14} />{t('live.watch')}
+                  <a href={host.watch_url} target="_blank" rel="noreferrer" style={{ position: 'absolute', left: desktop ? 12 : 8, right: desktop ? 12 : 8, bottom: desktop ? 14 : 8, height: desktop ? 56 : 38, borderRadius: desktop ? 14 : 12, background: 'var(--color-live)', color: '#FFFFFF', fontSize: desktop ? 17 : 14, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: desktop ? 8 : 6, textDecoration: 'none' }}>
+                    <IconPlay size={desktop ? 14 : 12} />{t('live.watch')}
                   </a>
                 )}
               </div>

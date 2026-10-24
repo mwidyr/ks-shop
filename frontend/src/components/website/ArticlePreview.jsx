@@ -51,7 +51,6 @@ export default function ArticlePreview({ title, summary, introHtml, coverAlt, co
           <div key={b.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 14, background: '#fff', border: `1px solid ${T.border}` }}>
             {p.images?.[0]?.url ? <img src={resolveUrl(p.images[0].url)} alt={p.name} style={{ width: 64, height: 84, borderRadius: 10, objectFit: 'cover' }} /> : <div style={{ width: 64, height: 84, borderRadius: 10, background: T.soft }} />}
             <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontSize: 11, color: T.live, fontWeight: 700 }}>{t('page_website.content.preview.shop_note')}</span>
               <b style={{ fontSize: 15 }}>{p.name}</b>
               {Number.isFinite(price) && <span style={{ fontSize: 15, fontWeight: 700 }}>NT${Math.round(price).toLocaleString('en-US')}</span>}
             </span>

@@ -14,11 +14,9 @@ import WaSheet from '../components/WaSheet'
 import { useProfile, suggestSize } from '../lib/profile'
 import { getReviews } from '../lib/api'
 import Stars from '../components/Stars'
-import { IconBack, IconCheck, IconChevDown, IconHeadphones, IconHeart, IconMenu, IconPlay, IconChat, IconSearch, IconShare } from '../components/Icons'
+import { IconCheck, IconChevDown, IconHeadphones, IconHeart, IconPlay, IconChat, IconShare } from '../components/Icons'
 import { btnOutline, btnPrimary, EmptyState, ErrorState, Field, inputStyle, Sheet, Skeleton } from '../components/ui'
 import { blankSize } from '../components/QuickAdd'
-
-const iconLink = { width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)' }
 
 function Checkbox({ on, disabled, onClick, label }) {
   return (
@@ -113,9 +111,9 @@ export default function Product() {
     jsonLd: p ? { '@context': 'https://schema.org', '@type': 'Product', name: p.name, sku: p.sku, image: p.images, description: p.description || p.name, offers: { '@type': 'Offer', priceCurrency: 'TWD', price: p.price, availability: p.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' } } : null,
   })
 
-  if (error === 'notfound') return <div><PageTop /><EmptyState title={t('product.not_found')} text={t('product.not_found_text')} action={<Link to="/products" style={{ ...btnPrimary, marginTop: 8 }}>{t('product.shop_all')}</Link>} /></div>
-  if (error) return <div><PageTop /><ErrorState onRetry={load} /></div>
-  if (!p) return <div><PageTop /><Skeleton h={desktop ? 520 : 470} r={0} /><div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}><Skeleton w="60%" h={22} /><Skeleton w="40%" h={30} /></div></div>
+  if (error === 'notfound') return <div><EmptyState title={t('product.not_found')} text={t('product.not_found_text')} action={<Link to="/products" style={{ ...btnPrimary, marginTop: 8 }}>{t('product.shop_all')}</Link>} /></div>
+  if (error) return <div><ErrorState onRetry={load} /></div>
+  if (!p) return <div><Skeleton h={desktop ? 520 : 470} r={0} /><div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}><Skeleton w="60%" h={22} /><Skeleton w="40%" h={30} /></div></div>
 
   const gallery = [...(p.images || [])]
   const hasVideo = Boolean(p.video_url)
@@ -162,9 +160,13 @@ export default function Product() {
           {totalStock > 0 && totalStock <= 5 && <span style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--color-bg-soft)', color: 'var(--color-text)', fontSize: 11 }}>{t('product.stock_low', { n: totalStock })}</span>}
         </span>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, lineHeight: 1.4 }}>{p.name}</h1>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <b style={{ fontSize: 26 }}>{money(p.price)}</b>
-          {pct > 0 && <><span style={{ fontSize: 15, color: 'var(--color-text-3)', textDecoration: 'line-through' }}>{money(p.compare_at)}</span><span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}>-{pct}%</span></>}
+        {/* price left, share right; when a long price leaves no room the button drops to its own line (never squeezed or wrapped) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 }}>
+            <b style={{ fontSize: 26, whiteSpace: 'nowrap' }}>{money(p.price)}</b>
+            {pct > 0 && <><span style={{ fontSize: 15, color: 'var(--color-text-3)', textDecoration: 'line-through' }}>{money(p.compare_at)}</span><span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}>-{pct}%</span></>}
+          </div>
+          <ShareButton title={p.name} text={`${p.name} · ${money(p.price)}`} url={shareUrl} native={!desktop} onCopied={() => cart.showToast(t('product.share_copied'))} />
         </div>
         {f.active && <span style={{ fontSize: 13, color: 'var(--color-success)', fontWeight: 700 }}>{t('product.free_ship_line', { amount: money(f.threshold) })}</span>}
       </section>
@@ -315,7 +317,6 @@ export default function Product() {
 
   return (
     <div style={{ paddingBottom: desktop ? 40 : 96 }}>
-      {!desktop && <PageTop onShare={() => navigator.share?.({ title: p.name, url: shareUrl }).catch(() => {})} />}
       {desktop ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, padding: '32px 40px 0' }}>
           <div style={{ position: 'sticky', top: 96, alignSelf: 'start' }}>{gal}</div>
@@ -397,15 +398,30 @@ export default function Product() {
   )
 }
 
-function PageTop({ onShare }) {
+// "Bagikan ke Teman": the phone's native share sheet (the link's preview - image, name, description - comes from the
+// Open Graph tags the server adds for /p/{id}); on desktop it copies the product link. One line, never wraps.
+function ShareButton({ title, text, url, native, onCopied }) {
   const { t } = useTranslation()
+  async function copy() {
+    try { await navigator.clipboard.writeText(url) } catch {
+      // plain-HTTP / old browsers: select-and-copy fallback
+      const ta = document.createElement('textarea')
+      ta.value = url; ta.style.position = 'fixed'; ta.style.left = '-9999px'
+      document.body.appendChild(ta); ta.select()
+      try { document.execCommand('copy') } catch { /* nothing more to try */ }
+      document.body.removeChild(ta)
+    }
+    onCopied()
+  }
+  async function share() {
+    if (native && navigator.share) {
+      try { await navigator.share({ title, text, url }); return } catch (e) { if (e?.name === 'AbortError') return }
+    }
+    copy()
+  }
   return (
-    <header style={{ height: 58, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
-      <button type="button" aria-label={t('common.back')} onClick={() => window.history.back()} style={{ ...iconLink, border: 'none', background: 'none' }}><IconBack /></button>
-      <span style={{ flex: 1 }} aria-hidden="true" />
-      {onShare && navigator.share && <button type="button" aria-label="Share" onClick={onShare} style={{ ...iconLink, border: 'none', background: 'none' }}><IconShare size={20} /></button>}
-      <Link to="/search" aria-label={t('nav.search_aria')} style={iconLink}><IconSearch size={20} /></Link>
-      <Link to="/menu" aria-label={t('nav.menu')} style={iconLink}><IconMenu /></Link>
-    </header>
+    <button type="button" onClick={share} style={{ flex: 'none', marginLeft: 'auto', height: 36, padding: '0 12px', borderRadius: 18, border: '1px solid var(--color-border-strong, #D1D5DB)', background: '#FFFFFF', color: '#2B2B2E', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+      <IconShare size={16} />{t('product.share_friends')}
+    </button>
   )
 }

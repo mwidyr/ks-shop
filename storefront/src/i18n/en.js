@@ -28,8 +28,8 @@ export default {
   },
   host: {
     live_now: 'Live now', viewers_short: '{{n}} watching', wearing: 'Now wearing', enter_live: 'Join live', see_outfit: 'See outfits',
-    has_replay: 'Replay available', not_live_at: 'Not live・{{when}}', next_at: 'Next live: {{when}}', last_replay: 'Last live: replay',
-    items_n: '+{{n}} items', host_page: 'Host page',
+    not_live_at: 'Not live・{{when}}', next_at: 'Next live: {{when}}',
+    items_n: '+{{n}} items', host_page: 'Host page', see_picks: "View Host's Picks", products_count: '{{n}} products',
   },
   when: { today_evening: 'tonight {{time}}', today: 'today {{time}}', tomorrow: 'tomorrow {{time}}', other: '{{day}} {{time}}' },
   footer: {

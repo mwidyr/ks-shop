@@ -45,7 +45,8 @@ function Blocks({ blocks, products, topic, hostName }) {
             <Link key={i} to={`/p/${p.id}`} style={{ lineHeight: hostName ? 1.85 : undefined, display: 'flex', gap: 12, alignItems: 'center', padding: 10, borderRadius: 14, background: 'var(--color-surface)', border: '1px solid var(--color-border)', textDecoration: 'none', color: 'var(--color-text)' }}>
               <img src={sized(img(p.image), 160)} alt={hostName ? '' : p.name} loading="lazy" onError={onImgError} style={hostName ? { width: 60, height: 80, borderRadius: 10, objectFit: 'cover' } : { width: 64, height: 84, borderRadius: 10, objectFit: 'cover' }} />
               <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: hostName ? 0 : 3 }}>
-                <span style={{ fontSize: 11, color: 'var(--color-live)', fontWeight: 700 }}>{p.wear_size && hostName ? t('style.wears', { name: hostName, size: p.wear_size }) : p.live_code ? t('product.live_code_badge', { code: p.live_code }) : t('style.shop_note')}</span>
+                {/* the red "Item dalam artikel" label is gone; only the host's size / live code line stays when there is one */}
+                {(p.wear_size && hostName) || p.live_code ? <span style={{ fontSize: 11, color: 'var(--color-live)', fontWeight: 700 }}>{p.wear_size && hostName ? t('style.wears', { name: hostName, size: p.wear_size }) : t('product.live_code_badge', { code: p.live_code })}</span> : null}
                 <b style={{ fontSize: 15 }}>{p.name}</b><span style={{ fontSize: 15, fontWeight: 700 }}>NT${Math.round(p.price).toLocaleString('en-US')}</span>
               </span>
               <span style={{ flex: 'none', ...(hostName ? { minHeight: 36, padding: '0 12px' } : { height: 36, padding: '0 14px', fontWeight: 700 }), borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, display: 'flex', alignItems: 'center' }}>{t('style.view_product')}</span>

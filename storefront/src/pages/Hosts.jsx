@@ -6,9 +6,12 @@ import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { storeHelpText, waUrl } from '../lib/wa'
 import { whenLabel } from '../lib/when'
-import { HostCard, LiveBadge } from '../components/HostCard'
-import { IconMenu, IconPlay, IconSearch } from '../components/Icons'
+import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
+import { IconArrowRight, IconCart, IconMenu, IconSearch } from '../components/Icons'
 import { btnDark, btnOutline, EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
+
+// brand red of the "View Host's Picks" button (client-specified, white text)
+const HOST_PICKS_BG = '#9E1B46'
 
 export default function Hosts() {
   const { t, i18n } = useTranslation()
@@ -75,28 +78,21 @@ export default function Hosts() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {list.map((h) => {
                 const live = h.live_status === 'live'
+                const pick = t('host.see_picks')
                 return (
-                  <div key={h.id} style={{ display: 'flex', gap: 12, padding: 12, borderRadius: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                    <Link to={`/hosts/${h.slug}`} style={{ position: 'relative', flex: 'none', width: 96, height: 128, borderRadius: 12, overflow: 'hidden', display: 'block' }}>
-                      <img src={sized(img(h.avatar_url), 240)} alt={h.name} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%', background: 'var(--color-bg-soft)' }} />
-                      <span style={{ position: 'absolute', left: 6, top: 6 }}>
-                        {live ? <LiveBadge text={t('host.live_now')} /> : null}
-                      </span>
+                  // horizontal card: photo left; name, next live, product count and a full-width "View Host's Picks" button right
+                  <div key={h.id} style={{ display: 'flex', gap: 14, padding: 12, borderRadius: 20, background: 'var(--color-surface)', border: live ? '1.5px solid var(--color-live)' : '1px solid var(--color-border)' }}>
+                    <Link to={`/hosts/${h.slug}`} aria-label={h.name} className={live ? 'live-pulse' : ''} style={{ position: 'relative', flex: 'none', width: 104, aspectRatio: '3 / 4', borderRadius: 16, overflow: 'hidden', display: 'block', border: live ? '2.5px solid var(--color-live)' : 'none', boxSizing: 'border-box' }}>
+                      <img src={sized(img(h.avatar_url), 260)} alt={h.name} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 15%', background: 'var(--color-bg-soft)' }} />
+                      {(live || !h.has_been_live) && <span style={{ position: 'absolute', left: 6, top: 6 }}>{live ? <LiveBadge text={t('host.live_now')} /> : <OffBadge />}</span>}
                     </Link>
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <b style={{ fontSize: 17 }}>{h.name}</b>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>
-                        {live ? t('host.live_now') : h.next_live_at ? t('hosts.next_live', { when: whenLabel(h.next_live_at, t, i18n.language) }) : ''}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 20, lineHeight: 1.2 }}>{h.name}</b>
+                      <span style={{ fontSize: 14, color: 'var(--color-text-2)' }}>
+                        {live ? t('host.live_now') : h.next_live_at ? whenLabel(h.next_live_at, t, i18n.language) : ''}
                       </span>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {(h.thumbs || []).slice(0, 3).map((u, i) => <img key={u + i} src={sized(img(u), 120)} alt="" loading="lazy" onError={onImgError} style={{ width: 36, height: 46, borderRadius: 6, objectFit: 'cover' }} />)}
-                        <span style={{ fontSize: 11, color: 'var(--color-disabled)', alignSelf: 'center' }}>{t('hosts.more_items', { n: h.item_count })}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {live
-                          ? <Link to={`/hosts/${h.slug}`} style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' }}><IconPlay size={12} />{t('host.enter_live')}</Link>
-                          : <Link to={`/hosts/${h.slug}`} style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' }}>{t('host.host_page')}</Link>}
-                      </div>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--color-text-2)' }}><IconCart size={16} />{t('host.products_count', { n: h.item_count })}</span>
+                      <Link to={`/hosts/${h.slug}`} style={{ minHeight: 44, padding: '0 14px', borderRadius: 22, background: HOST_PICKS_BG, color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>{pick}<IconArrowRight size={14} /></Link>
                     </div>
                   </div>
                 )

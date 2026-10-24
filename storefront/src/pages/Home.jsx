@@ -6,9 +6,8 @@ import { formatNumber, money } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { topicText, waUrl } from '../lib/wa'
-import { whenLabel } from '../lib/when'
 import { Footer } from '../components/Layout'
-import { HostCard, LiveBadge } from '../components/HostCard'
+import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { IconHeadset, IconPlay, IconSearch, IconWhatsApp } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
 import { ErrorState, ProductGridSkeleton, SectionHead, Skeleton } from '../components/ui'
@@ -21,7 +20,7 @@ function Eyebrowless({ children }) {
 }
 
 function LiveArea({ data, desktop }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { host, products, coupon } = data
   const live = host.live_status === 'live'
   const perk = coupon?.value > 0
@@ -33,7 +32,7 @@ function LiveArea({ data, desktop }) {
     return (
       <Link to={`/hosts/${host.slug}`} className={live ? 'live-pulse' : ''} style={box}>
         <img src={sized(img(host.avatar_url), 900)} alt={host.name} onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 15%' }} />
-        <span style={{ position: 'absolute', top: 16, left: 16 }}>{live ? <LiveBadge text={t('home.live_now')} /> : <span style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(30,30,35,0.78)', fontSize: 11, fontWeight: 700 }}>{t('host.not_live_at', { when: whenLabel(host.next_live_at, t, i18n.language) })}</span>}</span>
+        {(live || !host.has_been_live) && <span style={{ position: 'absolute', top: 16, left: 16 }}>{live ? <LiveBadge text={t('home.live_now')} /> : <OffBadge />}</span>}
         <span style={{ position: 'absolute', left: 16, right: 16, bottom: 16, padding: 16, borderRadius: 16, background: 'rgba(30,30,35,0.8)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <b className="serif" style={{ fontSize: 20 }}>{host.name}・{host.live_title || host.next_live_title}</b>
           {perk && <span style={{ fontSize: 13 }}>{t('home.perk', { amount: money(coupon.value) })}{live && host.viewer_count != null ? `・${t('home.viewers', { n: formatNumber(host.viewer_count) })}` : ''}</span>}
@@ -54,7 +53,7 @@ function LiveArea({ data, desktop }) {
       <Link to={`/hosts/${host.slug}`} style={{ display: 'flex', gap: 12, textDecoration: 'none', color: 'var(--color-text)' }}>
         <span className={live ? 'live-pulse' : ''} style={{ position: 'relative', flex: 'none', width: 128, height: 200, borderRadius: 14, overflow: 'hidden', border: `2.5px solid ${live ? 'var(--color-live)' : 'var(--color-border)'}`, boxSizing: 'border-box', display: 'block' }}>
           <img src={sized(img(host.avatar_url), 400)} alt={host.name} fetchpriority="high" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 15%' }} />
-          <span style={{ position: 'absolute', top: 8, left: 8 }}>{live ? <LiveBadge text={t('home.live_now')} /> : <span style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(30,30,35,0.78)', color: '#FFFFFF', fontSize: 11, fontWeight: 700 }}>{t('host.not_live_at', { when: whenLabel(host.next_live_at, t, i18n.language) })}</span>}</span>
+          {(live || !host.has_been_live) && <span style={{ position: 'absolute', top: 8, left: 8 }}>{live ? <LiveBadge text={t('home.live_now')} /> : <OffBadge />}</span>}
           {live && host.viewer_count != null && <span style={{ position: 'absolute', left: 8, bottom: 8, padding: '2px 7px', borderRadius: 6, background: 'rgba(0,0,0,0.6)', color: '#FFFFFF', fontSize: 11 }}>{t('home.viewers', { n: formatNumber(host.viewer_count) })}</span>}
         </span>
         <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>

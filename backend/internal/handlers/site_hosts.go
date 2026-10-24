@@ -23,7 +23,10 @@ type siteHostCard struct {
 	NextLiveTitle string   `json:"next_live_title,omitempty"`
 	ItemCount     int      `json:"item_count"`
 	HasReplay     bool     `json:"has_replay"`
-	WatchURL      string   `json:"watch_url,omitempty"`
+	// HasBeenLive: the host has gone LIVE before (a live session, an ended LIVE window or sales attributed to
+	// them). The website shows a plain photo for these hosts and an "OFF" label for a host who never has.
+	HasBeenLive bool   `json:"has_been_live"`
+	WatchURL    string `json:"watch_url,omitempty"`
 	// WearingImage: photo of what the host is showing now (else a recently sold item) - the "Sedang dipakai" thumbnail.
 	WearingImage string `json:"wearing_image,omitempty"`
 	// Thumbs: up to three product photos of the host (list view).
@@ -41,6 +44,9 @@ const hostCardSelect = `
 	            THEN (SELECT COUNT(DISTINCT hp.product_id) FROM host_products hp WHERE hp.host_id = h.id)
 	            ELSE (SELECT COUNT(DISTINCT v.product_id) FROM order_items oi JOIN product_variants v ON v.id = oi.variant_id WHERE oi.host_id = h.id) END,
 	       EXISTS (SELECT 1 FROM host_replays hr WHERE hr.host_id = h.id),
+	       (EXISTS (SELECT 1 FROM live_sessions ls WHERE ls.host_id = h.id)
+	        OR EXISTS (SELECT 1 FROM host_live_ends he WHERE he.host_id = h.id)
+	        OR EXISTS (SELECT 1 FROM order_items oi WHERE oi.host_id = h.id)),
 	       CASE WHEN h.live_url IS NOT NULL AND h.live_url <> '' AND (h.live_url_expires_at IS NULL OR h.live_url_expires_at > now())
 	            THEN h.live_url ELSE COALESCE(h.tiktok_url,'') END,
 	       COALESCE(
@@ -63,7 +69,7 @@ func (h *SiteHandler) scanHostCards(ctx context.Context, sql string, args ...int
 		var c siteHostCard
 		var next *time.Time
 		if rows.Scan(&c.ID, &c.Slug, &c.Name, &c.Alias, &c.AvatarURL, &c.LiveStatus, &c.LiveTitle, &c.ViewerCount, &next,
-			&c.NextLiveTitle, &c.ItemCount, &c.HasReplay, &c.WatchURL, &c.WearingImage, &c.Thumbs) != nil {
+			&c.NextLiveTitle, &c.ItemCount, &c.HasReplay, &c.HasBeenLive, &c.WatchURL, &c.WearingImage, &c.Thumbs) != nil {
 			continue
 		}
 		if next != nil {
@@ -157,7 +163,7 @@ func (h *SiteHandler) Host(w http.ResponseWriter, r *http.Request) {
 
 	hostInfo := map[string]interface{}{
 		"id": card.ID, "slug": card.Slug, "name": card.Name, "avatar_url": card.AvatarURL, "cover_url": cover,
-		"live_status": card.LiveStatus, "live_title": card.LiveTitle, "viewer_count": card.ViewerCount,
+		"live_status": card.LiveStatus, "has_been_live": card.HasBeenLive, "live_title": card.LiveTitle, "viewer_count": card.ViewerCount,
 		"next_live_at": card.NextLiveAt, "next_live_title": card.NextLiveTitle, "watch_url": card.WatchURL,
 		"tiktok_url": tiktok, "seo_title": seoTitle, "seo_description": seoDesc,
 	}

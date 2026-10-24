@@ -4,6 +4,8 @@
 @tailwind utilities;
 
 *, *::before, *::after { box-sizing: border-box; }
+/* light mode only (see the color-scheme meta in index.html): form controls and scrollbars stay light too */
+:root { color-scheme: only light; }
 html { scroll-behavior: smooth; }
 /* a single over-wide element must never widen the layout viewport (it clips fixed bars on phones); clip keeps sticky/fixed working */
 html, body { max-width: 100%; overflow-x: clip; }

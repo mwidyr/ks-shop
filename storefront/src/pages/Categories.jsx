@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getHosts, getProducts, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { HostCard, LiveBadge } from '../components/HostCard'
-import { IconPlay } from '../components/Icons'
+import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { EmptyState, SectionHead } from '../components/ui'
 
 // featured tiles take two rows: the ones the shop marks (featured), else the first tile of a group with more than two
@@ -31,8 +30,7 @@ export default function Categories() {
           <SectionHead eyebrow={t('cats.hosts_eyebrow')} title={t('cats.hosts_title')} to="/hosts" linkLabel={t('cats.all_hosts')} gap={12} />
           <div style={{ display: 'flex', gap: 8, padding: `0 ${desktop ? 40 : 16}px 12px`, fontSize: 12, color: 'var(--color-text-2)' }}>
             <LiveBadge text={t('host.live_now')} />
-            <span style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(30,30,35,0.78)', color: '#FFFFFF', fontSize: 11, fontWeight: 700 }}>{t('cats.legend_next', { time: '20:00' })}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: 'var(--color-bg)', color: 'var(--color-text)', fontSize: 11, fontWeight: 700 }}><IconPlay size={10} />{t('host.has_replay')}</span>
+            <OffBadge />
           </div>
           <div className="no-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: `0 ${desktop ? 40 : 16}px 4px` }}>
             {hosts.slice(0, 8).map((h) => <HostCard key={h.id} h={h} width={156} />)}

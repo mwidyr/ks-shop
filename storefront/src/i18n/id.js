@@ -29,8 +29,8 @@ export default {
   },
   host: {
     live_now: 'Sedang live', viewers_short: '{{n}} orang', wearing: 'Sedang dipakai', enter_live: 'Masuk live', see_outfit: 'Lihat outfit-nya',
-    has_replay: 'Ada replay', not_live_at: 'Belum live・{{when}}', next_at: 'Live berikutnya: {{when}}', last_replay: 'Live terakhir: replay',
-    items_n: '+{{n}} item', host_page: 'Halaman host',
+    not_live_at: 'Belum live・{{when}}', next_at: 'Live berikutnya: {{when}}',
+    items_n: '+{{n}} item', host_page: 'Halaman host', see_picks: 'Lihat Pilihan Host', products_count: '{{n}} produk',
   },
   when: { today_evening: 'malam ini {{time}}', today: 'hari ini {{time}}', tomorrow: 'besok {{time}}', other: '{{day}} {{time}}' },
   footer: {

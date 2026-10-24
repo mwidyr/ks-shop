@@ -10,7 +10,7 @@ import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { topicText, waUrl } from '../lib/wa'
 import { whenLabel } from '../lib/when'
-import { HostCard, LiveBadge } from '../components/HostCard'
+import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { IconCheck, IconMenu, IconPlay, IconSearch, IconTiktok } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
 import { btnOutline, btnPrimary, Chip, EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
@@ -114,7 +114,7 @@ export default function Host() {
           <img src={sized(img(host.avatar_url), 300)} alt={host.name} onError={onImgError} style={{ width: 104, height: 104, borderRadius: 52, objectFit: 'cover', objectPosition: '30% 15%', border: '4px solid var(--color-bg)', boxShadow: live ? '0 0 0 2.5px var(--color-live)' : 'none', background: 'var(--color-bg-soft)' }} />
           <span style={{ paddingBottom: 8 }}>
             {live ? <span style={{ display: 'flex' }}><LiveBadge text={t('host.live_now')} /></span>
-              : host.next_live_at ? <span style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(30,30,35,0.78)', color: '#FFFFFF', fontSize: 11, fontWeight: 700 }}>{t('host.not_live_at', { when: whenLabel(host.next_live_at, t, i18n.language) })}</span> : null}
+              : !host.has_been_live ? <span style={{ display: 'flex' }}><OffBadge /></span> : null}
           </span>
         </div>
         <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700 }}>{host.name}</h1>

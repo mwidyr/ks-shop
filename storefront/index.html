@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Light mode only: tells the browser the site has no dark theme, so Android Chrome / in-app browsers (TikTok,
+         Instagram ...) do not auto-darken it (Force/Auto Dark) whatever the phone's dark mode setting is. -->
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light" />
     <!-- Per-page <title>, description, canonical, robots, Open Graph and JSON-LD are injected by nginx (SSI)
          from the backend (/api/public/store/seo). The block below is only output when that include
          fails - and as-is under `vite dev`, where SSI does not run. -->

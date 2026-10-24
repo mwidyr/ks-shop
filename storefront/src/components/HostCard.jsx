@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { img, onImgError, sized } from '../lib/api'
-import { whenLabel } from '../lib/when'
 import { IconPlay } from './Icons'
 
 export function LiveBadge({ text }) {
@@ -12,21 +11,23 @@ export function LiveBadge({ text }) {
   )
 }
 
-// Host tile (150px) for the home / hosts scrollers: live ring + viewers, or "not live yet" + schedule.
+// Black "OFF" tag for a host who has never gone live. A host who has been live before shows the plain
+// photo with no status tag, and a live host keeps the red ring + LIVE NOW (LiveBadge).
+export function OffBadge() {
+  return <span style={{ padding: '3px 8px', borderRadius: 6, background: '#000000', color: '#FFFFFF', fontSize: 11, fontWeight: 700, letterSpacing: '.5px' }}>OFF</span>
+}
+
+// Host tile (150px) for the home / hosts scrollers: live ring, or the OFF tag / plain photo.
 export function HostCard({ h, width = 150, wearing }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const live = h.live_status === 'live'
   return (
     <Link to={`/hosts/${h.slug}`} style={{ flex: 'none', width, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8, textDecoration: 'none', color: 'var(--color-text)' }}>
       <span className={live ? 'live-pulse' : ''} style={{ position: 'relative', display: 'block', aspectRatio: '150 / 202', borderRadius: 16, overflow: 'hidden', border: live ? '2.5px solid var(--color-live)' : '1px solid var(--color-border)', boxSizing: 'border-box', background: 'var(--color-bg-soft)' }}>
         <img src={sized(img(h.avatar_url), 400)} alt={h.name} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '30% 15%' }} />
-        <span style={{ position: 'absolute', top: 8, left: 8 }}>
-          {live ? <LiveBadge text={t('host.live_now')} /> : (
-            <span style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(30,30,35,0.78)', color: '#FFFFFF', fontSize: 11, fontWeight: 700 }}>
-              {h.next_live_at ? t('host.not_live_at', { when: whenLabel(h.next_live_at, t, i18n.language) }) : t('home.not_live')}
-            </span>
-          )}
-        </span>
+        {(live || !h.has_been_live) && (
+          <span style={{ position: 'absolute', top: 8, left: 8 }}>{live ? <LiveBadge text={t('host.live_now')} /> : <OffBadge />}</span>
+        )}
         {(wearing || h.wearing_image) && (
           <span style={{ position: 'absolute', left: 8, bottom: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px 4px 4px', borderRadius: 12, background: 'rgba(255,255,255,0.94)' }}>
             <img src={sized(img(wearing || h.wearing_image), 80)} alt="" onError={onImgError} style={{ width: 26, height: 32, borderRadius: 6, objectFit: 'cover' }} />

@@ -28,8 +28,8 @@ export default {
   },
   host: {
     live_now: '直播中', viewers_short: '{{n}} 人', wearing: '正在穿', enter_live: '進入直播', see_outfit: '看她的穿搭',
-    has_replay: '有重播', not_live_at: '尚未開播・{{when}}', next_at: '下一場：{{when}}', last_replay: '上一場：重播',
-    items_n: '+{{n}} 件', host_page: '主播頁面',
+    not_live_at: '尚未開播・{{when}}', next_at: '下一場：{{when}}',
+    items_n: '+{{n}} 件', host_page: '主播頁面', see_picks: '查看主播精選', products_count: '{{n}} 件商品',
   },
   when: { today_evening: '今晚 {{time}}', today: '今天 {{time}}', tomorrow: '明天 {{time}}', other: '{{day}} {{time}}' },
   footer: {
