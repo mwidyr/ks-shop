@@ -4,7 +4,8 @@ import {
   getStoredSessionToken, verifyAccessCode, listPublicLocations, listPublicHosts,
   uploadPublicImage, recognizeLiveData, submitLiveData,
 } from '../api/liveDataPublic'
-import { resolveUrl } from '../utils/image'
+import AttachmentThumb from '../components/AttachmentThumb'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 
 function secondsToMMSS(totalSeconds) {
   if (!totalSeconds && totalSeconds !== 0) return ''
@@ -42,6 +43,7 @@ export default function LiveDataUpload() {
   const [hostId, setHostId] = useState('')
 
   const [slots, setSlots] = useState([null, null, null]) // {url, uploading, error}
+  const [previewUrl, setPreviewUrl] = useState(null)
 
   const [form, setForm] = useState(emptyForm)
   const [recognizedRaw, setRecognizedRaw] = useState(null)
@@ -212,20 +214,23 @@ export default function LiveDataUpload() {
 
           <label className={label}>{t('page_live_data_upload.screenshots_label')}</label>
           <div className="grid grid-cols-3 gap-2 mb-4">
-            {slots.map((slot, idx) => (
+            {slots.map((slot, idx) => (slot?.url ? (
+              // an uploaded screenshot: tap to preview, X to clear the slot and pick another one
+              <AttachmentThumb key={idx} url={slot.url} className="w-full aspect-square" onPreview={() => setPreviewUrl(slot.url)}
+                onDelete={() => setSlots((prev) => prev.map((s, i) => (i === idx ? null : s)))} deleteLabel={t('page_live_data_upload.remove_screenshot')} />
+            ) : (
               <label key={idx} className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer bg-gray-50 relative">
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handlePickFile(idx, e.target.files?.[0])} />
-                {slot?.url ? (
-                  <img src={resolveUrl(slot.url)} className="w-full h-full object-cover" />
-                ) : slot?.uploading ? (
+                {slot?.uploading ? (
                   <span className="text-[10px] text-gray-400">{t('page_live_data_upload.uploading')}</span>
                 ) : (
                   <span className="text-2xl text-gray-300">+</span>
                 )}
                 {slot?.error && <span className="absolute bottom-0 inset-x-0 text-[9px] text-red-600 bg-white/90 text-center">{slot.error}</span>}
               </label>
-            ))}
+            )))}
           </div>
+          {previewUrl && <ImagePreviewModal images={[{ url: previewUrl }]} onClose={() => setPreviewUrl(null)} />}
           {stepError && <p className="text-xs text-red-600 mb-2">{stepError}</p>}
           <button onClick={handleGoToReview} disabled={!canProceedStep1} className={primaryBtn}>
             {recognizing ? t('page_live_data_upload.recognizing') : t('page_live_data_upload.next_button')}

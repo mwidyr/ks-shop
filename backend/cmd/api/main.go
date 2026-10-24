@@ -342,6 +342,7 @@ func main() {
 			r.With(edit("orders")).Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
 			r.With(edit("orders")).Patch("/orders/{id}/pickup", orderH.UpdatePickup)
 			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
+			r.With(edit("orders")).Delete("/orders/{id}/attachments/{attachmentId}", orderH.DeleteAttachment)
 			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)
 			r.With(edit("shipping_workbench")).Post("/orders/{id}/return-received", orderH.ReturnReceived)
 			r.With(view("promotions")).Get("/promotions", promotionH.List)
@@ -470,6 +471,9 @@ func main() {
 			r.With(view("customers")).Get("/customers/stats", customerH.Stats)
 			r.With(view("customers")).Get("/customers/{id}/detail", customerH.Detail)
 			r.With(edit("customers")).Patch("/customers/{id}/labels", customerH.SetLabel)
+			r.With(edit("customers")).Post("/customers/{id}/notes", customerH.AddNote)
+			r.With(edit("customers")).Patch("/customers/notes/{noteId}", customerH.UpdateNote)
+			r.With(edit("customers")).Delete("/customers/notes/{noteId}", customerH.DeleteNote)
 			r.With(edit("customers")).Delete("/customers/{id}", customerH.Delete)
 
 			r.With(view("fees")).Get("/settings/fees", feesH.Get)
@@ -495,6 +499,7 @@ func main() {
 			r.With(view("panel_siaran")).Get("/live-sessions/{id}/screenshots", liveSessionScreenshotH.List)
 			r.With(view("panel_siaran")).Get("/live-data-upload/current-code", liveDataH.CurrentCode)
 			r.With(edit("panel_siaran")).Post("/live-sessions/{id}/screenshots", liveSessionScreenshotH.Create)
+			r.With(edit("panel_siaran")).Delete("/live-sessions/{id}/screenshots/{screenshotId}", liveSessionScreenshotH.Delete)
 
 			r.With(view("returns")).Get("/returns", returnH.List)
 			r.With(edit("returns")).Post("/returns", returnH.Create)

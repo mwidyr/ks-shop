@@ -4,8 +4,9 @@ import { verifyPassword } from '../api/auth'
 import PasswordInput from './PasswordInput'
 
 // Re-verifies the logged-in user's own password as a confirmation step before an irreversible
-// admin-only action (item 074: Super Admin hard-deleting a product with order history). Calls
-// onConfirm() only after the password actually checks out against /auth/verify-password.
+// admin-only action (item 074, #140: Super Admin deleting a product). Calls onConfirm(password)
+// only after the password checks out against /auth/verify-password - the password is passed on so
+// the action's own endpoint can verify it again server-side.
 export default function PasswordConfirmModal({ title, message, onConfirm, onClose }) {
   const { t } = useTranslation()
   const [password, setPassword] = useState('')
@@ -18,7 +19,7 @@ export default function PasswordConfirmModal({ title, message, onConfirm, onClos
     setError('')
     try {
       await verifyPassword(password)
-      await onConfirm()
+      await onConfirm(password)
       onClose()
     } catch (err) {
       setError(err.response?.data?.error || t('shared.password_confirm_failed'))

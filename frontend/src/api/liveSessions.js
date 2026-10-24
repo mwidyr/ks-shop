@@ -50,6 +50,10 @@ export function addLiveSessionScreenshot(id, imageUrl) {
   return client.post(`/live-sessions/${id}/screenshots`, { image_url: imageUrl }).then((res) => res.data)
 }
 
+export function deleteLiveSessionScreenshot(id, screenshotId) {
+  return client.delete(`/live-sessions/${id}/screenshots/${screenshotId}`).then((res) => res.data)
+}
+
 // Current hourly-rotating access code for the public LIVE Data Upload wizard (/live-data-upload)
 // - staff share this with hosts as needed.
 export function getLiveDataCurrentCode() {

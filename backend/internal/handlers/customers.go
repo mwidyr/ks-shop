@@ -748,7 +748,8 @@ func (h *CustomerHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		rows.Close()
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{"delivery_history": delivery, "host_history": hosts, "orders": orders})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"delivery_history": delivery, "host_history": hosts, "orders": orders,
+		"notes": h.loadNotes(ctx, ids)})
 }
 
 type setLabelRequest struct {

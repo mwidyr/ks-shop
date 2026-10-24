@@ -58,8 +58,9 @@ export function updateVariant(productId, variantId, payload) {
   return client.patch(`/products/${productId}/variants/${variantId}`, payload).then((res) => res.data)
 }
 
-export function deleteProduct(id, force) {
-  return client.delete(`/products/${id}${force ? '?force=true' : ''}`).then((res) => res.data)
+// Superuser only, with their password re-checked by the server (#140).
+export function deleteProduct(id, force, password) {
+  return client.delete(`/products/${id}${force ? '?force=true' : ''}`, { data: { password } }).then((res) => res.data)
 }
 
 export function deleteVariant(productId, variantId) {

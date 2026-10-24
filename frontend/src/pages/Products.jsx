@@ -40,6 +40,8 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
   // (PasswordConfirmModal) rather than happening on the same click that triggered the 409.
   const [blockedByHistory, setBlockedByHistory] = useState(false)
   const [forceDeleteOpen, setForceDeleteOpen] = useState(false)
+  // #140: deleting a product is Superuser-only and always asks for their password first
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const menuButtonRef = useRef(null)
 
   // The "Atur" menu is rendered via a portal into document.body with fixed positioning
@@ -88,23 +90,25 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     setError('')
     setBlockedByHistory(false)
     setMenuOpen(false)
+    setDeleteOpen(true)
+  }
+
+  async function confirmDelete(password) {
     try {
-      await deleteProduct(p.id)
+      await deleteProduct(p.id, false, password)
       onChanged()
     } catch (err) {
       setError(err.response?.data?.error || t('page_products.delete_product_failed'))
-      if (err.response?.status === 409 && isAdmin) {
-        setBlockedByHistory(true)
-      }
+      if (err.response?.status === 409) setBlockedByHistory(true)
     }
   }
 
-  async function handleForceDelete() {
-    await deleteProduct(p.id, true)
+  async function handleForceDelete(password) {
+    await deleteProduct(p.id, true, password)
     setBlockedByHistory(false)
     setError('')
     onChanged()
@@ -169,14 +173,14 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
                 <IconPencil /> {t('common.edit')}
               </Link>
               {canEdit && (
-                <>
-                  <button onClick={toggleActive} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left">
-                    {p.is_active ? t('page_products.deactivate') : t('page_products.activate')}
-                  </button>
-                  <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full text-left">
-                    <IconTrash /> {t('common.delete')}
-                  </button>
-                </>
+                <button onClick={toggleActive} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left">
+                  {p.is_active ? t('page_products.deactivate') : t('page_products.activate')}
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full text-left">
+                  <IconTrash /> {t('common.delete')}
+                </button>
               )}
             </div>
           </>,
@@ -187,6 +191,14 @@ function ProductRow({ p, onChanged, selected, onToggleSelect, onPreview }) {
           <button type="button" onClick={() => setForceDeleteOpen(true)} className="text-[11px] font-semibold text-red-700 underline mt-0.5">
             {t('page_products.force_delete_link')}
           </button>
+        )}
+        {deleteOpen && (
+          <PasswordConfirmModal
+            title={t('page_products.delete_title')}
+            message={t('page_products.delete_message', { name: p.name })}
+            onConfirm={confirmDelete}
+            onClose={() => setDeleteOpen(false)}
+          />
         )}
         {forceDeleteOpen && (
           <PasswordConfirmModal
@@ -227,6 +239,7 @@ export default function Products() {
   const [bulkPrice, setBulkPrice] = useState('')
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkResult, setBulkResult] = useState('')
   const [importing, setImporting] = useState(false)
   const [previewProduct, setPreviewProduct] = useState(null)
@@ -354,7 +367,7 @@ export default function Products() {
     const results = await Promise.allSettled(
       (await selectedProducts()).map((p) => updateProduct(p.id, {
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, brand: p.brand,
-        base_price: p.base_price, allow_oversell: p.allow_oversell, category: bulkCategory, is_active: p.is_active,
+        base_price: p.base_price, allow_oversell: p.allow_oversell, category: bulkCategory, is_active: p.is_active, supplier_id: p.supplier_id ?? null,
       }))
     )
     const fail = results.filter((r) => r.status === 'rejected').length
@@ -372,7 +385,7 @@ export default function Products() {
     const results = await Promise.allSettled(
       (await selectedProducts()).map((p) => updateProduct(p.id, {
         sku: p.sku, vendor_sku: p.vendor_sku, name: p.name, description: p.description, category: p.category,
-        brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: isActive,
+        brand: p.brand, base_price: p.base_price, allow_oversell: p.allow_oversell, is_active: isActive, supplier_id: p.supplier_id ?? null,
       }))
     )
     const fail = results.filter((r) => r.status === 'rejected').length
@@ -383,10 +396,10 @@ export default function Products() {
     reload()
   }
 
-  async function applyBulkDelete() {
+  async function applyBulkDelete(password) {
     setBulkBusy(true)
     setBulkResult('')
-    const results = await Promise.allSettled((await selectedProducts()).map((p) => deleteProduct(p.id)))
+    const results = await Promise.allSettled((await selectedProducts()).map((p) => deleteProduct(p.id, false, password)))
     const fail = results.filter((r) => r.status === 'rejected').length
     setBulkResult(fail > 0
       ? t('page_products.bulk_delete_partial', { success: results.length - fail, fail })
@@ -495,9 +508,19 @@ export default function Products() {
           <button onClick={() => applyBulkActive(false)} disabled={bulkBusy} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-white disabled:opacity-50">
             {t('page_products.deactivate')}
           </button>
-          <button onClick={applyBulkDelete} disabled={bulkBusy} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
-            {t('common.delete')}
-          </button>
+          {user?.role === 'super_user' && (
+            <button onClick={() => setBulkDeleteOpen(true)} disabled={bulkBusy} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+              {t('common.delete')}
+            </button>
+          )}
+          {bulkDeleteOpen && (
+            <PasswordConfirmModal
+              title={t('page_products.delete_title')}
+              message={t('page_products.bulk_delete_message', { count: selected.size })}
+              onConfirm={applyBulkDelete}
+              onClose={() => setBulkDeleteOpen(false)}
+            />
+          )}
           <button onClick={() => setSelected(new Set())} className="text-xs text-gray-500 hover:underline">
             {t('common.cancel')}
           </button>

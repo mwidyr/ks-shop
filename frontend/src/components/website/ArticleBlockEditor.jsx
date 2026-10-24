@@ -4,6 +4,8 @@ import { resolveUrl, uploadImageFile } from '../../utils/image'
 import { BLOCK_TYPES, duplicateBlock, emptyBlock, insertBlock, moveBlock, tocFromBlocks, showToc } from '../../utils/articleBlocks'
 import { ProductSearch, useProductList } from './Pickers'
 import RichTextEditor from './RichTextEditor'
+import AttachmentThumb from '../AttachmentThumb'
+import ImagePreviewModal from '../ImagePreviewModal'
 
 const iconBtn = 'min-w-8 h-8 px-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent'
 const fieldCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm'
@@ -13,6 +15,7 @@ function ImageBlock({ block, onChange }) {
   const e = (k) => t(`page_website.content.editor.${k}`)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [preview, setPreview] = useState(false)
   const fileRef = useRef(null)
   async function onFile(ev) {
     const f = ev.target.files[0]
@@ -24,7 +27,10 @@ function ImageBlock({ block, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-3">
-        {block.url ? <img src={resolveUrl(block.url)} alt="" className="h-24 w-24 rounded-lg object-cover bg-gray-100" /> : <div className="h-24 w-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">{e('no_image')}</div>}
+        {block.url
+          ? <AttachmentThumb url={block.url} className="h-24 w-24" onPreview={() => setPreview(true)} onDelete={() => onChange({ url: '' })} deleteLabel={e('remove_image')} />
+          : <div className="h-24 w-24 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">{e('no_image')}</div>}
+        {preview && block.url && <ImagePreviewModal images={[{ url: block.url }]} onClose={() => setPreview(false)} />}
         <div className="space-y-1.5">
           <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{busy ? '…' : block.url ? e('replace_image') : e('upload_image')}</button>
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />

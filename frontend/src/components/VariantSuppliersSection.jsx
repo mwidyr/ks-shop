@@ -12,7 +12,8 @@ function emptyLink(variantId) {
   return { variant_id: variantId, supplier_id: '', supplier_product_code: '', url_1688: '', ref_price: '', currency: 'RMB', is_active: true, is_preferred: false }
 }
 
-export default function VariantSuppliersSection({ productId, variants, suppliers }) {
+// readOnly (#140, non-Superuser): the links are shown but can't be changed.
+export default function VariantSuppliersSection({ productId, variants, suppliers, readOnly = false }) {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const [links, setLinks] = useState(null)
@@ -66,6 +67,7 @@ export default function VariantSuppliersSection({ productId, variants, suppliers
         <h2 className="font-bold text-gray-800">{t('page_product_form.vs_heading')}</h2>
         <p className="text-xs text-gray-500 mt-0.5">{t('page_product_form.vs_hint')}</p>
       </div>
+      <fieldset disabled={readOnly} className="space-y-4 min-w-0">
       {saved.map((v, vIdx) => {
         const rows = links.map((l, idx) => ({ l, idx })).filter(({ l }) => l.variant_id === v.id)
         return (
@@ -127,11 +129,14 @@ export default function VariantSuppliersSection({ productId, variants, suppliers
           </div>
         )
       })}
+      </fieldset>
       {error && <p className="text-red-600 text-sm">{error}</p>}
       {message && <p className="text-green-600 text-sm">{message}</p>}
-      <button type="button" onClick={save} disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60">
-        {saving ? t('page_product_form.saving') : t('page_product_form.vs_save')}
-      </button>
+      {!readOnly && (
+        <button type="button" onClick={save} disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-5 py-2 rounded-lg disabled:opacity-60">
+          {saving ? t('page_product_form.saving') : t('page_product_form.vs_save')}
+        </button>
+      )}
     </div>
   )
 }

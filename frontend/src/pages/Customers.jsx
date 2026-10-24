@@ -7,6 +7,7 @@ import { jakartaIsoDate } from '../utils/jakartaDate'
 import StatusPill from '../components/StatusPill'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 import { useCanEdit } from '../context/AccessContext'
+import CustomerNotes from '../components/CustomerNotes'
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // The old manual "VIP" label is gone: VIP is now an automatic tier (cumulative valid spending of
@@ -58,9 +59,10 @@ function CustomerDetail({ customer, onClose, onChanged }) {
   const [labels, setLabels] = useState(new Set(customer.labels || []))
   const [deleteError, setDeleteError] = useState('')
 
-  useEffect(() => {
-    getCustomerDetail(customer.id).then(setExtra).catch(() => setExtra({ delivery_history: [], host_history: [], orders: [] }))
-  }, [customer.id])
+  function loadExtra() {
+    getCustomerDetail(customer.id).then(setExtra).catch(() => setExtra({ delivery_history: [], host_history: [], orders: [], notes: [] }))
+  }
+  useEffect(loadExtra, [customer.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleLabel(key) {
     const enabled = !labels.has(key)
@@ -135,6 +137,8 @@ function CustomerDetail({ customer, onClose, onChanged }) {
             {customer.avg_repurchase_cycle_days != null && <span className="text-sm font-medium text-[var(--text-secondary)]"> {t('page_customers.days_suffix')}</span>}
           </p>
         </div>
+
+        {extra && <CustomerNotes customerId={customer.id} notes={extra.notes || []} canEdit={canEdit} onChanged={loadExtra} />}
 
         {/* Delivery history: latest first, each store/address once, expandable */}
         <h3 className="text-sm font-bold text-[var(--text-primary)] mb-2">{t('page_customers.detail.delivery_history')}</h3>

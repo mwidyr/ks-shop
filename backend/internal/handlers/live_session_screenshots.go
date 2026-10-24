@@ -80,3 +80,23 @@ func (h *LiveSessionScreenshotHandler) Create(w http.ResponseWriter, r *http.Req
 	}
 	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
+
+// Delete removes a wrongly uploaded screenshot from the session (#137).
+func (h *LiveSessionScreenshotHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	sessionID, err1 := strconv.Atoi(chi.URLParam(r, "id"))
+	shotID, err2 := strconv.Atoi(chi.URLParam(r, "screenshotId"))
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `DELETE FROM live_session_screenshots WHERE id=$1 AND session_id=$2`, shotID, sessionID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete screenshot")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "screenshot not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}

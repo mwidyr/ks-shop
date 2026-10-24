@@ -76,6 +76,7 @@ type storeProduct struct {
 	CreatedAt       string            `json:"created_at"`
 	Variants        []storeVariant    `json:"variants,omitempty"`
 	Measurements    map[string]string `json:"measurements,omitempty"`
+	SizeChart       []sizeChartRow    `json:"size_chart,omitempty"` // #139; measurements is the legacy single set
 	LiveCode        string            `json:"live_code,omitempty"`
 	VideoURL        string            `json:"video_url,omitempty"`
 	VideoPoster     string            `json:"video_poster_url,omitempty"`
@@ -262,6 +263,7 @@ func (h *StorefrontHandler) Product(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	p.SizeChart = loadSizeChart(r.Context(), h.DB, p.ID)
 	p.Images = []string{}
 	if irows, err := h.DB.Query(r.Context(), `SELECT url FROM product_images WHERE product_id=$1 ORDER BY sort_order`, id); err == nil {
 		for irows.Next() {

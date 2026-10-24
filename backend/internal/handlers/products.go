@@ -192,6 +192,7 @@ type Variant struct {
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
 	AllowOversell  bool    `json:"allow_oversell"` // per-variant; seeded from the product's flag at creation, editable after
+	OversellLimit  *int    `json:"oversell_limit"` // with allow_oversell: nil = unlimited, X = Available may go down to -X (#141)
 	IsActive       bool    `json:"is_active"`      // per-variant; seeded true, editable after - hides the variant from the order-creation picker when false
 	AvailableStock int     `json:"available_stock"`
 	ReserveStock   int     `json:"reserve_stock"`
@@ -239,6 +240,7 @@ type Product struct {
 	MeasurementBottomLength string            `json:"measurement_bottom_length"`
 	MeasurementElasticity   string            `json:"measurement_elasticity"`
 	MeasurementNote         string            `json:"measurement_note"`
+	SizeChart               []sizeChartRow    `json:"size_chart,omitempty"` // #139, loaded by Detail only
 	Images                  []ProductImage    `json:"images"`
 	Variants                []Variant         `json:"variants"`
 	UnitsSold               int               `json:"units_sold"`
@@ -307,7 +309,7 @@ func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, er
 	}
 
 	vrows, err := h.DB.Query(ctx, `
-		SELECT pv.id, pv.product_id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
+		SELECT pv.id, pv.product_id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.oversell_limit, pv.is_active,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv
@@ -325,7 +327,7 @@ func (h *ProductHandler) loadProducts(r *http.Request, ids []int) ([]Product, er
 	for vrows.Next() {
 		var v Variant
 		var productID int
-		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
+		if err := vrows.Scan(&v.ID, &productID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.OversellLimit, &v.IsActive,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders); err != nil {
 			continue
 		}
@@ -438,6 +440,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		p.Cost = &cost
 	}
 	p.CreatedAt = createdAt.Format(time.RFC3339)
+	p.SizeChart = loadSizeChart(r.Context(), h.DB, p.ID)
 
 	p.Images = []ProductImage{}
 	irows, err := h.DB.Query(r.Context(), `SELECT id, url FROM product_images WHERE product_id=$1 ORDER BY sort_order`, id)
@@ -451,7 +454,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vrows, err := h.DB.Query(r.Context(), `
-		SELECT pv.id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.is_active,
+		SELECT pv.id, pv.sku, pv.sku_manual, pv.color, pv.size, pv.price, pv.compare_at_price, pv.cost_price, pv.allow_oversell, pv.oversell_limit, pv.is_active,
 		       sb.available_stock, sb.reserve_stock, sb.order_stock, sb.broken_stock, sb.incoming_stock, sb.minimum_stock,
 		       COALESCE(rv.qty, 0)
 		FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
@@ -466,7 +469,7 @@ func (h *ProductHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	p.Variants = []Variant{}
 	for vrows.Next() {
 		var v Variant
-		vrows.Scan(&v.ID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.IsActive,
+		vrows.Scan(&v.ID, &v.SKU, &v.SKUManual, &v.Color, &v.Size, &v.Price, &v.CompareAtPrice, &v.CostPrice, &v.AllowOversell, &v.OversellLimit, &v.IsActive,
 			&v.AvailableStock, &v.ReserveStock, &v.OrderStock, &v.BrokenStock, &v.IncomingStock, &v.MinimumStock, &v.ReservedForOrders)
 		v.TotalStock = v.AvailableStock + v.IncomingStock - v.ReservedForOrders
 		p.Variants = append(p.Variants, v)
@@ -497,6 +500,7 @@ type variantInput struct {
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
 	AllowOversell  bool    `json:"allow_oversell"`
+	OversellLimit  *int    `json:"oversell_limit"`
 	IsActive       *bool   `json:"is_active"`
 	AvailableStock int     `json:"available_stock"`
 	BrokenStock    int     `json:"broken_stock"`
@@ -526,6 +530,7 @@ type createProductRequest struct {
 	MeasurementBottomLength string            `json:"measurement_bottom_length"`
 	MeasurementElasticity   string            `json:"measurement_elasticity"`
 	MeasurementNote         string            `json:"measurement_note"`
+	SizeChart               *[]sizeChartRow   `json:"size_chart"`
 	Images                  []string          `json:"images"`
 	Variants                []variantInput    `json:"variants"`
 }
@@ -575,6 +580,13 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusConflict, "failed to create product (kode produk mungkin sudah dipakai)")
 		return
+	}
+
+	if req.SizeChart != nil {
+		if err := saveSizeChartTx(ctx, tx, id, *req.SizeChart); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save the size chart")
+			return
+		}
 	}
 
 	for i, url := range req.Images {
@@ -633,6 +645,7 @@ type updateProductRequest struct {
 	MeasurementBottomLength string            `json:"measurement_bottom_length"`
 	MeasurementElasticity   string            `json:"measurement_elasticity"`
 	MeasurementNote         string            `json:"measurement_note"`
+	SizeChart               *[]sizeChartRow   `json:"size_chart"` // nil = leave the size chart as it is
 }
 
 // Update edits a product's own fields (not variants/stock/photos).
@@ -663,9 +676,21 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		BasePrice float64
 		IsActive  bool
 		Code      string
+		VendorSKU string
+		Supplier  *int
 	}
-	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active, COALESCE(sku,'') FROM products WHERE id=$1`, id).
-		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive, &before.Code)
+	h.DB.QueryRow(ctx, `SELECT name, COALESCE(category,''), base_price, is_active, COALESCE(sku,''), COALESCE(vendor_sku,''), supplier_id FROM products WHERE id=$1`, id).
+		Scan(&before.Name, &before.Category, &before.BasePrice, &before.IsActive, &before.Code, &before.VendorSKU, &before.Supplier)
+
+	// #140: Product Code, Vendor Item Code and Supplier are Superuser-only.
+	if !isAdmin(r) {
+		sameSupplier := (before.Supplier == nil && req.SupplierID == nil) ||
+			(before.Supplier != nil && req.SupplierID != nil && *before.Supplier == *req.SupplierID)
+		if strings.TrimSpace(req.SKU) != before.Code || strings.TrimSpace(req.VendorSKU) != before.VendorSKU || !sameSupplier {
+			respondError(w, http.StatusForbidden, "only a Superuser can change the Product Code, Vendor Item Code or Supplier")
+			return
+		}
+	}
 
 	if strings.TrimSpace(req.SKU) == "" {
 		// Every variant's SKU is derived as PRODUCT-CODE-COLOR-SIZE (see buildVariantSKU) - clearing
@@ -702,6 +727,20 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "product not found")
 		return
+	}
+
+	if req.SizeChart != nil {
+		tx, err := h.DB.Begin(ctx)
+		if err == nil {
+			defer tx.Rollback(ctx)
+			if err = saveSizeChartTx(ctx, tx, id, *req.SizeChart); err == nil {
+				err = tx.Commit(ctx)
+			}
+		}
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save the size chart")
+			return
+		}
 	}
 
 	// A new Product Code flows into every automatic variant SKU (PRODUCT CODE - COLOR - SIZE).
@@ -808,10 +847,24 @@ func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid product id")
 		return
 	}
+	// #140: only a Superuser deletes products, and only after re-entering their password - checked
+	// here, not only in the browser.
+	if !isAdmin(r) {
+		respondError(w, http.StatusForbidden, "only a Superuser can delete products")
+		return
+	}
+	var body struct {
+		Password string `json:"password"`
+	}
+	decodeJSON(r, &body)
+	if !passwordMatches(r.Context(), h.DB, appmw.GetClaims(r).UserID, body.Password) {
+		respondError(w, http.StatusUnauthorized, "incorrect password")
+		return
+	}
 	_, err = h.DB.Exec(r.Context(), `DELETE FROM products WHERE id=$1`, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "violates") {
-			if !isAdmin(r) || r.URL.Query().Get("force") != "true" {
+			if r.URL.Query().Get("force") != "true" {
 				respondError(w, http.StatusConflict, "produk pernah digunakan di order; nonaktifkan saja")
 				return
 			}
@@ -858,8 +911,13 @@ func (h *ProductHandler) DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// CreateVariant adds an additional variant to an existing product (e.g. during edit).
+// CreateVariant adds an additional variant to an existing product (e.g. during edit). Superuser
+// only (#140): colors and variant SKUs of an existing product are locked for everyone else.
 func (h *ProductHandler) CreateVariant(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		respondError(w, http.StatusForbidden, "only a Superuser can add variants")
+		return
+	}
 	productID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid product id")
@@ -920,6 +978,7 @@ type updateVariantRequest struct {
 	CompareAtPrice float64 `json:"compare_at_price"`
 	CostPrice      float64 `json:"cost_price"`
 	AllowOversell  bool    `json:"allow_oversell"`
+	OversellLimit  *int    `json:"oversell_limit"`
 	IsActive       bool    `json:"is_active"`
 	AvailableStock int     `json:"available_stock"`
 	BrokenStock    int     `json:"broken_stock"`
@@ -972,9 +1031,15 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var beforePrice float64
-	var beforeSKU string
+	var beforeSKU, beforeColor, beforeSize string
 	var wasManual bool
-	tx.QueryRow(ctx, `SELECT price, sku, sku_manual FROM product_variants WHERE id=$1`, variantID).Scan(&beforePrice, &beforeSKU, &wasManual)
+	tx.QueryRow(ctx, `SELECT price, sku, sku_manual, COALESCE(color,''), COALESCE(size,'') FROM product_variants WHERE id=$1`, variantID).
+		Scan(&beforePrice, &beforeSKU, &wasManual, &beforeColor, &beforeSize)
+	// #140: color, size and the variant SKU built from them are Superuser-only.
+	if !isAdmin(r) && (strings.TrimSpace(req.Color) != strings.TrimSpace(beforeColor) || strings.TrimSpace(req.Size) != strings.TrimSpace(beforeSize)) {
+		respondError(w, http.StatusForbidden, "only a Superuser can change a variant's color, size or SKU")
+		return
+	}
 	requested, manual := requestedVariantSKU(r, req.SKU, req.SKUManual)
 	if wasManual && !isAdmin(r) {
 		// a super_user's hand-typed SKU stays as it is when someone else edits the variant
@@ -999,8 +1064,10 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := tx.Exec(ctx, `
-		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7, is_active=$8, sku_manual=$10 WHERE id=$9`,
-		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, req.IsActive, variantID, manual); err != nil {
+		UPDATE product_variants SET sku=$1, color=$2, size=$3, price=$4, compare_at_price=$5, cost_price=$6, allow_oversell=$7, is_active=$8, sku_manual=$10,
+		       oversell_limit=$11 WHERE id=$9`,
+		req.SKU, req.Color, req.Size, req.Price, req.CompareAtPrice, req.CostPrice, req.AllowOversell, req.IsActive, variantID, manual,
+		validOversellLimit(req.AllowOversell, req.OversellLimit)); err != nil {
 		if isUniqueViolation(err) {
 			respondError(w, http.StatusConflict, "variant SKU \""+req.SKU+"\" is already used by another product - SKUs must be unique across all products, change it and try again")
 			return
@@ -1035,6 +1102,15 @@ func (h *ProductHandler) UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// validOversellLimit keeps the limit only while oversell is allowed (a negative one counts as 0).
+func validOversellLimit(allow bool, limit *int) *int {
+	if !allow || limit == nil {
+		return nil
+	}
+	x := max(*limit, 0)
+	return &x
+}
+
 func insertVariant(ctx context.Context, tx pgx.Tx, productID int, v variantInput) error {
 	_, err := insertVariantReturningID(ctx, tx, productID, v)
 	return err
@@ -1047,9 +1123,10 @@ func insertVariantReturningID(ctx context.Context, tx pgx.Tx, productID int, v v
 	}
 	var variantID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price, allow_oversell, is_active, sku_manual)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice, v.AllowOversell, isActive, v.SKUManual).Scan(&variantID); err != nil {
+		INSERT INTO product_variants (product_id, sku, color, size, price, compare_at_price, cost_price, allow_oversell, is_active, sku_manual, oversell_limit)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+		productID, v.SKU, v.Color, v.Size, v.Price, v.CompareAtPrice, v.CostPrice, v.AllowOversell, isActive, v.SKUManual,
+		validOversellLimit(v.AllowOversell, v.OversellLimit)).Scan(&variantID); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `

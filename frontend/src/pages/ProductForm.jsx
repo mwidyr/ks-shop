@@ -40,11 +40,15 @@ function suggestSku(productCode, variant, toEnglishColor = (c) => c) {
   return [part(productCode), part(toEnglishColor(variant.color)), part(variant.size)].filter(Boolean).join('-')
 }
 
+// #139 size chart: any number of rows, each a free size name with the same optional measurements.
+const SIZE_FIELDS = ['bust', 'waist', 'length', 'bottom_length', 'elasticity']
+const emptySizeRow = () => ({ size: '', bust: '', waist: '', length: '', bottom_length: '', elasticity: '', note: '' })
+
 function freshVariantRow(color, size, product, toEnglishColor) {
   return {
     sku: suggestSku(product.sku, { color, size }, toEnglishColor), sku_manual: false, color, size,
     price: product.base_price || '', compare_at_price: 0, cost_price: 0,
-    allow_oversell: product.allow_oversell, is_active: true,
+    allow_oversell: product.allow_oversell, oversell_limit: null, is_active: true,
     available_stock: 0, broken_stock: 0, reserve_stock: 0, incoming_stock: 0, minimum_stock: 0,
     order_stock: 0,
   }
@@ -61,6 +65,10 @@ export default function ProductForm() {
   // super_user, and the backend silently ignores it from anyone else's write - this check is
   // just what decides whether to show the input at all.
   const isAdmin = user?.role === 'super_user'
+  // #140: on an existing product, Product Code, Vendor Item Code, Supplier, colors / sizes (so the
+  // variants themselves) and variant SKUs are Superuser-only - the backend enforces the same.
+  const locked = isEdit && !isAdmin
+  const lockedCls = locked ? ' bg-gray-50 text-gray-500 cursor-not-allowed' : ''
 
   const [product, setProduct] = useState({
     sku: '', vendor_sku: '', name: '', names: {}, description: '', category: '', brand: '', supplier_id: '',
@@ -82,6 +90,8 @@ export default function ProductForm() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [costHistory, setCostHistory] = useState([])
+  const [sizeChart, setSizeChart] = useState([emptySizeRow()])
+  const updateSizeRow = (idx, field, value) => setSizeChart((rows) => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
 
   useEffect(() => {
     if (isEdit && isAdmin) getProductCostHistory(id).then(setCostHistory).catch(() => {})
@@ -99,6 +109,7 @@ export default function ProductForm() {
         measurement_length: p.measurement_length || '', measurement_bottom_length: p.measurement_bottom_length || '',
         measurement_elasticity: p.measurement_elasticity || '', measurement_note: p.measurement_note || '',
       })
+      setSizeChart(p.size_chart?.length ? p.size_chart.map((r) => ({ ...emptySizeRow(), ...r })) : [emptySizeRow()])
       setImages(p.images)
       setVariants(p.variants.map((v) => ({ ...v })))
       setColorsText([...new Set(p.variants.map((v) => v.color).filter(Boolean))].join(', '))
@@ -200,6 +211,7 @@ export default function ProductForm() {
       sku: v.sku, sku_manual: Boolean(v.sku_manual), color: v.color, size: v.size, price: Number(v.price) || 0,
       compare_at_price: Number(v.compare_at_price) || 0, cost_price: Number(v.cost_price) || 0,
       allow_oversell: Boolean(v.allow_oversell), is_active: v.is_active !== false,
+      oversell_limit: v.allow_oversell && v.oversell_limit != null && v.oversell_limit !== '' ? Math.max(0, Number(v.oversell_limit) || 0) : null,
       available_stock: Number(v.available_stock) || 0, broken_stock: Number(v.broken_stock) || 0,
       reserve_stock: Number(v.reserve_stock) || 0, incoming_stock: Number(v.incoming_stock) || 0,
       minimum_stock: Number(v.minimum_stock) || 0,
@@ -232,6 +244,7 @@ export default function ProductForm() {
         base_price: Number(product.base_price) || 0,
         cost: Number(product.cost) || 0,
         supplier_id: product.supplier_id === '' ? null : Number(product.supplier_id),
+        size_chart: sizeChart,
       }
       if (!isEdit) {
         await createProduct({
@@ -323,21 +336,23 @@ export default function ProductForm() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_sku')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.product_sku')}{locked && <LockMark />}</label>
             <input
               value={product.sku}
               onChange={(e) => updateField('sku', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              readOnly={locked}
+              className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500${lockedCls}`}
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.vendor_sku')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.vendor_sku')}{locked && <LockMark />}</label>
             <input
               value={product.vendor_sku}
               onChange={(e) => updateField('vendor_sku', e.target.value)}
+              readOnly={locked}
               placeholder={t('page_product_form.optional_placeholder')}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500${lockedCls}`}
             />
           </div>
           <div>
@@ -347,11 +362,12 @@ export default function ProductForm() {
             <CategorySelect value={product.category} onChange={(v) => updateField('category', v)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.supplier_label')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_product_form.supplier_label')}{locked && <LockMark />}</label>
             <select
               value={product.supplier_id}
               onChange={(e) => updateField('supplier_id', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              disabled={locked}
+              className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500${lockedCls}`}
             >
               <option value="">{t('page_product_form.supplier_none')}</option>
               {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -414,33 +430,42 @@ export default function ProductForm() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
-          <h2 className="font-bold text-gray-800">{t('page_product_form.measurements_heading')}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_bust')}</label>
-              <input value={product.measurement_bust} onChange={(e) => updateField('measurement_bust', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_waist')}</label>
-              <input value={product.measurement_waist} onChange={(e) => updateField('measurement_waist', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_length')}</label>
-              <input value={product.measurement_length} onChange={(e) => updateField('measurement_length', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_bottom_length')}</label>
-              <input value={product.measurement_bottom_length} onChange={(e) => updateField('measurement_bottom_length', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_elasticity')}</label>
-              <input value={product.measurement_elasticity} onChange={(e) => updateField('measurement_elasticity', e.target.value)} placeholder={t('page_product_form.measurement_placeholder')} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-          </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_note')}</label>
-            <textarea value={product.measurement_note} onChange={(e) => updateField('measurement_note', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            <h2 className="font-bold text-gray-800">{t('page_product_form.measurements_heading')}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{t('page_product_form.size_chart_hint')}</p>
           </div>
+          {sizeChart.map((row, idx) => (
+            <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.size_chart_size')}</label>
+                  <input value={row.size} onChange={(e) => updateSizeRow(idx, 'size', e.target.value)} placeholder={t('page_product_form.size_chart_size_placeholder')}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                {sizeChart.length > 1 && (
+                  <button type="button" onClick={() => setSizeChart((rows) => rows.filter((_, i) => i !== idx))} className="text-xs text-red-600 hover:underline pb-2">
+                    {t('page_product_form.size_chart_remove')}
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {SIZE_FIELDS.map((f) => (
+                  <div key={f}>
+                    <label className="block text-[11px] text-gray-500 mb-1">{t(`page_product_form.measurement_${f}`)}</label>
+                    <input value={row[f]} onChange={(e) => updateSizeRow(idx, f, e.target.value)} placeholder={t('page_product_form.measurement_placeholder')}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-500 mb-1">{t('page_product_form.measurement_note')}</label>
+                <textarea value={row.note} onChange={(e) => updateSizeRow(idx, 'note', e.target.value)} rows={2} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => setSizeChart((rows) => [...rows, emptySizeRow()])} className="text-sm font-semibold text-brand-600 hover:underline">
+            + {t('page_product_form.size_chart_add')}
+          </button>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
@@ -455,12 +480,13 @@ export default function ProductForm() {
                 <input
                   value={colorsText}
                   onChange={(e) => setColorsText(e.target.value)}
-                  onBlur={() => regenerateVariants()}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
+                  readOnly={locked}
+                  onBlur={() => { if (!locked) regenerateVariants() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (!locked) regenerateVariants() } }}
                   placeholder={t('page_product_form.colors_placeholder')}
                   className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                 />
-                {colorOptions.length > 0 && (
+                {colorOptions.length > 0 && !locked && (
                   <select
                     defaultValue=""
                     onChange={addColorFromMaster}
@@ -478,8 +504,9 @@ export default function ProductForm() {
               <input
                 value={sizesText}
                 onChange={(e) => setSizesText(e.target.value)}
-                onBlur={() => regenerateVariants()}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); regenerateVariants() } }}
+                readOnly={locked}
+                onBlur={() => { if (!locked) regenerateVariants() }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (!locked) regenerateVariants() } }}
                 placeholder={t('page_product_form.sizes_placeholder')}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
               />
@@ -571,6 +598,24 @@ export default function ProductForm() {
                     <input type="checkbox" checked={v.allow_oversell} onChange={(e) => updateVariantField(idx, 'allow_oversell', e.target.checked)} />
                     {t('page_product_form.variant_allow_oversell')}
                   </label>
+                  {/* #141: per-SKU oversell limit - Available minus a new staff / LIVE order may not go below -X */}
+                  {v.allow_oversell && (
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                      <label className="flex items-center gap-1.5">
+                        <input type="radio" name={`oversell-${idx}`} checked={v.oversell_limit == null} onChange={() => updateVariantField(idx, 'oversell_limit', null)} />
+                        {t('page_product_form.oversell_unlimited')}
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <input type="radio" name={`oversell-${idx}`} checked={v.oversell_limit != null} onChange={() => updateVariantField(idx, 'oversell_limit', v.oversell_limit ?? 0)} />
+                        {t('page_product_form.oversell_limited')}
+                      </label>
+                      {v.oversell_limit != null && (
+                        <input type="number" min="0" value={v.oversell_limit} onChange={(e) => updateVariantField(idx, 'oversell_limit', e.target.value)}
+                          title={t('page_product_form.oversell_limit_hint')} className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                      )}
+                      {v.oversell_limit != null && <span className="text-[11px] text-gray-400">{t('page_product_form.oversell_limit_hint')}</span>}
+                    </div>
+                  )}
                   <label className="flex items-center gap-2 text-xs text-gray-600">
                     <input type="checkbox" checked={v.is_active !== false} onChange={(e) => updateVariantField(idx, 'is_active', e.target.checked)} />
                     {t('page_product_form.variant_is_active')}
@@ -592,9 +637,15 @@ export default function ProductForm() {
           </button>
         </div>
       </form>
-      {isEdit && <VariantSuppliersSection productId={id} variants={variants} suppliers={suppliers} />}
+      {isEdit && <VariantSuppliersSection productId={id} variants={variants} suppliers={suppliers} readOnly={!isAdmin} />}
       {isEdit && <ProductWebsiteSection productId={id} />}
       {previewIndex !== null && <ImagePreviewModal images={images} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
     </div>
   )
+}
+
+// Marks a field only a Superuser can change (#140).
+function LockMark() {
+  const { t } = useTranslation()
+  return <span className="ml-1 text-[11px] font-normal text-gray-400" title={t('page_product_form.locked_hint')}>🔒 {t('page_product_form.locked_label')}</span>
 }

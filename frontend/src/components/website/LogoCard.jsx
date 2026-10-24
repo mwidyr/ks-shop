@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getThemeLogo, saveThemeLogo } from '../../api/website'
-import { resolveUrl, uploadImageFile } from '../../utils/image'
+import { uploadImageFile } from '../../utils/image'
 import Toast, { useToast } from '../Toast'
+import PreviewableImage from '../PreviewableImage'
 import { btnCls, btnGhost, cardCls } from './Pickers'
 
 export const LOGO_MAX_BYTES = 2 * 1024 * 1024
@@ -58,7 +59,7 @@ export default function LogoCard({ onChange }) {
       </div>
       <div className="flex items-center gap-4 flex-wrap">
         <div className="h-16 min-w-[140px] rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center px-4" data-testid="logo-preview">
-          {url ? <img src={resolveUrl(url)} alt={lg('alt')} className="max-h-12 max-w-[220px] object-contain" /> : <span className="text-xs text-gray-400">{lg('none')}</span>}
+          {url ? <PreviewableImage url={url} alt={lg('alt')} className="max-h-12 max-w-[220px] object-contain" /> : <span className="text-xs text-gray-400">{lg('none')}</span>}
         </div>
         <div className="flex gap-2">
           <input ref={input} type="file" accept={LOGO_TYPES.join(',')} onChange={pick} className="hidden" data-testid="logo-file" />

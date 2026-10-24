@@ -223,7 +223,16 @@
       "host_history": "Host Purchase History",
       "host_none": "No purchases yet.",
       "open_order": "Open order",
-      "orders_shown": "Showing the latest 50 orders"
+      "orders_shown": "Showing the latest 50 orders",
+      "notes_title": "Internal notes",
+      "notes_placeholder": "Add a note about this customer (only staff can see it)",
+      "notes_add": "Add note",
+      "notes_empty": "No notes yet.",
+      "notes_edit": "Edit",
+      "notes_delete": "Delete",
+      "notes_delete_confirm": "Delete this note?",
+      "notes_save_failed": "Could not save the note.",
+      "notes_edited": "edited"
     },
     "labels": {
       "blacklist": "Blacklist",
@@ -474,7 +483,10 @@
     "start_broadcast_button": "📡 Start Broadcast",
     "screenshot_ai_recognized": "AI recognized",
     "view_ai_result": "View AI result",
-    "hide_ai_result": "Hide AI result"
+    "hide_ai_result": "Hide AI result",
+    "screenshot_delete": "Remove screenshot",
+    "screenshot_delete_confirm": "Remove this screenshot?",
+    "screenshot_delete_failed": "Could not remove the screenshot."
   },
   "page_live_session_history": {
     "add_session_button": "+ Add Session",
@@ -721,7 +733,10 @@
     "return_resellable": "Resellable",
     "return_broken": "Damaged",
     "return_received_button": "Book returned goods into stock",
-    "return_received_confirm": "Book these goods into stock? This can only be done once."
+    "return_received_confirm": "Book these goods into stock? This can only be done once.",
+    "delete_attachment": "Remove attachment",
+    "delete_attachment_confirm": "Remove this attachment?",
+    "delete_attachment_failed": "Could not remove the attachment."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -1005,7 +1020,17 @@
     "vs_save": "Save suppliers",
     "vs_saved": "Suppliers saved.",
     "vs_copy_to_all": "Copy to all variants",
-    "variant_sku_manual": "manual"
+    "variant_sku_manual": "manual",
+    "size_chart_hint": "Size chart shown on the product page of the website. Add one row per size; every field is optional and it is not linked to the variants or stock.",
+    "size_chart_size": "Size",
+    "size_chart_size_placeholder": "e.g. S, M, Free Size, 26",
+    "size_chart_remove": "Remove size",
+    "size_chart_add": "Add size",
+    "oversell_unlimited": "Unlimited",
+    "oversell_limited": "Limited",
+    "oversell_limit_hint": "Max. units below 0 (Available − new order ≥ −X)",
+    "locked_label": "Superuser only",
+    "locked_hint": "Only a Superuser can change this field"
   },
   "page_products": {
     "activate": "Activate",
@@ -1082,7 +1107,10 @@
     "sku_issue_color_not_in_master": "Color not in Color Master",
     "sku_issue_suffixed": "Duplicate - got a number suffix",
     "sku_issue_manual": "Manual SKU",
-    "sku_issue_color_no_english": "Color has no English name in Color Master"
+    "sku_issue_color_no_english": "Color has no English name in Color Master",
+    "delete_title": "Delete product",
+    "delete_message": "Enter your password to delete '{{name}}'.",
+    "bulk_delete_message": "Enter your password to delete {{count}} products."
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -2057,7 +2085,8 @@
     "title": "LIVE Data Upload",
     "upload_failed": "Upload failed",
     "uploading": "Uploading...",
-    "verifying": "Checking..."
+    "verifying": "Checking...",
+    "remove_screenshot": "Remove screenshot"
   },
   "page_performance_comparison": {
     "title": "Performance Comparison",
@@ -2387,7 +2416,8 @@
       "pick_variant": "Choose variant",
       "live_moved_title": "Display order",
       "live_moved": "LIVE links, schedules and status are managed in",
-      "live_moved_link": "Global LIVE Settings"
+      "live_moved_link": "Global LIVE Settings",
+      "remove_image": "Remove image"
     },
     "content": {
       "ed": {
@@ -2585,7 +2615,8 @@
         "change": "Change",
         "tags_placeholder": "Tags, separated by commas or spaces",
         "h2_placeholder": "Heading",
-        "h3_placeholder": "Subheading"
+        "h3_placeholder": "Subheading",
+        "remove_image": "Remove image"
       },
       "preview": {
         "button": "Preview",

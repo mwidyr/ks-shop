@@ -101,6 +101,10 @@ func validateVariantSupplierLinks(links []variantSupplierLink, productVariants m
 // SaveVariantSuppliers handles PUT /products/{id}/variant-suppliers: replaces all links of the
 // product's variants with the given list in one transaction.
 func (h *ProductHandler) SaveVariantSuppliers(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) { // #140: the supplier of a product / SKU is Superuser-only
+		respondError(w, http.StatusForbidden, "only a Superuser can change suppliers")
+		return
+	}
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	var req saveVariantSuppliersRequest
 	if err != nil || decodeJSON(r, &req) != nil {

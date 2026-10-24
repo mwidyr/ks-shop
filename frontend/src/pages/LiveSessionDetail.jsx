@@ -4,13 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   getLiveSession, updateLiveSession, goLiveSession, endLiveSession,
   addLiveSessionProduct, removeLiveSessionProduct, submitLiveSessionData,
-  listLiveSessionScreenshots, addLiveSessionScreenshot,
+  listLiveSessionScreenshots, addLiveSessionScreenshot, deleteLiveSessionScreenshot,
 } from '../api/liveSessions'
 import { listProducts } from '../api/products'
 import { listHosts } from '../api/hosts'
 import { formatCurrency } from '../utils/format'
-import { resolveUrl, uploadImageFile } from '../utils/image'
+import { uploadImageFile } from '../utils/image'
 import SessionStatusPill from '../components/SessionStatusPill'
+import AttachmentThumb from '../components/AttachmentThumb'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 import { IconClose, IconPlus, IconTrash } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 
@@ -34,9 +36,21 @@ function LiveScreenshotsCard({ sessionId }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [showAiResult, setShowAiResult] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(null)
 
   function reload() {
     listLiveSessionScreenshots(sessionId).then(setScreenshots)
+  }
+
+  async function handleDelete(shot) {
+    if (!window.confirm(t('page_live_session_detail.screenshot_delete_confirm'))) return
+    setError('')
+    try {
+      await deleteLiveSessionScreenshot(sessionId, shot.id)
+      reload()
+    } catch {
+      setError(t('page_live_session_detail.screenshot_delete_failed'))
+    }
   }
 
   useEffect(reload, [sessionId])
@@ -79,15 +93,18 @@ function LiveScreenshotsCard({ sessionId }) {
       ) : (
         <>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {screenshots.map((s) => (
-              <div key={s.id} className="relative">
-                <img src={resolveUrl(s.image_url)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
-                <span className={`absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center px-1 py-0.5 rounded ${s.recognized_data ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+            {screenshots.map((s, i) => (
+              <AttachmentThumb key={s.id} url={s.image_url} className="w-full aspect-square" onPreview={() => setPreviewIndex(i)}
+                onDelete={() => handleDelete(s)} deleteLabel={t('page_live_session_detail.screenshot_delete')}>
+                <span className={`pointer-events-none absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center px-1 py-0.5 rounded ${s.recognized_data ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                   {s.recognized_data ? t('page_live_session_detail.screenshot_ai_recognized') : t('page_live_session_detail.screenshot_ai_coming_soon')}
                 </span>
-              </div>
+              </AttachmentThumb>
             ))}
           </div>
+          {previewIndex !== null && (
+            <ImagePreviewModal images={screenshots.map((s) => ({ url: s.image_url }))} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />
+          )}
           {recognized && (
             <div className="mt-3">
               <button type="button" onClick={() => setShowAiResult((v) => !v)} className="text-xs font-semibold text-brand-600 hover:underline">

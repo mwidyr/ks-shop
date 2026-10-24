@@ -5,11 +5,12 @@ import { listHosts } from '../../api/hosts'
 import {
   checkContentSlug, createContent, createContentTemplate, deleteContent, discardContentDraft, getContent, getContentTemplate, listContentTemplates, listContentTypes, updateContent,
 } from '../../api/website'
-import { uploadImageFile, resolveUrl } from '../../utils/image'
+import { uploadImageFile } from '../../utils/image'
 import { toEditorBlocks, toStoredBlocks, tocFromBlocks, showToc } from '../../utils/articleBlocks'
 import { modernizeBlocks } from '../../utils/richText'
 import { EMPTY_FORM, LANGS, TEXT_KEYS, buildPayload, loadForm, publishProblems, slugify, snapshotOf, typeLabel } from '../../utils/contentForm'
 import Toast, { useToast } from '../Toast'
+import PreviewableImage from '../PreviewableImage'
 import ArticleBlockEditor from './ArticleBlockEditor'
 import ArticlePreview from './ArticlePreview'
 import ContentTypeManager from './ContentTypeManager'
@@ -259,7 +260,7 @@ export default function ContentEditor({ id: initialId, onBack, onSaved }) {
 
         <Section n={2} title={e('s_cover')} badge={e('cover_badge')}>
           <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center min-h-[140px] overflow-hidden">
-            {form.cover_url ? <img src={resolveUrl(form.cover_url)} alt="" className="max-h-64 w-full object-cover" /> : <span className="text-sm text-gray-500 py-10">{e('cover_empty')}</span>}
+            {form.cover_url ? <PreviewableImage url={form.cover_url} className="max-h-64 w-full object-cover" /> : <span className="text-sm text-gray-500 py-10">{e('cover_empty')}</span>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <label className={`${btnCls} cursor-pointer`}>{e('upload_image')}<input type="file" accept="image/*" onChange={upload} className="hidden" /></label>

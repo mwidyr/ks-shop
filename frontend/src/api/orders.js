@@ -39,6 +39,10 @@ export function addOrderAttachment(id, url) {
   return client.post(`/orders/${id}/attachments`, { url }).then((res) => res.data)
 }
 
+export function deleteOrderAttachment(id, attachmentId) {
+  return client.delete(`/orders/${id}/attachments/${attachmentId}`).then((res) => res.data)
+}
+
 export function splitOrder(id, itemIds) {
   return client.post(`/orders/${id}/split`, { item_ids: itemIds }).then((res) => res.data)
 }

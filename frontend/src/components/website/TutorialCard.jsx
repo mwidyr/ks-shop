@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getStoreTutorial, saveStoreTutorial } from '../../api/website'
-import { resolveUrl, uploadImageFile } from '../../utils/image'
+import { uploadImageFile } from '../../utils/image'
 import Toast, { useToast } from '../Toast'
+import PreviewableImage from '../PreviewableImage'
 import RichTextEditor from './RichTextEditor'
 import { btnCls, btnGhost, cardCls } from './Pickers'
 
@@ -60,7 +61,7 @@ export default function TutorialCard() {
         <label className="text-sm font-medium text-gray-700">{tt('image')}</label>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="w-40 h-28 rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden" data-testid="tutorial-preview">
-            {data.image_url ? <img src={resolveUrl(data.image_url)} alt={tt('image')} className="max-w-full max-h-full object-contain" /> : <span className="text-xs text-gray-400 px-2 text-center">{tt('image_default')}</span>}
+            {data.image_url ? <PreviewableImage url={data.image_url} alt={tt('image')} className="max-w-full max-h-full object-contain" /> : <span className="text-xs text-gray-400 px-2 text-center">{tt('image_default')}</span>}
           </div>
           <div className="flex gap-2">
             <input ref={input} type="file" accept={IMAGE_TYPES.join(',')} onChange={pick} className="hidden" data-testid="tutorial-file" />

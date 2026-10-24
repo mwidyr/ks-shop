@@ -29,3 +29,16 @@ export function setCustomerLabel(id, label, enabled) {
 export function deleteCustomer(id) {
   return client.delete(`/customers/${id}`).then((res) => res.data)
 }
+
+// Internal staff notes on a customer profile (#138) - listed in getCustomerDetail().notes.
+export function addCustomerNote(id, note) {
+  return client.post(`/customers/${id}/notes`, { note }).then((res) => res.data)
+}
+
+export function updateCustomerNote(noteId, note) {
+  return client.patch(`/customers/notes/${noteId}`, { note }).then((res) => res.data)
+}
+
+export function deleteCustomerNote(noteId) {
+  return client.delete(`/customers/notes/${noteId}`).then((res) => res.data)
+}

@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  addOrderAttachment, deleteMergeGroup, getOrder, markReturnReceived, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
+  addOrderAttachment, deleteOrderAttachment, deleteMergeGroup, getOrder, markReturnReceived, splitOrder, updateOrderKeepDate, updateOrderNotes, updateOrderPickup, updateOrderStatus,
 } from '../api/orders'
 import { listPickupChains } from '../api/pickupChains'
 import { getShippingSettings } from '../api/settings'
 import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
-import { resolveUrl, uploadImageFile } from '../utils/image'
+import { uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
 import { useAuth } from '../context/AuthContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import OrderLineItem from '../components/OrderLineItem'
+import AttachmentThumb from '../components/AttachmentThumb'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 import { IconClose } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 
@@ -391,6 +393,8 @@ export default function OrderDetail() {
   const [copied, setCopied] = useState(false)
   const [copyFallbackText, setCopyFallbackText] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(null)
+  const [attachmentError, setAttachmentError] = useState('')
   const [splitOpen, setSplitOpen] = useState(false)
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [pickupModalOpen, setPickupModalOpen] = useState(false)
@@ -435,6 +439,17 @@ export default function OrderDetail() {
       load()
     } finally {
       setKeepDateSaving(false)
+    }
+  }
+
+  async function handleDeleteAttachment(att) {
+    if (!window.confirm(t('page_order_detail.delete_attachment_confirm'))) return
+    setAttachmentError('')
+    try {
+      await deleteOrderAttachment(id, att.id)
+      load()
+    } catch (err) {
+      setAttachmentError(err.response?.data?.error || t('page_order_detail.delete_attachment_failed'))
     }
   }
 
@@ -743,15 +758,16 @@ export default function OrderDetail() {
             </div>
             {order.attachments?.length > 0 ? (
               <div className="flex gap-2 flex-wrap">
-                {order.attachments.map((url, i) => (
-                  <a key={i} href={resolveUrl(url)} target="_blank" rel="noreferrer">
-                    <img src={resolveUrl(url)} className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
-                  </a>
+                {order.attachments.map((att, i) => (
+                  <AttachmentThumb key={att.id} url={att.url} onPreview={() => setPreviewIndex(i)}
+                    onDelete={locked ? undefined : () => handleDeleteAttachment(att)} deleteLabel={t('page_order_detail.delete_attachment')} />
                 ))}
               </div>
             ) : (
               <p className="text-xs text-gray-400">{t('page_order_detail.no_attachments')}</p>
             )}
+            {attachmentError && <p className="text-xs text-red-600 mt-2">{attachmentError}</p>}
+            {previewIndex !== null && <ImagePreviewModal images={order.attachments} startIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">

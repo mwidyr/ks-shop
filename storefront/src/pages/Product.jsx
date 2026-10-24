@@ -145,7 +145,13 @@ export default function Product() {
     })
   }
 
-  const measurementKeys = ['bust', 'waist', 'length', 'bottom_length', 'elasticity', 'note'].filter((k) => p.measurements?.[k])
+  // Size chart (#139): one row per size from Ralulu Hub, only the measurement columns some size
+  // fills in. Older products without a chart fall back to their single set of measurements.
+  const sizeRows = p.size_chart?.length ? p.size_chart : (p.measurements && Object.keys(p.measurements).length ? [{ size: '', ...p.measurements }] : [])
+  const sizeCols = ['bust', 'waist', 'length', 'bottom_length', 'elasticity'].filter((k) => sizeRows.some((r) => r[k]))
+  const sizeNotes = sizeRows.filter((r) => r.note)
+  const singleSize = sizeRows.length === 1 && !sizeRows[0].size
+  const measurementKeys = sizeRows.length ? ['chart'] : []
 
   const info = (
     <>
@@ -337,16 +343,44 @@ export default function Product() {
       )}
 
       <Sheet open={sizeSheet} onClose={() => setSizeSheet(false)} title={t('product.size_table_title')}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <tbody>
-            {measurementKeys.map((k) => (
-              <tr key={k} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ textAlign: 'left', padding: '10px 4px', fontWeight: 700, width: '40%' }}>{t(`product.m_${k}`)}</th>
-                <td style={{ padding: '10px 4px', color: 'var(--color-text-2)' }}>{p.measurements[k]}</td>
-              </tr>
+        {singleSize ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <tbody>
+              {[...sizeCols, ...(sizeRows[0].note ? ['note'] : [])].map((k) => (
+                <tr key={k} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <th style={{ textAlign: 'left', padding: '10px 4px', fontWeight: 700, width: '40%' }}>{t(`product.m_${k}`)}</th>
+                  <td style={{ padding: '10px 4px', color: 'var(--color-text-2)', whiteSpace: 'pre-line' }}>{sizeRows[0][k]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: 120 + sizeCols.length * 90, borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                    <th style={{ textAlign: 'left', padding: '10px 6px', fontWeight: 700, position: 'sticky', left: 0, background: 'var(--color-bg)' }}>{t('product.size')}</th>
+                    {sizeCols.map((k) => <th key={k} style={{ textAlign: 'left', padding: '10px 6px', fontWeight: 700, whiteSpace: 'nowrap' }}>{t(`product.m_${k}`)}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sizeRows.map((r, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '10px 6px', fontWeight: 700, position: 'sticky', left: 0, background: 'var(--color-bg)' }}>{r.size || '–'}</th>
+                      {sizeCols.map((k) => <td key={k} style={{ padding: '10px 6px', color: 'var(--color-text-2)', whiteSpace: 'nowrap' }}>{r[k] || '–'}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {sizeNotes.map((r, i) => (
+              <p key={i} style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--color-text-2)', whiteSpace: 'pre-line' }}>
+                {r.size ? <b style={{ color: 'var(--color-text)' }}>{r.size}: </b> : null}{r.note}
+              </p>
             ))}
-          </tbody>
-        </table>
+          </>
+        )}
       </Sheet>
       <Sheet open={videoOpen} onClose={() => setVideoOpen(false)} title={t('product.video_alt')}>
         {hasVideo && (

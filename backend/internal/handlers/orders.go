@@ -283,40 +283,40 @@ type orderDetailView struct {
 	PlatformOrderNo string `json:"platform_order_no"`
 	TrackingNumber  string `json:"tracking_number"`
 	// ReturnReceived: the warehouse already booked the returned goods back into stock.
-	ReturnReceived           bool            `json:"return_received"`
-	CustomerName             string          `json:"customer_name"`
-	CustomerPhone            string          `json:"customer_phone"`
-	CustomerBlocked          bool            `json:"customer_blacklisted"`
-	ShippingAddress          string          `json:"shipping_address"`
-	PickupChainID            int             `json:"pickup_chain_id"`
-	PickupChainName          string          `json:"pickup_chain_name"`
-	PickupStoreName          string          `json:"pickup_store_name"`
-	PickupStoreCode          string          `json:"pickup_store_code"`
-	Items                    []orderItemView `json:"items"`
-	Subtotal                 float64         `json:"subtotal"`
-	DiscountAmount           float64         `json:"discount_amount"`
-	PromotionCode            *string         `json:"promotion_code"`
-	PromotionDiscountAmount  float64         `json:"promotion_discount_amount"`
-	AdditionalAmount         float64         `json:"additional_amount"`
-	Total                    float64         `json:"total"`
-	InternalNotes            string          `json:"internal_notes"`
-	IsUrgent                 bool            `json:"is_urgent"`
-	NotesDeadline            *string         `json:"notes_deadline"`
-	Attachments              []string        `json:"attachments"`
-	CreatedBy                string          `json:"created_by"`
-	CreatedAt                string          `json:"created_at"`
-	KeepDate                 *string         `json:"keep_date"`
-	KeepDateType             string          `json:"keep_date_type"`
-	ShipDate                 *string         `json:"ship_date"`
-	ExportFrom               *string         `json:"export_from"`
-	ShippingFee              float64         `json:"shipping_fee"`
-	FreeShippingOverride     bool            `json:"free_shipping_override"`
-	ShipmentGroupID          *int            `json:"shipment_group_id"`
-	ShipmentGroupOrders      []string        `json:"shipment_group_order_nos"`
-	ShipmentGroupItems       []groupItemView `json:"shipment_group_items,omitempty"`
-	ShipmentGroupTotal       float64         `json:"shipment_group_total"`
-	ShipmentGroupShippingFee float64         `json:"shipment_group_shipping_fee"`
-	StatusHistory            []statusLogView `json:"status_history"`
+	ReturnReceived           bool              `json:"return_received"`
+	CustomerName             string            `json:"customer_name"`
+	CustomerPhone            string            `json:"customer_phone"`
+	CustomerBlocked          bool              `json:"customer_blacklisted"`
+	ShippingAddress          string            `json:"shipping_address"`
+	PickupChainID            int               `json:"pickup_chain_id"`
+	PickupChainName          string            `json:"pickup_chain_name"`
+	PickupStoreName          string            `json:"pickup_store_name"`
+	PickupStoreCode          string            `json:"pickup_store_code"`
+	Items                    []orderItemView   `json:"items"`
+	Subtotal                 float64           `json:"subtotal"`
+	DiscountAmount           float64           `json:"discount_amount"`
+	PromotionCode            *string           `json:"promotion_code"`
+	PromotionDiscountAmount  float64           `json:"promotion_discount_amount"`
+	AdditionalAmount         float64           `json:"additional_amount"`
+	Total                    float64           `json:"total"`
+	InternalNotes            string            `json:"internal_notes"`
+	IsUrgent                 bool              `json:"is_urgent"`
+	NotesDeadline            *string           `json:"notes_deadline"`
+	Attachments              []orderAttachment `json:"attachments"`
+	CreatedBy                string            `json:"created_by"`
+	CreatedAt                string            `json:"created_at"`
+	KeepDate                 *string           `json:"keep_date"`
+	KeepDateType             string            `json:"keep_date_type"`
+	ShipDate                 *string           `json:"ship_date"`
+	ExportFrom               *string           `json:"export_from"`
+	ShippingFee              float64           `json:"shipping_fee"`
+	FreeShippingOverride     bool              `json:"free_shipping_override"`
+	ShipmentGroupID          *int              `json:"shipment_group_id"`
+	ShipmentGroupOrders      []string          `json:"shipment_group_order_nos"`
+	ShipmentGroupItems       []groupItemView   `json:"shipment_group_items,omitempty"`
+	ShipmentGroupTotal       float64           `json:"shipment_group_total"`
+	ShipmentGroupShippingFee float64           `json:"shipment_group_shipping_fee"`
+	StatusHistory            []statusLogView   `json:"status_history"`
 }
 
 type statusLogView struct {
@@ -468,14 +468,15 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 	o.Total = o.Subtotal - o.DiscountAmount - o.PromotionDiscountAmount + o.AdditionalAmount + o.ShippingFee
 
-	attRows, err := h.DB.Query(ctx, `SELECT url FROM order_attachments WHERE order_id=$1 ORDER BY created_at`, id)
+	attRows, err := h.DB.Query(ctx, `SELECT id, url FROM order_attachments WHERE order_id=$1 ORDER BY created_at, id`, id)
+	o.Attachments = []orderAttachment{}
 	if err == nil {
 		defer attRows.Close()
-		o.Attachments = []string{}
 		for attRows.Next() {
-			var url string
-			attRows.Scan(&url)
-			o.Attachments = append(o.Attachments, url)
+			var a orderAttachment
+			if attRows.Scan(&a.ID, &a.URL) == nil {
+				o.Attachments = append(o.Attachments, a)
+			}
 		}
 	}
 
@@ -621,6 +622,15 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
+
+	// #141: a staff / LIVE order may not push a variant past its oversell limit.
+	if msg, err := checkOversellLimitsTx(ctx, tx, req.Items); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to check stock")
+		return
+	} else if msg != "" {
+		respondError(w, http.StatusConflict, msg)
+		return
+	}
 
 	customerID := req.Customer.ID
 	exportName := req.Customer.Name
@@ -1110,6 +1120,38 @@ func (h *OrderHandler) UpdateKeepDate(w http.ResponseWriter, r *http.Request) {
 
 type addAttachmentRequest struct {
 	URL string `json:"url"`
+}
+
+type orderAttachment struct {
+	ID  int    `json:"id"`
+	URL string `json:"url"`
+}
+
+// DeleteAttachment removes one attachment from the order (#137), under the same lock rule as
+// adding one. The uploaded file itself stays on disk.
+func (h *OrderHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	id, err1 := strconv.Atoi(chi.URLParam(r, "id"))
+	attID, err2 := strconv.Atoi(chi.URLParam(r, "attachmentId"))
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if rejectIfLocked(w, r.Context(), h.DB, id) {
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `DELETE FROM order_attachments WHERE id=$1 AND order_id=$2`, attID, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete attachment")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "attachment not found")
+		return
+	}
+	if c := getClaimsSafe(r); c != nil {
+		logActivity(r.Context(), h.DB, "order", id, "attachment_deleted", &c.UserID, "")
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // AddAttachment records a file (already uploaded via /uploads/image) against the order.

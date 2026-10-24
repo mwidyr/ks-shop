@@ -223,7 +223,16 @@
       "host_history": "主播購買紀錄",
       "host_none": "尚無購買紀錄。",
       "open_order": "開啟訂單",
-      "orders_shown": "顯示最新 50 筆訂單"
+      "orders_shown": "顯示最新 50 筆訂單",
+      "notes_title": "內部備註",
+      "notes_placeholder": "新增此顧客的備註（僅員工可見）",
+      "notes_add": "新增備註",
+      "notes_empty": "尚無備註。",
+      "notes_edit": "編輯",
+      "notes_delete": "刪除",
+      "notes_delete_confirm": "確定刪除此備註？",
+      "notes_save_failed": "無法儲存備註。",
+      "notes_edited": "已編輯"
     },
     "labels": {
       "blacklist": "黑名單",
@@ -474,7 +483,10 @@
     "start_broadcast_button": "📡 開始直播",
     "screenshot_ai_recognized": "AI 已辨識",
     "view_ai_result": "查看 AI 辨識結果",
-    "hide_ai_result": "隱藏 AI 辨識結果"
+    "hide_ai_result": "隱藏 AI 辨識結果",
+    "screenshot_delete": "刪除截圖",
+    "screenshot_delete_confirm": "確定刪除此截圖？",
+    "screenshot_delete_failed": "無法刪除截圖。"
   },
   "page_live_session_history": {
     "add_session_button": "+ 新增場次",
@@ -721,7 +733,10 @@
     "return_resellable": "可再售",
     "return_broken": "損壞",
     "return_received_button": "登記退貨入庫",
-    "return_received_confirm": "確認入庫？此動作只能執行一次。"
+    "return_received_confirm": "確認入庫？此動作只能執行一次。",
+    "delete_attachment": "刪除附件",
+    "delete_attachment_confirm": "確定刪除此附件？",
+    "delete_attachment_failed": "無法刪除附件。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -1005,7 +1020,17 @@
     "vs_save": "儲存供應商",
     "vs_saved": "供應商已儲存。",
     "vs_copy_to_all": "套用到所有款式",
-    "variant_sku_manual": "手動"
+    "variant_sku_manual": "手動",
+    "size_chart_hint": "顯示在網站商品頁的尺寸表。每個尺寸一列，所有欄位皆為選填，與款式及庫存無關。",
+    "size_chart_size": "尺寸",
+    "size_chart_size_placeholder": "例：S、M、Free Size、26",
+    "size_chart_remove": "移除尺寸",
+    "size_chart_add": "新增尺寸",
+    "oversell_unlimited": "不限",
+    "oversell_limited": "限量",
+    "oversell_limit_hint": "最多可低於 0 的數量（可用庫存 − 新訂單 ≥ −X）",
+    "locked_label": "僅限超級管理員",
+    "locked_hint": "只有超級管理員可以修改此欄位"
   },
   "page_products": {
     "activate": "上架",
@@ -1082,7 +1107,10 @@
     "sku_issue_color_not_in_master": "顏色不在顏色主檔",
     "sku_issue_suffixed": "重複 - 已加數字後綴",
     "sku_issue_manual": "手動 SKU",
-    "sku_issue_color_no_english": "顏色主檔缺少英文名稱"
+    "sku_issue_color_no_english": "顏色主檔缺少英文名稱",
+    "delete_title": "刪除商品",
+    "delete_message": "請輸入密碼以刪除「{{name}}」。",
+    "bulk_delete_message": "請輸入密碼以刪除 {{count}} 個商品。"
   },
   "page_profit": {
     "ad_cost": "廣告成本",
@@ -2057,7 +2085,8 @@
     "title": "LIVE 數據上傳",
     "upload_failed": "上傳失敗",
     "uploading": "上傳中...",
-    "verifying": "驗證中..."
+    "verifying": "驗證中...",
+    "remove_screenshot": "移除截圖"
   },
   "page_performance_comparison": {
     "title": "績效比較",
@@ -2387,7 +2416,8 @@
       "pick_variant": "選擇規格",
       "live_moved_title": "顯示順序",
       "live_moved": "直播連結、時段與狀態請在以下頁面管理：",
-      "live_moved_link": "全域直播設定"
+      "live_moved_link": "全域直播設定",
+      "remove_image": "移除圖片"
     },
     "content": {
       "ed": {
@@ -2585,7 +2615,8 @@
         "change": "更換",
         "tags_placeholder": "標籤，以逗號或空格分隔",
         "h2_placeholder": "大標題",
-        "h3_placeholder": "小標題"
+        "h3_placeholder": "小標題",
+        "remove_image": "移除圖片"
       },
       "preview": {
         "button": "預覽",

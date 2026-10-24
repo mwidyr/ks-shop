@@ -48,7 +48,8 @@ export default function PhotoSlots({ value = [], onAdd, onRemove, onPreview }) {
                   <button
                     type="button"
                     onClick={() => onRemove(image, i)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs opacity-0 group-hover:opacity-100"
+                    aria-label="Remove"
+                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white text-xs hover:bg-red-600"
                   >
                     ✕
                   </button>

@@ -1,12 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { resolveUrl } from '../utils/image'
 import { IconClose, IconChevronDown } from './icons'
 
-// Full-screen photo preview opened from a product thumbnail (item 047) - no navigation, no
-// reload, just a quick look. Cycles through every photo on the product when there's more than
-// one. Closes on the X button or a click outside the image itself.
+// Full-screen photo preview opened from a thumbnail (item 047, #137) - no new tab, no reload, just
+// a quick look. Cycles through every photo when there's more than one. Closes on the X button (top
+// right), a click outside the image, Esc, or the phone's / browser's Back button (the preview adds
+// one history entry, so Back returns to the screen underneath instead of leaving the page).
+let openCount = 0
+
 export default function ImagePreviewModal({ images, startIndex = 0, onClose }) {
   const [index, setIndex] = useState(startIndex)
+  const closedByBack = useRef(false)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    const mine = ++openCount
+    // React StrictMode mounts twice in development: the entry from the first mount is still there
+    if (!window.history.state?.imagePreview) window.history.pushState({ imagePreview: true }, '')
+    const onPop = () => { closedByBack.current = true; onCloseRef.current() }
+    const onKey = (e) => { if (e.key === 'Escape') onCloseRef.current() }
+    window.addEventListener('popstate', onPop)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener('keydown', onKey)
+      // closed by X / Esc / outside click: drop the history entry the preview added - unless this
+      // was StrictMode's throw-away mount (another preview mounted right after)
+      setTimeout(() => {
+        if (openCount === mine && !closedByBack.current && window.history.state?.imagePreview) window.history.back()
+      }, 0)
+    }
+  }, [])
+
   const photos = images.filter((img) => img?.url)
   if (photos.length === 0) return null
   const current = photos[Math.min(index, photos.length - 1)]
@@ -22,8 +48,9 @@ export default function ImagePreviewModal({ images, startIndex = 0, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white">
-        <IconClose width={28} height={28} />
+      <button type="button" onClick={(e) => { e.stopPropagation(); onClose() }} aria-label="Close"
+        className="absolute top-3 right-3 z-10 w-11 h-11 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70">
+        <IconClose width={24} height={24} />
       </button>
       <div className="relative max-w-3xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         <img src={resolveUrl(current.url)} className="max-w-full max-h-[85vh] rounded-xl object-contain" />

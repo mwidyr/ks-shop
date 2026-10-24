@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -328,16 +329,24 @@ func (h *AuthHandler) VerifyPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := appmw.GetClaims(r)
-	var hash string
-	if err := h.DB.QueryRow(r.Context(), `SELECT password_hash FROM users WHERE id=$1`, claims.UserID).Scan(&hash); err != nil {
-		respondError(w, http.StatusUnauthorized, "incorrect password")
-		return
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+	if !passwordMatches(r.Context(), h.DB, claims.UserID, req.Password) {
 		respondError(w, http.StatusUnauthorized, "incorrect password")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// passwordMatches re-checks a staff user's own password - also used server-side by actions that
+// need it (deleting a product, #140), so the check isn't only a client-side step.
+func passwordMatches(ctx context.Context, db queryRower, userID int, password string) bool {
+	if password == "" {
+		return false
+	}
+	var hash string
+	if err := db.QueryRow(ctx, `SELECT password_hash FROM users WHERE id=$1`, userID).Scan(&hash); err != nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 func (h *AuthHandler) lookupToken(r *http.Request, raw, purpose string) (userID int, tokenID int, err error) {

@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { listPromotions } from '../api/promotions'
 import { getSiteHost, listSiteHosts, saveSiteHost } from '../api/website'
 import { uploadImageFile } from '../utils/image'
+import AttachmentThumb from '../components/AttachmentThumb'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 import { btnCls, btnGhost, cardCls, inputCls, ProductSearch, useProductList, variantLabelById, VariantPicker } from '../components/website/Pickers'
 
 const BLOCKS = ['intro', 'live', 'coupons', 'outfits', 'picks', 'journal', 'wardrobe']
@@ -19,7 +21,10 @@ function Field({ label, hint, children }) {
 }
 
 function ImageField({ label, value, onChange }) {
+  const { t } = useTranslation()
+  const h = (k) => t(`page_website.hosts.${k}`)
   const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState(false)
   async function pick(e) {
     const f = e.target.files[0]
     if (!f) return
@@ -29,7 +34,10 @@ function ImageField({ label, value, onChange }) {
   return (
     <Field label={label}>
       <div className="flex items-center gap-3">
-        {value ? <img src={value} alt="" className="w-16 h-16 object-cover rounded-lg bg-gray-100" /> : <div className="w-16 h-16 rounded-lg bg-gray-100" />}
+        {value
+          ? <AttachmentThumb url={value} onPreview={() => setPreview(true)} onDelete={() => onChange('')} deleteLabel={h('remove_image')} />
+          : <div className="w-16 h-16 rounded-lg bg-gray-100" />}
+        {preview && value && <ImagePreviewModal images={[{ url: value }]} onClose={() => setPreview(false)} />}
         <input type="file" accept="image/*" onChange={pick} className="text-xs" disabled={busy} />
         <input value={value || ''} onChange={(e) => onChange(e.target.value)} className={inputCls} placeholder="https://..." />
       </div>

@@ -223,7 +223,16 @@
       "host_history": "Riwayat Pembelian per Host",
       "host_none": "Belum ada pembelian.",
       "open_order": "Buka order",
-      "orders_shown": "Menampilkan 50 order terbaru"
+      "orders_shown": "Menampilkan 50 order terbaru",
+      "notes_title": "Catatan internal",
+      "notes_placeholder": "Tambah catatan tentang pelanggan ini (hanya terlihat oleh staf)",
+      "notes_add": "Tambah catatan",
+      "notes_empty": "Belum ada catatan.",
+      "notes_edit": "Edit",
+      "notes_delete": "Hapus",
+      "notes_delete_confirm": "Hapus catatan ini?",
+      "notes_save_failed": "Gagal menyimpan catatan.",
+      "notes_edited": "diedit"
     },
     "labels": {
       "blacklist": "Daftar Hitam",
@@ -474,7 +483,10 @@
     "start_broadcast_button": "📡 Mulai Siaran",
     "screenshot_ai_recognized": "Sudah dibaca AI",
     "view_ai_result": "Lihat hasil AI",
-    "hide_ai_result": "Sembunyikan hasil AI"
+    "hide_ai_result": "Sembunyikan hasil AI",
+    "screenshot_delete": "Hapus screenshot",
+    "screenshot_delete_confirm": "Hapus screenshot ini?",
+    "screenshot_delete_failed": "Gagal menghapus screenshot."
   },
   "page_live_session_history": {
     "add_session_button": "+ Tambah Sesi",
@@ -721,7 +733,10 @@
     "return_resellable": "Layak jual",
     "return_broken": "Rusak",
     "return_received_button": "Catat penerimaan retur",
-    "return_received_confirm": "Catat penerimaan? Ini hanya bisa dilakukan sekali."
+    "return_received_confirm": "Catat penerimaan? Ini hanya bisa dilakukan sekali.",
+    "delete_attachment": "Hapus lampiran",
+    "delete_attachment_confirm": "Hapus lampiran ini?",
+    "delete_attachment_failed": "Gagal menghapus lampiran."
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -1005,7 +1020,17 @@
     "vs_save": "Simpan supplier",
     "vs_saved": "Supplier tersimpan.",
     "vs_copy_to_all": "Salin ke semua varian",
-    "variant_sku_manual": "manual"
+    "variant_sku_manual": "manual",
+    "size_chart_hint": "Tabel ukuran yang tampil di halaman produk website. Tambah satu baris per ukuran; semua field opsional dan tidak terhubung ke varian atau stok.",
+    "size_chart_size": "Ukuran",
+    "size_chart_size_placeholder": "mis. S, M, Free Size, 26",
+    "size_chart_remove": "Hapus ukuran",
+    "size_chart_add": "Tambah ukuran",
+    "oversell_unlimited": "Tanpa batas",
+    "oversell_limited": "Dibatasi",
+    "oversell_limit_hint": "Maks. unit di bawah 0 (Available − order baru ≥ −X)",
+    "locked_label": "Khusus Superuser",
+    "locked_hint": "Hanya Superuser yang bisa mengubah field ini"
   },
   "page_products": {
     "activate": "Aktifkan",
@@ -1082,7 +1107,10 @@
     "sku_issue_color_not_in_master": "Warna tidak ada di Color Master",
     "sku_issue_suffixed": "Duplikat - diberi akhiran angka",
     "sku_issue_manual": "SKU manual",
-    "sku_issue_color_no_english": "Warna belum punya nama Inggris di Color Master"
+    "sku_issue_color_no_english": "Warna belum punya nama Inggris di Color Master",
+    "delete_title": "Hapus produk",
+    "delete_message": "Masukkan password untuk menghapus '{{name}}'.",
+    "bulk_delete_message": "Masukkan password untuk menghapus {{count}} produk."
   },
   "page_profit": {
     "ad_cost": "Ad Cost",
@@ -2057,7 +2085,8 @@
     "title": "Upload Data LIVE",
     "upload_failed": "Upload gagal",
     "uploading": "Mengupload...",
-    "verifying": "Memeriksa..."
+    "verifying": "Memeriksa...",
+    "remove_screenshot": "Hapus screenshot"
   },
   "page_performance_comparison": {
     "title": "Perbandingan Performa",
@@ -2387,7 +2416,8 @@
       "pick_variant": "Pilih varian",
       "live_moved_title": "Urutan tampil",
       "live_moved": "Link LIVE, jadwal, dan status diatur di",
-      "live_moved_link": "Pengaturan LIVE Global"
+      "live_moved_link": "Pengaturan LIVE Global",
+      "remove_image": "Hapus gambar"
     },
     "content": {
       "ed": {
@@ -2585,7 +2615,8 @@
         "change": "Ganti",
         "tags_placeholder": "Tag, pisahkan dengan koma atau spasi",
         "h2_placeholder": "Judul",
-        "h3_placeholder": "Subjudul"
+        "h3_placeholder": "Subjudul",
+        "remove_image": "Hapus gambar"
       },
       "preview": {
         "button": "Preview",

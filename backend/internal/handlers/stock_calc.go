@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -191,4 +193,65 @@ func (h *OrderHandler) ReturnReceived(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// oversellRoom is how many more units a staff / LIVE order may take of a variant (#141):
+// Available - qty must stay >= -X, where X is 0 without "allow oversell", the variant's
+// oversell_limit when it has one, and unlimited (ok=false) when oversell is allowed with no limit.
+func oversellRoom(available int, allowOversell bool, limit *int) (room int, limited bool) {
+	switch {
+	case !allowOversell:
+		return available, true
+	case limit == nil:
+		return 0, false
+	default:
+		return available + *limit, true
+	}
+}
+
+// checkOversellLimitsTx checks a new staff order's lines against every variant's oversell limit,
+// with the variants' stock rows locked so two orders at once can't both slip through. Existing
+// orders are never re-checked. Returns a user-facing message ("" when the order fits).
+func checkOversellLimitsTx(ctx context.Context, tx pgx.Tx, items []createOrderItem) (string, error) {
+	need := map[int]int{}
+	ids := []int{}
+	for _, it := range items {
+		if _, ok := need[it.VariantID]; !ok {
+			ids = append(ids, it.VariantID)
+		}
+		need[it.VariantID] += it.Qty
+	}
+	sort.Ints(ids)
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM stock_buckets WHERE variant_id = ANY($1) ORDER BY variant_id FOR UPDATE`, ids); err != nil {
+		return "", err
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT pv.id, pv.sku, pv.allow_oversell, pv.oversell_limit,
+		       COALESCE(sb.available_stock,0) + COALESCE(sb.incoming_stock,0) - `+orderedForVariantSQL("pv.id")+`
+		FROM product_variants pv LEFT JOIN stock_buckets sb ON sb.variant_id = pv.id
+		WHERE pv.id = ANY($1) ORDER BY pv.id`, ids)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var problems []string
+	for rows.Next() {
+		var id, available int
+		var sku string
+		var allow bool
+		var limit *int
+		if err := rows.Scan(&id, &sku, &allow, &limit, &available); err != nil {
+			return "", err
+		}
+		if room, limited := oversellRoom(available, allow, limit); limited && need[id] > room {
+			problems = append(problems, fmt.Sprintf("%s: ordered %d, only %d can still be ordered", sku, need[id], max(room, 0)))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(problems) > 0 {
+		return "not enough stock (oversell limit reached) - " + strings.Join(problems, "; "), nil
+	}
+	return "", nil
 }
