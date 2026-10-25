@@ -36,6 +36,8 @@ func storeColorSQL(r *http.Request, col string) string {
 	switch requestLang(r) {
 	case "":
 		return "COALESCE((SELECT name_id FROM colors sc WHERE lower(btrim(sc.name_zh)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_id)) = lower(btrim(" + col + ")) ORDER BY (sc.name_zh = " + col + " OR sc.name_id = " + col + ") DESC LIMIT 1), " + col + ")"
+	case "en":
+		return "COALESCE((SELECT NULLIF(name_en,'') FROM colors sc WHERE lower(btrim(sc.name_zh)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_id)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_en)) = lower(btrim(" + col + ")) ORDER BY (sc.name_zh = " + col + " OR sc.name_id = " + col + ") DESC LIMIT 1), " + col + ")"
 	case "zh":
 		return "COALESCE((SELECT name_zh FROM colors sc WHERE lower(btrim(sc.name_zh)) = lower(btrim(" + col + ")) OR lower(btrim(sc.name_id)) = lower(btrim(" + col + ")) ORDER BY (sc.name_zh = " + col + " OR sc.name_id = " + col + ") DESC LIMIT 1), " + col + ")"
 	}

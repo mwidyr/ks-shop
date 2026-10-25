@@ -99,6 +99,7 @@ function CustomerDetail({ customer, onClose, onChanged }) {
           <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm">{t('common.close')}</button>
         </div>
         <p className="text-sm text-[var(--text-secondary)] mb-1">{customer.phone}</p>
+        <p className="text-sm text-[var(--text-secondary)] mb-1 break-all">{customer.email || '-'}</p>
         <p className="text-sm text-[var(--text-secondary)] mb-3">{customer.address || '-'}</p>
         <div className="mb-4"><TierBadge tier={customer.tier} /></div>
 
@@ -295,6 +296,7 @@ export default function Customers() {
         return {
           [t('page_customers.table.name')]: r.name,
           [t('page_customers.table.phone')]: r.phone,
+          [t('page_customers.table.email')]: r.email || '',
           [t('page_customers.table.orders')]: r.order_count,
           [t('page_customers.table.total_spending')]: r.total_spend,
           [t('page_customers.table.last_order')]: fmtDate(r.last_order_at),
@@ -429,6 +431,7 @@ export default function Customers() {
                 <tr className={theadRowClasses}>
                   <th className="p-3.5">{t('page_customers.table.name')}</th>
                   <th className="p-3.5">{t('page_customers.table.phone')}</th>
+                  <th className="p-3.5">{t('page_customers.table.email')}</th>
                   <th className="p-3.5 cursor-pointer select-none" onClick={() => headerSort('orders')}>{t('page_customers.table.orders')}{arrow('orders')}</th>
                   <th className="p-3.5 cursor-pointer select-none" onClick={() => headerSort('ltv')}>{t('page_customers.table.total_spending')}{arrow('ltv')}</th>
                   <th className="p-3.5 cursor-pointer select-none" onClick={() => headerSort('last')}>{t('page_customers.table.last_order')}{arrow('last')}</th>
@@ -441,6 +444,7 @@ export default function Customers() {
                   <tr key={c.id} className={`${rowClasses} cursor-pointer`} onClick={() => setSelected(c)}>
                     <td className="p-3.5 font-medium text-[var(--text-primary)]">{c.name}</td>
                     <td className="p-3.5 text-[var(--text-secondary)]">{c.phone}</td>
+                    <td className="p-3.5 text-[var(--text-secondary)] max-w-[220px] truncate" title={c.email}>{c.email || '-'}</td>
                     <td className="p-3.5 text-[var(--text-secondary)]">{c.order_count}</td>
                     <td className="p-3.5 font-semibold text-brand-600">{nt(c.total_spend)}</td>
                     <td className="p-3.5 text-[var(--text-secondary)]">{fmtDate(c.last_order_at)}</td>
@@ -461,6 +465,7 @@ export default function Customers() {
                   <TierBadge tier={c.tier} />
                 </div>
                 <p className="text-xs text-[var(--text-secondary)] mt-0.5">{c.phone}</p>
+                {c.email && <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{c.email}</p>}
                 {deliveryText(c.last_delivery) && <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{deliveryText(c.last_delivery)}</p>}
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-[var(--text-secondary)]">{c.order_count} {t('page_customers.table.orders').toLowerCase()} · {fmtDate(c.last_order_at)}</span>

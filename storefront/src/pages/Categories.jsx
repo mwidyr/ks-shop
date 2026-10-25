@@ -8,6 +8,8 @@ import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { EmptyState, SectionHead } from '../components/ui'
 
 const label = { position: 'absolute', left: 10, bottom: 10, padding: '6px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.95)', color: 'var(--color-text)', fontSize: 15, fontWeight: 700 }
+// phone: the same four-column mosaic as desktop, so the cards are small and their labels smaller
+const labelSmall = { ...label, left: 6, bottom: 6, maxWidth: 'calc(100% - 12px)', boxSizing: 'border-box', padding: '3px 7px', borderRadius: 8, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 
 export default function Categories() {
   const { t, i18n } = useTranslation()
@@ -52,15 +54,18 @@ export default function Categories() {
 
       {layout && layout.every((sec) => !sec.slots.some(Boolean)) && <EmptyState title={t('cats.empty')} />}
       {(layout || []).map((sec) => {
-        const cells = mosaicCells(sec.template, sec.slots, desktop)
+        // phones get the desktop mosaic (large card 2x2 beside four small ones, 4 columns) as long as the section has its
+        // large card; an all-small section or one without its large card stays 2 columns so the labels stay readable
+        const wide = desktop || (sec.template !== 'all_small' && Boolean(sec.slots[0]))
+        const cells = mosaicCells(sec.template, sec.slots, wide)
         if (!cells.length) return null
         return (
           <section key={sec.id} data-testid="mosaic-section" style={{ padding: `${desktop ? 26 : 18}px ${desktop ? 40 : 16}px 0` }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${desktop ? 4 : 2}, minmax(0, 1fr))`, gridAutoRows: desktop ? 200 : 140, gap: desktop ? 12 : 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 4 : 2}, minmax(0, 1fr))`, gridAutoRows: desktop ? 200 : wide ? 100 : 140, gap: desktop ? 12 : 8 }}>
               {cells.map(({ card, style }) => (
                 <Link key={card.id} to={`/c/${encodeURIComponent(card.name)}`} style={{ ...style, position: 'relative', borderRadius: 16, overflow: 'hidden', textDecoration: 'none', background: 'var(--color-bg-soft)' }}>
                   <img src={sized(img(card.cover_url), 640)} alt={card.display} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
-                  <span style={label}>{card.display}</span>
+                  <span style={desktop || !wide ? label : labelSmall}>{card.display}</span>
                 </Link>
               ))}
             </div>

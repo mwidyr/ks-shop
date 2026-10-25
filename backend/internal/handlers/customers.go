@@ -119,6 +119,7 @@ type customerStats struct {
 	Name        string     `json:"name"`
 	Phone       string     `json:"phone"`
 	Address     string     `json:"address"`
+	Email       string     `json:"email"` // latest email known for this phone number ("" = none yet)
 	OrderCount  int        `json:"order_count"`
 	TotalSpend  float64    `json:"total_spend"`
 	LastOrderAt *time.Time `json:"last_order_at"`
@@ -192,7 +193,7 @@ func hasLabel(c customerStats, label string) bool {
 // customerMatches: q (already lower-cased and trimmed) is contained in the name, phone or address.
 // Digits are also compared without separators, so "0812" finds "+62 812-..." typed either way.
 func customerMatches(c customerStats, q string) bool {
-	if strings.Contains(strings.ToLower(c.Name), q) || strings.Contains(c.Phone, q) || strings.Contains(strings.ToLower(c.Address), q) {
+	if strings.Contains(strings.ToLower(c.Name), q) || strings.Contains(c.Phone, q) || strings.Contains(strings.ToLower(c.Address), q) || strings.Contains(strings.ToLower(c.Email), q) {
 		return true
 	}
 	digits := onlyDigits(q)
@@ -335,7 +336,7 @@ const validOrderRevenueSQL = `
 // spending, last purchase, average repurchase cycle and automatic tier. It reads all customers and
 // all valid orders, so it is cached (see Stats) and never run per page or sort change.
 func (h *CustomerHandler) computeCustomerStats(ctx context.Context) (customerKPI, []customerStats, error) {
-	custRows, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,'') FROM customers ORDER BY id`)
+	custRows, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,''), COALESCE(email,'') FROM customers ORDER BY id`)
 	if err != nil {
 		return customerKPI{}, nil, err
 	}
@@ -344,17 +345,20 @@ func (h *CustomerHandler) computeCustomerStats(ctx context.Context) (customerKPI
 	var order []string
 	for custRows.Next() {
 		var id int
-		var name, phone, addr string
-		if custRows.Scan(&id, &name, &phone, &addr) != nil {
+		var name, phone, addr, mail string
+		if custRows.Scan(&id, &name, &phone, &addr, &mail) != nil {
 			continue
 		}
 		key := phoneKey(phone, id)
 		groupOf[id] = key
 		if g, ok := groups[key]; ok {
 			g.ID, g.Name, g.Address = id, name, addr // later record wins until an order picks the representative
+			if mail != "" {
+				g.Email = mail
+			}
 			continue
 		}
-		groups[key] = &customerStats{ID: id, Name: name, Phone: phone, Address: addr, Labels: []string{}, Tier: "regular"}
+		groups[key] = &customerStats{ID: id, Name: name, Phone: phone, Address: addr, Email: mail, Labels: []string{}, Tier: "regular"}
 		order = append(order, key)
 	}
 	custRows.Close()
@@ -411,13 +415,13 @@ func (h *CustomerHandler) computeCustomerStats(ctx context.Context) (customerKPI
 	orderRows.Close()
 
 	// Name / phone / address come from the representative record (the most recent order's customer).
-	repName := map[int]struct{ name, phone, addr string }{}
-	if rr, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,'') FROM customers`); err == nil {
+	repName := map[int]struct{ name, phone, addr, email string }{}
+	if rr, err := h.DB.Query(ctx, `SELECT id, name, phone, COALESCE(address,''), COALESCE(email,'') FROM customers`); err == nil {
 		for rr.Next() {
 			var id int
-			var n, p, a string
-			if rr.Scan(&id, &n, &p, &a) == nil {
-				repName[id] = struct{ name, phone, addr string }{n, p, a}
+			var n, p, a, m string
+			if rr.Scan(&id, &n, &p, &a, &m) == nil {
+				repName[id] = struct{ name, phone, addr, email string }{n, p, a, m}
 			}
 		}
 		rr.Close()
@@ -429,6 +433,9 @@ func (h *CustomerHandler) computeCustomerStats(ctx context.Context) (customerKPI
 		g := groups[key]
 		if rn, ok := repName[g.ID]; ok {
 			g.Name, g.Phone, g.Address = rn.name, rn.phone, rn.addr
+			if rn.email != "" { // otherwise keep the latest email any record of this phone has
+				g.Email = rn.email
+			}
 		}
 		if g.TotalSpend >= vipThreshold {
 			g.Tier = "vip"

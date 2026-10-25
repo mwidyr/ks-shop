@@ -243,7 +243,7 @@
       "vip": "VIP"
     },
     "loading_customers": "Loading customers...",
-    "search_placeholder": "Search name, phone or address...",
+    "search_placeholder": "Search name, phone, email or address...",
     "segment": {
       "all": "All",
       "high_value": "High Value",
@@ -259,7 +259,8 @@
       "orders": "Orders",
       "phone": "Phone",
       "segment": "Tier",
-      "total_spending": "Total Spending"
+      "total_spending": "Total Spending",
+      "email": "Email"
     },
     "kpi_title": "Customer Overview",
     "kpi_total": "Total Customers",
@@ -632,7 +633,8 @@
     "total_max_warning": "Total is above NT${{max}} — the shipping platforms reject it, so the order cannot be submitted.",
     "picker_selected_title": "Selected products ({{count}} pcs)",
     "picker_remove_item": "Remove from selection",
-    "block_error_email_format": "Order {{index}}: the customer email is not valid."
+    "block_error_email_format": "Order {{index}}: the customer email is not valid.",
+    "block_error_email_required": "Order {{index}}: the customer email is required."
   },
   "page_order_detail": {
     "additional_fee_label": "Additional Fee",
@@ -1771,8 +1773,7 @@
     "view_only_blocked": "Change refused: you only have view access to this section.",
     "customer_email_label": "Email (for the invoice)",
     "customer_email_placeholder": "name@example.com",
-    "customer_email_format_error": "Enter a valid email address",
-    "customer_email_hint": "Taiwan e-invoices are sent to this address. Optional now; it is remembered for this customer."
+    "customer_email_format_error": "Enter a valid email address"
   },
   "status": {
     "cancelled": "Cancelled",

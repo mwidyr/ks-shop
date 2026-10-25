@@ -243,7 +243,7 @@
       "vip": "VIP"
     },
     "loading_customers": "Memuat customer...",
-    "search_placeholder": "Cari nama, telepon atau alamat...",
+    "search_placeholder": "Cari nama, telepon, email atau alamat...",
     "segment": {
       "all": "Semua",
       "high_value": "High Value",
@@ -259,7 +259,8 @@
       "orders": "Orders",
       "phone": "HP",
       "segment": "Tier",
-      "total_spending": "Total Spending"
+      "total_spending": "Total Spending",
+      "email": "Email"
     },
     "kpi_title": "Ringkasan Customer",
     "kpi_total": "Total Customer",
@@ -632,7 +633,8 @@
     "total_max_warning": "Total melebihi NT${{max}} — pesanan tidak bisa dikirim lewat platform. Pesanan tidak dapat disimpan.",
     "picker_selected_title": "Produk dipilih ({{count}} pcs)",
     "picker_remove_item": "Hapus dari pilihan",
-    "block_error_email_format": "Order {{index}}: email pelanggan tidak valid."
+    "block_error_email_format": "Order {{index}}: email pelanggan tidak valid.",
+    "block_error_email_required": "Order {{index}}: email pelanggan wajib diisi."
   },
   "page_order_detail": {
     "additional_fee_label": "Biaya Tambahan",
@@ -1771,8 +1773,7 @@
     "view_only_blocked": "Perubahan ditolak: Anda hanya punya akses lihat untuk bagian ini.",
     "customer_email_label": "Email (untuk invoice)",
     "customer_email_placeholder": "nama@contoh.com",
-    "customer_email_format_error": "Masukkan alamat email yang valid",
-    "customer_email_hint": "E-invoice Taiwan dikirim ke alamat ini. Opsional; akan diingat untuk pelanggan ini."
+    "customer_email_format_error": "Masukkan alamat email yang valid"
   },
   "status": {
     "cancelled": "Dibatalkan",

@@ -4,8 +4,8 @@ import client from '../api/client'
 
 // Taiwan mobile format: "09" followed by 8 more digits (10 digits total).
 export const TW_PHONE_REGEX = /^09\d{8}$/
-// Plain address check for the e-invoice email (optional field; the server checks it again).
-export const EMAIL_REGEX = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/
+// Same email check as the website checkout. The e-invoice email is required on every new order.
+export const EMAIL_REGEX = /^\S+@\S+\.\S+$/
 
 // Two always-visible fields (Nama Pelanggan / Telepon Pelanggan), matching the reference design
 // - not a single combined search box with new-customer fields only appearing after a failed
@@ -18,7 +18,7 @@ export const EMAIL_REGEX = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/
 //   existing: the full customer row from the search API (id, name, phone, address, plus
 //             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code)
 //   new/manual: { name, phone, address: '', email }
-// The email (Taiwan e-invoice) is optional: picking a customer pre-fills the one saved on them, and it stays editable.
+// The email (Taiwan e-invoice) is required: picking a customer pre-fills the one saved on them, and it stays editable.
 export default function CustomerPicker({ onChange }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
@@ -138,7 +138,7 @@ export default function CustomerPicker({ onChange }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_email_label')}</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_email_label')} <span className="text-red-500">*</span></label>
         <input
           type="email"
           value={email}
@@ -146,6 +146,7 @@ export default function CustomerPicker({ onChange }) {
           onFocus={() => setOpen(false)}
           placeholder={t('shared.customer_email_placeholder')}
           maxLength={150}
+          required
           className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
             email && !EMAIL_REGEX.test(email) ? 'border-red-400' : 'border-gray-300'
           }`}
@@ -153,7 +154,6 @@ export default function CustomerPicker({ onChange }) {
         {email && !EMAIL_REGEX.test(email) && (
           <p className="text-xs text-red-600 mt-1">{t('shared.customer_email_format_error')}</p>
         )}
-        <p className="text-xs text-gray-500 mt-1">{t('shared.customer_email_hint')}</p>
       </div>
 
       {selected?.is_blacklisted && (
@@ -162,7 +162,6 @@ export default function CustomerPicker({ onChange }) {
         </div>
       )}
 
-      <p className="text-xs text-gray-500">{t('shared.customer_new_auto_hint')}</p>
     </div>
   )
 }

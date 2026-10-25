@@ -243,7 +243,7 @@
       "vip": "VIP"
     },
     "loading_customers": "客戶資料載入中...",
-    "search_placeholder": "搜尋姓名、電話或地址...",
+    "search_placeholder": "搜尋姓名、電話、電子郵件或地址...",
     "segment": {
       "all": "全部",
       "high_value": "高價值",
@@ -259,7 +259,8 @@
       "orders": "訂單數",
       "phone": "手機",
       "segment": "等級",
-      "total_spending": "消費總額"
+      "total_spending": "消費總額",
+      "email": "電子郵件"
     },
     "kpi_title": "客戶總覽",
     "kpi_total": "客戶總數",
@@ -632,7 +633,8 @@
     "total_max_warning": "金額超過 NT${{max}}，物流平台會拒收，因此無法送出訂單。",
     "picker_selected_title": "本次已選商品（{{count}} 件）",
     "picker_remove_item": "從已選中移除",
-    "block_error_email_format": "訂單 {{index}}：顧客電子郵件格式不正確。"
+    "block_error_email_format": "訂單 {{index}}：顧客電子郵件格式不正確。",
+    "block_error_email_required": "訂單 {{index}}：必須填寫顧客電子郵件。"
   },
   "page_order_detail": {
     "additional_fee_label": "額外費用",
@@ -1771,8 +1773,7 @@
     "view_only_blocked": "變更被拒絕：您對此區塊只有檢視權限。",
     "customer_email_label": "電子郵件（發票用）",
     "customer_email_placeholder": "name@example.com",
-    "customer_email_format_error": "請輸入有效的電子郵件",
-    "customer_email_hint": "台灣電子發票將寄到此信箱。目前選填，會記在此顧客資料中。"
+    "customer_email_format_error": "請輸入有效的電子郵件"
   },
   "status": {
     "cancelled": "已取消",

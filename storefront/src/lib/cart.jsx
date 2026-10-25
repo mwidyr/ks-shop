@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { getProduct } from './api'
 
 const CartContext = createContext(null)
 const KEY = 'ralulu_cart_v2'
@@ -26,6 +28,29 @@ export function CartProvider({ children }) {
     const t = setTimeout(() => setToast(null), 2200)
     return () => clearTimeout(t)
   }, [toast])
+
+  // Names and colours in the cart were saved in the language the product was added in. When the language changes,
+  // fetch them again in the new one so the cart and the CS message follow the selected language.
+  const { i18n } = useTranslation()
+  useEffect(() => {
+    const ids = [...new Set(items.map((i) => i.productId).filter(Boolean))]
+    if (ids.length === 0) return undefined
+    let off = false
+    Promise.all(ids.map((id) => getProduct(id).catch(() => null))).then((list) => {
+      if (off) return
+      const byProduct = new Map(list.filter(Boolean).map((p) => [p.id, p]))
+      setItems((cur) => cur.map((i) => {
+        const p = byProduct.get(i.productId)
+        const v = p?.variants?.find((x) => x.id === i.variantId)
+        if (!p) return i
+        const name = p.name || i.name
+        const color = v ? v.color : i.color
+        return name === i.name && color === i.color ? i : { ...i, name, color }
+      }))
+    })
+    return () => { off = true }
+    // only on a language change (and first load): not on every cart edit
+  }, [i18n.language]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = useCallback((msg) => setToast({ msg, id: Date.now() }), [])
 

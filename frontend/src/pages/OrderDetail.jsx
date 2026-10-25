@@ -606,6 +606,7 @@ export default function OrderDetail() {
               <p className="text-sm text-gray-600">{order.customer_name}</p>
               <p className="text-sm text-brand-600 font-medium">☎ {order.customer_phone}</p>
             </div>
+            <p className="text-sm text-gray-600 mt-1 break-all">✉ {order.customer_email || '-'}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4">

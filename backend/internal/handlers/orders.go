@@ -609,7 +609,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Customer.Email = strings.TrimSpace(req.Customer.Email)
-	if !validInvoiceEmail(req.Customer.Email) {
+	if req.Customer.Email != "" && !validInvoiceEmail(req.Customer.Email) {
 		respondError(w, http.StatusBadRequest, "invalid customer email")
 		return
 	}
@@ -663,12 +663,17 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		customerID = &newID
 	}
-	// The invoice email: what staff typed, else the one saved on the customer. A typed one is remembered on the customer.
+	// The invoice email: what staff typed, else the one saved on the customer (the form pre-fills it). A typed one is remembered.
 	invoiceEmail := req.Customer.Email
 	if invoiceEmail != "" {
 		_, _ = tx.Exec(ctx, `UPDATE customers SET email=$2 WHERE id=$1`, *customerID, invoiceEmail)
 	} else {
 		_ = tx.QueryRow(ctx, `SELECT COALESCE(email,'') FROM customers WHERE id=$1`, *customerID).Scan(&invoiceEmail)
+	}
+	// Taiwan e-invoices are sent by email, so every new order needs one (older orders may have none).
+	if invoiceEmail == "" || !validInvoiceEmail(invoiceEmail) {
+		respondError(w, http.StatusBadRequest, "customer email is required")
+		return
 	}
 
 	// Website - Created by CS: a staff-keyed Website order with no Affiliate. (An Affiliate order
@@ -1319,9 +1324,10 @@ func (h *OrderHandler) StatusCounts(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{"order_status_counts": counts})
 }
 
-var invoiceEmailRe = regexp.MustCompile(`^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$`)
+// Same rule as the website checkout (storefront Checkout.jsx).
+var invoiceEmailRe = regexp.MustCompile(`^\S+@\S+\.\S+$`)
 
-// validInvoiceEmail: empty is allowed (the field is optional); otherwise a plain address of at most 150 characters.
+// validInvoiceEmail: a plain address of at most 150 characters (the e-invoice goes there).
 func validInvoiceEmail(v string) bool {
-	return v == "" || (len(v) <= 150 && invoiceEmailRe.MatchString(v))
+	return len(v) <= 150 && invoiceEmailRe.MatchString(v)
 }
