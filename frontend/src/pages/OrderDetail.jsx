@@ -552,7 +552,7 @@ export default function OrderDetail() {
           <StatusPill status={order.status} />
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}</p>
+      <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}{order.customer_email ? ` · ${order.customer_email}` : ''}</p>
       {locked && (
         <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           🔒 {t('page_order_detail.locked_banner')}{!canChangeStatus && ` ${t('page_order_detail.locked_status_hint')}`}

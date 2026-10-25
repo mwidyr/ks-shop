@@ -631,7 +631,8 @@
     "block_error_total_max": "訂單金額超過 NT${{max}}（物流平台上限），請減少商品或拆單。",
     "total_max_warning": "金額超過 NT${{max}}，物流平台會拒收，因此無法送出訂單。",
     "picker_selected_title": "本次已選商品（{{count}} 件）",
-    "picker_remove_item": "從已選中移除"
+    "picker_remove_item": "從已選中移除",
+    "block_error_email_format": "訂單 {{index}}：顧客電子郵件格式不正確。"
   },
   "page_order_detail": {
     "additional_fee_label": "額外費用",
@@ -1767,7 +1768,11 @@
     "stock_line": "可售 {{available}} · 實體 {{actual}}",
     "oversell_warning": "超賣，需補貨",
     "view_only_banner": "您對此頁面只有檢視權限，無法儲存變更。",
-    "view_only_blocked": "變更被拒絕：您對此區塊只有檢視權限。"
+    "view_only_blocked": "變更被拒絕：您對此區塊只有檢視權限。",
+    "customer_email_label": "電子郵件（發票用）",
+    "customer_email_placeholder": "name@example.com",
+    "customer_email_format_error": "請輸入有效的電子郵件",
+    "customer_email_hint": "台灣電子發票將寄到此信箱。目前選填，會記在此顧客資料中。"
   },
   "status": {
     "cancelled": "已取消",

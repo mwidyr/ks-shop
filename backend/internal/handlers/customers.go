@@ -30,6 +30,7 @@ type customerView struct {
 	Name                string  `json:"name"`
 	Phone               string  `json:"phone"`
 	Address             string  `json:"address"`
+	Email               string  `json:"email"`
 	LastPickupChainID   *int    `json:"last_pickup_chain_id"`
 	LastPickupStoreName *string `json:"last_pickup_store_name"`
 	LastPickupStoreCode *string `json:"last_pickup_store_code"`
@@ -41,7 +42,7 @@ type customerView struct {
 // flow can auto-fill it when an existing customer is picked instead of asking again. Also
 // surfaces blacklist status so CS can be warned before an order is even created, not just after.
 const customerSearchColumns = `
-	SELECT c.id, c.name, c.phone, COALESCE(c.address,''), lo.pickup_chain_id, lo.pickup_store_name, lo.pickup_store_code,
+	SELECT c.id, c.name, c.phone, COALESCE(c.address,''), COALESCE(c.email,''), lo.pickup_chain_id, lo.pickup_store_name, lo.pickup_store_code,
 	       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist')
 	FROM customers c
 	LEFT JOIN LATERAL (
@@ -63,7 +64,7 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 		rows, err = res, e
 	} else {
 		res, e := h.DB.Query(r.Context(), customerSearchColumns+`
-			WHERE c.name ILIKE $1 OR c.phone ILIKE $1 OR COALESCE(c.address,'') ILIKE $1 ORDER BY c.name LIMIT 50`, likePattern(q))
+			WHERE c.name ILIKE $1 OR c.phone ILIKE $1 OR COALESCE(c.address,'') ILIKE $1 OR COALESCE(c.email,'') ILIKE $1 ORDER BY c.name LIMIT 50`, likePattern(q))
 		rows, err = res, e
 	}
 	if err != nil {
@@ -75,7 +76,7 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 	list := []customerView{}
 	for rows.Next() {
 		var c customerView
-		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address, &c.LastPickupChainID, &c.LastPickupStoreName, &c.LastPickupStoreCode, &c.IsBlacklisted)
+		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address, &c.Email, &c.LastPickupChainID, &c.LastPickupStoreName, &c.LastPickupStoreCode, &c.IsBlacklisted)
 		list = append(list, c)
 	}
 	respondJSON(w, http.StatusOK, list)

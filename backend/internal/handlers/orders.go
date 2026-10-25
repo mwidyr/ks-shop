@@ -286,6 +286,7 @@ type orderDetailView struct {
 	ReturnReceived           bool              `json:"return_received"`
 	CustomerName             string            `json:"customer_name"`
 	CustomerPhone            string            `json:"customer_phone"`
+	CustomerEmail            string            `json:"customer_email"`
 	CustomerBlocked          bool              `json:"customer_blacklisted"`
 	ShippingAddress          string            `json:"shipping_address"`
 	PickupChainID            int               `json:"pickup_chain_id"`
@@ -340,7 +341,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	var keepDate *time.Time
 	var notesDeadline *time.Time
 	err = h.DB.QueryRow(ctx, `
-		SELECT o.id, o.order_no, o.status, c.name, c.phone,
+		SELECT o.id, o.order_no, o.status, c.name, c.phone, COALESCE(o.customer_email, c.email, ''),
 		       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist'),
 		       o.shipping_address, pc.id, pc.name,
 		       COALESCE(o.pickup_store_name,''), COALESCE(o.pickup_store_code,''), o.discount_amount, o.additional_amount,
@@ -352,7 +353,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN users u ON u.id = o.sales_id
 		LEFT JOIN promotions pm ON pm.id = o.promotion_id
 		WHERE o.id=$1`, id).
-		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerBlocked,
+		Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.CustomerEmail, &o.CustomerBlocked,
 			&o.ShippingAddress, &o.PickupChainID, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &o.DiscountAmount, &o.AdditionalAmount,
 			&o.InternalNotes, &o.IsUrgent, &notesDeadline, &o.CreatedBy, &createdAt, &keepDate, &o.KeepDateType,
@@ -507,6 +508,7 @@ type createOrderCustomer struct {
 	Name    string `json:"name"`
 	Phone   string `json:"phone"`
 	Address string `json:"address"`
+	Email   string `json:"email"` // e-invoice address, optional; saved on the customer and on this order
 }
 
 type createOrderItem struct {
@@ -606,6 +608,12 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Customer.Email = strings.TrimSpace(req.Customer.Email)
+	if !validInvoiceEmail(req.Customer.Email) {
+		respondError(w, http.StatusBadRequest, "invalid customer email")
+		return
+	}
+
 	claims := appmw.GetClaims(r)
 	ctx := r.Context()
 
@@ -648,12 +656,19 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		var newID int
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO customers (name, phone, address) VALUES ($1,$2,$3) RETURNING id`,
-			req.Customer.Name, req.Customer.Phone, req.Customer.Address).Scan(&newID); err != nil {
+			INSERT INTO customers (name, phone, address, email) VALUES ($1,$2,$3,NULLIF($4,'')) RETURNING id`,
+			req.Customer.Name, req.Customer.Phone, req.Customer.Address, req.Customer.Email).Scan(&newID); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to create customer")
 			return
 		}
 		customerID = &newID
+	}
+	// The invoice email: what staff typed, else the one saved on the customer. A typed one is remembered on the customer.
+	invoiceEmail := req.Customer.Email
+	if invoiceEmail != "" {
+		_, _ = tx.Exec(ctx, `UPDATE customers SET email=$2 WHERE id=$1`, *customerID, invoiceEmail)
+	} else {
+		_ = tx.QueryRow(ctx, `SELECT COALESCE(email,'') FROM customers WHERE id=$1`, *customerID).Scan(&invoiceEmail)
 	}
 
 	// Website - Created by CS: a staff-keyed Website order with no Affiliate. (An Affiliate order
@@ -671,11 +686,11 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	orderNo := fmt.Sprintf("ORD-%d-%04d", time.Now().Unix(), rand.Intn(9999))
 	var orderID int
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, keep_date_type, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id, website_source)
-		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+		INSERT INTO orders (order_no, customer_id, sales_id, status, shipping_address, pickup_chain_id, pickup_store_name, pickup_store_code, discount_amount, additional_amount, keep_date, keep_date_type, internal_notes, is_urgent, notes_deadline, sales_channel, affiliate_id, website_source, customer_email)
+		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NULLIF($18,'')) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.KeepDateType, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
-		req.SalesChannel, req.AffiliateID, websiteSource).Scan(&orderID); err != nil {
+		req.SalesChannel, req.AffiliateID, websiteSource, invoiceEmail).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}
@@ -1302,4 +1317,11 @@ func (h *OrderHandler) StatusCounts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"order_status_counts": counts})
+}
+
+var invoiceEmailRe = regexp.MustCompile(`^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$`)
+
+// validInvoiceEmail: empty is allowed (the field is optional); otherwise a plain address of at most 150 characters.
+func validInvoiceEmail(v string) bool {
+	return v == "" || (len(v) <= 150 && invoiceEmailRe.MatchString(v))
 }

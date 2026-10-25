@@ -631,7 +631,8 @@
     "block_error_total_max": "The order total is above NT${{max}} (the shipping platform limit). Reduce the items or split the order.",
     "total_max_warning": "Total is above NT${{max}} — the shipping platforms reject it, so the order cannot be submitted.",
     "picker_selected_title": "Selected products ({{count}} pcs)",
-    "picker_remove_item": "Remove from selection"
+    "picker_remove_item": "Remove from selection",
+    "block_error_email_format": "Order {{index}}: the customer email is not valid."
   },
   "page_order_detail": {
     "additional_fee_label": "Additional Fee",
@@ -1767,7 +1768,11 @@
     "stock_line": "Available {{available}} · Actual {{actual}}",
     "oversell_warning": "Oversold, needs restock",
     "view_only_banner": "You have view-only access to this page. Changes cannot be saved.",
-    "view_only_blocked": "Change refused: you only have view access to this section."
+    "view_only_blocked": "Change refused: you only have view access to this section.",
+    "customer_email_label": "Email (for the invoice)",
+    "customer_email_placeholder": "name@example.com",
+    "customer_email_format_error": "Enter a valid email address",
+    "customer_email_hint": "Taiwan e-invoices are sent to this address. Optional now; it is remembered for this customer."
   },
   "status": {
     "cancelled": "Cancelled",

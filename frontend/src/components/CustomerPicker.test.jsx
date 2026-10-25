@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k) => k }) }))
 
-const customers = [{ id: 7, name: 'DIAH', phone: '0981642493' }]
+const customers = [{ id: 7, name: 'DIAH', phone: '0981642493', email: 'diah@example.com' }]
 const get = vi.fn()
 vi.mock('../api/client', () => ({ default: { get: (...a) => get(...a) } }))
 
@@ -93,6 +93,18 @@ describe('CustomerPicker suggestion list', () => {
     expect(suggestions(el)).toBe(0)
     expect(name.value).toBe('DIAH')
     expect(phone.value).toBe('0981642493')
+    expect(el.querySelector('input[type=email]').value).toBe('diah@example.com') // the saved email is pre-filled
     expect(onChange).toHaveBeenLastCalledWith(customers[0])
+  })
+
+  it('typing an email is passed on with the customer, for a new and for a picked customer', async () => {
+    const { el, name, phone, onChange } = await setup()
+    await focus(name); await type(name, 'NEW'); await type(phone, '0911222333')
+    await type(el.querySelector('input[type=email]'), 'new@example.com')
+    expect(onChange).toHaveBeenLastCalledWith({ name: 'NEW', phone: '0911222333', address: '', email: 'new@example.com' })
+    await type(name, 'DIAH')
+    await act(async () => { el.querySelector('button[type="button"]:not(#elsewhere)').click() })
+    await type(el.querySelector('input[type=email]'), 'other@example.com')
+    expect(onChange).toHaveBeenLastCalledWith({ ...customers[0], email: 'other@example.com' })
   })
 })

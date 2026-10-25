@@ -4,6 +4,8 @@ import client from '../api/client'
 
 // Taiwan mobile format: "09" followed by 8 more digits (10 digits total).
 export const TW_PHONE_REGEX = /^09\d{8}$/
+// Plain address check for the e-invoice email (optional field; the server checks it again).
+export const EMAIL_REGEX = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/
 
 // Two always-visible fields (Nama Pelanggan / Telepon Pelanggan), matching the reference design
 // - not a single combined search box with new-customer fields only appearing after a failed
@@ -15,11 +17,13 @@ export const TW_PHONE_REGEX = /^09\d{8}$/
 // and comes back when the name field is focused again. Emits via onChange:
 //   existing: the full customer row from the search API (id, name, phone, address, plus
 //             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code)
-//   new/manual: { name, phone, address: '' }
+//   new/manual: { name, phone, address: '', email }
+// The email (Taiwan e-invoice) is optional: picking a customer pre-fills the one saved on them, and it stays editable.
 export default function CustomerPicker({ onChange }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState(null)
   const [open, setOpen] = useState(false) // suggestion list visible
@@ -44,13 +48,13 @@ export default function CustomerPicker({ onChange }) {
     if (!v.trim()) {
       setResults([])
       setOpen(false)
-      onChange({ name: v, phone, address: '' })
+      onChange({ name: v, phone, address: '', email })
       return
     }
     const res = await client.get(`/customers?q=${encodeURIComponent(v)}`)
     // a late answer must not pop the list open again after the user moved on to another field
     if (id === reqId.current) { setResults(res.data); setOpen(nameFocused.current) }
-    onChange({ name: v, phone, address: '' })
+    onChange({ name: v, phone, address: '', email })
   }
 
   function handlePhoneChange(v) {
@@ -58,16 +62,23 @@ export default function CustomerPicker({ onChange }) {
     setPhone(digits)
     setSelected(null)
     setOpen(false)
-    onChange({ name, phone: digits, address: '' })
+    onChange({ name, phone: digits, address: '', email })
   }
 
   function pick(customer) {
     setSelected(customer)
     setName(customer.name)
     setPhone(customer.phone)
+    setEmail(customer.email || '')
     setResults([])
     setOpen(false)
-    onChange(customer)
+    onChange({ ...customer, email: customer.email || '' })
+  }
+
+  function handleEmailChange(v) {
+    const next = v.trim()
+    setEmail(next)
+    onChange(selected ? { ...selected, email: next } : { name, phone, address: '', email: next })
   }
 
   return (
@@ -124,6 +135,25 @@ export default function CustomerPicker({ onChange }) {
         {phone && !TW_PHONE_REGEX.test(phone) && (
           <p className="text-xs text-red-600 mt-1">{t('shared.customer_phone_format_error')}</p>
         )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_email_label')}</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => handleEmailChange(e.target.value)}
+          onFocus={() => setOpen(false)}
+          placeholder={t('shared.customer_email_placeholder')}
+          maxLength={150}
+          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+            email && !EMAIL_REGEX.test(email) ? 'border-red-400' : 'border-gray-300'
+          }`}
+        />
+        {email && !EMAIL_REGEX.test(email) && (
+          <p className="text-xs text-red-600 mt-1">{t('shared.customer_email_format_error')}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-1">{t('shared.customer_email_hint')}</p>
       </div>
 
       {selected?.is_blacklisted && (

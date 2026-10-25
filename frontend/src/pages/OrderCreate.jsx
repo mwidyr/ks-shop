@@ -12,7 +12,7 @@ import { nameTooLong, nameUnits, addressTooLong, carrierTotal, EXPORT_TOTAL_MAX 
 import { defaultShippingFee } from '../utils/shippingFee'
 import { formatCurrency } from '../utils/format'
 import { resolveUrl } from '../utils/image'
-import CustomerPicker, { TW_PHONE_REGEX } from '../components/CustomerPicker'
+import CustomerPicker, { EMAIL_REGEX, TW_PHONE_REGEX } from '../components/CustomerPicker'
 import ProductPickerModal from '../components/ProductPickerModal'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import KeepDateFields from '../components/KeepDateFields'
@@ -443,6 +443,7 @@ export default function OrderCreate() {
     if (!order.customer.id && !TW_PHONE_REGEX.test(order.customer.phone || '')) return t('page_order_create.block_error_phone_format', { index: 1 })
     if (!order.pickupChainId) return t('page_order_create.block_error_pickup_method', { index: 1 })
     if (cvs && !/^\d{6}$/.test(order.pickupStoreCode)) return t('page_order_create.block_error_store_code', { index: 1 })
+    if (order.customer.email && !EMAIL_REGEX.test(order.customer.email)) return t('page_order_create.block_error_email_format', { index: 1 })
     if (nameTooLong(order.customer?.name)) return t('page_order_create.block_error_name_long', { index: 1 })
     if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
     if (isCvs === 'courier' && addressTooLong(order.shippingAddress)) return t('page_order_create.block_error_address_long', { index: 1 })
@@ -463,7 +464,7 @@ export default function OrderCreate() {
     setSaving(true)
     try {
       const res = await createOrder({
-        customer: order.customer.id ? { id: order.customer.id } : { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+        customer: order.customer.id ? { id: order.customer.id, email: order.customer.email || '' } : { name: order.customer.name, phone: order.customer.phone, address: order.customer.address, email: order.customer.email || '' },
         shipping_address: order.shippingAddress,
         pickup_chain_id: Number(order.pickupChainId),
         pickup_store_name: order.pickupStoreName,

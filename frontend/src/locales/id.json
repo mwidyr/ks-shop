@@ -631,7 +631,8 @@
     "block_error_total_max": "Total pesanan melebihi NT${{max}} (batas platform pengiriman). Kurangi item atau pecah pesanan.",
     "total_max_warning": "Total melebihi NT${{max}} — pesanan tidak bisa dikirim lewat platform. Pesanan tidak dapat disimpan.",
     "picker_selected_title": "Produk dipilih ({{count}} pcs)",
-    "picker_remove_item": "Hapus dari pilihan"
+    "picker_remove_item": "Hapus dari pilihan",
+    "block_error_email_format": "Order {{index}}: email pelanggan tidak valid."
   },
   "page_order_detail": {
     "additional_fee_label": "Biaya Tambahan",
@@ -1767,7 +1768,11 @@
     "stock_line": "Tersedia {{available}} · Fisik {{actual}}",
     "oversell_warning": "Oversell, perlu restock",
     "view_only_banner": "Anda hanya punya akses lihat untuk halaman ini. Perubahan tidak bisa disimpan.",
-    "view_only_blocked": "Perubahan ditolak: Anda hanya punya akses lihat untuk bagian ini."
+    "view_only_blocked": "Perubahan ditolak: Anda hanya punya akses lihat untuk bagian ini.",
+    "customer_email_label": "Email (untuk invoice)",
+    "customer_email_placeholder": "nama@contoh.com",
+    "customer_email_format_error": "Masukkan alamat email yang valid",
+    "customer_email_hint": "E-invoice Taiwan dikirim ke alamat ini. Opsional; akan diingat untuk pelanggan ini."
   },
   "status": {
     "cancelled": "Dibatalkan",
