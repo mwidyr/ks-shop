@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { getProduct, img, onImgError, sized } from '../lib/api'
 import { useCart } from '../lib/cart'
 import { money } from '../lib/format'
-import { productText, waUrl } from '../lib/wa'
-import { useStore } from '../lib/store'
-import { btnOutline, btnPrimary, ErrorState, Sheet, Spinner } from './ui'
+import { productText } from '../lib/wa'
+import { useCs } from '../lib/cs'
+import { asBtn, btnOutline, btnPrimary, ErrorState, Sheet, Spinner } from './ui'
 
 const Ctx = createContext(null)
 export const useQuickAdd = () => useContext(Ctx)
@@ -37,8 +37,8 @@ export function variantPick(product) {
 }
 
 function QuickAddSheet({ productId, onClose, cart }) {
-  const { t, i18n } = useTranslation()
-  const { settings } = useStore()
+  const { t } = useTranslation()
+  const { openCs } = useCs()
   const [product, setProduct] = useState(null)
   const [error, setError] = useState(false)
   const [color, setColor] = useState('')
@@ -64,7 +64,7 @@ function QuickAddSheet({ productId, onClose, cart }) {
     const ok = (product.variants || []).filter((v) => v.stock > 0)
     if (ok.length === 1) {
       const v = ok[0]
-      cart.add({ variantId: v.id, productId: product.id, name: product.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: product.images?.[0] || '', liveCode: product.live_code })
+      cart.add({ variantId: v.id, productId: product.id, name: product.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: product.images?.[0] || '', code: product.sku, liveCode: product.live_code })
       onClose()
     }
   }, [product]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -79,7 +79,7 @@ function QuickAddSheet({ productId, onClose, cart }) {
 
   function submit() {
     if (!chosen || chosen.stock <= 0) return
-    cart.add({ variantId: chosen.id, productId: product.id, name: product.name, color: chosen.color, size: chosen.size, price: chosen.price, stock: chosen.stock, image: product.images?.[0] || '', liveCode: product.live_code })
+    cart.add({ variantId: chosen.id, productId: product.id, name: product.name, color: chosen.color, size: chosen.size, price: chosen.price, stock: chosen.stock, image: product.images?.[0] || '', code: product.sku, liveCode: product.live_code })
     onClose()
   }
 
@@ -115,7 +115,7 @@ function QuickAddSheet({ productId, onClose, cart }) {
                 })}
               </div>}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8 }}>
-                <a href={waUrl(settings.whatsapp_number, productText(i18n.language, { name: product.name, code: product.live_code, color, size, url: `${window.location.origin}/p/${product.id}` }))} target="_blank" rel="noreferrer" style={{ ...btnOutline, height: 48, padding: 0 }}>{t('common.ask_cs')}</a>
+                <button type="button" onClick={() => openCs(productText({ code: product.sku, name: product.name, color, size, url: `${window.location.origin}/p/${product.id}` }))} style={{ ...asBtn, ...{ ...btnOutline, height: 48, padding: 0 } }}>{t('common.ask_cs')}</button>
                 <button type="button" onClick={submit} disabled={!chosen || chosen.stock <= 0} style={{ ...btnPrimary, height: 48, ...(!chosen ? { background: 'var(--color-border)', color: 'var(--color-disabled)', cursor: 'not-allowed' } : {}) }}>{t('common.add_to_cart')}</button>
               </div>
             </div>

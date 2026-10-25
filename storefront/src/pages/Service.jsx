@@ -2,19 +2,15 @@ import { useTranslation } from 'react-i18next'
 import { money } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { topicText, waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { csChannels } from '../lib/cs'
 
-const WA_ICON = (size, stroke = '#FFFFFF') => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z" /><path d="M9 9.5c.3 2 1.8 3.8 4.3 4.6l1.2-1.1 1.8.8-.4 1.6c-3.6.2-7-3-7.2-6.6l1.6-.5.8 1.8z" /></svg>
-)
-
-// CS center: every button hands off to WhatsApp with the question already filled in.
+// CS center: one button per chat app (WhatsApp, LINE ...), each opening the chat with the general greeting filled in.
 export default function Service() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { settings, threshold, chainFee } = useStore()
   useSeo({ title: t('service.title'), description: t('service.intro'), canonical: '/service' })
-  const lang = i18n.language
-  const wa = (key) => waUrl(settings.whatsapp_number, topicText(lang, key))
+  const channels = csChannels(settings, greetingText())
   const faq = [
     [t('service.q1'), t('service.a1')], [t('service.q2'), t('service.a2')],
     [t('service.q3'), t('service.a3', { fee: money(chainFee('cvs_711') || 60), min: money(threshold) })], [t('service.q4'), t('service.a4')],
@@ -33,7 +29,10 @@ export default function Service() {
           </span>
         </div>
         <span style={{ fontSize: 15, lineHeight: 1.6 }}>{t('service.intro')}</span>
-        <a href={wa('other')} target="_blank" rel="noreferrer" style={{ minHeight: 54, borderRadius: 27, background: '#1FA855', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>{WA_ICON(22)}{t('service.open_wa')}</a>
+        {channels.map(({ key, label, color, Icon, url }) => (
+          <a key={key} data-testid={`service-${key}`} href={url} target="_blank" rel="noreferrer" style={{ minHeight: 54, borderRadius: 27, background: color, color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}><Icon size={22} stroke="#FFFFFF" />{t('cs.open_service', { app: label })}</a>
+        ))}
+        {channels.length === 0 && <span role="status" style={{ fontSize: 13 }}>{t('final.no_channel')}</span>}
       </header>
       <section style={{ margin: '18px 16px 0', padding: 14, borderRadius: 16, background: 'var(--color-primary-soft)', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, lineHeight: 1.6 }}>
         <b style={{ fontSize: 15 }}>{t('service.hours')}</b>

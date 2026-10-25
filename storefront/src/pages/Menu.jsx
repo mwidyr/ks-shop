@@ -1,9 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useStore } from '../lib/store'
+import { useCs } from '../lib/cs'
 import { useMember } from '../lib/member'
 import { useSeo } from '../lib/seo'
-import { topicText, waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { asBtn } from '../components/ui'
 
 const ICON_USER = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
 const ICONS = {
@@ -20,7 +21,7 @@ const ICONS = {
 export default function Menu() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const { me, signedIn } = useMember()
   useSeo({ title: t('menu.title'), noindex: true })
   const rows = [
@@ -65,9 +66,9 @@ export default function Menu() {
           ))}
         </nav>
         <span style={{ flex: 1 }} />
-        <a href={waUrl(settings.whatsapp_number, topicText(i18n.language, 'other'))} target="_blank" rel="noreferrer" style={{ minHeight: 52, borderRadius: 26, background: '#1FA855', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>
+        <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ minHeight: 52, borderRadius: 26, background: '#1FA855', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z" /><path d="M9 9.5c.3 2 1.8 3.8 4.3 4.6l1.2-1.1 1.8.8-.4 1.6c-3.6.2-7-3-7.2-6.6l1.6-.5.8 1.8z" /></svg>{t('menu.cs')}
-        </a>
+        </button>
         <span style={{ fontSize: 12, color: 'var(--color-text-2)', textAlign: 'center' }}>{t('menu.note')}</span>
       </aside>
     </div>

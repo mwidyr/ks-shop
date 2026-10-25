@@ -7,9 +7,11 @@ import { listLocalOrders } from '../lib/localOrders'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { useMember } from '../lib/member'
-import { orderText, waUrl } from '../lib/wa'
-import { IconWhatsApp } from '../components/Icons'
-import { btnWhatsApp, ErrorState, PageHeader, Spinner } from '../components/ui'
+import { orderQuestionText } from '../lib/wa'
+import { normPhone } from '../lib/phone'
+import { useCs } from '../lib/cs'
+import { IconHeadset } from '../components/Icons'
+import { asBtn, btnDark, ErrorState, PageHeader, Spinner } from '../components/ui'
 
 const REASONS = ['size', 'color', 'defect', 'wrong', 'dislike']
 
@@ -18,9 +20,12 @@ export default function Return() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { settings } = useStore()
+  const { openCs } = useCs()
   const { signedIn } = useMember()
   const local = listLocalOrders().find((o) => o.orderNo === orderNo)
   const [o, setO] = useState(null)
+  // "Send details to CS" / "Ask CS to submit": order number + customer + phone
+  const askCs = () => openCs(orderQuestionText({ orderNo, name: o?.customer_name, phone: normPhone(local?.phone) }))
   const [state, setState] = useState('loading')
   const [sel, setSel] = useState([])
   const [kind, setKind] = useState('return')
@@ -60,7 +65,7 @@ export default function Return() {
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center' }}>
           <h1 style={{ margin: 0, fontSize: 22 }}>{t('ret.done_title')}</h1>
           <span style={{ fontSize: 14, color: 'var(--color-text-2)' }}>{t('ret.done_text')}</span>
-          <a href={waUrl(settings.whatsapp_number, orderText(i18n.language, orderNo))} target="_blank" rel="noreferrer" style={btnWhatsApp}><IconWhatsApp size={18} />{t('order.send_wa')}</a>
+          <button type="button" onClick={askCs} style={{ ...asBtn, ...btnDark, minHeight: 48 }}><IconHeadset size={18} />{t('ret.send_cs')}</button>
         </div>
       </div>
     )
@@ -156,7 +161,7 @@ export default function Return() {
           <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}><b style={{ fontSize: 15 }}>{t('ret.f_credit')}</b><span style={sub}>{t('ret.f_credit_t', { pct: settings.rewards?.refund_credit_bonus_pct ?? 5 })}</span></span>
         </button>
       </section>
-      <div style={{ margin: '14px 16px 0', textAlign: 'center', fontSize: 13, color: 'var(--color-text-2)' }}>{t('ret.help')}<a href={waUrl(settings.whatsapp_number, orderText(i18n.language, orderNo))} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: 'var(--color-primary-strong)' }}>{t('ret.ask')}</a></div>
+      <div style={{ margin: '14px 16px 0', textAlign: 'center', fontSize: 13, color: 'var(--color-text-2)' }}>{t('ret.help')}<button type="button" onClick={askCs} style={{ ...asBtn, fontWeight: 700, color: 'var(--color-primary-strong)', fontSize: 'inherit' }}>{t('ret.ask')}</button></div>
       {err && <div role="alert" style={{ margin: '10px 16px 0', color: 'var(--color-error)', fontSize: 13, textAlign: 'center' }}>{err}</div>}
       <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 84, padding: '14px 16px 18px', background: '#fff', borderTop: '1px solid var(--color-border)', zIndex: 10, maxWidth: 560, margin: '0 auto', boxSizing: 'border-box' }}>
         <button type="button" onClick={submit} style={{ height: 52, width: '100%', borderRadius: 12, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, border: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>{t('ret.submit')}</button>

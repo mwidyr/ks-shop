@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getProducts } from '../lib/api'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { IconBack, IconCart, IconChevDown, IconFilter, IconSearch } from '../components/Icons'
+import { IconBack, IconCart, IconChevDown, IconFilter } from '../components/Icons'
 import { ProductCard } from '../components/ProductCard'
 import { btnOutline, btnPrimary, Chip, EmptyState, ErrorState, iconBtn, ProductGridSkeleton, Sheet, inputStyle } from '../components/ui'
 
@@ -61,7 +61,6 @@ export default function ProductList() {
     <header style={{ height: 56, display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
       <button type="button" aria-label={t('common.back')} onClick={() => navigate(-1)} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
       <h1 style={{ margin: 0, flex: 1, fontSize: 17, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h1>
-      <Link to="/search" aria-label={t('nav.search_aria')} style={iconBtn}><IconSearch size={20} /></Link>
       <Link to="/cart" aria-label={t('nav.cart')} style={iconBtn}><IconCart /></Link>
     </header>
   )

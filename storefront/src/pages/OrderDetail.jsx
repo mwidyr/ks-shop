@@ -6,10 +6,11 @@ import Stars from '../components/Stars'
 import { money, orderTab, shortDateTime } from '../lib/format'
 import { listLocalOrders } from '../lib/localOrders'
 import { useSeo } from '../lib/seo'
-import { useStore } from '../lib/store'
-import { orderText, waUrl } from '../lib/wa'
+import { orderQuestionText } from '../lib/wa'
+import { normPhone } from '../lib/phone'
+import { useCs } from '../lib/cs'
 import { IconHeadset, IconWhatsApp } from '../components/Icons'
-import { btnDark, btnOutline, btnPrimary, btnWhatsApp, ErrorState, Field, inputStyle, PageHeader, Sheet, Spinner } from '../components/ui'
+import { asBtn, btnDark, btnOutline, btnPrimary, btnWhatsApp, ErrorState, Field, inputStyle, PageHeader, Sheet, Spinner } from '../components/ui'
 
 const STEPS = ['created', 'shipped', 'hub', 'store', 'ready']
 const reached = (status) => ({ pending: 1, picking: 1, processing: 1, ready_to_ship: 1, shipped: 3, delivered: 5, return: 5, cancelled: 0 }[status] ?? 1)
@@ -17,7 +18,7 @@ const reached = (status) => ({ pending: 1, picking: 1, processing: 1, ready_to_s
 export default function OrderDetail() {
   const { orderNo } = useParams()
   const { t, i18n } = useTranslation()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const local = listLocalOrders().find((o) => o.orderNo === orderNo)
   const [phone, setPhone] = useState(local?.phone || '')
   const [o, setO] = useState(null)
@@ -49,7 +50,7 @@ export default function OrderDetail() {
   const tabKey = orderTab(o.status)
   const n = reached(o.status)
   const home = o.chain_type === 'courier'
-  const askUrl = waUrl(settings.whatsapp_number, orderText(i18n.language, o.order_no))
+  const askCs = () => openCs(orderQuestionText({ orderNo: o.order_no, name: o.customer_name, phone: normPhone(phone) }))
   const HERO = { pending: 'var(--color-warning)', processing: 'var(--color-info)', shipping: 'var(--color-primary)', done: 'var(--color-text-3)', return: 'var(--color-error)' }
   const heroBg = HERO[tabKey] || HERO.processing
   const heroText = tabKey === 'shipping' ? 'var(--color-on-primary)' : '#FFFFFF'
@@ -116,9 +117,9 @@ export default function OrderDetail() {
         ))}
       </section>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '14px 16px 0' }}>
-        <a href={askUrl} target="_blank" rel="noreferrer" style={{ height: 52, borderRadius: 14, background: 'var(--color-text)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>
+        <button type="button" onClick={askCs} style={{ ...asBtn, ...{ height: 52, borderRadius: 14, background: 'var(--color-text)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}>
           <IconHeadset size={18} />{t('order.ask_cs')}
-        </a>
+        </button>
         {wa?.url && <a href={wa.url} target="_blank" rel="noreferrer" style={btnWhatsApp}><IconWhatsApp size={18} />{t('order.send_wa')}</a>}
         {o.status === 'delivered' && <Link to={`/orders/${o.order_no}/return`} style={btnOutline}>{t('orders.return_btn')}</Link>}
       </div>

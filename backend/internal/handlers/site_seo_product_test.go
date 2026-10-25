@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -45,6 +47,34 @@ func TestProductOpenGraphTags(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s in:\n%s", want, out)
+		}
+	}
+}
+
+// Absolute links follow the address the visitor used: production (https, domain behind the TLS proxy) and
+// the IP-only staging VPS (http, with its port).
+func TestPublicBaseURL(t *testing.T) {
+	mk := func(host string, hdr map[string]string) *http.Request {
+		r := httptest.NewRequest("GET", "/api/public/store/seo", nil)
+		r.Host = host
+		for k, v := range hdr {
+			r.Header.Set(k, v)
+		}
+		return r
+	}
+	cases := []struct {
+		name string
+		r    *http.Request
+		want string
+	}{
+		{"production behind TLS proxy", mk("ralulu.com", map[string]string{"X-Forwarded-Proto": "https"}), "https://ralulu.com"},
+		{"staging IP with port", mk("116.193.191.197:8082", map[string]string{"X-Forwarded-Proto": "http"}), "http://116.193.191.197:8082"},
+		{"forwarded host wins", mk("backend:8080", map[string]string{"X-Forwarded-Proto": "https", "X-Forwarded-Host": "ralulu.com"}), "https://ralulu.com"},
+		{"local dev", mk("localhost:8080", nil), "http://localhost:8080"},
+	}
+	for _, c := range cases {
+		if got := publicBaseURL(c.r); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
 	}
 }

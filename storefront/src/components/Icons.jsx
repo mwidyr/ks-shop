@@ -81,3 +81,8 @@ export const IconFilter = make(<><path d="M4 6h16M7 12h10M10 18h4" /></>, { sw: 
 export const IconBell = make(<><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z" /><path d="M10 21h4" /></>)
 export const IconBox = make(<><path d="M3 7l9-4 9 4v10l-9 4-9-4z" /><path d="M3 7l9 4 9-4M12 11v10" /></>)
 export const IconUndo = make(<><path d="M9 7L4 12l5 5" /><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -4)" /></>)
+
+// LINE mark (white bubble with green dots) for the green LINE buttons.
+export const IconLine = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3.5" width="20" height="14" rx="7" fill="#FFFFFF" /><path d="M8 17l-2 3.5 5.5-3.500z" fill="#FFFFFF" /><circle cx="8.5" cy="10.5" r="1.2" fill="#06C755" /><circle cx="12" cy="10.5" r="1.2" fill="#06C755" /><circle cx="15.5" cy="10.5" r="1.2" fill="#06C755" /></svg>
+)

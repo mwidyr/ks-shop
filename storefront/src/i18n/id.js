@@ -17,6 +17,7 @@ export default {
   strip: { cs: '✓ CS bantu pesan', free_ship: '✓ Gratis ongkir min. {{amount}}', pickup: '✓ Ambil di 7-ELEVEN・FamilyMart' },
   freebar: { remaining: 'Belanja {{amount}} lagi untuk gratis ongkir', reached: 'Selamat! Pesanan ini gratis ongkir.', to_cart: 'Ke keranjang ›' },
   fab: { online: 'CS online', tip: 'Bingung ukuran? Bingung pesan?', aria: 'Hubungi CS' },
+  cs: { sheet_title: 'Hubungi CS', sheet_hint: 'Pilih aplikasi chat', preview: 'Pesan yang akan dikirim', open_in: 'Buka {{app}}', open_service: 'Buka CS lewat {{app}}' },
   home: {
     hero_eyebrow: 'AUTUMN EDIT', hero_title: 'Koleksi musim gugur', hero_sub: 'Tayang minggu ini', hero_cta: 'Belanja sekarang ›',
     hero_alt: 'Visual utama koleksi musim gugur',

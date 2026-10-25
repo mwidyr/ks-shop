@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconAlert, IconBack, IconClose, IconSpinner } from './Icons'
-import { useStore } from '../lib/store'
-import { waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 
 // ---- small building blocks shared by every page ----
 
@@ -37,6 +37,8 @@ export function PageHeader({ title, back = true, onBack, right, to, height = 56,
     </header>
   )
 }
+// <button> reset: a CS control that used to be an <a> keeps its look (put first, the control's own style after)
+export const asBtn = { fontFamily: 'inherit', cursor: 'pointer', border: 'none', background: 'none', padding: 0, margin: 0, color: 'inherit', textAlign: 'center' }
 export const iconBtn = { width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)', textDecoration: 'none', position: 'relative' }
 
 export function Chip({ active, children, onClick, to, style }) {
@@ -90,14 +92,14 @@ export function EmptyState({ title, text, action }) {
 // Error with the reason, what to do next, and a way to ask CS (never a dead end).
 export function ErrorState({ title, text, onRetry, retryLabel }) {
   const { t, i18n } = useTranslation()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   return (
     <div role="alert" style={{ margin: '16px', padding: '20px 16px', borderRadius: 16, background: 'var(--color-error-bg)', border: '1px solid var(--color-error)', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-error)', fontWeight: 700 }}><IconAlert size={18} />{title || t('common.error_generic')}</span>
       {text && <span style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.6 }}>{text}</span>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {onRetry && <button type="button" onClick={onRetry} style={{ ...btnDark, minHeight: 44, fontSize: 14 }}>{retryLabel || t('common.retry')}</button>}
-        <a href={waUrl(settings.whatsapp_number, 'ralulu')} target="_blank" rel="noreferrer" style={{ ...btnOutline, minHeight: 44, fontSize: 14 }}>{t('common.ask_cs')}</a>
+        <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ ...btnOutline, minHeight: 44, fontSize: 14 } }}>{t('common.ask_cs')}</button>
       </div>
       <span hidden>{i18n.language}</span>
     </div>

@@ -5,12 +5,13 @@ import { getHome, img, onImgError, sized } from '../lib/api'
 import { formatNumber, money } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { topicText, waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 import { Footer } from '../components/Layout'
 import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { IconHeadset, IconPlay, IconSearch, IconWhatsApp } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
-import { ErrorState, ProductGridSkeleton, SectionHead, Skeleton } from '../components/ui'
+import { asBtn, ErrorState, ProductGridSkeleton, SectionHead, Skeleton } from '../components/ui'
 
 const tile = { position: 'relative', borderRadius: 14, overflow: 'hidden', textDecoration: 'none', background: 'var(--color-bg-soft)', display: 'block' }
 const tileLabel = (big) => ({ position: 'absolute', left: big ? 12 : 8, bottom: big ? 12 : 8, padding: big ? '6px 12px' : '5px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.95)', color: 'var(--color-text)', fontSize: big ? 15 : 13, fontWeight: 700 })
@@ -156,7 +157,8 @@ function Topics({ list, desktop, title, subtitle }) {
 export default function Home() {
   const { t, i18n } = useTranslation()
   const { desktop } = useOutletContext()
-  const { settings, threshold } = useStore()
+  const { threshold } = useStore()
+  const { openCs } = useCs()
   const [data, setData] = useState(null)
   const [error, setError] = useState(false)
   useSeo({ title: '', description: t('home.hero_sub') + ' · ralulu', canonical: '/' })
@@ -222,9 +224,9 @@ export default function Home() {
           <span style={{ fontSize: 13, color: 'var(--color-border)' }}>{t('home.cs_sub')}</span>
         </span>
       </div>
-      <a href={waUrl(settings.whatsapp_number, topicText(i18n.language, 'order'))} target="_blank" rel="noreferrer" style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, background: '#1FA855', color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' }}>
+      <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ minHeight: 44, padding: '0 18px', borderRadius: 22, background: '#1FA855', color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' } }}>
         <IconWhatsApp size={18} />{t('home.cs_cta')}
-      </a>
+      </button>
     </section>
   )
 

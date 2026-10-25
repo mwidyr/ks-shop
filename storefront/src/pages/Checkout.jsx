@@ -14,9 +14,10 @@ import { useQuote } from '../lib/quote'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { safeHtml } from '../lib/safeHtml'
-import { storeHelpText, waUrl } from '../lib/wa'
+import { cartText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 import { IconAlert, IconBack, IconCheck, IconChevDown, IconHeadset, IconSearch, IconSpinner, IconTruck } from '../components/Icons'
-import { btnDark, btnOutline, btnPrimary, EmptyState, Field, iconBtn, inputStyle, Sheet } from '../components/ui'
+import { asBtn, btnDark, btnOutline, btnPrimary, EmptyState, Field, iconBtn, inputStyle, Sheet } from '../components/ui'
 
 const KEY = 'ralulu_checkout_v1'
 const EMPTY = { step: 1, view: '', picked: false, name: '', phone: '', email: '', method: '', store: null, address: '', addrName: '', addrPhone: '', coupon: '' }
@@ -34,7 +35,7 @@ function ReceiptArt() {
   )
 }
 
-function TutorialSheet({ open, onClose, chainName, csUrl }) {
+function TutorialSheet({ open, onClose, chainName, onCs }) {
   const { t, i18n } = useTranslation()
   const { settings } = useStore()
   // instructions + picture edited in Ralulu Hub (Store Profile); empty = the built-in tutorial
@@ -58,7 +59,7 @@ function TutorialSheet({ open, onClose, chainName, csUrl }) {
       {customImage ? <img data-testid="tutorial-image" src={img(customImage)} alt={t('checkout.example')} loading="lazy" onError={onImgError} style={{ display: 'block', width: '100%', maxWidth: 360, margin: '0 auto', borderRadius: 12 }} /> : <ReceiptArt />}
       {!customImage && <span style={{ display: 'block', textAlign: 'center', fontSize: 12, color: 'var(--color-text-2)', marginTop: 4 }}>{t('checkout.example_note')}</span>}
       <p style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.6 }}>
-        {t('checkout.tut_no_receipt')} <a href={csUrl} target="_blank" rel="noreferrer">{t('checkout.tut_ask_cs')}</a>.
+        {t('checkout.tut_no_receipt')} <button type="button" onClick={onCs} style={{ ...asBtn, display: 'inline', color: 'inherit', textDecoration: 'underline' }}>{t('checkout.tut_ask_cs')}</button>.
       </p>
     </Sheet>
   )
@@ -168,13 +169,13 @@ function LogoBox({ type }) {
   )
 }
 
-function Header({ title, onBack, csUrl }) {
+function Header({ title, onBack, onCs }) {
   const { t } = useTranslation()
   return (
     <header style={{ height: 58, display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
       <button type="button" aria-label={t('common.back')} onClick={onBack} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
       <h1 style={{ margin: 0, flex: 1, fontSize: 17, fontWeight: 700 }}>{title}</h1>
-      <a href={csUrl} target="_blank" rel="noreferrer" style={{ minHeight: 36, padding: '0 12px', borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}><IconHeadset size={16} />{t('co.cs')}</a>
+      <button type="button" onClick={onCs} style={{ ...asBtn, minHeight: 36, padding: '0 12px', borderRadius: 18, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}><IconHeadset size={16} />{t('co.cs')}</button>
     </header>
   )
 }
@@ -222,7 +223,7 @@ const pillBtn = (kind) => ({ minHeight: 44, padding: '0 18px', borderRadius: 22,
   ...(kind === 'primary' ? { background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none' } : kind === 'dark' ? { background: 'var(--color-text)', color: '#FFFFFF', border: 'none' } : { background: 'transparent', color: 'var(--color-text)', border: '1.5px solid var(--color-text)' }) })
 
 // ---- store search screen (number or name) ----
-function StoreScreen({ chain, onPick, csUrl, last, setLast }) {
+function StoreScreen({ chain, onPick, onCs, last, setLast }) {
   const { t } = useTranslation()
   const chainName = chainLabel(chain)
   const [q, setQ] = useState(last || '')
@@ -325,7 +326,7 @@ function StoreScreen({ chain, onPick, csUrl, last, setLast }) {
           </ol>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, borderTop: '1px dashed var(--color-border-strong)' }}>
             <span style={{ fontSize: 13 }}>{t('co.nf_cs_note')}</span>
-            <a href={csUrl} target="_blank" rel="noreferrer" style={{ ...pillBtn('dark'), minHeight: 48, borderRadius: 24 }}><IconHeadset size={16} />{t('co.nf_cs_btn')}</a>
+            <button type="button" onClick={onCs} style={{ ...asBtn, ...pillBtn('dark'), minHeight: 48, borderRadius: 24 }}><IconHeadset size={16} />{t('co.nf_cs_btn')}</button>
           </div>
           <button type="button" onClick={() => { setStatus('idle'); setQ('') }} style={{ ...pillBtn('primary'), minHeight: 50, borderRadius: 25 }}>{t('co.retype')}</button>
         </section>
@@ -339,7 +340,7 @@ function StoreScreen({ chain, onPick, csUrl, last, setLast }) {
             <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.6 }}>{t('co.fail_text', { chain: chainName })}</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 4 }}>
               <button type="button" onClick={search} style={pillBtn('primary')}>{t('co.retry')}</button>
-              <a href={csUrl} target="_blank" rel="noreferrer" style={pillBtn('dark')}><IconHeadset size={16} />{t('co.ask_cs')}</a>
+              <button type="button" onClick={onCs} style={{ ...asBtn, ...pillBtn('dark') }}><IconHeadset size={16} />{t('co.ask_cs')}</button>
             </div>
           </div>
         </section>
@@ -352,9 +353,9 @@ function StoreScreen({ chain, onPick, csUrl, last, setLast }) {
       </button>
       <div style={{ margin: '12px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
         <button type="button" data-home onClick={() => onPick(null, 'home')} style={{ minHeight: 44, borderRadius: 22, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', cursor: 'pointer' }}>{t('co.to_home')}</button>
-        <a href={csUrl} target="_blank" rel="noreferrer" style={{ minHeight: 44, borderRadius: 22, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>{t('co.cs_find')}</a>
+        <button type="button" onClick={onCs} style={{ ...asBtn, minHeight: 44, borderRadius: 22, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>{t('co.cs_find')}</button>
       </div>
-      <TutorialSheet open={tutorial} onClose={() => setTutorial(false)} chainName={chainName} csUrl={csUrl} />
+      <TutorialSheet open={tutorial} onClose={() => setTutorial(false)} chainName={chainName} onCs={onCs} />
     </>
   )
 }
@@ -364,6 +365,7 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { desktop } = useOutletContext()
   const cart = useCart()
+  const { openCs } = useCs()
   const { settings, chainId, chainFee, threshold, freeShip } = useStore()
   const [s, setS] = useState(loadState)
   const { me, signedIn } = useMember()
@@ -402,8 +404,8 @@ export default function Checkout() {
   useEffect(() => { if (quote?.promotion_error && s.coupon) set({ coupon: '' }) }, [quote]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const chainName = chainLabel(s.method)
-  const csUrl = waUrl(settings.whatsapp_number, storeHelpText(i18n.language, chainName || 'CVS', lastQuery))
-  const helpUrl = waUrl(settings.whatsapp_number, storeHelpText(i18n.language, 'checkout', ''))
+  // every CS button on the checkout sends the same message: what is in the cart (no prices), CS confirms the shipping method
+  const askCs = () => openCs(cartText(items))
 
   const phoneOk = isTwMobile(s.phone)
   const emailOk = !s.email.trim() || /^\S+@\S+\.\S+$/.test(s.email.trim())
@@ -462,7 +464,11 @@ export default function Checkout() {
       if (s.coupon) markUsed(s.coupon)
       cart.removeSelected()
       try { sessionStorage.removeItem(KEY) } catch { /* ignore */ }
-      navigate('/checkout/success', { replace: true, state: { order: res, chain: chainName, store: cvs ? s.store : null, home, name: s.name, method: s.method } })
+      navigate('/checkout/success', { replace: true, state: {
+        order: res, chain: chainName, store: cvs ? s.store : null, home, name: s.name, method: s.method,
+        // what the "order confirmed" message to CS lists
+        phone: normPhone(s.phone), address: home ? s.address.trim() : '', items,
+      } })
     } catch (e) {
       if (e.status === 409 || e.status === 400) { setSubmit('conflict'); setSubmitMsg(e.message) } else setSubmit('fail')
     }
@@ -475,7 +481,7 @@ export default function Checkout() {
   }
 
   if (items.length === 0 && submit !== 'sending') {
-    return <div><Header title={t('co.title')} onBack={() => navigate('/cart')} csUrl={helpUrl} /><EmptyState title={t('checkout.empty')} text={t('checkout.empty_text')} action={<Link to="/cart" style={{ ...btnPrimary, marginTop: 8 }}>{t('checkout.to_cart')}</Link>} /></div>
+    return <div><Header title={t('co.title')} onBack={() => navigate('/cart')} onCs={askCs} /><EmptyState title={t('checkout.empty')} text={t('checkout.empty_text')} action={<Link to="/cart" style={{ ...btnPrimary, marginTop: 8 }}>{t('checkout.to_cart')}</Link>} /></div>
   }
 
   // ---- screens ----
@@ -490,7 +496,7 @@ export default function Checkout() {
           <span style={{ fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.6 }}>{t('co.logistics_fail_text')}</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 4 }}>
             <button type="button" onClick={() => window.location.reload()} style={pillBtn('primary')}>{t('co.reload')}</button>
-            <a href={helpUrl} target="_blank" rel="noreferrer" style={pillBtn('dark')}><IconHeadset size={16} />{t('co.ask_cs')}</a>
+            <button type="button" onClick={askCs} style={{ ...asBtn, ...pillBtn('dark') }}><IconHeadset size={16} />{t('co.ask_cs')}</button>
           </div>
         </div>
       ) : (
@@ -564,7 +570,7 @@ export default function Checkout() {
   let body
   let bar
   if (s.view === 'store' && cvs) {
-    body = <StoreScreen chain={s.method} csUrl={csUrl} last={lastQuery} setLast={setLastQuery} onPick={storePicked} />
+    body = <StoreScreen chain={s.method} onCs={askCs} last={lastQuery} setLast={setLastQuery} onPick={storePicked} />
     bar = <BottomBar total={total} hint={t('co.search_first')} label={t('co.use_this_store')} disabled onClick={() => {}} />
   } else if (s.step === 1) {
     const errs = tried ? step1Errors : []
@@ -641,7 +647,7 @@ export default function Checkout() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {submit === 'fail' && <button type="button" onClick={place} style={pillBtn('primary')}>{t('co.resend')}</button>}
               <button type="button" onClick={() => toStep(2)} style={pillBtn('outline')}>{t('co.back_edit')}</button>
-              <a href={helpUrl} target="_blank" rel="noreferrer" style={pillBtn('dark')}><IconHeadset size={16} />{t('co.ask_cs')}</a>
+              <button type="button" onClick={askCs} style={{ ...asBtn, ...pillBtn('dark') }}><IconHeadset size={16} />{t('co.ask_cs')}</button>
             </div>
           </div>
         )}
@@ -692,7 +698,7 @@ export default function Checkout() {
   const titleText = s.view === 'store' ? t('co.pick_store_title') : s.step === 3 ? t('co.review_title') : t('co.title')
   return (
     <div style={{ paddingBottom: 140 }}>
-      <Header title={titleText} onBack={back} csUrl={helpUrl} />
+      <Header title={titleText} onBack={back} onCs={askCs} />
       <div style={{ maxWidth: desktop ? 640 : 'none', margin: '0 auto' }}>
         <Steps current={s.step} />
         {body}

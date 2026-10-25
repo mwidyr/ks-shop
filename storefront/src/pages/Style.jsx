@@ -3,8 +3,7 @@ import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { CONTENT_LANGS, contentHref, getContentList, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
-import { IconSearch } from '../components/Icons'
-import { EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
+import { EmptyState, ErrorState, PageHeader, Skeleton } from '../components/ui'
 
 // Style journal: topics + articles (SEO pages under /style/...), filter by label.
 export default function Style() {
@@ -39,7 +38,7 @@ export default function Style() {
   const pill = (on) => ({ flex: 'none', height: 34, padding: '0 14px', borderRadius: 17, fontSize: 13, display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'content-box', ...(on ? { background: 'var(--color-text)', color: '#FFFFFF', fontWeight: 700, border: 'none' } : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }) })
   return (
     <div style={{ paddingBottom: 130 }}>
-      <PageHeader title={t('style.title')} to="/" right={<Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link>} />
+      <PageHeader title={t('style.title')} to="/" />
       {counts && CONTENT_LANGS.filter((l) => counts[l] > 0).length > 1 && (
         <div className="no-scrollbar" role="group" aria-label={t('style.lang_filter')} style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: `12px ${px}px 0` }}>
           <button type="button" aria-pressed={!chosen} onClick={() => pickLang('')} style={pill(!chosen)}>{t('style.lang_all')}</button>

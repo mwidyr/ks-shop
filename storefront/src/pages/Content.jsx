@@ -7,7 +7,7 @@ import { fullDate } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useArticleFavs } from '../lib/articleFavs'
 import { HostCard } from '../components/HostCard'
-import { IconHeart, IconMenu, IconSearch, IconShare } from '../components/Icons'
+import { IconHeart, IconShare } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
 import { EmptyState, ErrorState, iconBtn, PageHeader, SectionHead, Skeleton, btnPrimary } from '../components/ui'
 
@@ -102,7 +102,7 @@ export default function Content() {
   const dateDots = (iso) => fullDate(iso).replace(/\//g, '.')
   const isSaved = saved.has(page.slug)
   const right = topic || hostArt
-    ? <><Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link><Link to="/menu" aria-label={t('menu.title')} style={iconBtn}><IconMenu /></Link></>
+    ? null // the pinned main header already has search + menu
     : <>
         <button type="button" aria-label={t('style.share')} onClick={() => navigator.share?.({ title: page.title, url: window.location.href }).catch(() => {})} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconShare size={20} /></button>
         <button type="button" aria-label={t('style.save')} aria-pressed={isSaved} onClick={() => saved.toggle(page)} style={{ ...iconBtn, border: 'none', background: 'none', color: isSaved ? 'var(--color-live)' : 'var(--color-text)' }}><IconHeart size={20} filled={isSaved} /></button>

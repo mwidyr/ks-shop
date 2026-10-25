@@ -16,6 +16,7 @@ export default {
   strip: { cs: '✓ 客服協助下單', free_ship: '✓ 滿 {{amount}} 免運', pickup: '✓ 7-ELEVEN・全家 取貨' },
   freebar: { remaining: '再買 {{amount}} 即可免運', reached: '恭喜！此訂單享免運。', to_cart: '前往購物車 ›' },
   fab: { online: '客服在線', tip: '不確定尺寸？不知怎麼下單？', aria: '聯絡客服' },
+  cs: { sheet_title: '聯絡客服', sheet_hint: '選擇聊天軟體', preview: '將傳送的訊息', open_in: '開啟 {{app}}', open_service: '用 {{app}} 聯絡客服' },
   home: {
     hero_eyebrow: 'AUTUMN EDIT', hero_title: '秋季新品', hero_sub: '本週上架', hero_cta: '立即選購 ›',
     hero_alt: '秋季新品主視覺',

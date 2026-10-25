@@ -5,8 +5,7 @@ import { useCoupons } from '../lib/coupons'
 import { useCart } from '../lib/cart'
 import { money } from '../lib/format'
 import { useSeo } from '../lib/seo'
-import { IconMenu, IconSearch } from '../components/Icons'
-import { EmptyState, PageHeader, iconBtn } from '../components/ui'
+import { EmptyState, PageHeader } from '../components/ui'
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`
@@ -40,15 +39,9 @@ export default function Coupons() {
     const left = Math.round((dayStart(d) - dayStart(now)) / 86400000)
     return left <= 3 ? t('coupons.ends_soon', { date: `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`, n: left }) : t('coupons.ends', { date: ymd(d) })
   }
-  const right = (
-    <>
-      <Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link>
-      <Link to="/menu" aria-label={t('menu.title')} style={iconBtn}><IconMenu /></Link>
-    </>
-  )
   return (
     <div style={{ paddingBottom: 130 }}>
-      <PageHeader title={t('coupons.title')} to="/member" right={right} height={58} gap={8} />
+      <PageHeader title={t('coupons.title')} to="/member" height={58} gap={8} />
       <div style={{ margin: '12px 16px 0', display: 'flex', gap: 8 }}>
         <label style={{ flex: 1, minHeight: 48, borderRadius: 24, border: '1.5px solid var(--color-border-strong)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
           <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder={t('coupons.claim_ph')} aria-label={t('coupons.code_label')} style={{ border: 'none', outline: 'none', width: '100%', fontSize: 15, background: 'transparent', fontFamily: 'inherit' }} />

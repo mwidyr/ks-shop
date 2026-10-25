@@ -7,21 +7,24 @@ import { useSearchParams } from 'react-router-dom'
 import { money, orderTab, shortDate } from '../lib/format'
 import { listLocalOrders, saveLocalOrder } from '../lib/localOrders'
 import { useSeo } from '../lib/seo'
-import { useStore } from '../lib/store'
-import { orderText, waUrl } from '../lib/wa'
-import { btnDark, EmptyState, Field, inputStyle, PageHeader, Spinner } from '../components/ui'
+import { orderQuestionText } from '../lib/wa'
+import { normPhone } from '../lib/phone'
+import { useCs } from '../lib/cs'
+import { asBtn, btnDark, EmptyState, Field, inputStyle, PageHeader, Spinner } from '../components/ui'
 
 const TABS = ['all', 'pending', 'processing', 'shipping', 'done', 'return']
 
 export default function Orders() {
   const { t, i18n } = useTranslation()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const { signedIn } = useMember()
   const [sp] = useSearchParams()
   const [tab, setTab] = useState(TABS.includes(sp.get('tab')) ? sp.get('tab') : 'all')
   const [orders, setOrders] = useState(null)
   const [no, setNo] = useState('')
   const [phone, setPhone] = useState('')
+  // "Ask CS" / "Change order": order number + customer + phone
+  const askCs = (o) => openCs(orderQuestionText({ orderNo: o.order_no, name: o.customer_name, phone: normPhone(o.phone) }))
   const [err, setErr] = useState('')
   useSeo({ title: t('orders.title'), noindex: true })
 
@@ -106,8 +109,8 @@ export default function Orders() {
                 </>
               ) : (
                 <>
-                  <a href={waUrl(settings.whatsapp_number, orderText(i18n.language, o.order_no))} target="_blank" rel="noreferrer" style={btn}>{t('orders.ask_cs')}</a>
-                  {tabKey === 'processing' && <a href={waUrl(settings.whatsapp_number, orderText(i18n.language, o.order_no))} target="_blank" rel="noreferrer" style={btn}>{t('orders.change')}</a>}
+                  <button type="button" onClick={() => askCs(o)} style={{ ...asBtn, ...btn }}>{t('orders.ask_cs')}</button>
+                  {tabKey === 'processing' && <button type="button" onClick={() => askCs(o)} style={{ ...asBtn, ...btn }}>{t('orders.change')}</button>}
                   {tabKey === 'shipping' && <Link to={`/orders/${o.order_no}`} style={btnMain}>{t('orders.track')}</Link>}
                   {tabKey === 'pending' && <Link to={`/orders/${o.order_no}`} style={btnMain}>{t('orders.detail')}</Link>}
                   {tabKey === 'return' && <Link to={`/orders/${o.order_no}`} style={btnMain}>{t('orders.progress')}</Link>}

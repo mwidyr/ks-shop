@@ -7,13 +7,13 @@ import { listClaimed, saveClaimed } from '../lib/claimed'
 import { downloadLiveReminder } from '../lib/ics'
 import { duration, formatNumber, fullDate, money, shortDate } from '../lib/format'
 import { useSeo } from '../lib/seo'
-import { useStore } from '../lib/store'
-import { topicText, waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 import { whenLabel } from '../lib/when'
 import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
-import { IconCheck, IconMenu, IconPlay, IconSearch, IconTiktok } from '../components/Icons'
+import { IconCheck, IconPlay, IconTiktok } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
-import { btnOutline, btnPrimary, Chip, EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
+import { asBtn, btnOutline, btnPrimary, Chip, EmptyState, ErrorState, PageHeader, Skeleton } from '../components/ui'
 import { IconWhatsApp } from '../components/Icons'
 
 export default function Host() {
@@ -21,7 +21,7 @@ export default function Host() {
   const { t, i18n } = useTranslation()
   const { desktop } = useOutletContext()
   const cart = useCart()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const [d, setD] = useState(null)
   const [state, setState] = useState('loading')
   const [cat, setCat] = useState('all')
@@ -62,7 +62,7 @@ export default function Host() {
       try {
         const p = await getProduct(it.product_id)
         const v = p.variants?.find((x) => x.id === it.variant_id)
-        if (v && v.stock > 0) cart.add({ variantId: v.id, productId: p.id, name: p.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: p.images?.[0] || '', liveCode: p.live_code }, 1, true)
+        if (v && v.stock > 0) cart.add({ variantId: v.id, productId: p.id, name: p.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: p.images?.[0] || '', code: p.sku, liveCode: p.live_code }, 1, true)
       } catch { /* skipped */ }
     }
     cart.showToast('added')
@@ -104,7 +104,7 @@ export default function Host() {
 
   return (
     <div style={{ paddingBottom: 0 }}>
-      {!desktop && <PageHeader title={host.name} to="/hosts" height={58} gap={8} right={<><Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link><Link to="/menu" aria-label={t('menu.title')} style={iconBtn}><IconMenu /></Link></>} />}
+      {!desktop && <PageHeader title={host.name} to="/hosts" height={58} gap={8} />}
       <div style={{ position: 'relative', height: desktop ? 300 : 230 }}>
         <img src={sized(img(host.cover_url || host.avatar_url), 1200)} alt="" fetchpriority="high" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 30%', background: 'var(--color-bg-soft)' }} />
         <span style={{ position: 'absolute', inset: 0, background: 'rgba(30,30,35,0.25)' }} />
@@ -249,7 +249,7 @@ export default function Host() {
 
       <section style={{ margin: `24px ${px}px 0`, padding: 16, borderRadius: 18, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}><b style={{ fontSize: 15 }}>{t('host.cs_q', { name: host.name })}</b><span style={{ fontSize: 12, color: 'var(--color-border)' }}>{t('host.cs_t')}</span></span>
-        <a href={waUrl(settings.whatsapp_number, `${topicText(i18n.language, 'order')}\n${host.name}`)} target="_blank" rel="noreferrer" style={{ minHeight: 44, padding: '0 18px', borderRadius: 22, background: '#1FA855', color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' }}><IconWhatsApp size={18} stroke="#FFFFFF" />{t('common.ask_cs')}</a>
+        <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ minHeight: 44, padding: '0 18px', borderRadius: 22, background: '#1FA855', color: '#FFFFFF', fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none', boxSizing: 'border-box' } }}><IconWhatsApp size={18} stroke="#FFFFFF" />{t('common.ask_cs')}</button>
       </section>
       <div style={{ height: 130 }} />
       <span hidden><HostCard h={host} /></span>

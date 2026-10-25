@@ -5,9 +5,10 @@ import { useCart } from '../lib/cart'
 import { money } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { cartText, waUrl } from '../lib/wa'
-import { IconBack, IconCheck, IconMenu, IconSearch, IconWhatsApp } from '../components/Icons'
-import { btnPrimary, EmptyState, iconBtn } from '../components/ui'
+import { cartText } from '../lib/wa'
+import { useCs } from '../lib/cs'
+import { IconBack, IconCheck, IconHeadset } from '../components/Icons'
+import { asBtn, btnPrimary, EmptyState, iconBtn } from '../components/ui'
 
 function Box({ on, onClick, label }) {
   return (
@@ -19,11 +20,12 @@ function Box({ on, onClick, label }) {
 }
 
 export default function Cart() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { desktop } = useOutletContext()
   const cart = useCart()
-  const { settings, freeShip } = useStore()
+  const { freeShip } = useStore()
+  const { openCs } = useCs()
   useSeo({ title: t('nav.cart'), noindex: true })
   const f = freeShip(cart.selectedSubtotal)
   const allOn = cart.items.length > 0 && cart.items.every((i) => i.selected !== false)
@@ -33,9 +35,6 @@ export default function Cart() {
     <header style={{ height: 58, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
       <button type="button" aria-label={t('common.back')} onClick={() => navigate(-1)} style={{ ...iconBtn, border: 'none', background: 'none' }}><IconBack /></button>
       <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{t('cart.title', { n: cart.count })}</h1>
-      <span style={{ flex: 1 }} />
-      <Link to="/search" aria-label={t('nav.search_aria')} style={iconBtn}><IconSearch size={20} /></Link>
-      <Link to="/menu" aria-label={t('nav.menu')} style={iconBtn}><IconMenu /></Link>
     </header>
   )
 
@@ -45,7 +44,8 @@ export default function Cart() {
     )
   }
 
-  const askCs = waUrl(settings.whatsapp_number, cartText(i18n.language, cart.selected, cart.selectedSubtotal))
+  // "Ask CS to order for me": the ticked items (code - name - colour - size × qty), no prices
+  const askCs = () => openCs(cartText(cart.selected))
   const barBase = { position: desktop ? 'static' : 'fixed', left: 0, right: 0, bottom: 0, zIndex: 35, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: desktop ? 'none' : 560, margin: '0 auto', boxSizing: 'border-box' }
 
   return (
@@ -94,8 +94,8 @@ export default function Cart() {
       <div style={{ ...barBase, padding: '12px 16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{t('cart.selected_total', { n: cart.selectedCount })}</span><b style={{ fontSize: 20 }}>{money(cart.selectedSubtotal)}</b></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-          <a href={none ? undefined : askCs} target="_blank" rel="noreferrer" aria-disabled={none}
-            style={{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, background: '#1FA855', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none', textAlign: 'center', opacity: none ? 0.4 : 1, pointerEvents: none ? 'none' : 'auto' }}><IconWhatsApp size={18} stroke="#FFFFFF" />{t('cart.ask_cs_order')}</a>
+          <button type="button" disabled={none} onClick={askCs}
+            style={{ ...asBtn, ...{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, background: 'var(--color-text)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none', textAlign: 'center', opacity: none ? 0.4 : 1 } }}><IconHeadset size={18} stroke="#FFFFFF" />{t('cart.ask_cs_order')}</button>
           <button type="button" disabled={none} onClick={() => navigate('/checkout')}
             style={{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, border: 'none', background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', ...(none ? { background: 'var(--color-border)', color: 'var(--color-disabled)', cursor: 'not-allowed' } : {}) }}>{t('cart.checkout')}</button>
         </div>

@@ -6,12 +6,14 @@ import FreeShipBar from './FreeShipBar'
 import { useStore } from '../lib/store'
 import { img } from '../lib/api'
 import { useDesktop } from '../hooks/useMedia'
-import { waUrl, topicText } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { asBtn } from './ui'
 import BottomNav from './BottomNav'
 import CsFab from './CsFab'
 import LangBar from './LangBar'
 import Toast from './Toast'
 import { QuickAddProvider } from './QuickAdd'
+import { CsProvider, useCs } from '../lib/cs'
 import { IconCart, IconHeadset, IconMenu, IconSearch, IconUser } from './Icons'
 
 // Brand mark: the logo uploaded in the admin (Theme & Appearance) or, without one, the text wordmark.
@@ -58,9 +60,9 @@ const iconLink = { width: 44, height: 44, display: 'flex', alignItems: 'center',
 
 // Desktop header (≥1024): logo, text navigation, search, CS, cart, menu.
 export function DesktopHeader() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { count } = useCart()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const link = ({ isActive }) => ({ fontSize: 15, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--color-primary-strong)' : 'var(--color-text)', textDecoration: 'none' })
   return (
     <header style={{ height: 72, display: 'flex', alignItems: 'center', gap: 28, padding: '0 40px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 40 }}>
@@ -75,9 +77,9 @@ export function DesktopHeader() {
       <Link to="/search" style={{ flex: 1, minHeight: 46, borderRadius: 23, border: '1.5px solid var(--color-border-strong)', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', color: 'var(--color-text-2)', fontSize: 15, textDecoration: 'none' }}>
         <IconSearch size={20} />{t('search.placeholder_short')}
       </Link>
-      <a href={waUrl(settings.whatsapp_number, topicText(i18n.language, 'other'))} target="_blank" rel="noreferrer" style={{ minHeight: 46, padding: '0 18px', borderRadius: 23, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>
+      <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ minHeight: 46, padding: '0 18px', borderRadius: 23, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}>
         <IconHeadset size={20} />{t('nav.cs')}
-      </a>
+      </button>
       <Link to="/cart" aria-label={t('nav.cart')} style={{ position: 'relative', width: 46, height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)' }}>
         <IconCart />
         {count > 0 && <span style={{ position: 'absolute', top: 4, right: 2, minWidth: 18, height: 18, borderRadius: 9, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{count}</span>}
@@ -150,6 +152,7 @@ export default function Layout() {
   const showBar = !desktop && pathname === '/' && count > 0 && threshold > 0
 
   return (
+    <CsProvider>
     <QuickAddProvider>
       <div style={{ minHeight: '100vh', background: 'var(--color-bg)', '--hdr-h': bare || desktop ? '0px' : `calc(${HDR_H}px + env(safe-area-inset-top))` }}>
         {!bare && desktop && <LangBar />}
@@ -173,5 +176,6 @@ export default function Layout() {
         <Toast />
       </div>
     </QuickAddProvider>
+    </CsProvider>
   )
 }

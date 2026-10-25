@@ -16,6 +16,7 @@ export default {
   strip: { cs: '✓ CS helps you order', free_ship: '✓ Free shipping over {{amount}}', pickup: '✓ Pick up at 7-ELEVEN・FamilyMart' },
   freebar: { remaining: 'Spend {{amount}} more for free shipping', reached: 'Congrats! This order ships free.', to_cart: 'Go to cart ›' },
   fab: { online: 'CS online', tip: 'Unsure about size or how to order?', aria: 'Contact CS' },
+  cs: { sheet_title: 'Contact CS', sheet_hint: 'Choose a chat app', preview: 'Message that will be sent', open_in: 'Open {{app}}', open_service: 'Open CS on {{app}}' },
   home: {
     hero_eyebrow: 'AUTUMN EDIT', hero_title: 'Autumn collection', hero_sub: 'New this week', hero_cta: 'Shop now ›',
     hero_alt: 'Autumn collection key visual',

@@ -7,15 +7,15 @@ import { useFavorites } from '../lib/favorites'
 import { discountPct, money, shortDate } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
-import { productText, waUrl } from '../lib/wa'
+import { productText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 import { HostCard } from '../components/HostCard'
 import RestockSheet from '../components/RestockSheet'
-import WaSheet from '../components/WaSheet'
 import { useProfile, suggestSize } from '../lib/profile'
 import { getReviews } from '../lib/api'
 import Stars from '../components/Stars'
 import { IconCheck, IconChevDown, IconHeadphones, IconHeart, IconPlay, IconChat, IconShare } from '../components/Icons'
-import { btnOutline, btnPrimary, EmptyState, ErrorState, Field, inputStyle, Sheet, Skeleton } from '../components/ui'
+import { asBtn, btnOutline, btnPrimary, EmptyState, ErrorState, Field, inputStyle, Sheet, Skeleton } from '../components/ui'
 import { blankSize } from '../components/QuickAdd'
 
 function Checkbox({ on, disabled, onClick, label }) {
@@ -63,7 +63,8 @@ export default function Product() {
   const { desktop } = useOutletContext()
   const cart = useCart()
   const { has, toggle } = useFavorites()
-  const { settings, freeShip } = useStore()
+  const { freeShip } = useStore()
+  const { openCs } = useCs()
   const [p, setP] = useState(null)
   const [error, setError] = useState(null)
   const [media, setMedia] = useState(0)
@@ -73,7 +74,6 @@ export default function Product() {
   const [sizeSheet, setSizeSheet] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
   const [restockOpen, setRestockOpen] = useState(false)
-  const [waOpen, setWaOpen] = useState(false)
   const [looks, setLooks] = useState({}) // productId -> { product, on, variantId }
   const [reviews, setReviews] = useState(null)
   const { profile } = useProfile()
@@ -120,12 +120,13 @@ export default function Product() {
   const mediaCount = gallery.length + (hasVideo ? 1 : 0)
   const mainImg = gallery[Math.min(media, Math.max(gallery.length - 1, 0))]
   const shareUrl = `${window.location.origin}/p/${p.id}`
-  const askText = productText(i18n.language, { name: p.name, code: p.live_code, color, size, url: shareUrl })
+  // the sheet's message: product code + name + link (the colour / size of a cart line is only added from Quick Add)
+  const askText = productText({ code: p.sku, name: p.name, url: shareUrl })
 
   function addToCart() {
     setTried(true)
     if (!chosen || chosen.stock <= 0) return
-    cart.add({ variantId: chosen.id, productId: p.id, name: p.name, color: chosen.color, size: chosen.size, price: chosen.price, stock: chosen.stock, image: gallery[0] || '', liveCode: p.live_code })
+    cart.add({ variantId: chosen.id, productId: p.id, name: p.name, color: chosen.color, size: chosen.size, price: chosen.price, stock: chosen.stock, image: gallery[0] || '', code: p.sku, liveCode: p.live_code })
   }
 
   // Buy together: this product (needs a size) + every ticked look item that has a size chosen.
@@ -139,7 +140,7 @@ export default function Product() {
     addToCart()
     lookReady.forEach(([, s]) => {
       const v = s.product?.variants?.find((x) => x.id === s.variantId)
-      if (v) cart.add({ variantId: v.id, productId: s.product.id, name: s.product.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: s.product.images?.[0] || '', liveCode: s.product.live_code }, 1, true)
+      if (v) cart.add({ variantId: v.id, productId: s.product.id, name: s.product.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: s.product.images?.[0] || '', code: s.product.sku, liveCode: s.product.live_code }, 1, true)
     })
   }
 
@@ -213,14 +214,14 @@ export default function Product() {
           if (!profile.height && p.wear?.length) return <Link to="/profile" style={{ fontSize: 12, color: 'var(--color-primary-strong)' }}>{t('size_rec.set')} · {t('size_rec.set_cta')}</Link>
           return null
         })()}
-        <a href={waUrl(settings.whatsapp_number, askText)} onClick={(e) => { e.preventDefault(); setWaOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, background: 'var(--color-bg-soft)', border: '1.5px solid var(--color-secondary)', textDecoration: 'none', color: 'var(--color-text)' }}>
+        <button type="button" onClick={() => openCs(askText)} style={{ ...asBtn, ...{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, background: 'var(--color-bg-soft)', border: '1.5px solid var(--color-secondary)', textDecoration: 'none', color: 'var(--color-text)', textAlign: 'left', width: '100%', fontFamily: 'inherit' } }}>
           <span style={{ width: 36, height: 36, borderRadius: 18, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', color: 'var(--color-on-primary)' }}><IconHeadphones size={18} /></span>
           <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <b style={{ fontSize: 15 }}>{t('product.cs_order')}</b>
             <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{p.live_code ? t('product.cs_order_sub', { code: p.live_code }) : t('product.cs_order_sub_plain')}</span>
           </span>
           <span style={{ fontSize: 17 }}>›</span>
-        </a>
+        </button>
       </section>
 
       {p.looks?.length > 0 && (
@@ -323,7 +324,7 @@ export default function Product() {
           <div>
             {info}
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <a href={waUrl(settings.whatsapp_number, askText)} target="_blank" rel="noreferrer" style={{ ...btnOutline, borderRadius: 12, padding: '0 22px' }}><IconChat size={18} />{t('product.ask_cs_bar')}</a>
+              <button type="button" onClick={() => openCs(askText)} style={{ ...asBtn, ...{ ...btnOutline, borderRadius: 12, padding: '0 22px' } }}><IconChat size={18} />{t('product.ask_cs_bar')}</button>
               {totalStock > 0 ? <button type="button" onClick={addToCart} style={{ ...btnPrimary, flex: 1, borderRadius: 12 }}>{t('common.add_to_cart')}</button>
                 : <button type="button" onClick={() => setRestockOpen(true)} style={{ ...btnPrimary, flex: 1, borderRadius: 12 }}>{t('product.restock')}</button>}
               <button type="button" aria-pressed={fav} aria-label={t('product.favorite')} onClick={() => toggle({ id: p.id, price: p.price, name: p.name, image: gallery[0] })} style={{ width: 48, height: 48, borderRadius: 12, border: '1.5px solid var(--color-border-strong)', background: 'var(--color-surface)', color: fav ? 'var(--color-live)' : 'var(--color-text)' }}><IconHeart filled={fav} /></button>
@@ -335,7 +336,7 @@ export default function Product() {
           {gal}
           {info}
           <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 76, padding: '12px 16px', boxSizing: 'border-box', background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', display: 'flex', gap: 10, zIndex: 35, maxWidth: 560, margin: '0 auto' }}>
-            <a href={waUrl(settings.whatsapp_number, askText)} onClick={(e) => { e.preventDefault(); setWaOpen(true) }} style={{ flex: 'none', width: 104, borderRadius: 12, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}><IconChat size={18} />{t('product.ask_cs_bar')}</a>
+            <button type="button" onClick={() => openCs(askText)} style={{ ...asBtn, ...{ flex: 'none', width: 104, borderRadius: 12, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}><IconChat size={18} />{t('product.ask_cs_bar')}</button>
             {totalStock > 0
               ? <button type="button" onClick={addToCart} style={{ flex: 1, borderRadius: 12, background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none', fontSize: 15, fontWeight: 700 }}>{t('common.add_to_cart')}</button>
               : <button type="button" onClick={() => setRestockOpen(true)} style={{ flex: 1, borderRadius: 12, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontSize: 15, fontWeight: 700 }}>{t('product.restock')}</button>}
@@ -392,7 +393,6 @@ export default function Product() {
           </>
         )}
       </Sheet>
-      <WaSheet open={waOpen} onClose={() => setWaOpen(false)} title={t('product.wa_title')} subtitle={t('product.wa_hint')} message={askText} url={waUrl(settings.whatsapp_number, askText)} number={settings.whatsapp_number} preview={{ image: gallery[0], title: `${p.name} | ${settings.shop_name || 'ralulu'}`, link: shareUrl.replace(/^https?:\/\//, '') }} note={t('product.wa_note')} />
       <RestockSheet open={restockOpen} onClose={() => setRestockOpen(false)} productId={p.id} variantId={chosen?.id} />
         </div>
   )

@@ -3,12 +3,12 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getHosts, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
-import { useStore } from '../lib/store'
-import { storeHelpText, waUrl } from '../lib/wa'
+import { greetingText } from '../lib/wa'
+import { useCs } from '../lib/cs'
 import { whenLabel } from '../lib/when'
 import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
-import { IconArrowRight, IconCart, IconMenu, IconSearch } from '../components/Icons'
-import { btnDark, btnOutline, EmptyState, ErrorState, iconBtn, PageHeader, Skeleton } from '../components/ui'
+import { IconArrowRight, IconCart, IconSearch } from '../components/Icons'
+import { asBtn, btnDark, btnOutline, EmptyState, ErrorState, PageHeader, Skeleton } from '../components/ui'
 
 // brand red of the "View Host's Picks" button (client-specified, white text)
 const HOST_PICKS_BG = '#9E1B46'
@@ -16,7 +16,7 @@ const HOST_PICKS_BG = '#9E1B46'
 export default function Hosts() {
   const { t, i18n } = useTranslation()
   const { desktop } = useOutletContext()
-  const { settings } = useStore()
+  const { openCs } = useCs()
   const [all, setAll] = useState(null)
   const [error, setError] = useState(false)
   const [q, setQ] = useState('')
@@ -41,7 +41,7 @@ export default function Hosts() {
 
   return (
     <div style={{ paddingBottom: 130 }}>
-      <PageHeader title={t('hosts.title')} to="/categories" height={58} gap={8} right={<><Link to="/search" aria-label={t('common.search')} style={iconBtn}><IconSearch size={20} /></Link><Link to="/menu" aria-label={t('menu.title')} style={iconBtn}><IconMenu /></Link></>} />
+      <PageHeader title={t('hosts.title')} to="/categories" height={58} gap={8} />
       <label style={{ margin: '12px 16px 0', minHeight: 50, borderRadius: 25, background: 'var(--color-surface)', border: '1.5px solid var(--color-border-strong)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', color: 'var(--color-text-2)' }}>
         <IconSearch size={18} /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('hosts.search')} aria-label={t('hosts.search_aria')} style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 15, color: 'var(--color-text)', fontFamily: 'inherit' }} />
       </label>
@@ -59,7 +59,7 @@ export default function Hosts() {
             {near.length > 0 && <span style={{ fontSize: 14 }}>{t('hosts.mean')} {near.map((h) => <Link key={h.id} to={`/hosts/${h.slug}`} style={{ marginLeft: 8, fontWeight: 700 }}>{h.name}</Link>)}</span>}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button type="button" onClick={() => { setQ(''); setFilter('all') }} style={{ ...btnDark, height: 44, fontSize: 14 }}>{t('hosts.all_hosts')}</button>
-              <a href={waUrl(settings.whatsapp_number, storeHelpText(i18n.language, 'host', q))} target="_blank" rel="noreferrer" style={{ ...btnOutline, height: 44, fontSize: 14 }}>{t('common.ask_cs')}</a>
+              <button type="button" onClick={() => openCs(greetingText())} style={{ ...asBtn, ...{ ...btnOutline, height: 44, fontSize: 14 } }}>{t('common.ask_cs')}</button>
             </div>
           </>} />
       )}
