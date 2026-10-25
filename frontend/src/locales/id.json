@@ -97,12 +97,12 @@
       "website_requests": "Permintaan Pelanggan",
       "members": "Member",
       "shipping_workbench": "Shipping Workbench",
-      "website_live": "Pengaturan LIVE Global"
+      "website_live": "Pengaturan LIVE Global",
+      "website_analytics": "Analitik Website",
+      "website_categories": "Layout Kategori",
+      "opening_inventory": "Stok Awal (FIFO)"
     },
-    "settings": "Pengaturan Sistem",
-    "opening_inventory": "Stok Awal (FIFO)",
-    "website_categories": "Layout Kategori",
-    "website_analytics": "Analitik Website"
+    "settings": "Pengaturan Sistem"
   },
   "page_accept_invite": {
     "error": "Terjadi kesalahan. Silakan coba lagi.",

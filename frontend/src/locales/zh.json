@@ -97,12 +97,12 @@
       "website_requests": "顧客請求",
       "members": "會員",
       "shipping_workbench": "出貨工作台",
-      "website_live": "全域直播設定"
+      "website_live": "全域直播設定",
+      "website_analytics": "網站分析",
+      "website_categories": "分類版面",
+      "opening_inventory": "期初庫存 (FIFO)"
     },
-    "settings": "系統設定",
-    "opening_inventory": "期初庫存 (FIFO)",
-    "website_categories": "分類版面",
-    "website_analytics": "網站分析"
+    "settings": "系統設定"
   },
   "page_accept_invite": {
     "error": "發生錯誤，請再試一次。",

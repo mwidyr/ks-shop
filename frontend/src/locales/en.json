@@ -97,12 +97,12 @@
       "website_requests": "Customer Requests",
       "members": "Members",
       "shipping_workbench": "Shipping Workbench",
-      "website_live": "Global LIVE Settings"
+      "website_live": "Global LIVE Settings",
+      "website_analytics": "Website Analytics",
+      "website_categories": "Category Layout",
+      "opening_inventory": "Initial Inventory (FIFO)"
     },
-    "settings": "System Settings",
-    "opening_inventory": "Initial Inventory (FIFO)",
-    "website_categories": "Category Layout",
-    "website_analytics": "Website Analytics"
+    "settings": "System Settings"
   },
   "page_accept_invite": {
     "error": "Something went wrong. Please try again.",
