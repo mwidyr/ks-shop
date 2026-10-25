@@ -39,6 +39,7 @@ type liveHostDTO struct {
 	Shift      string  `json:"shift"`
 	LiveURL    string  `json:"live_url"`
 	Status     string  `json:"status"` // live | scheduled | offline
+	Manual     bool    `json:"manual"` // LIVE because of a manual Start LIVE (window_end = its automatic end)
 	WindowEnd  *string `json:"window_end,omitempty"`
 	NextAt     *string `json:"next_at,omitempty"`
 }
@@ -150,8 +151,9 @@ func (h *SiteAdminHandler) LiveSettings(w http.ResponseWriter, r *http.Request) 
 		if x == nil {
 			continue
 		}
-		st := liveStateAt(now, x.Rule, x.Ended)
+		st := x.stateAt(now)
 		hosts[i].Status = st.Status
+		hosts[i].Manual = st.Manual
 		if st.Window != nil {
 			s := st.Window.End.Format(time.RFC3339)
 			hosts[i].WindowEnd = &s
@@ -271,25 +273,101 @@ func (h *SiteAdminHandler) SaveLiveURL(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"live_url": url})
 }
 
-// EndLive serves POST /admin/live/hosts/{id}/end: stops showing the host as LIVE for the window that is
-// running now. The next scheduled window starts as usual. The operational live_sessions are not touched.
+// StartLive serves POST /admin/live/hosts/{id}/start: the host is LIVE right away, whatever the schedule says
+// (outside the shift hours, on a day off, or after "End LIVE" in the same shift - that is how a LIVE is restarted).
+// The schedule itself is not touched: shift hours, working days and the next session stay as they are. The manual
+// session ends with "End LIVE" or by itself after manualLiveHours.
+func (h *SiteAdminHandler) StartLive(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ctx := r.Context()
+	x := loadHostLive(ctx, h.DB, []int32{int32(id)})[id]
+	if x == nil {
+		respondError(w, http.StatusNotFound, "host not found")
+		return
+	}
+	if x.stateAt(time.Now()).Status == "live" {
+		respondError(w, http.StatusConflict, "host is already LIVE")
+		return
+	}
+	var uid *int
+	if c := getClaimsSafe(r); c != nil {
+		uid = &c.UserID
+	}
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	// close sessions that ran out on their own, so there is never more than one open row per host
+	if _, err := tx.Exec(ctx, `UPDATE host_live_manual SET ended_at = LEAST(now(), expires_at) WHERE host_id=$1 AND ended_at IS NULL`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to start LIVE")
+		return
+	}
+	var until time.Time
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO host_live_manual (host_id, expires_at, started_by) VALUES ($1, now() + make_interval(hours => $2), $3) RETURNING expires_at`,
+		id, manualLiveHours, uid).Scan(&until); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to start LIVE")
+		return
+	}
+	logActivity(ctx, tx, "host", id, "live_started", uid, "manual")
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to start LIVE")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "live", "manual": true, "until": until.Format(time.RFC3339)})
+}
+
+// EndLive serves POST /admin/live/hosts/{id}/end: the host stops being LIVE now. A manual session is closed, and the
+// scheduled window that is running (if any) is marked ended too, so the same shift never switches the host back to
+// LIVE by itself; the next scheduled window starts as usual. The operational live_sessions are not touched.
 func (h *SiteAdminHandler) EndLive(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	x := loadHostLive(r.Context(), h.DB, []int32{int32(id)})[id]
+	ctx := r.Context()
+	x := loadHostLive(ctx, h.DB, []int32{int32(id)})[id]
 	if x == nil {
 		respondError(w, http.StatusNotFound, "host not found")
 		return
 	}
-	st := liveStateAt(time.Now(), x.Rule, x.Ended)
-	if st.Status != "live" || st.Window == nil {
+	now := time.Now()
+	st := x.stateAt(now)
+	if st.Status != "live" {
 		respondError(w, http.StatusConflict, "host is not LIVE right now")
 		return
 	}
-	if _, err := h.DB.Exec(r.Context(), `INSERT INTO host_live_ends (host_id, window_start) VALUES ($1,$2) ON CONFLICT DO NOTHING`, id, st.Window.Start); err != nil {
+	var uid *int
+	if c := getClaimsSafe(r); c != nil {
+		uid = &c.UserID
+	}
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	if st.Manual {
+		if _, err := tx.Exec(ctx, `UPDATE host_live_manual SET ended_at=now(), ended_by=$2 WHERE host_id=$1 AND ended_at IS NULL`, id, uid); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to end LIVE")
+			return
+		}
+	}
+	if w0, ok := x.Rule.current(now); ok && len(x.Rule.Ranges) > 0 {
+		if _, err := tx.Exec(ctx, `INSERT INTO host_live_ends (host_id, window_start) VALUES ($1,$2) ON CONFLICT DO NOTHING`, id, w0.Start); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to end LIVE")
+			return
+		}
+	}
+	logActivity(ctx, tx, "host", id, "live_ended", uid, "manual")
+	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to end LIVE")
 		return
 	}

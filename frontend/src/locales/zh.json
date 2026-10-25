@@ -100,7 +100,9 @@
       "website_live": "全域直播設定"
     },
     "settings": "系統設定",
-    "opening_inventory": "期初庫存 (FIFO)"
+    "opening_inventory": "期初庫存 (FIFO)",
+    "website_categories": "分類版面",
+    "website_analytics": "網站分析"
   },
   "page_accept_invite": {
     "error": "發生錯誤，請再試一次。",
@@ -627,7 +629,9 @@
     "location_label": "地點",
     "all_locations_option": "所有地點",
     "block_error_total_max": "訂單金額超過 NT${{max}}（物流平台上限），請減少商品或拆單。",
-    "total_max_warning": "金額超過 NT${{max}}，物流平台會拒收，因此無法送出訂單。"
+    "total_max_warning": "金額超過 NT${{max}}，物流平台會拒收，因此無法送出訂單。",
+    "picker_selected_title": "本次已選商品（{{count}} 件）",
+    "picker_remove_item": "從已選中移除"
   },
   "page_order_detail": {
     "additional_fee_label": "額外費用",
@@ -2298,7 +2302,11 @@
       "src_best_sellers": "自動：天數範圍內的銷售",
       "src_new_in": "自動：天數範圍內新增的商品",
       "src_hosts": "公開主播，依顯示順序",
-      "src_topics": "已發佈的穿搭專題"
+      "src_topics": "已發佈的穿搭專題",
+      "cat_picker_hint": "選擇要精選的分類與順序。留空則使用自動排序。「最多項目」仍然有效。",
+      "cat_picked": "精選 ({{n}})",
+      "cat_auto": "自動：標記「顯示於首頁」的分類優先。",
+      "cat_available": "可選分類"
     },
     "tutorial": {
       "title": "店號教學",
@@ -2786,7 +2794,43 @@
       "status_scheduled": "即將開始",
       "status_offline": "未開播",
       "next": "下一場",
-      "until": "直到"
+      "until": "直到",
+      "start_live": "開始直播",
+      "start_confirm": "現在開始 {{name}} 的直播？主播會立即顯示為直播中，直到按下結束直播（或 12 小時後自動結束）。主播排程不會改變。",
+      "started": "已開始直播",
+      "manual": "手動",
+      "manual_hint": "手動開始；按結束直播或 12 小時後自動結束"
+    },
+    "banners": {
+      "title": "首頁橫幅",
+      "intro": "橫幅會在首頁自動輪播，也可左右滑動。建議尺寸 {{size}} px (8:3)；手機左右兩側（各約 25%）可能被裁切，請把文字與人物放在中間。沒有啟用的橫幅時會顯示預設主視覺。",
+      "none": "尚未有橫幅。",
+      "link": "連結（選填）：站內頁面如 /products?sort=newest 或外部 https:// 網址",
+      "alt": "說明（無障礙用）",
+      "active": "顯示",
+      "delete": "刪除",
+      "add": "上傳橫幅圖片",
+      "save": "儲存橫幅",
+      "saved": "橫幅已儲存，網站約一分鐘內更新。"
+    },
+    "categories_layout": {
+      "title": "分類頁版面",
+      "intro": "以每區五張卡片的方式安排分類頁。空的欄位與沒有商品的分類會在網站上隱藏。若沒有任何區塊，網站會自動排列所有分類。",
+      "none": "尚未自訂版面：網站會自動排列分類。新增區塊即可自行安排。",
+      "section": "區塊 {{n}}",
+      "delete": "刪除",
+      "tpl_large_left": "大圖在左",
+      "tpl_large_right": "大圖在右",
+      "tpl_all_small": "全部小圖",
+      "preview": "版面預覽",
+      "slot": "欄位 {{n}}",
+      "large": "大圖",
+      "empty": "— 空 —",
+      "no_products": "無商品",
+      "upload_image": "上傳圖片",
+      "replace_image": "更換圖片",
+      "add_section": "新增區塊",
+      "saved": "分類版面已儲存，網站約一分鐘內更新。"
     }
   },
   "page_members": {
@@ -3115,5 +3159,29 @@
     "approve_confirm": "確定核准？數量與成本將成為期初 FIFO 成本層。",
     "fix_errors_hint": "部分資料有問題，請修正後重新上傳。",
     "diff_hint": "與系統實際庫存不同"
+  },
+  "page_website_analytics": {
+    "title": "網站分析",
+    "intro": "來自 Google Analytics 4 的顧客網站訪客與頁面瀏覽。",
+    "loading": "載入中…",
+    "load_failed": "無法載入分析資料。",
+    "not_connected": "尚未連接 Google Analytics",
+    "not_connected_hint": "請開發人員在伺服器設定以下環境變數（資源 ID、具有 GA4 資源檢視權限的服務帳戶金鑰，以及網站標籤的衡量 ID）。設定後數據才會顯示；標籤上線後才開始計算訪問。",
+    "unavailable": "Google Analytics 沒有回應（權限、配額或資源錯誤）。請稍後再試。",
+    "users": "使用者",
+    "new_users": "新使用者",
+    "sessions": "工作階段",
+    "page_views": "頁面瀏覽",
+    "avg_session": "平均工作階段",
+    "engagement": "參與率",
+    "sources": "流量來源",
+    "products": "商品頁瀏覽（依商品編號）",
+    "articles": "SEO 文章瀏覽",
+    "col_channel": "管道",
+    "col_code": "商品編號",
+    "col_product": "商品",
+    "col_article": "文章",
+    "col_views": "瀏覽",
+    "no_data": "此期間沒有資料。"
   }
 }

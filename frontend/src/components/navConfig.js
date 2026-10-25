@@ -39,6 +39,7 @@ export const navGroups = [
       { to: '/analytics/performance-comparison', key: 'performance_comparison', icon: IconTrendUp },
       { to: '/analytics/host-performance', key: 'host_performance_analytics', icon: IconTrendUp },
       { to: '/analytics/sales', key: 'sales_analytics', icon: IconTrendUp },
+      { to: '/analytics/website', key: 'website_analytics', icon: IconChartLine },
     ],
   },
   {
@@ -53,6 +54,7 @@ export const navGroups = [
   {
     title: 'website', icon: IconPalette, items: [
       { to: '/website/home', key: 'website_home', icon: IconSliders },
+      { to: '/website/categories-layout', key: 'website_categories', icon: IconTag },
       { to: '/website/hosts', key: 'website_hosts', icon: IconUser },
       { to: '/website/live', key: 'website_live', icon: IconBroadcast },
       { to: '/website/content', key: 'website_content', icon: IconBook },
@@ -136,7 +138,7 @@ export const VISIBLE_TAB_KEYS = new Set([
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning', 'opening_inventory',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
-  'website_home', 'website_hosts', 'website_live', 'website_content', 'theme', 'website_requests', 'members',
+  'website_analytics', 'website_home', 'website_categories', 'website_hosts', 'website_live', 'website_content', 'theme', 'website_requests', 'members',
 ])
 
 

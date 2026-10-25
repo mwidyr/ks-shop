@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getHomeModules, saveHomeModules } from '../api/website'
+import { getCategoryLayout, getHomeModules, saveHomeModules } from '../api/website'
+import HomeBanners from '../components/website/HomeBanners'
+import FeaturedCategoriesPicker from '../components/website/FeaturedCategoriesPicker'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
 
 const LANGS = ['id', 'en', 'zh']
@@ -10,7 +12,10 @@ export default function WebsiteHome() {
   const [mods, setMods] = useState(null)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [cats, setCats] = useState([]) // for the featured-categories picker (needs the Categories Layout tab; empty otherwise)
   useEffect(() => { getHomeModules().then(setMods).catch(() => setMsg({ ok: false, text: t('page_website.common.error') })) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { getCategoryLayout().then((r) => setCats(r.categories || [])).catch(() => {}) }, [])
 
   const set = (i, patch) => setMods((cur) => cur.map((m, j) => (j === i ? { ...m, ...patch } : m)))
   const move = (i, d) => setMods((cur) => { const n = [...cur]; const j = i + d; if (j < 0 || j >= n.length) return cur; [n[i], n[j]] = [n[j], n[i]]; return n })
@@ -33,6 +38,7 @@ export default function WebsiteHome() {
         <p className="text-sm text-gray-500">{t('page_website.home.intro')}</p>
       </div>
       {msg && <div className={`text-sm px-4 py-2 rounded-lg ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>}
+      <HomeBanners />
       {mods.map((m, i) => (
         <div key={m.key} className={`${cardCls} space-y-3`}>
           <div className="flex items-center gap-3 flex-wrap">
@@ -64,6 +70,11 @@ export default function WebsiteHome() {
                 <div>
                   <label className="text-xs text-gray-500">{t('page_website.home.limit')}</label>
                   <input type="number" min="1" max="30" value={m.config.limit} onChange={(e) => set(i, { config: { ...m.config, limit: Number(e.target.value) } })} className={inputCls} />
+                </div>
+              )}
+              {m.key === 'categories' && cats.length > 0 && (
+                <div className="sm:col-span-3">
+                  <FeaturedCategoriesPicker categories={cats} value={m.config?.category_ids || []} onChange={(ids) => set(i, { config: { ...m.config, category_ids: ids } })} />
                 </div>
               )}
               {'days' in (m.config || {}) && (

@@ -46,6 +46,7 @@ const hostCardSelect = `
 	       EXISTS (SELECT 1 FROM host_replays hr WHERE hr.host_id = h.id),
 	       (EXISTS (SELECT 1 FROM live_sessions ls WHERE ls.host_id = h.id)
 	        OR EXISTS (SELECT 1 FROM host_live_ends he WHERE he.host_id = h.id)
+	        OR EXISTS (SELECT 1 FROM host_live_manual hm WHERE hm.host_id = h.id)
 	        OR EXISTS (SELECT 1 FROM order_items oi WHERE oi.host_id = h.id)),
 	       CASE WHEN h.live_url IS NOT NULL AND h.live_url <> '' AND (h.live_url_expires_at IS NULL OR h.live_url_expires_at > now())
 	            THEN h.live_url ELSE COALESCE(h.tiktok_url,'') END,

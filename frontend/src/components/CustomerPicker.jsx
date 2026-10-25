@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import client from '../api/client'
 
@@ -10,7 +10,9 @@ export const TW_PHONE_REGEX = /^09\d{8}$/
 // search. Typing in the name field searches existing customers by name or phone (same backend
 // behavior as before); picking a suggestion fills both fields and remembers the match's id.
 // Editing either field afterward drops that id - it's manual entry again from that point, auto-
-// created as a new customer on submit if nothing was (re-)selected. Emits via onChange:
+// created as a new customer on submit if nothing was (re-)selected. The suggestion list closes on a
+// click / tap outside it, on Esc, and as soon as the phone field gets focus (it overlays that field),
+// and comes back when the name field is focused again. Emits via onChange:
 //   existing: the full customer row from the search API (id, name, phone, address, plus
 //             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code)
 //   new/manual: { name, phone, address: '' }
@@ -20,8 +22,20 @@ export default function CustomerPicker({ onChange }) {
   const [phone, setPhone] = useState('')
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState(null)
+  const [open, setOpen] = useState(false) // suggestion list visible
+  const boxRef = useRef(null)             // name field + its suggestion list
+  const nameFocused = useRef(false)
 
   const reqId = useRef(0)
+
+  // click / tap anywhere outside the name field and its list closes the list
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('touchstart', away)
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('touchstart', away) }
+  }, [open])
 
   async function handleNameChange(v) {
     setName(v)
@@ -29,11 +43,13 @@ export default function CustomerPicker({ onChange }) {
     const id = ++reqId.current // a slow answer for an earlier keystroke must not overwrite a newer one
     if (!v.trim()) {
       setResults([])
+      setOpen(false)
       onChange({ name: v, phone, address: '' })
       return
     }
     const res = await client.get(`/customers?q=${encodeURIComponent(v)}`)
-    if (id === reqId.current) setResults(res.data)
+    // a late answer must not pop the list open again after the user moved on to another field
+    if (id === reqId.current) { setResults(res.data); setOpen(nameFocused.current) }
     onChange({ name: v, phone, address: '' })
   }
 
@@ -41,6 +57,7 @@ export default function CustomerPicker({ onChange }) {
     const digits = v.replace(/\D/g, '').slice(0, 10)
     setPhone(digits)
     setSelected(null)
+    setOpen(false)
     onChange({ name, phone: digits, address: '' })
   }
 
@@ -49,20 +66,24 @@ export default function CustomerPicker({ onChange }) {
     setName(customer.name)
     setPhone(customer.phone)
     setResults([])
+    setOpen(false)
     onChange(customer)
   }
 
   return (
     <div className="space-y-2">
-      <div className="relative">
+      <div className="relative" ref={boxRef}>
         <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_name_label')}</label>
         <input
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
+          onFocus={() => { nameFocused.current = true; if (results.length > 0 && !selected) setOpen(true) }}
+          onBlur={() => { nameFocused.current = false }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
           placeholder={t('shared.customer_search_placeholder')}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        {results.length > 0 && (
+        {open && results.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
             {results.map((c) => (
               <button
@@ -91,6 +112,7 @@ export default function CustomerPicker({ onChange }) {
         <input
           value={phone}
           onChange={(e) => handlePhoneChange(e.target.value)}
+          onFocus={() => setOpen(false)}
           placeholder={t('shared.customer_phone_placeholder')}
           inputMode="numeric"
           maxLength={10}

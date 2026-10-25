@@ -430,7 +430,8 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 			st := (&MemberHandler{}).rewardSettings(ctx, h.DB)
 			return map[string]interface{}{"welcome_balance": st.WelcomeBalance, "referral_reward": st.ReferralReward, "point_value": st.PointValue, "refund_credit_bonus_pct": st.RefundCreditBonusPct}
 		}(),
-		"whatsapp_login": waProvider() != "off",
+		"whatsapp_login":    waProvider() != "off",
+		"ga_measurement_id": gaMeasurementID(),
 		"social": map[string]string{
 			"youtube": site.setting(ctx, "social_youtube", ""), "instagram": site.setting(ctx, "social_instagram", ""),
 			"facebook": site.setting(ctx, "social_facebook", ""), "tiktok": site.setting(ctx, "social_tiktok", ""),

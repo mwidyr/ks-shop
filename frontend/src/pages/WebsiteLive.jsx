@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { endLive, getLiveSettings, saveLiveLocation, saveLiveShift, saveLiveUrl } from '../api/website'
+import { endLive, getLiveSettings, startLive, saveLiveLocation, saveLiveShift, saveLiveUrl } from '../api/website'
 import Toast, { useToast } from '../components/Toast'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
 import { formatTaipei, rangesValid } from '../utils/liveTime'
@@ -168,6 +168,11 @@ function HostRow({ h, l, t, onChanged, onError }) {
     setBusy(true); onError('')
     try { await saveLiveUrl(h.id, url.trim()); onChanged(l('url_saved')) } catch (e) { onError(e.response?.data?.error || l('save_failed')) } finally { setBusy(false) }
   }
+  async function start() {
+    if (!window.confirm(l('start_confirm', { name: h.name }))) return
+    setBusy(true); onError('')
+    try { await startLive(h.id); onChanged(l('started')) } catch (e) { onError(e.response?.data?.error || l('save_failed')); onChanged('') } finally { setBusy(false) }
+  }
   async function end() {
     if (!window.confirm(l('end_confirm', { name: h.name }))) return
     setBusy(true); onError('')
@@ -181,11 +186,13 @@ function HostRow({ h, l, t, onChanged, onError }) {
       <td className="pr-3">
         <div className="flex gap-2">
           <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={saveUrl} placeholder="https://www.tiktok.com/@…/live" className={inputCls} aria-label={l('col_url')} />
+          <button type="button" disabled={busy || h.status === 'live'} onClick={start} className={`${btnGhost} whitespace-nowrap ${h.status !== 'live' ? 'border-green-400 text-green-700' : ''}`}>{l('start_live')}</button>
           <button type="button" disabled={busy || h.status !== 'live'} onClick={end} className={`${btnGhost} whitespace-nowrap ${h.status === 'live' ? 'border-red-300 text-red-700' : ''}`}>{l('end_live')}</button>
         </div>
       </td>
       <td>
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLS[h.status] || STATUS_CLS.offline}`}>{l(`status_${h.status}`)}</span>
+        {h.status === 'live' && h.manual && <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold bg-gray-800 text-white" title={l('manual_hint')}>{l('manual')}</span>}
         {h.status !== 'live' && h.next_at && <p className="text-xs text-gray-400 mt-0.5">{l('next')}: {formatTaipei(h.next_at)}</p>}
         {h.status === 'live' && h.window_end && <p className="text-xs text-gray-400 mt-0.5">{l('until')}: {formatTaipei(h.window_end)}</p>}
       </td>

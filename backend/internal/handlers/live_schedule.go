@@ -132,11 +132,32 @@ func (r liveRule) next(now time.Time) (liveWindow, bool) {
 	return liveWindow{}, false
 }
 
+// manualLiveHours is how long a manual "Start LIVE" lasts when nobody presses "End LIVE".
+const manualLiveHours = 12
+
 // liveState is what a host card shows.
 type liveState struct {
+	Manual bool        // LIVE because staff pressed "Start LIVE" (Window.End is its automatic end)
 	Status string      // live | scheduled | offline
 	Window *liveWindow // the running window when live
 	Next   *liveWindow // the next window to start (also while live: the one after this)
+}
+
+// liveStateManual is liveStateAt plus a running manual session (manualUntil = when it ends by itself, nil =
+// none). A manual session makes the host LIVE whatever the schedule says - even without any shift and even in a
+// window staff ended before - while the schedule's own "next" session is left exactly as it was.
+func liveStateManual(now time.Time, r liveRule, ended map[int64]bool, manualUntil *time.Time) liveState {
+	st := liveStateAt(now, r, ended)
+	if manualUntil == nil || !now.Before(*manualUntil) {
+		return st
+	}
+	start := now
+	if st.Window != nil {
+		start = st.Window.Start
+	}
+	st.Status, st.Manual = "live", true
+	st.Window = &liveWindow{Start: start, End: *manualUntil}
+	return st
 }
 
 // liveStateAt decides one host's status. `ended` holds the Start times (unix seconds) of windows staff ended manually.

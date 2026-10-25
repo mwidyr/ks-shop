@@ -14,6 +14,13 @@ type hostLive struct {
 	URL        string
 	Rule       liveRule
 	Ended      map[int64]bool
+	// ManualUntil: end of the running manual "Start LIVE" session, nil when there is none.
+	ManualUntil *time.Time
+}
+
+// stateAt is the host's status now: the schedule, an ended window and a manual session combined.
+func (x *hostLive) stateAt(now time.Time) liveState {
+	return liveStateManual(now, x.Rule, x.Ended, x.ManualUntil)
 }
 
 // loadShiftRanges reads the default hours of every shift.
@@ -109,6 +116,17 @@ func loadHostLive(ctx context.Context, db queryer, hostIDs []int32) map[int]*hos
 		}
 		rows.Close()
 	}
+	if rows, err := db.Query(ctx, `SELECT host_id, MAX(expires_at) FROM host_live_manual WHERE host_id = ANY($1) AND ended_at IS NULL AND expires_at > now() GROUP BY host_id`, hostIDs); err == nil {
+		for rows.Next() {
+			var id int
+			var until time.Time
+			if rows.Scan(&id, &until) == nil && out[id] != nil {
+				u := until
+				out[id].ManualUntil = &u
+			}
+		}
+		rows.Close()
+	}
 	return out
 }
 
@@ -133,7 +151,7 @@ func (h *SiteHandler) applyLiveSchedule(ctx context.Context, cards []siteHostCar
 			continue
 		}
 		c.WatchURL = x.URL
-		st := liveStateAt(now, x.Rule, x.Ended)
+		st := x.stateAt(now)
 		c.LiveStatus = st.Status
 		if st.Next != nil {
 			s := st.Next.Start.Format(time.RFC3339)

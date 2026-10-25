@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import { EmptyState, Spinner } from './components/ui'
 import Home from './pages/Home'
+import Analytics from './lib/analytics'
 
 const page = (f) => lazy(f)
 const Categories = page(() => import('./pages/Categories'))
@@ -34,6 +35,7 @@ const Wallet = page(() => import('./pages/Wallet'))
 export default function App() {
   return (
     <Suspense fallback={<Spinner />}>
+      <Analytics />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />

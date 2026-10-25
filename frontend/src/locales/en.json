@@ -100,7 +100,9 @@
       "website_live": "Global LIVE Settings"
     },
     "settings": "System Settings",
-    "opening_inventory": "Initial Inventory (FIFO)"
+    "opening_inventory": "Initial Inventory (FIFO)",
+    "website_categories": "Category Layout",
+    "website_analytics": "Website Analytics"
   },
   "page_accept_invite": {
     "error": "Something went wrong. Please try again.",
@@ -627,7 +629,9 @@
     "location_label": "Location",
     "all_locations_option": "All locations",
     "block_error_total_max": "The order total is above NT${{max}} (the shipping platform limit). Reduce the items or split the order.",
-    "total_max_warning": "Total is above NT${{max}} — the shipping platforms reject it, so the order cannot be submitted."
+    "total_max_warning": "Total is above NT${{max}} — the shipping platforms reject it, so the order cannot be submitted.",
+    "picker_selected_title": "Selected products ({{count}} pcs)",
+    "picker_remove_item": "Remove from selection"
   },
   "page_order_detail": {
     "additional_fee_label": "Additional Fee",
@@ -2298,7 +2302,11 @@
       "src_best_sellers": "Automatic: sales in the last days window",
       "src_new_in": "Automatic: products created within the days window",
       "src_hosts": "Public hosts, by display order",
-      "src_topics": "Published style topics"
+      "src_topics": "Published style topics",
+      "cat_picker_hint": "Pick the categories to feature and their order. Leave empty to use the automatic order. 'Max items' still applies.",
+      "cat_picked": "Featured ({{n}})",
+      "cat_auto": "Automatic: categories marked 'show on home' first.",
+      "cat_available": "Available categories"
     },
     "tutorial": {
       "title": "Store number tutorial",
@@ -2771,7 +2779,7 @@
       "add_day_off": "Add day off",
       "save": "Save",
       "hosts_title": "Hosts",
-      "hosts_hint": "Name, location and shift come from Host Management. Paste the TikTok LIVE link of each host here; it can be changed at any time. End LIVE only stops the session that is running now.",
+      "hosts_hint": "Name, location and shift come from Host Management. Paste the TikTok LIVE link of each host here; it can be changed at any time. Start LIVE / End LIVE work at any time and never change the schedule.",
       "col_host": "Host",
       "col_location": "Location",
       "col_shift": "Shift",
@@ -2786,7 +2794,43 @@
       "status_scheduled": "Starts soon",
       "status_offline": "Offline",
       "next": "Next",
-      "until": "Until"
+      "until": "Until",
+      "start_live": "Start LIVE",
+      "start_confirm": "Start LIVE for {{name}} now? The host shows as LIVE immediately and stays LIVE until you press End LIVE (or after 12 hours). The host's schedule does not change.",
+      "started": "LIVE started",
+      "manual": "Manual",
+      "manual_hint": "Started manually; ends with End LIVE or automatically after 12 hours"
+    },
+    "banners": {
+      "title": "Homepage banners",
+      "intro": "Banners rotate automatically on the homepage and can be swiped. Recommended size {{size}} px (8:3); on phones the left and right edges (about 25% each) may be cropped, so keep text and faces in the middle. Without any active banner the default hero is shown.",
+      "none": "No banners yet.",
+      "link": "Link (optional): a page like /products?sort=newest or an external https:// address",
+      "alt": "Description (for accessibility)",
+      "active": "Shown",
+      "delete": "Delete",
+      "add": "Upload banner image",
+      "save": "Save banners",
+      "saved": "Banners saved. The website updates within about a minute."
+    },
+    "categories_layout": {
+      "title": "Category page layout",
+      "intro": "Arrange the category page in sections of five cards. Empty slots and categories without products are hidden on the website. Without any section the website arranges all categories automatically.",
+      "none": "No custom layout yet: the website arranges the categories automatically. Add a section to take control.",
+      "section": "Section {{n}}",
+      "delete": "Delete",
+      "tpl_large_left": "Large Left",
+      "tpl_large_right": "Large Right",
+      "tpl_all_small": "All Small",
+      "preview": "Layout preview",
+      "slot": "Slot {{n}}",
+      "large": "Large",
+      "empty": "— empty —",
+      "no_products": "no products",
+      "upload_image": "Upload image",
+      "replace_image": "Replace image",
+      "add_section": "Add section",
+      "saved": "Category layout saved. The website updates within about a minute."
     }
   },
   "page_members": {
@@ -3115,5 +3159,29 @@
     "approve_confirm": "Approve this file? Its quantities and costs become the opening FIFO layers.",
     "fix_errors_hint": "Some lines have problems - fix the file and upload it again.",
     "diff_hint": "Differs from the system's Actual stock"
+  },
+  "page_website_analytics": {
+    "title": "Website Analytics",
+    "intro": "Visitors and page views of the customer website, from Google Analytics 4.",
+    "loading": "Loading…",
+    "load_failed": "Could not load the analytics.",
+    "not_connected": "Google Analytics is not connected yet",
+    "not_connected_hint": "Ask the developer to set these environment variables on the server (property id, service account key with Viewer access to the GA4 property, and the measurement id for the website tag). Numbers appear here after that; visits are only counted from the moment the tag is live.",
+    "unavailable": "Google Analytics did not answer (permission, quota or wrong property). Try again in a few minutes.",
+    "users": "Users",
+    "new_users": "New users",
+    "sessions": "Sessions",
+    "page_views": "Page views",
+    "avg_session": "Avg. session",
+    "engagement": "Engagement rate",
+    "sources": "Traffic sources",
+    "products": "Product page views (by Product Code)",
+    "articles": "SEO article views",
+    "col_channel": "Channel",
+    "col_code": "Product Code",
+    "col_product": "Product",
+    "col_article": "Article",
+    "col_views": "Views",
+    "no_data": "No data in this period."
   }
 }

@@ -113,6 +113,7 @@ func main() {
 	siteH := &handlers.SiteHandler{DB: pool}
 	themeH := &handlers.ThemeHandler{DB: pool}
 	siteAdminH := &handlers.SiteAdminHandler{DB: pool}
+	webAnalyticsH := handlers.NewWebsiteAnalyticsHandler(pool)
 	uploadH := &handlers.UploadHandler{
 		UploadDir:           uploadDir,
 		CloudinaryCloudName: cfg.CloudinaryCloudName,
@@ -188,6 +189,7 @@ func main() {
 		r.Post("/public/store/newsletter", storeH.Subscribe)
 		// Website rebuild (ralulu design): home modules, hosts, live, style content, search, store search.
 		r.Get("/public/store/home", siteH.Home)
+		r.Get("/public/store/category-layout", siteH.CategoryLayout)
 		r.Get("/public/store/category-tree", siteH.CategoryTree)
 		r.Get("/public/store/hosts", siteH.Hosts)
 		r.Get("/public/store/hosts/{slug}", siteH.Host)
@@ -237,8 +239,14 @@ func main() {
 			r.Post("/auth/verify-password", authH.VerifyPassword)
 
 			// Website management (home modules, WhatsApp / CS settings, public host profiles, style content).
+			r.With(view("website_analytics")).Get("/analytics/website", webAnalyticsH.Report)
 			r.With(view("website_home")).Get("/admin/home-modules", siteAdminH.HomeModules)
 			r.With(edit("website_home")).Put("/admin/home-modules", siteAdminH.SaveHomeModules)
+			r.With(view("website_home")).Get("/admin/home-banners", siteAdminH.HomeBanners)
+			r.With(edit("website_home")).Put("/admin/home-banners", siteAdminH.SaveHomeBanners)
+			r.With(view("website_categories")).Get("/admin/category-layout", siteAdminH.CategoryLayout)
+			r.With(edit("website_categories")).Put("/admin/category-layout", siteAdminH.SaveCategoryLayout)
+			r.With(edit("website_categories")).Patch("/admin/categories/{id}/cover", siteAdminH.SetCategoryCover)
 			r.With(view("store_profile")).Get("/admin/site-settings", siteAdminH.GetSettings)
 			r.With(edit("store_profile")).Patch("/admin/site-settings", siteAdminH.SaveSettings)
 			r.With(view("store_profile")).Get("/admin/store-tutorial", siteAdminH.GetTutorial)
@@ -251,6 +259,7 @@ func main() {
 			r.With(edit("website_live")).Put("/admin/live/shifts/{shift}", siteAdminH.SaveLiveShift)
 			r.With(edit("website_live")).Put("/admin/live/locations/{id}", siteAdminH.SaveLiveLocation)
 			r.With(edit("website_live")).Put("/admin/live/hosts/{id}/url", siteAdminH.SaveLiveURL)
+			r.With(edit("website_live")).Post("/admin/live/hosts/{id}/start", siteAdminH.StartLive)
 			r.With(edit("website_live")).Post("/admin/live/hosts/{id}/end", siteAdminH.EndLive)
 			r.With(view("website_content")).Get("/admin/content", siteAdminH.ContentList)
 			r.With(view("website_content")).Get("/admin/content/slug-check", siteAdminH.ContentSlugCheck)

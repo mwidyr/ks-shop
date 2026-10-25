@@ -1,24 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getHosts, getProducts, img, onImgError, sized } from '../lib/api'
+import { getCategoryLayout, getHosts, getProducts, img, onImgError, sized } from '../lib/api'
 import { useSeo } from '../lib/seo'
-import { useStore } from '../lib/store'
+import { mosaicCells } from '../lib/mosaic'
 import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { EmptyState, SectionHead } from '../components/ui'
 
-// featured tiles take two rows: the ones the shop marks (featured), else the first tile of a group with more than two
-const tall = (tiles, i) => (tiles.some((c) => typeof c.featured === 'boolean') ? Boolean(tiles[i].featured) : i === 0 && tiles.length > 2)
 const label = { position: 'absolute', left: 10, bottom: 10, padding: '6px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.95)', color: 'var(--color-text)', fontSize: 15, fontWeight: 700 }
 
 export default function Categories() {
   const { t, i18n } = useTranslation()
   const { desktop } = useOutletContext()
-  const { categories } = useStore()
+  const [layout, setLayout] = useState(null)
   const [hosts, setHosts] = useState([])
   const [dealImg, setDealImg] = useState('')
   useSeo({ title: t('cats.title'), description: t('cats.title'), canonical: '/categories' })
   useEffect(() => { getHosts().then((d) => setHosts(d.hosts || [])).catch(() => setHosts([])) }, [i18n.language])
+  useEffect(() => { getCategoryLayout().then((d) => setLayout(d.sections || [])).catch(() => setLayout([])) }, [i18n.language])
   useEffect(() => { getProducts({ sale: 'true', limit: 1 }).then((d) => setDealImg(d.products?.[0]?.images?.[0] || '')).catch(() => setDealImg('')) }, [])
 
   return (
@@ -51,21 +50,17 @@ export default function Categories() {
         </Link>
       </section>
 
-      {categories.length === 0 && <EmptyState title={t('cats.empty')} />}
-      {categories.map((g) => {
-        const kids = g.children?.length ? g.children : []
-        const tiles = kids.length ? kids : [g]
+      {layout && layout.every((sec) => !sec.slots.some(Boolean)) && <EmptyState title={t('cats.empty')} />}
+      {(layout || []).map((sec) => {
+        const cells = mosaicCells(sec.template, sec.slots, desktop)
+        if (!cells.length) return null
         return (
-          <section key={g.id} style={{ padding: `26px ${desktop ? 40 : 16}px 0` }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{g.display}</h2>
-              <Link to={`/c/${encodeURIComponent(g.name)}`} style={{ flex: 'none', fontSize: 13, fontWeight: 500, color: 'var(--color-text)', textDecoration: 'none', padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: 16 }}>{t('cats.all')}</Link>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${desktop ? 4 : 2}, minmax(0, 1fr))`, gridAutoRows: 150, gridAutoFlow: 'dense', gap: 10, marginTop: 12 }}>
-              {tiles.map((c, i) => (
-                <Link key={c.id} to={`/c/${encodeURIComponent(c.name)}`} style={{ position: 'relative', gridRow: !desktop && tall(tiles, i) ? 'span 2' : 'span 1', borderRadius: 16, overflow: 'hidden', textDecoration: 'none', background: 'var(--color-bg-soft)' }}>
-                  <img src={sized(img(c.cover_url), 480)} alt={c.display} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
-                  <span style={label}>{c.display}</span>
+          <section key={sec.id} data-testid="mosaic-section" style={{ padding: `${desktop ? 26 : 18}px ${desktop ? 40 : 16}px 0` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${desktop ? 4 : 2}, minmax(0, 1fr))`, gridAutoRows: desktop ? 200 : 140, gap: desktop ? 12 : 8 }}>
+              {cells.map(({ card, style }) => (
+                <Link key={card.id} to={`/c/${encodeURIComponent(card.name)}`} style={{ ...style, position: 'relative', borderRadius: 16, overflow: 'hidden', textDecoration: 'none', background: 'var(--color-bg-soft)' }}>
+                  <img src={sized(img(card.cover_url), 640)} alt={card.display} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
+                  <span style={label}>{card.display}</span>
                 </Link>
               ))}
             </div>

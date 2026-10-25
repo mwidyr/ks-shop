@@ -100,7 +100,9 @@
       "website_live": "Pengaturan LIVE Global"
     },
     "settings": "Pengaturan Sistem",
-    "opening_inventory": "Stok Awal (FIFO)"
+    "opening_inventory": "Stok Awal (FIFO)",
+    "website_categories": "Layout Kategori",
+    "website_analytics": "Analitik Website"
   },
   "page_accept_invite": {
     "error": "Terjadi kesalahan. Silakan coba lagi.",
@@ -627,7 +629,9 @@
     "location_label": "Lokasi",
     "all_locations_option": "Semua lokasi",
     "block_error_total_max": "Total pesanan melebihi NT${{max}} (batas platform pengiriman). Kurangi item atau pecah pesanan.",
-    "total_max_warning": "Total melebihi NT${{max}} — pesanan tidak bisa dikirim lewat platform. Pesanan tidak dapat disimpan."
+    "total_max_warning": "Total melebihi NT${{max}} — pesanan tidak bisa dikirim lewat platform. Pesanan tidak dapat disimpan.",
+    "picker_selected_title": "Produk dipilih ({{count}} pcs)",
+    "picker_remove_item": "Hapus dari pilihan"
   },
   "page_order_detail": {
     "additional_fee_label": "Biaya Tambahan",
@@ -2298,7 +2302,11 @@
       "src_best_sellers": "Otomatis: penjualan dalam rentang hari",
       "src_new_in": "Otomatis: produk dibuat dalam rentang hari",
       "src_hosts": "Host publik, urutan tampil",
-      "src_topics": "Topik gaya yang terbit"
+      "src_topics": "Topik gaya yang terbit",
+      "cat_picker_hint": "Pilih kategori yang ditampilkan beserta urutannya. Kosongkan untuk urutan otomatis. 'Maks. item' tetap berlaku.",
+      "cat_picked": "Ditampilkan ({{n}})",
+      "cat_auto": "Otomatis: kategori bertanda 'tampil di beranda' lebih dulu.",
+      "cat_available": "Kategori tersedia"
     },
     "tutorial": {
       "title": "Tutorial nomor toko",
@@ -2786,7 +2794,43 @@
       "status_scheduled": "Segera mulai",
       "status_offline": "Offline",
       "next": "Berikutnya",
-      "until": "Sampai"
+      "until": "Sampai",
+      "start_live": "Start LIVE",
+      "start_confirm": "Mulai LIVE {{name}} sekarang? Host langsung tampil LIVE sampai End LIVE ditekan (atau otomatis berakhir setelah 12 jam). Jadwal host tidak berubah.",
+      "started": "LIVE dimulai",
+      "manual": "Manual",
+      "manual_hint": "Dimulai manual; berakhir dengan End LIVE atau otomatis setelah 12 jam"
+    },
+    "banners": {
+      "title": "Banner beranda",
+      "intro": "Banner berganti otomatis di beranda dan bisa digeser. Ukuran yang disarankan {{size}} px (8:3); di HP sisi kiri dan kanan (sekitar 25%) bisa terpotong, jadi letakkan teks dan wajah di tengah. Tanpa banner aktif, hero bawaan ditampilkan.",
+      "none": "Belum ada banner.",
+      "link": "Link (opsional): halaman seperti /products?sort=newest atau alamat https:// eksternal",
+      "alt": "Deskripsi (untuk aksesibilitas)",
+      "active": "Tampil",
+      "delete": "Hapus",
+      "add": "Unggah gambar banner",
+      "save": "Simpan banner",
+      "saved": "Banner tersimpan. Website diperbarui dalam sekitar satu menit."
+    },
+    "categories_layout": {
+      "title": "Layout halaman kategori",
+      "intro": "Atur halaman kategori dalam section berisi lima kartu. Slot kosong dan kategori tanpa produk disembunyikan di website. Tanpa section, website menyusun semua kategori secara otomatis.",
+      "none": "Belum ada layout khusus: website menyusun kategori secara otomatis. Tambah section untuk mengaturnya sendiri.",
+      "section": "Section {{n}}",
+      "delete": "Hapus",
+      "tpl_large_left": "Besar Kiri",
+      "tpl_large_right": "Besar Kanan",
+      "tpl_all_small": "Semua Kecil",
+      "preview": "Pratinjau layout",
+      "slot": "Slot {{n}}",
+      "large": "Besar",
+      "empty": "— kosong —",
+      "no_products": "tanpa produk",
+      "upload_image": "Unggah gambar",
+      "replace_image": "Ganti gambar",
+      "add_section": "Tambah section",
+      "saved": "Layout kategori tersimpan. Website diperbarui dalam sekitar satu menit."
     }
   },
   "page_members": {
@@ -3115,5 +3159,29 @@
     "approve_confirm": "Approve file ini? Jumlah dan biayanya menjadi layer FIFO awal.",
     "fix_errors_hint": "Ada baris bermasalah - perbaiki file lalu upload ulang.",
     "diff_hint": "Berbeda dengan stok Actual di sistem"
+  },
+  "page_website_analytics": {
+    "title": "Analitik Website",
+    "intro": "Pengunjung dan tampilan halaman website pelanggan, dari Google Analytics 4.",
+    "loading": "Memuat…",
+    "load_failed": "Gagal memuat analitik.",
+    "not_connected": "Google Analytics belum terhubung",
+    "not_connected_hint": "Minta developer mengisi variabel environment berikut di server (ID properti, kunci service account dengan akses Viewer ke properti GA4, dan measurement ID untuk tag website). Angka muncul setelah itu; kunjungan baru terhitung sejak tag aktif.",
+    "unavailable": "Google Analytics tidak merespons (izin, kuota, atau properti salah). Coba lagi beberapa menit lagi.",
+    "users": "Pengguna",
+    "new_users": "Pengguna baru",
+    "sessions": "Sesi",
+    "page_views": "Tampilan halaman",
+    "avg_session": "Rata-rata sesi",
+    "engagement": "Tingkat engagement",
+    "sources": "Sumber trafik",
+    "products": "Tampilan halaman produk (per Kode Produk)",
+    "articles": "Tampilan artikel SEO",
+    "col_channel": "Kanal",
+    "col_code": "Kode Produk",
+    "col_product": "Produk",
+    "col_article": "Artikel",
+    "col_views": "Tampilan",
+    "no_data": "Tidak ada data pada periode ini."
   }
 }

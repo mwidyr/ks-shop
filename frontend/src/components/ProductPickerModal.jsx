@@ -4,10 +4,11 @@ import { listProducts } from '../api/products'
 import { listCategories } from '../api/categories'
 import { resolveUrl } from '../utils/image'
 import { formatCurrency } from '../utils/format'
-import { IconChevronDown } from './icons'
+import { IconChevronDown, IconTrash } from './icons'
 import ImagePreviewModal from './ImagePreviewModal'
 import { useMasterData } from '../context/MasterDataContext'
 import { allProductNames } from '../utils/productName'
+import { useMediaQuery } from '../utils/hooks'
 
 // Product-search predicate for the picker. A short letters-only query (1-2 letters, e.g. "U") is
 // treated as a product-code prefix - it lists every code starting with it (U001, U002, ...)
@@ -139,6 +140,17 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [pending, setPending] = useState({}) // variantId -> qty
+  // Phones get a full-screen picker with a collapsible "selected products" review above the Save bar; it only
+  // closes on Save / Cancel / X (a stray tap can no longer throw the selection away). Desktop keeps the dialog.
+  const mobile = useMediaQuery('(max-width: 767px)')
+  const [showSelected, setShowSelected] = useState(true)
+
+  useEffect(() => {
+    if (!mobile) return undefined
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [mobile])
 
   useEffect(() => {
     listProducts().then((data) => {
@@ -171,6 +183,12 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
     return idx
   }, [products])
 
+  // what is picked so far, for the review list
+  const selectedLines = useMemo(() => Object.entries(pending)
+    .map(([variantId, qty]) => ({ variantId: Number(variantId), qty, ...(variantIndex[variantId] || {}) }))
+    .filter((l) => l.product && l.variant), [pending, variantIndex])
+  const selectedPieces = selectedLines.reduce((sum, l) => sum + l.qty, 0)
+
   function handleSave() {
     const items = Object.entries(pending).map(([variantId, qty]) => {
       const { product, variant } = variantIndex[variantId]
@@ -185,12 +203,14 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-gray-100 shrink-0">
+    <div className={mobile ? 'fixed inset-0 z-50 bg-white' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'} onClick={mobile ? undefined : onClose}>
+      <div className={mobile ? 'bg-white w-full h-full flex flex-col' : 'bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col'}
+        style={mobile ? { height: '100dvh', paddingTop: 'env(safe-area-inset-top)' } : undefined} onClick={(e) => e.stopPropagation()}>
+        <div className={`${mobile ? 'px-4 py-3' : 'p-5'} border-b border-gray-100 shrink-0`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-bold text-lg text-gray-800">{t('page_order_create.picker_title')}</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            <button type="button" onClick={onClose} aria-label={t('common.close')}
+              className={mobile ? 'w-10 h-10 -mr-2 flex items-center justify-center text-gray-500 text-xl leading-none' : 'text-gray-400 hover:text-gray-600 text-xl leading-none'}>✕</button>
           </div>
           <div className="flex gap-2">
             <input
@@ -210,7 +230,7 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className={`flex-1 overflow-y-auto ${mobile ? 'p-3' : 'p-5'}`}>
           {loading ? (
             <p className="text-center text-gray-400 py-8">{t('common.loading')}</p>
           ) : filtered.length === 0 ? (
@@ -222,11 +242,37 @@ export default function ProductPickerModal({ onClose, onAdd, supplierId, nameLan
           )}
         </div>
 
-        <div className="p-5 border-t border-gray-100 flex items-center justify-between shrink-0">
+        {mobile && selectedLines.length > 0 && (
+          <div className="border-t border-gray-200 shrink-0 bg-gray-50" data-testid="picker-selected">
+            <button type="button" onClick={() => setShowSelected((o) => !o)} aria-expanded={showSelected}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold text-gray-800">
+              <span>{t('page_order_create.picker_selected_title', { count: selectedPieces })}</span>
+              <IconChevronDown width={16} height={16} className={`text-gray-500 transition-transform ${showSelected ? '' : 'rotate-180'}`} />
+            </button>
+            {showSelected && (
+              <ul className="max-h-[32vh] overflow-y-auto px-4 pb-2 divide-y divide-gray-200">
+                {selectedLines.map((l) => (
+                  <li key={l.variantId} className="flex items-center gap-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{l.product.sku || pickerProductName(l.product, nameLang)}</p>
+                      <p className="text-xs text-gray-500 truncate">{pickerProductName(l.product, nameLang)} · {translateColor(l.variant.color)}/{l.variant.size}</p>
+                    </div>
+                    <span className="text-sm text-gray-600 shrink-0">× {l.qty}</span>
+                    <button type="button" onClick={() => setQty(l.product, l.variant, 0)} aria-label={t('page_order_create.picker_remove_item')}
+                      className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-600 shrink-0"><IconTrash width={16} height={16} /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className={`${mobile ? 'px-4 pt-3' : 'p-5'} border-t border-gray-100 flex items-center justify-between shrink-0 bg-white`}
+          style={mobile ? { paddingBottom: 'max(12px, env(safe-area-inset-bottom))' } : undefined}>
           <span className="text-sm text-gray-500">{t('page_order_create.picker_selected_count', { count: selectedCount })}</span>
           <div className="flex gap-2">
-            <button onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">{t('common.cancel')}</button>
-            <button onClick={handleSave} disabled={selectedCount === 0} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-semibold px-5 py-2 rounded-full">
+            <button type="button" onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">{t('common.cancel')}</button>
+            <button type="button" onClick={handleSave} disabled={selectedCount === 0} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-semibold px-5 py-2 rounded-full">
               {t('common.save')}
             </button>
           </div>

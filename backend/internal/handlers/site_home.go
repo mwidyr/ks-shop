@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -145,9 +146,8 @@ func (h *SiteHandler) Home(w http.ResponseWriter, r *http.Request) {
 			}
 		case "categories":
 			rows, err := h.DB.Query(ctx, `
-				SELECT c.id, c.name, `+storeCategorySQL(r, "c.name")+`, COALESCE(c.slug,''), c.parent_id, COALESCE(c.cover_url,''),
-				       (SELECT COUNT(*) FROM products p WHERE p.category = c.name AND p.is_active AND p.deleted_at IS NULL
-				         AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active))
+				SELECT c.id, c.name, `+storeCategorySQL(r, "c.name")+`, COALESCE(c.slug,''), c.parent_id, `+categoryCoverSQL+`,
+				       `+categorySellableCountSQL+`
 				FROM categories c ORDER BY c.show_on_home DESC, c.sort_order, c.id`)
 			list := []siteCategory{}
 			if err == nil {
@@ -158,6 +158,19 @@ func (h *SiteHandler) Home(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				rows.Close()
+			}
+			// staff-picked categories (config.category_ids) show in the picked order; without a pick: the default order
+			if picked := configIDs(m.cfg["category_ids"]); len(picked) > 0 {
+				byID := map[int]siteCategory{}
+				for _, c := range list {
+					byID[c.ID] = c
+				}
+				list = list[:0:0]
+				for _, id := range picked {
+					if c, ok := byID[id]; ok {
+						list = append(list, c)
+					}
+				}
 			}
 			if n := limitOf(m, 6); len(list) > n {
 				list = list[:n]
@@ -212,7 +225,46 @@ func (h *SiteHandler) Home(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, mod{Key: m.key, Title: pickLang(m.title, lang), Subtitle: pickLang(m.sb, lang), Data: data})
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"modules": out})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"modules": out, "banners": h.homeBanners(ctx)})
+}
+
+type siteBanner struct {
+	ID       int    `json:"id"`
+	ImageURL string `json:"image_url"`
+	LinkURL  string `json:"link_url"`
+	Alt      string `json:"alt"`
+}
+
+// homeBanners: the active banners of the homepage carousel, in the order staff set.
+func (h *SiteHandler) homeBanners(ctx context.Context) []siteBanner {
+	out := []siteBanner{}
+	rows, err := h.DB.Query(ctx, `SELECT id, image_url, link_url, alt FROM home_banners WHERE is_active ORDER BY sort_order, id`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b siteBanner
+		if rows.Scan(&b.ID, &b.ImageURL, &b.LinkURL, &b.Alt) == nil {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// configIDs reads a JSON number list out of a module config (nil when absent or malformed).
+func configIDs(v interface{}) []int {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	ids := []int{}
+	for _, x := range arr {
+		if f, ok := x.(float64); ok && f > 0 && f == float64(int(f)) {
+			ids = append(ids, int(f))
+		}
+	}
+	return ids
 }
 
 // Search serves GET /public/store/search?q=: hosts (name / alias, case-insensitive), products (name,

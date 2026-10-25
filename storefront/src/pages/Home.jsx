@@ -8,13 +8,13 @@ import { useStore } from '../lib/store'
 import { greetingText } from '../lib/wa'
 import { useCs } from '../lib/cs'
 import { Footer } from '../components/Layout'
+import BannerCarousel from '../components/BannerCarousel'
 import { HostCard, LiveBadge, OffBadge } from '../components/HostCard'
 import { IconHeadset, IconPlay, IconSearch, IconWhatsApp } from '../components/Icons'
 import { ProductCard, StripCard } from '../components/ProductCard'
 import { asBtn, ErrorState, ProductGridSkeleton, SectionHead, Skeleton } from '../components/ui'
 
 const tile = { position: 'relative', borderRadius: 14, overflow: 'hidden', textDecoration: 'none', background: 'var(--color-bg-soft)', display: 'block' }
-const tileLabel = (big) => ({ position: 'absolute', left: big ? 12 : 8, bottom: big ? 12 : 8, padding: big ? '6px 12px' : '5px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.95)', color: 'var(--color-text)', fontSize: big ? 15 : 13, fontWeight: 700 })
 
 function Eyebrowless({ children }) {
   return <section style={{ padding: '28px 0 0' }}>{children}</section>
@@ -102,16 +102,17 @@ function Hero({ image, desktop }) {
 
 function Categories({ list, desktop, title, subtitle }) {
   const { t } = useTranslation()
+  const w = desktop ? 220 : 140
   return (
     <Eyebrowless>
       <SectionHead eyebrow={t('home.cat_eyebrow')} title={title} to="/categories" linkLabel={subtitle} />
-      <div style={desktop
-        ? { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 16, padding: '0 40px' }
-        : { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridAutoRows: 120, gap: 8, padding: '0 16px' }}>
-        {list.map((c, i) => (
-          <Link key={c.id} to={`/c/${encodeURIComponent(c.name)}`} style={{ ...tile, ...(desktop ? { height: 240, borderRadius: 18 } : { gridRow: i === 0 ? 'span 2' : 'span 1' }) }}>
-            <img src={sized(img(c.cover_url), 480)} alt={c.display} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
-            <span style={tileLabel(desktop)}>{c.display}</span>
+      <div className="no-scrollbar" data-testid="home-categories" style={{ display: 'flex', gap: desktop ? 16 : 12, overflowX: 'auto', scrollSnapType: 'x proximity', padding: `0 ${desktop ? 40 : 16}px 4px` }}>
+        {list.map((c) => (
+          <Link key={c.id} to={`/c/${encodeURIComponent(c.name)}`} style={{ flex: 'none', width: w, scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', gap: 8, textDecoration: 'none', color: 'var(--color-text)' }}>
+            <span style={{ ...tile, aspectRatio: '3 / 4', borderRadius: desktop ? 18 : 16 }}>
+              <img src={sized(img(c.cover_url), 480)} alt={c.display} loading="lazy" onError={onImgError} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
+            </span>
+            <b style={{ fontSize: 15 }}>{c.display}</b>
           </Link>
         ))}
       </div>
@@ -171,6 +172,7 @@ export default function Home() {
 
   const mods = Object.fromEntries((data?.modules || []).map((m) => [m.key, m]))
   const heroImage = mods.new_in?.data?.[0]?.image || mods.best_sellers?.data?.[0]?.image
+  const banners = data?.banners || []
   const order = (data?.modules || []).map((m) => m.key)
 
   const sections = {
@@ -247,10 +249,10 @@ export default function Home() {
 
       {desktop ? (
         <section style={{ display: 'grid', gridTemplateColumns: mods.live ? '1.4fr 1fr' : '1fr', gap: 24, padding: '32px 40px 0' }}>
-          <Hero image={heroImage} desktop />
+          {banners.length ? <BannerCarousel banners={banners} desktop /> : <Hero image={heroImage} desktop />}
           {mods.live && <LiveArea data={mods.live.data} desktop />}
         </section>
-      ) : <Hero image={heroImage} />}
+      ) : (banners.length ? <BannerCarousel banners={banners} desktop={false} /> : <Hero image={heroImage} />)}
 
       {!data && !error && (
         <div style={{ padding: '28px 0 0' }}><ProductGridSkeleton n={4} /></div>

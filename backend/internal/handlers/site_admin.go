@@ -114,6 +114,14 @@ func (h *SiteAdminHandler) SaveHomeModules(w http.ResponseWriter, r *http.Reques
 			respondError(w, http.StatusBadRequest, "limit must be 1-30")
 			return
 		}
+		if raw, ok := m.Config["category_ids"]; ok {
+			ids := configIDs(raw)
+			if arr, isArr := raw.([]interface{}); !isArr || len(ids) != len(arr) || len(ids) > 30 {
+				respondError(w, http.StatusBadRequest, "category_ids must be a list of at most 30 category ids")
+				return
+			}
+			m.Config["category_ids"] = ids
+		}
 		ct, err := tx.Exec(r.Context(), `UPDATE home_modules SET enabled=$2, position=$3, title=$4, subtitle=$5, config=$6 WHERE key=$1`,
 			m.Key, m.Enabled, i+1, nonNilMap(m.Title), nonNilMap(m.Subtitle), m.Config)
 		if err != nil || ct.RowsAffected() == 0 {
@@ -289,7 +297,7 @@ func (h *SiteAdminHandler) Hosts(w http.ResponseWriter, r *http.Request) {
 	info := loadHostLive(r.Context(), h.DB, ids)
 	for i := range out {
 		if x := info[out[i].ID]; x != nil {
-			out[i].LiveStatus = liveStateAt(time.Now(), x.Rule, x.Ended).Status
+			out[i].LiveStatus = x.stateAt(time.Now()).Status
 		}
 	}
 	respondJSON(w, http.StatusOK, out)
