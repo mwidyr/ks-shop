@@ -8,7 +8,7 @@
 //   platform_order_no   the platform's own order number (7-11 CM…, FamilyMart 訂單編號)
 //   shipping_no         the shipping number (7-11 配送單編號 G…, FamilyMart 寄件編號)
 //   result_text         7-ELEVEN 網頁匯入檢核結果說明, kept verbatim (Chinese)
-// The 3PL and delivery-status formats are NOT known yet: their parsers refuse to guess.
+// The delivery-status format is NOT known yet: its parser refuses to guess. (The 3PL sends no files back.)
 
 export class AdapterNotConfigured extends Error {
   constructor(kind) {
@@ -166,7 +166,7 @@ export const PROVIDER_OF_KIND = {
 }
 
 // Kinds whose file format we do not know yet - the UI shows them as "waiting for the file format".
-export const PENDING_KINDS = ['hct_result', '3pl_shipment', 'delivery']
+export const PENDING_KINDS = ['hct_result', 'delivery']
 
 export function parseKind(parsed, kind) {
   switch (kind) {

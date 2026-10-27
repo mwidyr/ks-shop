@@ -425,6 +425,24 @@ export default function Products() {
     URL.revokeObjectURL(url)
   }
 
+  // Warehouse (WMS) import template: Chinese product name, full SKU, unit "1件"; one row per color / size.
+  // Exports every product matching the current search and filters.
+  async function exportWmsExcel() {
+    setBulkResult('')
+    try {
+      const [XLSX, { WMS_SHEET_NAME, wmsSheetData }, all] = await Promise.all([import('xlsx'), import('../utils/productExcel'), listProductsForExport(filterParams())])
+      const ws = XLSX.utils.aoa_to_sheet(wmsSheetData(all))
+      ws['!cols'] = Array.from({ length: wmsSheetData([])[0].length }, () => ({ wch: 12 }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, WMS_SHEET_NAME)
+      const d = new Date()
+      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+      XLSX.writeFile(wb, `商品匯入(${stamp}).xlsx`)
+    } catch {
+      setBulkResult(t('page_products.export_wms_failed'))
+    }
+  }
+
   function importCsv(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -457,6 +475,9 @@ export default function Products() {
   return (
     <div className="px-4 sm:px-6 py-6">
       <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
+        <button onClick={exportWmsExcel} className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+          {t('page_products.export_wms')}
+        </button>
         <button onClick={exportCsv} className="text-sm font-medium px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
           {t('page_products.export_csv')}
         </button>

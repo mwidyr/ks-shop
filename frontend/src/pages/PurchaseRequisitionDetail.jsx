@@ -554,6 +554,22 @@ export default function PurchaseRequisitionDetail() {
   const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it) * liveCost(g, it), 0)
     + adjustmentTotal(liveAdj[g.id] || g), 0)
 
+  // Warehouse (WMS) stock-in template: one row per SKU of this requisition, date blank, unit 件.
+  const totalSkus = detail.suppliers.reduce((n, g) => n + g.items.length, 0)
+  async function exportStockInExcel() {
+    try {
+      const [XLSX, { WMS_STOCK_IN_SHEET, stockInSheetData }] = await Promise.all([import('xlsx'), import('../utils/requisitionExcel')])
+      const data = stockInSheetData(detail)
+      const ws = XLSX.utils.aoa_to_sheet(data)
+      ws['!cols'] = data[0].map(() => ({ wch: 12 }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, WMS_STOCK_IN_SHEET)
+      XLSX.writeFile(wb, `進倉單匯入_${detail.requisition_no}.xlsx`)
+    } catch {
+      window.alert(t('page_purchase_requisitions.export_wms_failed'))
+    }
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6 max-w-6xl space-y-4">
       <button onClick={() => navigate('/purchase-requisitions')} className="text-sm text-gray-500 hover:text-gray-800">
@@ -569,6 +585,13 @@ export default function PurchaseRequisitionDetail() {
             </span>
           </div>
           <div className="flex items-center gap-2 relative">
+            <button
+              onClick={exportStockInExcel}
+              disabled={totalSkus === 0}
+              className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            >
+              {t('page_purchase_requisitions.export_wms')}
+            </button>
             <button
               onClick={() => { setNoteDraft(detail.note || ''); setEditingNote(true) }}
               className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"

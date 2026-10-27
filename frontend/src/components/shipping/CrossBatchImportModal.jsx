@@ -21,11 +21,6 @@ export default function CrossBatchImportModal({ onClose, onDone }) {
           onDone={onDone}
         />
         <ImportBox
-          title={t('page_shipping_wb.cross_3pl_title')}
-          hint={t('page_shipping_wb.cross_3pl_hint')}
-          kinds={['3pl_shipment']}
-        />
-        <ImportBox
           title={t('page_shipping_wb.cross_delivery_title')}
           hint={t('page_shipping_wb.cross_delivery_hint')}
           kinds={['delivery']}

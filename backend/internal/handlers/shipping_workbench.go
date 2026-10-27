@@ -468,8 +468,10 @@ type recordExportRequest struct {
 
 // RecordExport handles POST /shipping-workbench/batches/{id}/exports, called once the browser has
 // generated a file. It logs which orders went into it and, for the first INITIAL export, moves the
-// orders from New to Processing and locks them. A repeated download is logged as a re-export and
-// changes nothing else.
+// orders from New to Processing and locks them. The first 3PL file moves its Ready to Ship orders to
+// Shipped: the 3PL sends no confirmation back, so handing the file over is the shipment (Actual stock
+// and the FIFO cost are booked then, exactly as the old confirmation import did). A repeated download
+// is logged as a re-export and changes nothing else.
 func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -559,12 +561,25 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 			moved++
 		}
 	}
+	shipped := 0
+	if req.Kind == "3pl_packing" {
+		for _, m := range members {
+			if m.status != "ready_to_ship" {
+				continue
+			}
+			if err := applyStatusChange(ctx, tx, m.id, "ready_to_ship", "shipped", &claims.UserID, "system: sent to 3PL (3PL file exported)"); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to update order status")
+				return
+			}
+			shipped++
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
 	invalidateShippingCache()
-	respondJSON(w, http.StatusOK, map[string]any{"exported_at": exportedAt.Format(time.RFC3339Nano), "moved_to_processing": moved})
+	respondJSON(w, http.StatusOK, map[string]any{"exported_at": exportedAt.Format(time.RFC3339Nano), "moved_to_processing": moved, "moved_to_shipped": shipped})
 }
 
 func uniqueInts(in []int) []int {

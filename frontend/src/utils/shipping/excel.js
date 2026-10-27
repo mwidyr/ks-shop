@@ -1,17 +1,16 @@
 // Builds the Excel files that go to the shipping platforms and the warehouse. The 7-ELEVEN and
 // FamilyMart files are the client's own real import templates (public/cvs-templates), filled in
-// place with exceljs so every instruction row, extra sheet, style and the frozen header stay the
-// genuine original. The HCT file is built from the template's literal headers. The internal ERP
+// place so every instruction row, extra sheet, style and the frozen header stay the
+// genuine original (7-ELEVEN's, being macro-enabled, is filled at zip level, see xlsm711.js). The HCT file is built from the template's literal headers. The internal ERP
 // order number always goes in the remark/product column (7-11 商品備註, FamilyMart 商品, HCT 訂單號),
 // because that is what the imported results are matched on.
 
+// 7-ELEVEN is different: its template is a macro-enabled .xlsm that must stay intact (see xlsm711.js), so
+// it is filled at zip level instead of through exceljs, and the file it produces is an .xlsm too.
+const CVS_711_TEMPLATE_URL = '/cvs-templates/711.xlsm'
+const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12'
+
 const CVS_TEMPLATES = {
-  cvs_711: {
-    url: '/cvs-templates/711.xlsx',
-    sheetName: '訂單匯入',
-    firstDataRow: 7, // row 6 is the real header
-    exampleRowsToClear: [],
-  },
   cvs_familymart: {
     url: '/cvs-templates/FamilyMart.xlsx',
     sheetName: '大量匯單',
@@ -45,10 +44,17 @@ export const HCT_HEADERS = [
 
 const truncate = (s, n) => (s || '').slice(0, n)
 
+async function build711(rows) {
+  const res = await fetch(CVS_711_TEMPLATE_URL)
+  if (!res.ok) throw new Error(`failed to load ${CVS_711_TEMPLATE_URL}`)
+  const { fill711Template, sevenElevenValues } = await import('./xlsm711')
+  const bytes = await fill711Template(await res.arrayBuffer(), rows.map((r) => sevenElevenValues(r, normalizePhone(r.customer_phone))))
+  return new Blob([bytes], { type: XLSM_MIME })
+}
+
 async function buildCvs(provider, rows) {
   const mod = await import('exceljs')
   const ExcelJS = mod.default || mod
-  const is711 = provider === 'cvs_711'
   const tpl = CVS_TEMPLATES[provider]
   const res = await fetch(tpl.url)
   if (!res.ok) throw new Error(`failed to load ${tpl.url}`)
@@ -62,32 +68,18 @@ async function buildCvs(provider, rows) {
   rows.forEach((r, i) => {
     const phone = normalizePhone(r.customer_phone)
     const row = worksheet.getRow(tpl.firstDataRow + i)
-    const values = is711
-      ? [
-          r.customer_name,
-          phone,
-          r.pickup_store_code,
-          '常溫', // temperature type - always room temperature
-          r.categories_zh, // 商品 - unique Chinese category names (product names can trip the keyword filter)
-          // 訂單金額 = products + shipping fee, 運費金額 = 0 (7-ELEVEN rejects a separate fee above its promo fee)
-          Number(r.item_value || 0) + Number(r.shipping_fee || 0),
-          0,
-          r.order_date, // Taiwan date
-          r.order_no, // 商品備註 - our ERP order number, the match key for the results
-          '',
-        ]
-      : [
-          r.customer_name,
-          phone,
-          r.pickup_store_code,
-          String(r.item_value), // 商品金額 - products only
-          String(r.shipping_fee), // 運費金額
-          r.order_date,
-          r.order_no, // 商品 - our ERP order number, the match key for the results
-        ]
+    const values = [
+      r.customer_name,
+      phone,
+      r.pickup_store_code,
+      String(r.item_value), // 商品金額 - products only
+      String(r.shipping_fee), // 運費金額
+      r.order_date,
+      r.order_no, // 商品 - our ERP order number, the match key for the results
+    ]
     values.forEach((v, colIdx) => { row.getCell(colIdx + 1).value = v })
-    // FamilyMart wants every column as text; both need phone + store code kept as text (leading zeros).
-    for (const col of is711 ? [2, 3] : [2, 3, 4, 5]) row.getCell(col).numFmt = '@'
+    // FamilyMart wants every column as text; phone + store code are kept as text (leading zeros).
+    for (const col of [2, 3, 4, 5]) row.getCell(col).numFmt = '@'
     row.commit()
   })
   const buf = await workbook.xlsx.writeBuffer()
@@ -114,8 +106,12 @@ async function buildHct(rows) {
 
 // The file staff upload to the shipping platform to create the orders (initial and retry alike).
 export function buildPlatformExcel(provider, rows) {
-  return provider === 'courier' ? buildHct(rows) : buildCvs(provider, rows)
+  if (provider === 'courier') return buildHct(rows)
+  return provider === 'cvs_711' ? build711(rows) : buildCvs(provider, rows)
 }
+
+// 7-ELEVEN's file stays a macro-enabled workbook; the others are plain .xlsx.
+export const platformFileExt = (provider) => (provider === 'cvs_711' ? 'xlsm' : 'xlsx')
 
 // Packing label workbook for the warehouse (the packing staff's own app format). Placeholder for
 // the 3PL packing Excel until the 3PL confirms its real format.
@@ -145,6 +141,6 @@ export function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url)
 }
 
-export function exportFilename(kind, batchNo) {
-  return `${batchNo}-${kind}.xlsx`
+export function exportFilename(kind, batchNo, ext = 'xlsx') {
+  return `${batchNo}-${kind}.${ext}`
 }

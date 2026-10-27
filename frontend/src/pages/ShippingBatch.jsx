@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
-import { buildPackingLabel, buildPlatformExcel, downloadBlob, exportFilename } from '../utils/shipping/excel'
+import { buildPackingLabel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
 import StatusPill from '../components/StatusPill'
 import {
@@ -14,7 +14,7 @@ const RESULT_KINDS = ['711_validation', '711_export', 'fm_result', 'hct_result']
 const INSTRUCTION_STEPS = { cvs_711: 6, cvs_familymart: 5, courier: 5 }
 const INSTRUCTION_PREFIX = { cvs_711: 'instr_711', cvs_familymart: 'instr_fm', courier: 'instr_hct' }
 // which import kinds belong to the "Unmatched or conflicting records" list of each section
-const ISSUE_KINDS = { results: RESULT_KINDS, shipment: ['3pl_shipment'], delivery: ['delivery'] }
+const ISSUE_KINDS = { results: RESULT_KINDS, delivery: ['delivery'] }
 
 // Unmatched / conflicting import rows. Repeated and overlapping imports pile these up, and they are
 // rarely needed, so the list is collapsed until someone opens it.
@@ -101,7 +101,7 @@ export default function ShippingBatch() {
     const res = await getExportRows(id, kind, exportedAt)
     if (res.rows.length === 0) { setError(t('page_shipping_wb.nothing_to_export')); return }
     const blob = await buildPlatformExcel(provider, res.rows)
-    downloadBlob(blob, exportFilename(exportedAt ? `${kind}-again` : kind, batch.batch_no))
+    downloadBlob(blob, exportFilename(exportedAt ? `${kind}-again` : kind, batch.batch_no, platformFileExt(provider)))
     if (!exportedAt) await recordExport(id, kind, res.rows.flatMap((r) => r.order_ids))
   })
 
@@ -248,19 +248,8 @@ export default function ShippingBatch() {
         )} />
       </SectionCard>
 
-      {/* 05 3PL shipment confirmation */}
-      <SectionCard id="s5" step="05" title={t('page_shipping_wb.s5_title')} hint={t('page_shipping_wb.s5_hint')}>
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Stat label={t('page_shipping_wb.total_shipped')} value={c.shipped + c.completed + c.returned} tone="good" />
-          <Stat label={t('page_shipping_wb.awaiting_shipment')} value={c.ready_to_ship} />
-        </div>
-        <ImportBox title={t('page_shipping_wb.upload_3pl_shipment')} hint={t('page_shipping_wb.s5_upload_hint')} kinds={['3pl_shipment']} provider={provider} batchId={batch.id} onDone={load} />
-        <History items={imports.filter((i) => i.kind === '3pl_shipment')} render={(i) => <li key={i.id}>{formatDateTime(i.created_at)} · {i.file_name} · {i.user}</li>} />
-        <IssueList issues={issues} kinds={ISSUE_KINDS.shipment} />
-      </SectionCard>
-
-      {/* 06 Delivery completion */}
-      <SectionCard id="s6" step="06" title={t('page_shipping_wb.s6_title')} hint={t('page_shipping_wb.s6_hint')}>
+      {/* 05 Delivery completion */}
+      <SectionCard id="s6" step="05" title={t('page_shipping_wb.s6_title')} hint={t('page_shipping_wb.s6_hint')}>
         <div className="flex flex-wrap gap-2 mb-3">
           <Stat label={t('page_shipping_wb.total_completed')} value={c.completed} tone="good" />
           <Stat label={t('page_shipping_wb.awaiting_completion')} value={c.shipped} />
@@ -270,9 +259,9 @@ export default function ShippingBatch() {
         <IssueList issues={issues} kinds={ISSUE_KINDS.delivery} />
       </SectionCard>
 
-      {/* 07 Failed orders & retry - visually separated at the very bottom */}
+      {/* 06 Failed orders & retry - visually separated at the very bottom */}
       <div className="pt-6 border-t-2 border-dashed border-gray-300">
-        <SectionCard id="s7" step="07" title={t('page_shipping_wb.s7_title')} hint={t('page_shipping_wb.s7_hint')} tone="danger">
+        <SectionCard id="s7" step="06" title={t('page_shipping_wb.s7_title')} hint={t('page_shipping_wb.s7_hint')} tone="danger">
           <div className="flex flex-wrap gap-2 mb-3">
             <Stat label={t('page_shipping_wb.unresolved_orders')} value={unresolvedFailed.length} tone={unresolvedFailed.length ? 'bad' : 'good'} />
             <Stat label={t('page_shipping_wb.failed')} value={failedOrders.length} />
