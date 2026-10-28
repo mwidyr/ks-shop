@@ -47,6 +47,7 @@ export default function ProductAnalytics() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [productSort, setProductSort] = useState('gmv')
+  const [variantSort, setVariantSort] = useState('gmv')
   // A Set, not a single value - each ranking row expands/collapses independently instead of
   // acting as an accordion (opening one used to close whichever other row was already open).
   const [expandedIds, setExpandedIds] = useState(() => new Set())
@@ -55,6 +56,10 @@ export default function ProductAnalytics() {
   // (no browser re-sort of keyed rows, no refetch).
   const ranking = data
     ? (productSort === 'qty' ? data.by_product_qty : data.by_product_gmv) || data.by_product || []
+    : []
+
+  const variantRanking = data
+    ? (variantSort === 'qty' ? data.by_variant_qty : data.by_variant_gmv) || data.by_variant || []
     : []
 
   function toggleExpanded(id) {
@@ -222,7 +227,20 @@ export default function ProductAnalytics() {
           </div>
 
           <div className={`${cardClasses} p-5 overflow-x-auto`}>
-            <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_product_analytics.sales_by_variant_title')}</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-[var(--text-primary)]">{t('page_product_analytics.sales_by_variant_title')}</h2>
+              <div className="flex gap-1 text-xs">
+                {['gmv', 'qty'].map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setVariantSort(k)}
+                    className={`px-3 py-1 rounded-full font-semibold ${variantSort === k ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    {t(`page_product_analytics.sort_by_${k}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <table className={tableClasses}>
               <thead>
                 <tr className={theadRowClasses}>
@@ -231,7 +249,7 @@ export default function ProductAnalytics() {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {data.by_variant.map((v) => (
+                {variantRanking.map((v) => (
                   <tr key={v.variant_id} className={rowClasses}>
                     <td className="p-2 font-mono text-xs text-brand-600">{v.sku}</td>
                     <td className="p-2 text-[var(--text-secondary)]">{translateCategory(v.category)}</td>
@@ -242,7 +260,7 @@ export default function ProductAnalytics() {
                     <td className="p-2 text-[var(--text-secondary)]">{v.gmv_pct.toFixed(1)}%</td>
                   </tr>
                 ))}
-                {data.by_variant.length === 0 && (
+                {variantRanking.length === 0 && (
                   <tr><td colSpan={7} className="p-6 text-center text-[var(--text-secondary)]">{t('page_product_analytics.no_sales_in_range')}</td></tr>
                 )}
               </tbody>

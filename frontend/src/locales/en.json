@@ -634,7 +634,8 @@
     "picker_selected_title": "Selected products ({{count}} pcs)",
     "picker_remove_item": "Remove from selection",
     "block_error_email_format": "Order {{index}}: the customer email is not valid.",
-    "block_error_email_required": "Order {{index}}: the customer email is required."
+    "block_error_email_required": "Order {{index}}: the customer email is required.",
+    "select_location_first": "Select a location first"
   },
   "page_order_detail": {
     "additional_fee_label": "Additional Fee",

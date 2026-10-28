@@ -297,15 +297,20 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	varRows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, pv.id, pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
-		FROM order_items oi
-		JOIN orders o ON o.id = oi.order_id
-		JOIN product_variants pv ON pv.id = oi.variant_id
-		JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
-		GROUP BY pv.id, pv.sku, p.id, p.sku, p.category, p.name, pv.color ORDER BY 7 DESC LIMIT 100`, args...)
-	byVariant := []variantAnalysisRow{}
-	if err == nil {
+	// Ranked per variant (SKU/color), never grouped by product. Like the product ranking there is one
+	// top-100 list by GMV and one by quantity.
+	rankVariants := func(orderBy string) []variantAnalysisRow {
+		out := []variantAnalysisRow{}
+		varRows, err := h.DB.Query(r.Context(), `
+			SELECT p.id, pv.id, pv.sku, COALESCE(p.sku,'-'), COALESCE(p.category,'-'), `+productNameSQL(r, "p")+`, pv.color, SUM(oi.qty), SUM(oi.qty*oi.price_at_order)
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			JOIN product_variants pv ON pv.id = oi.variant_id
+			JOIN products p ON p.id = pv.product_id`+joinHosts+where+`
+			GROUP BY pv.id, pv.sku, p.id, p.sku, p.category, p.name, pv.color ORDER BY `+orderBy+`, pv.id LIMIT 100`, args...)
+		if err != nil {
+			return out
+		}
 		defer varRows.Close()
 		for varRows.Next() {
 			var v variantAnalysisRow
@@ -315,9 +320,12 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 			if totalGMV > 0 {
 				v.GMVPct = v.GMV / totalGMV * 100
 			}
-			byVariant = append(byVariant, v)
+			out = append(out, v)
 		}
+		return out
 	}
+	byVariant := rankVariants("9 DESC")
+	byVariantQty := rankVariants("8 DESC")
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"summary":        map[string]interface{}{"qty": totalQty, "gmv": totalGMV, "host_name": hostName, "location_name": locationName},
@@ -325,7 +333,9 @@ func (h *ReportsHandler) ProductAnalysis(w http.ResponseWriter, r *http.Request)
 		"by_product":     byProduct, // top 100 by GMV (kept under its old name)
 		"by_product_gmv": byProduct,
 		"by_product_qty": byProductQty,
-		"by_variant":     byVariant,
+		"by_variant":     byVariant, // top 100 by GMV (kept under its old name)
+		"by_variant_gmv": byVariant,
+		"by_variant_qty": byVariantQty,
 	})
 }
 

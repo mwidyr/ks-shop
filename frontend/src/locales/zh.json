@@ -634,7 +634,8 @@
     "picker_selected_title": "本次已選商品（{{count}} 件）",
     "picker_remove_item": "從已選中移除",
     "block_error_email_format": "訂單 {{index}}：顧客電子郵件格式不正確。",
-    "block_error_email_required": "訂單 {{index}}：必須填寫顧客電子郵件。"
+    "block_error_email_required": "訂單 {{index}}：必須填寫顧客電子郵件。",
+    "select_location_first": "請先選擇地點"
   },
   "page_order_detail": {
     "additional_fee_label": "額外費用",

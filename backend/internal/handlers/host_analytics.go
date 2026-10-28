@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -127,8 +128,9 @@ func (h *HostAnalyticsHandler) aggregate(r *http.Request, from, to time.Time) (a
 			SELECT COALESCE(SUM(ret.qty),0) ret_qty, COALESCE(SUM(ret.amount),0) ret_amount
 			FROM returns ret
 			JOIN orders ro ON ro.id = ret.order_id
-			JOIN hosts h ON h.id = ret.host_id
-			WHERE ret.created_at >= $1 AND ret.created_at < $2` + retWhere + retChanWhere + `
+			LEFT JOIN hosts h ON h.id = ret.host_id
+			WHERE (h.id IS NOT NULL` + strings.ReplaceAll(websiteOr, "o.sales_channel", "ro.sales_channel") + `)
+			  AND ret.created_at >= $1 AND ret.created_at < $2` + retWhere + retChanWhere + `
 		)
 		SELECT live_agg.session_count, live_agg.views, live_agg.uv, live_agg.active, live_agg.awt_seconds,
 		       live_agg.pcu, live_agg.acu, live_agg.follows, live_agg.chats, live_agg.shares, live_agg.likes,
@@ -265,7 +267,7 @@ type historicalBestResponse struct {
 func (h *HostAnalyticsHandler) HistoricalBest(w http.ResponseWriter, r *http.Request) {
 	locWhere, locArgs := hostFilter(r, "ls", 1)
 	query := `
-		SELECT ls.started_at, h.shift, ls.views, ls.pcu, ls.awt_seconds,
+		SELECT ls.started_at, h.shift, COALESCE(ls.views,0), COALESCE(ls.pcu,0), COALESCE(ls.awt_seconds,0),
 		       COALESCE((SELECT SUM(oi.qty) FROM order_items oi WHERE oi.live_session_id = ls.id), 0),
 		       COALESCE((SELECT COUNT(DISTINCT oi.order_id) FROM order_items oi JOIN orders o ON o.id = oi.order_id
 		                 WHERE oi.live_session_id = ls.id AND o.status NOT IN ('cancelled','return')), 0),
@@ -318,14 +320,12 @@ type dailyRow struct {
 	aggregateRow
 }
 
-// PerformanceData returns one row per calendar date (Asia/Jakarta) with valid LIVE Data, newest
-// first, paginated at 50 rows/page. Host=ALL (no ?host_id=) aggregates every host in the
-// selected Location into one row per date.
-//
-// Deliberately stays LIVE-only (not Sales Channel Attribution-aware, unlike Lifetime/Summary
-// above): it's anchored on live_daily (LEFT JOIN sales/return onto it), so a day only appears
-// here if it has valid LIVE Data - restructuring that to also carry Website-only days is a
-// separate follow-up, not part of this round.
+// PerformanceData returns one row per calendar date (Asia/Jakarta) that has LIVE Data OR sales,
+// newest first, paginated at 50 rows/page. Host=ALL (no ?host_id=) aggregates every host in the
+// selected Location into one row per date. It follows the same Sales Channel rules as the cards
+// and the Summary above (ALL = LIVE + Website, Website-only days included), so the rows add up to
+// the Total. Broadcast metrics (Views, UV, ...) only exist on days with LIVE Data and show "-"
+// on the other days.
 func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Request) {
 	from, to, filtered := dateRange(r)
 	if !filtered {
@@ -340,6 +340,15 @@ func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Re
 	liveWhere, liveArgs := hostFilter(r, "ls", 3)
 	salesWhere, _ := hostFilter(r, "oi", 3)
 	retWhere, _ := hostFilter(r, "ret", 3)
+	nextArg := 3 + len(liveArgs)
+	websiteOr, retWebsiteOr := "", ""
+	if includeWebsiteSales(r) {
+		websiteOr = " OR o.sales_channel = 'website'"
+		retWebsiteOr = " OR ro.sales_channel = 'website'"
+	}
+	salesChanWhere, salesChanArgs := salesChannelWhere(r, "o", nextArg)
+	retChanWhere, retChanArgs := salesChannelWhere(r, "ro", nextArg+len(salesChanArgs))
+	limitArg := nextArg + len(salesChanArgs) + len(retChanArgs)
 
 	query := `
 		WITH live_daily AS (
@@ -362,29 +371,38 @@ func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Re
 			       COALESCE(SUM(oi.qty),0) qty, COUNT(DISTINCT oi.order_id) ord, COALESCE(SUM(oi.qty*oi.price_at_order),0) gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
-			JOIN hosts h ON h.id = oi.host_id
+			LEFT JOIN hosts h ON h.id = oi.host_id
 			WHERE o.status NOT IN ('cancelled','return')
-			  AND o.created_at >= $1 AND o.created_at < $2` + salesWhere + `
+			  AND (h.id IS NOT NULL` + websiteOr + `)
+			  AND o.created_at >= $1 AND o.created_at < $2` + salesWhere + salesChanWhere + `
 			GROUP BY d
 		),
 		return_daily AS (
 			SELECT DATE(ret.created_at AT TIME ZONE 'Asia/Jakarta') d,
 			       COALESCE(SUM(ret.qty),0) ret_qty, COALESCE(SUM(ret.amount),0) ret_amount
 			FROM returns ret
-			JOIN hosts h ON h.id = ret.host_id
-			WHERE ret.created_at >= $1 AND ret.created_at < $2` + retWhere + `
+			JOIN orders ro ON ro.id = ret.order_id
+			LEFT JOIN hosts h ON h.id = ret.host_id
+			WHERE (h.id IS NOT NULL` + retWebsiteOr + `)
+			  AND ret.created_at >= $1 AND ret.created_at < $2` + retWhere + retChanWhere + `
 			GROUP BY d
+		),
+		days AS (
+			SELECT d FROM live_daily UNION SELECT d FROM sales_daily
 		)
-		SELECT ld.d, ld.views, ld.uv, ld.active, ld.awt_seconds, ld.pcu, ld.acu, ld.follows, ld.chats, ld.shares, ld.likes,
+		SELECT days.d, ld.views, ld.uv, ld.active, ld.awt_seconds, ld.pcu, ld.acu, ld.follows, ld.chats, ld.shares, ld.likes,
 		       COALESCE(sd.ord,0), COALESCE(sd.qty,0), COALESCE(sd.gmv,0),
 		       COALESCE(rd.ret_qty,0), COALESCE(rd.ret_amount,0)
-		FROM live_daily ld
-		LEFT JOIN sales_daily sd ON sd.d = ld.d
-		LEFT JOIN return_daily rd ON rd.d = ld.d
-		ORDER BY ld.d DESC
-		LIMIT $` + strconv.Itoa(len(liveArgs)+3) + ` OFFSET $` + strconv.Itoa(len(liveArgs)+4)
+		FROM days
+		LEFT JOIN live_daily ld ON ld.d = days.d
+		LEFT JOIN sales_daily sd ON sd.d = days.d
+		LEFT JOIN return_daily rd ON rd.d = days.d
+		ORDER BY days.d DESC
+		LIMIT $` + strconv.Itoa(limitArg) + ` OFFSET $` + strconv.Itoa(limitArg+1)
 
 	args := append([]interface{}{from, to}, liveArgs...)
+	args = append(args, salesChanArgs...)
+	args = append(args, retChanArgs...)
 	args = append(args, pageSize, (page-1)*pageSize)
 
 	rows, err := h.DB.Query(r.Context(), query, args...)

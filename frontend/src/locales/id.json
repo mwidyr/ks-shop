@@ -634,7 +634,8 @@
     "picker_selected_title": "Produk dipilih ({{count}} pcs)",
     "picker_remove_item": "Hapus dari pilihan",
     "block_error_email_format": "Order {{index}}: email pelanggan tidak valid.",
-    "block_error_email_required": "Order {{index}}: email pelanggan wajib diisi."
+    "block_error_email_required": "Order {{index}}: email pelanggan wajib diisi.",
+    "select_location_first": "Pilih lokasi terlebih dahulu"
   },
   "page_order_detail": {
     "additional_fee_label": "Biaya Tambahan",

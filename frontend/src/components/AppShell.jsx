@@ -83,6 +83,8 @@ export default function AppShell({ children, lock }) {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  // Back = the previous page; when this page was opened directly (nothing before it in this tab) go to the dashboard.
+  const goBack = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/dashboard'))
   const [menuOpen, setMenuOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -283,6 +285,17 @@ export default function AppShell({ children, lock }) {
                 <path d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            {location.pathname !== '/dashboard' && (
+              <button
+                type="button"
+                onClick={goBack}
+                className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 rounded-lg px-2 py-1"
+                aria-label={t('common.back')}
+              >
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
+                <span className="hidden sm:inline">{t('common.back')}</span>
+              </button>
+            )}
             <h1 className="text-lg sm:text-xl font-extrabold text-gray-800 truncate">{pageTitle(location.pathname, t)}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">

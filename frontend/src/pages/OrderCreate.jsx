@@ -54,7 +54,7 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Hosts follow the Location chosen above (a host's Location is set in Host Management).
-  const visibleHosts = order.locationId ? hosts.filter((h) => String(h.location_id) === String(order.locationId)) : hosts
+  const visibleHosts = order.locationId ? hosts.filter((h) => String(h.location_id) === String(order.locationId)) : []
   const selectedChain = pickupChains.find((c) => String(c.id) === String(order.pickupChainId))
   const isCvs = selectedChain?.chain_type === 'cvs_711' || selectedChain?.chain_type === 'cvs_familymart'
   const subtotal = order.items.reduce((sum, it) => sum + it.price * it.qty, 0)
@@ -176,8 +176,8 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.host_label')}</label>
-            <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
-              <option value="">{t('page_order_create.select_host_option')}</option>
+            <select value={order.hostId} onChange={(e) => onUpdate('hostId', e.target.value)} disabled={!order.locationId} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400" required>
+              <option value="">{order.locationId ? t('page_order_create.select_host_option') : t('page_order_create.select_location_first')}</option>
               {visibleHosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
           </div>
@@ -429,8 +429,8 @@ export default function OrderCreate() {
   function updateOrder(field, value) {
     setOrder((o) => {
       const next = { ...o, [field]: value }
-      // Picking another Location drops a host that doesn't belong to it.
-      if (field === 'locationId' && value && o.hostId && String(hosts.find((h) => String(h.id) === String(o.hostId))?.location_id) !== String(value)) next.hostId = ''
+      // Changing the Location always clears the Host (the Host list only shows that Location's hosts).
+      if (field === 'locationId' && String(value) !== String(o.locationId)) next.hostId = ''
       return next
     })
   }
