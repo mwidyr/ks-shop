@@ -142,7 +142,8 @@ func main() {
 	// Any authenticated staff role may reach this outer gate; the real per-section
 	// restriction happens per-route below via view()/edit() (backed by role_tab_access -
 	// see internal/middleware/tabaccess.go). super_user always passes the tab check itself.
-	allStaffRoles := []string{"sales", "spv", "management", "cs", "warehouse", "super_user"}
+	// "host" is let in here but confined to its own performance data by HostScope below.
+	allStaffRoles := []string{"sales", "spv", "management", "cs", "warehouse", "super_user", "host"}
 
 	view := func(tab string) func(http.Handler) http.Handler { return appmw.RequireTabView(pool, tab) }
 	viewAny := func(tabs ...string) func(http.Handler) http.Handler { return appmw.RequireAnyTabView(pool, tabs...) }
@@ -235,6 +236,7 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(appmw.JWTAuth(cfg.JWTSecret))
 			r.Use(appmw.RequireRole(allStaffRoles...))
+			r.Use(appmw.HostScope(pool))
 
 			r.Post("/auth/verify-password", authH.VerifyPassword)
 
@@ -244,6 +246,8 @@ func main() {
 			r.With(edit("website_home")).Put("/admin/home-modules", siteAdminH.SaveHomeModules)
 			r.With(view("website_home")).Get("/admin/home-banners", siteAdminH.HomeBanners)
 			r.With(edit("website_home")).Put("/admin/home-banners", siteAdminH.SaveHomeBanners)
+			r.With(view("website_home")).Get("/admin/home-announcements", siteAdminH.HomeAnnouncements)
+			r.With(edit("website_home")).Put("/admin/home-announcements", siteAdminH.SaveHomeAnnouncements)
 			r.With(view("website_categories")).Get("/admin/category-layout", siteAdminH.CategoryLayout)
 			r.With(edit("website_categories")).Put("/admin/category-layout", siteAdminH.SaveCategoryLayout)
 			r.With(edit("website_categories")).Patch("/admin/categories/{id}/cover", siteAdminH.SetCategoryCover)
@@ -494,6 +498,7 @@ func main() {
 			r.With(view("product_trend"), reportCache).Get("/reports/product-trend", reportsH.ProductTrend)
 			r.With(view("product_performance"), reportCache).Get("/reports/product-performance", reportsH.ProductPerformance)
 			r.With(view("product_color_pair"), reportCache).Get("/reports/product-color-pair", reportsH.ProductColorPair)
+			r.With(viewAny("product_performance", "product_color_pair", "product_analytics", "product_trend")).Get("/reports/product-options", reportsH.ProductOptions)
 			r.With(view("host_category_leaderboard"), reportCache).Get("/reports/host-category-leaderboard", reportsH.HostCategoryLeaderboard)
 
 			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)

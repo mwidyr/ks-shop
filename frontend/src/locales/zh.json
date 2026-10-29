@@ -1461,7 +1461,11 @@
     "set_password_failed": "設定密碼失敗",
     "set_password_busy": "儲存中...",
     "set_password_submit": "儲存",
-    "email_update_failed": "更新電子郵件失敗"
+    "email_update_failed": "更新電子郵件失敗",
+    "role_host": "主播",
+    "host_label": "主播",
+    "host_pick": "選擇主播",
+    "host_link_failed": "無法綁定主播"
   },
   "page_sales_analytics": {
     "aov": "平均客單價",
@@ -2842,6 +2846,20 @@
       "replace_image": "更換圖片",
       "add_section": "新增區塊",
       "saved": "分類版面已儲存，網站約一分鐘內更新。"
+    },
+    "announcements": {
+      "title": "公告欄",
+      "intro": "顯示於首頁搜尋框下方的簡短訊息，依此順序輪流播放。與下方的首頁模組分開管理。請依需要填寫各語言；留空的語言會改用其他語言。若沒有啟用的訊息，網站會顯示預設的資訊標籤。",
+      "lang_id": "印尼文",
+      "lang_en": "英文",
+      "lang_zh": "中文",
+      "placeholder": "訊息…",
+      "add": "新增訊息",
+      "none": "尚無訊息。",
+      "active": "顯示",
+      "delete": "刪除",
+      "save": "儲存公告",
+      "saved": "公告已儲存。網站約一分鐘內更新。"
     }
   },
   "page_members": {

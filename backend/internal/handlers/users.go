@@ -26,7 +26,7 @@ type UserHandler struct {
 	Cfg config.Config
 }
 
-var staffRoles = map[string]bool{"super_user": true, "management": true, "spv": true, "sales": true, "cs": true, "warehouse": true}
+var staffRoles = map[string]bool{"super_user": true, "management": true, "spv": true, "sales": true, "cs": true, "warehouse": true, "host": true}
 
 type userView struct {
 	ID       int    `json:"id"`
@@ -34,13 +34,16 @@ type userView struct {
 	Email    string `json:"email"`
 	Role     string `json:"role"`
 	IsActive bool   `json:"is_active"`
+	HostID   *int   `json:"host_id"`
+	HostName string `json:"host_name"`
 }
 
 // List returns every internal staff account (customer-role rows, if any remain, are excluded).
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT u.id, u.name, u.email, ro.name, u.is_active
+		SELECT u.id, u.name, u.email, ro.name, u.is_active, u.host_id, COALESCE(h.name,'')
 		FROM users u JOIN roles ro ON ro.id = u.role_id
+		LEFT JOIN hosts h ON h.id = u.host_id
 		WHERE ro.name <> 'customer'
 		ORDER BY u.name`)
 	if err != nil {
@@ -52,7 +55,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	list := []userView{}
 	for rows.Next() {
 		var u userView
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.IsActive); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.IsActive, &u.HostID, &u.HostName); err != nil {
 			continue
 		}
 		list = append(list, u)
@@ -61,9 +64,10 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type createUserRequest struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	HostID *int   `json:"host_id"` // required for role 'host': the host whose data this account may see
 }
 
 // Create provisions a new staff account (name/email/role) as pending: no password yet,
@@ -76,11 +80,15 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hostID, ok := h.hostLink(w, r, req.Role, req.HostID, 0)
+	if !ok {
+		return
+	}
 	var id int
 	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO users (name, email, password_hash, role_id, is_active)
-		VALUES ($1,$2,NULL,(SELECT id FROM roles WHERE name=$3),false) RETURNING id`,
-		req.Name, req.Email, req.Role).Scan(&id)
+		INSERT INTO users (name, email, password_hash, role_id, is_active, host_id)
+		VALUES ($1,$2,NULL,(SELECT id FROM roles WHERE name=$3),false,$4) RETURNING id`,
+		req.Name, req.Email, req.Role, hostID).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create user (email mungkin sudah dipakai)")
 		return
@@ -91,6 +99,31 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]any{
 		"id": id, "invited": true,
 	})
+}
+
+// hostLink validates the host link of an account: a 'host' account must point at an existing host that no
+// other account already uses; every other role has none. Writes the error response itself (ok=false).
+func (h *UserHandler) hostLink(w http.ResponseWriter, r *http.Request, role string, hostID *int, userID int) (*int, bool) {
+	if role != "host" {
+		return nil, true
+	}
+	if hostID == nil || *hostID == 0 {
+		respondError(w, http.StatusBadRequest, "pilih host untuk akun Host")
+		return nil, false
+	}
+	var taken int
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT COALESCE((SELECT id FROM users WHERE host_id=$1 AND id<>$2 LIMIT 1), 0)
+		WHERE EXISTS (SELECT 1 FROM hosts WHERE id=$1)`, *hostID, userID).Scan(&taken)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "host tidak ditemukan")
+		return nil, false
+	}
+	if taken != 0 {
+		respondError(w, http.StatusConflict, "host ini sudah punya akun")
+		return nil, false
+	}
+	return hostID, true
 }
 
 // sendInvite issues a fresh invite token (any previous unused invite tokens for this user are
@@ -114,6 +147,7 @@ func sendInvite(ctx context.Context, db *pgxpool.Pool, cfg config.Config, userID
 }
 
 type updateUserRequest struct {
+	HostID   *int    `json:"host_id"`
 	Role     *string `json:"role"`
 	IsActive *bool   `json:"is_active"`
 	Email    *string `json:"email"`
@@ -140,8 +174,12 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "invalid role")
 			return
 		}
+		hostID, ok := h.hostLink(w, r, *req.Role, req.HostID, id)
+		if !ok {
+			return
+		}
 		if _, err := h.DB.Exec(r.Context(), `
-			UPDATE users SET role_id = (SELECT id FROM roles WHERE name=$1) WHERE id=$2`, *req.Role, id); err != nil {
+			UPDATE users SET role_id = (SELECT id FROM roles WHERE name=$1), host_id=$3 WHERE id=$2`, *req.Role, id, hostID); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to update role")
 			return
 		}

@@ -14,7 +14,7 @@ import LangBar from './LangBar'
 import Toast from './Toast'
 import { QuickAddProvider } from './QuickAdd'
 import { CsProvider, useCs } from '../lib/cs'
-import { IconCart, IconHeadset, IconMenu, IconSearch, IconUser } from './Icons'
+import { IconCart, IconGlobe, IconHeadset, IconMenu, IconSearch, IconUser } from './Icons'
 
 // Brand mark: the logo uploaded in the admin (Theme & Appearance) or, without one, the text wordmark.
 function Logo({ size = 32, pad = 0 }) {
@@ -41,9 +41,9 @@ export function LiveButton() {
   )
 }
 
-export const HDR_H = 104 // LangBar 46 + MainHeader 58
+export const HDR_H = 58 // MainHeader (the only pinned bar on top; the language switch is its globe button)
 
-// Mobile main header (pinned on every page by Layout): logo + LIVE + search + menu.
+// Mobile main header (pinned on every page by Layout): logo + LIVE + language switch + menu. Search is the bar under it on Home.
 export function MainHeader() {
   const { t } = useTranslation()
   return (
@@ -51,7 +51,7 @@ export function MainHeader() {
       <Logo pad={8} />
       <LiveButton />
       <span style={{ flex: 1 }} />
-      <Link to="/search" aria-label={t('nav.search_aria')} style={iconLink}><IconSearch size={20} /></Link>
+      <Link to="/language" aria-label={t('lang.all')} style={iconLink}><IconGlobe size={22} /></Link>
       <Link to="/menu" aria-label={t('nav.menu')} style={iconLink}><IconMenu /></Link>
     </header>
   )
@@ -157,9 +157,8 @@ export default function Layout() {
         {!bare && desktop && <LangBar />}
         {!bare && !desktop && (
           <>
-            {/* pinned on every mobile page: language marquee + logo bar; the spacer keeps page content below it */}
+            {/* pinned on every mobile page: the logo bar only (everything else scrolls); the spacer keeps page content below it */}
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, maxWidth: 560, margin: '0 auto', zIndex: 45, paddingTop: 'env(safe-area-inset-top)', background: 'var(--color-bg)' }}>
-              <LangBar />
               <MainHeader />
             </div>
             <div aria-hidden style={{ height: 'var(--hdr-h)' }} />

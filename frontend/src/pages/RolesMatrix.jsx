@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listUsers, createUser, updateUser, deleteUser, resendInvite, setUserPassword } from '../api/users'
+import { listHosts } from '../api/hosts'
 import { getRoleTabAccess, updateRoleTabAccess } from '../api/rolePermissions'
 import { tableClasses, theadRowClasses, tbodyClasses, cardClasses } from '../components/Table'
 import PasswordInput from '../components/PasswordInput'
@@ -13,6 +14,7 @@ const roleOptions = [
   { key: 'sales' },
   { key: 'cs' },
   { key: 'warehouse' },
+  { key: 'host' }, // a host's own login: sees only that host's performance data (fixed access, not in the matrix)
 ]
 
 // The matrix lists exactly what the left sidebar shows, same order and grouping (see navConfig.js).
@@ -77,8 +79,9 @@ function tabLabel(t, tab) {
   return t(`nav.items.${tab}`)
 }
 
-function AddStaffForm({ onCreated }) {
+function AddStaffForm({ onCreated, freeHosts }) {
   const { t } = useTranslation()
+  const [hostId, setHostId] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('sales')
@@ -92,7 +95,7 @@ function AddStaffForm({ onCreated }) {
     setError('')
     setInvitedEmail('')
     try {
-      await createUser({ name, email, role })
+      await createUser({ name, email, role, ...(role === 'host' ? { host_id: Number(hostId) } : {}) })
       setInvitedEmail(email)
       setName('')
       setEmail('')
@@ -120,6 +123,15 @@ function AddStaffForm({ onCreated }) {
           {roleOptions.map((r) => <option key={r.key} value={r.key}>{t(`page_roles.role_${r.key}`)}</option>)}
         </select>
       </div>
+      {role === 'host' && (
+        <div>
+          <label className="block text-[11px] text-gray-500 mb-1">{t('page_roles.host_label')}</label>
+          <select value={hostId} onChange={(e) => setHostId(e.target.value)} required className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">{t('page_roles.host_pick')}</option>
+            {freeHosts.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+          </select>
+        </div>
+      )}
       <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg disabled:opacity-50">
         {saving ? t('page_roles.adding') : t('page_roles.add_staff_button')}
       </button>
@@ -146,6 +158,11 @@ export default function RolesMatrix() {
   const [editingEmailId, setEditingEmailId] = useState(null)
   const [editEmailValue, setEditEmailValue] = useState('')
   const [passwordModalUser, setPasswordModalUser] = useState(null)
+  const [hosts, setHosts] = useState([])
+  const [pickHostFor, setPickHostFor] = useState(null) // user being turned into a Host account (needs a host)
+  useEffect(() => { listHosts(true).then(setHosts) }, [])
+  const takenHostIds = new Set(users.map((u) => u.host_id).filter(Boolean))
+  const freeHosts = hosts.filter((h) => !takenHostIds.has(h.id))
 
   function reload() {
     listUsers().then((data) => { setUsers(data); setLoading(false) })
@@ -188,8 +205,22 @@ export default function RolesMatrix() {
   }
 
   async function changeRole(u, role) {
+    if (role === 'host') { setPickHostFor(u.id); return } // a Host account also needs its host: picked next to the role
+    setPickHostFor(null)
     await updateUser(u.id, { role })
     reload()
+  }
+
+  async function linkHost(u, hostId) {
+    if (!hostId) return
+    try {
+      await updateUser(u.id, { role: 'host', host_id: Number(hostId) })
+      setPickHostFor(null)
+      setRowError((e) => ({ ...e, [u.id]: '' }))
+      reload()
+    } catch (err) {
+      setRowError((e) => ({ ...e, [u.id]: err.response?.data?.error || t('page_roles.host_link_failed') }))
+    }
   }
 
   async function handleDelete(u) {
@@ -235,7 +266,7 @@ export default function RolesMatrix() {
     <div className="px-4 sm:px-6 py-6 space-y-6">
       <div className={`${cardClasses} p-5`}>
         <h2 className="font-bold text-[var(--text-primary)] mb-4">{t('page_roles.staff_section_title')}</h2>
-        <AddStaffForm onCreated={reload} />
+        <AddStaffForm onCreated={reload} freeHosts={freeHosts} />
         {loading ? (
           <p className="text-sm text-gray-400">{t('common.loading')}</p>
         ) : (
@@ -262,9 +293,15 @@ export default function RolesMatrix() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1">
+                    <select value={pickHostFor === u.id ? 'host' : u.role} onChange={(e) => changeRole(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1">
                       {roleOptions.map((r) => <option key={r.key} value={r.key}>{t(`page_roles.role_${r.key}`)}</option>)}
                     </select>
+                    {(u.role === 'host' || pickHostFor === u.id) && (
+                      <select value={pickHostFor === u.id ? '' : (u.host_id || '')} onChange={(e) => linkHost(u, e.target.value)} className="text-xs border border-gray-300 rounded-lg px-2 py-1" title={t('page_roles.host_label')}>
+                        <option value="">{t('page_roles.host_pick')}</option>
+                        {hosts.filter((h) => !takenHostIds.has(h.id) || h.id === u.host_id).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                      </select>
+                    )}
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {u.is_active ? t('page_roles.active_label') : t('page_roles.inactive_label')}
                     </span>

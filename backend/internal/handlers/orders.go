@@ -670,10 +670,10 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	} else {
 		_ = tx.QueryRow(ctx, `SELECT COALESCE(email,'') FROM customers WHERE id=$1`, *customerID).Scan(&invoiceEmail)
 	}
-	// Taiwan e-invoices are sent by email, so every new order needs one (older orders may have none).
-	if invoiceEmail == "" || !validInvoiceEmail(invoiceEmail) {
-		respondError(w, http.StatusBadRequest, "customer email is required")
-		return
+	// The e-invoice provider does not need an email, so it is optional. A typed one was validated above;
+	// a saved one that no longer passes the check is simply not used.
+	if invoiceEmail != "" && !validInvoiceEmail(invoiceEmail) {
+		invoiceEmail = ""
 	}
 
 	// Website - Created by CS: a staff-keyed Website order with no Affiliate. (An Affiliate order
@@ -695,7 +695,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NULLIF($18,'')) RETURNING id`,
 		orderNo, *customerID, claims.UserID, req.ShippingAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		req.DiscountAmount, req.AdditionalAmount, req.KeepDate, req.KeepDateType, req.InternalNotes, req.IsUrgent, req.NotesDeadline,
-		req.SalesChannel, req.AffiliateID, websiteSource, invoiceEmail).Scan(&orderID); err != nil {
+		req.SalesChannel, req.AffiliateID, websiteSource, nullStr(invoiceEmail)).Scan(&orderID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create order")
 		return
 	}

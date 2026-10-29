@@ -88,7 +88,7 @@ export default function AppShell({ children, lock }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const { loaded: accessLoaded, isSuperUser: accessSuper, access: accessMap } = useAccess()
+  const { loaded: accessLoaded, isSuperUser: accessSuper, access: accessMap, role: accessRole } = useAccess()
   const access = accessLoaded ? accessMap : null // null = still loading (show everything to avoid flicker)
   const isSuperUser = accessLoaded ? accessSuper : true
   const pageLevel = useTabLevel()
@@ -339,7 +339,7 @@ export default function AppShell({ children, lock }) {
           </div>
         </header>
         <main className="flex-1 min-w-0 overflow-y-auto">
-          {pageLevel === 'view' && (
+          {pageLevel === 'view' && accessRole !== 'host' && (
             <div role="status" className="mx-3 mt-3 sm:mx-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
               {t('shared.view_only_banner')}
             </div>

@@ -7,6 +7,7 @@ import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { cartText } from '../lib/wa'
 import { useCs } from '../lib/cs'
+import { useMember } from '../lib/member'
 import { IconBack, IconCheck, IconHeadset } from '../components/Icons'
 import { asBtn, btnPrimary, EmptyState, iconBtn } from '../components/ui'
 
@@ -20,6 +21,7 @@ function Box({ on, onClick, label }) {
 }
 
 export default function Cart() {
+  const { signedIn } = useMember()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { desktop } = useOutletContext()
@@ -93,10 +95,11 @@ export default function Cart() {
 
       <div style={{ ...barBase, padding: '12px 16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{t('cart.selected_total', { n: cart.selectedCount })}</span><b style={{ fontSize: 20 }}>{money(cart.selectedSubtotal)}</b></div>
+        {!signedIn && <span style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.5 }}>{t('gate.cart_note')}</span>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
           <button type="button" disabled={none} onClick={askCs}
             style={{ ...asBtn, ...{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, background: 'var(--color-text)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none', textAlign: 'center', opacity: none ? 0.4 : 1 } }}><IconHeadset size={18} stroke="#FFFFFF" />{t('cart.ask_cs_order')}</button>
-          <button type="button" disabled={none} onClick={() => navigate('/checkout')}
+          <button type="button" disabled={none} onClick={() => navigate(signedIn ? '/checkout' : '/login?next=/checkout')}
             style={{ minHeight: 52, padding: '6px 10px', boxSizing: 'border-box', borderRadius: 26, border: 'none', background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', ...(none ? { background: 'var(--color-border)', color: 'var(--color-disabled)', cursor: 'not-allowed' } : {}) }}>{t('cart.checkout')}</button>
         </div>
         {none && <span role="alert" style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('cart.none_selected')}</span>}

@@ -183,6 +183,7 @@ export default function ProductTrendAnalysis() {
       <div className={`${cardClasses} p-4 space-y-3`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <SalesChannelFilter
+            requireLocation
             channel={channel} onChannelChange={setChannel}
             locationId={locationId} onLocationChange={setLocationId} locations={locations}
             hostId={hostId} onHostChange={setHostId} hosts={hosts}

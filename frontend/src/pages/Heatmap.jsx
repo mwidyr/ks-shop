@@ -12,8 +12,10 @@ import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 // The left block (Shift | Host | QTY) is its own fixed, non-scrolling table next to the
 // horizontally-scrolling time-slot table - no position:sticky, so nothing can ever show through or
 // paint over it. Because they are two tables, every row must have the same fixed height.
-const QTY_COL_WIDTH = 56
-const SHIFT_COL_WIDTH = 80
+// Column widths [shift, host, qty]: a day's QTY per host is at most 3 digits, so the QTY column stays
+// narrow and Host / QTY sit right next to each other; narrower again on phones so more of the grid shows.
+const LEFT_COLS_DESKTOP = [72, 112, 48]
+const LEFT_COLS_MOBILE = [52, 64, 40]
 const CELL_GAP = 2
 // Header height is FIXED on both tables (the left block and the scrolling grid are separate tables,
 // so their rows must match exactly); the NOW badge stack lives in a wrapper of exactly this height.
@@ -168,8 +170,22 @@ function CellDetailModal({ cell, onClose }) {
   )
 }
 
+function useIsMobile() {
+  const query = '(max-width: 639px)'
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia?.(query)
+    if (!mq) return undefined
+    const on = () => setMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return mobile
+}
+
 export default function Heatmap() {
   const { t } = useTranslation()
+  const [shiftW, hostW, qtyW] = useIsMobile() ? LEFT_COLS_MOBILE : LEFT_COLS_DESKTOP
   const [locations, setLocations] = useState([])
   const [locationId, setLocationId] = useState('')
   const [range, setRange] = useSharedRange()
@@ -229,34 +245,32 @@ export default function Heatmap() {
             {/* Left block: fixed, opaque, never scrolls. */}
             {/* Host / QTY stay grouped (Host is only as wide as its content, capped); the gap goes
                 after QTY so it reads as part of the Host block, not part of the grid. */}
-            <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-2 mr-3" style={{ borderSpacing: CELL_GAP }}>
+            <table className="text-xs border-separate flex-none bg-[var(--table-card-bg)] border-r border-gray-200 pr-1 mr-2" style={{ borderSpacing: CELL_GAP, tableLayout: 'fixed', width: shiftW + hostW + qtyW + CELL_GAP * 4 }}>
+              <colgroup><col style={{ width: shiftW }} /><col style={{ width: hostW }} /><col style={{ width: qtyW }} /></colgroup>
               <thead>
                 <tr style={{ height: HEAD_ROW_H }}>
-                  <th className="p-1 text-left whitespace-nowrap" style={{ width: SHIFT_COL_WIDTH, minWidth: SHIFT_COL_WIDTH }}>{t('page_heatmap.col_shift')}</th>
+                  <th className="p-1 text-left whitespace-nowrap">{t('page_heatmap.col_shift')}</th>
                   <th className="p-1 text-left whitespace-nowrap">{t('page_heatmap.col_host')}</th>
                   {/* Always literal "QTY" in all 3 languages per the client spec - no t() call. */}
-                  <th className="py-1 pl-0 pr-1 text-right whitespace-nowrap" style={{ width: QTY_COL_WIDTH, minWidth: QTY_COL_WIDTH }}>QTY</th>
+                  <th className="py-1 pl-0 pr-1 text-right whitespace-nowrap">QTY</th>
                 </tr>
               </thead>
               <tbody>
                 {grid.hosts.map((host) => (
                   <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
-                    <td className="p-1 font-medium text-gray-500 whitespace-nowrap">{SHIFT_LABELS[host.shift] || ''}</td>
-                    <td className="p-1 font-medium text-gray-700" title={host.host_name}>
-                      <div className="truncate max-w-[84px] sm:max-w-[120px]">{host.host_name}</div>
-                    </td>
+                    <td className="p-1 font-medium text-gray-500 truncate">{SHIFT_LABELS[host.shift] || ''}</td>
+                    <td className="p-1 font-medium text-gray-700 truncate" title={host.host_name}>{host.host_name}</td>
                     <td className="py-1 pl-0 pr-1 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtNum(host.total_qty)}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200" style={{ height: BODY_ROW_H }}>
                   <td className="p-1"></td>
                   <td className="p-1 font-bold text-gray-800">ALL</td>
-                  <td className="p-1 text-right font-bold text-gray-800 whitespace-nowrap">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
+                  <td className="py-1 pl-0 pr-1 text-right font-bold text-gray-800 whitespace-nowrap">{fmtNum(grid.all_row.reduce((a, b) => a + b, 0))}</td>
                 </tr>
                 <tr style={{ height: BODY_ROW_H }}>
                   <td className="p-1"></td>
-                  <td className="p-1 font-bold text-gray-500"><div className="truncate max-w-[84px] sm:max-w-[120px]">{t('page_heatmap.average_row')}</div></td>
-                  <td className="p-1"></td>
+                  <td className="p-1 font-bold text-gray-500 truncate" colSpan={2} title={t('page_heatmap.average_row')}>{t('page_heatmap.average_row')}</td>
                 </tr>
               </tbody>
             </table>

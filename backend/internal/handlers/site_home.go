@@ -225,7 +225,7 @@ func (h *SiteHandler) Home(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, mod{Key: m.key, Title: pickLang(m.title, lang), Subtitle: pickLang(m.sb, lang), Data: data})
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"modules": out, "banners": h.homeBanners(ctx)})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"modules": out, "banners": h.homeBanners(ctx), "announcements": h.homeAnnouncements(ctx, lang)})
 }
 
 type siteBanner struct {

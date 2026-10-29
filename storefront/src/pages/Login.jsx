@@ -12,6 +12,8 @@ import { useDesktop } from '../hooks/useMedia'
 const field = { flex: 1, minWidth: 0, height: 48, borderRadius: 12, border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: '0 14px', fontSize: 15, color: 'var(--color-text)', boxSizing: 'border-box' }
 const bigBtn = (bg, color = '#FFFFFF') => ({ height: 48, borderRadius: 24, border: 'none', background: bg, color, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', textDecoration: 'none' })
 const PHONE_RE = /^(09\d{8}|9\d{8})$/
+// where to go after logging in: an internal path only (e.g. /checkout), never another site
+const safeNext = (v) => (typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') && !v.includes('\\') ? v : '')
 const clean = (s) => s.replace(/[\s-]/g, '').replace(/^\+886/, '0')
 
 // Login / Sign up (one flow: the first verified login creates the account). Layout follows Login.dc.html;
@@ -28,7 +30,8 @@ export default function Login() {
   useEffect(() => { if (sp.get('ref')) { try { sessionStorage.setItem('ralulu_ref', sp.get('ref')) } catch { /* ignore */ } } }, [sp])
 
   const [tab, setTab] = useState('login')
-  const [method, setMethod] = useState('phone') // phone (WhatsApp) | email
+  const next = safeNext(sp.get('next'))
+  const [method, setMethod] = useState('email') // email (default: an email account is needed to order) | phone (WhatsApp)
   const waOff = settings.whatsapp_login === false
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -41,7 +44,7 @@ export default function Login() {
   const [copied, setCopied] = useState(false)
   const poll = useRef(null)
 
-  useEffect(() => { if (signedIn) navigate('/member', { replace: true }) }, [signedIn, navigate])
+  useEffect(() => { if (signedIn) navigate(next || '/member', { replace: true }) }, [signedIn, navigate, next])
   useEffect(() => { if (waOff) setMethod('email') }, [waOff])
   useEffect(() => { if (cool <= 0) return undefined; const id = setTimeout(() => setCool((c) => c - 1), 1000); return () => clearTimeout(id) }, [cool])
   useEffect(() => () => clearInterval(poll.current), [])
@@ -49,8 +52,8 @@ export default function Login() {
   const finish = useCallback(async (res) => {
     clearInterval(poll.current)
     await login(res.token, res.member, res.created)
-    navigate('/member', { replace: true, state: { welcome: res.created } })
-  }, [login, navigate])
+    navigate(next || '/member', { replace: true, state: { welcome: res.created } })
+  }, [login, navigate, next])
 
   async function startWa() {
     if (!PHONE_RE.test(clean(phone))) { setErr(t('login.phone_err')); return }
@@ -108,6 +111,7 @@ export default function Login() {
             </button>
           ))}
         </div>
+        {next === '/checkout' && <div role="note" style={{ padding: '12px 14px', borderRadius: 14, border: '1.5px solid var(--color-primary)', fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>{t('gate.login_note')}</div>}
         <div style={{ padding: '12px 14px', borderRadius: 14, background: 'var(--color-primary-soft)', fontSize: 13, color: 'var(--color-text)' }} dangerouslySetInnerHTML={{ __html: t('login.welcome', { amount: welcomeAmount, min: welcomeMin }) }} />
 
         {wa ? (
@@ -134,8 +138,8 @@ export default function Login() {
           </div>
         ) : (
           <>
-            {settings.whatsapp_login !== false && <button type="button" onClick={() => { setMethod('phone'); startWa() }} disabled={busy} style={waBtn}>{t('login.wa')}</button>}
             <button type="button" onClick={() => { setMethod('email'); setErr('') }} style={mailBtn}>{t('login.email_btn')}</button>
+            {settings.whatsapp_login !== false && <button type="button" onClick={() => { setMethod('phone'); startWa() }} disabled={busy} style={waBtn}>{t('login.wa')}</button>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--color-disabled)' }}>
               <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />{method === 'email' ? t('login.or_email') : t('login.or')}<span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
             </div>

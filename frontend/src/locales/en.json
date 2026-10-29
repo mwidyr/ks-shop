@@ -1461,7 +1461,11 @@
     "set_password_failed": "Failed to set password",
     "set_password_busy": "Saving...",
     "set_password_submit": "Save",
-    "email_update_failed": "Failed to update email"
+    "email_update_failed": "Failed to update email",
+    "role_host": "Host",
+    "host_label": "Host",
+    "host_pick": "Select host",
+    "host_link_failed": "Could not link the host"
   },
   "page_sales_analytics": {
     "aov": "AOV",
@@ -2842,6 +2846,20 @@
       "replace_image": "Replace image",
       "add_section": "Add section",
       "saved": "Category layout saved. The website updates within about a minute."
+    },
+    "announcements": {
+      "title": "Announcement bar",
+      "intro": "Short messages shown in a bar under the search box on the homepage, one after another in this order. Managed separately from the Home Modules below. Write each message in the languages you need; a language left empty falls back to another one. Without any active message the website shows its default info chips.",
+      "lang_id": "Indonesian",
+      "lang_en": "English",
+      "lang_zh": "Chinese",
+      "placeholder": "Message…",
+      "add": "Add message",
+      "none": "No messages yet.",
+      "active": "Shown",
+      "delete": "Delete",
+      "save": "Save announcements",
+      "saved": "Announcements saved. The website updates within about a minute."
     }
   },
   "page_members": {

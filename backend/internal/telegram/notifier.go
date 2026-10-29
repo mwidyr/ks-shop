@@ -73,11 +73,11 @@ type hostDay struct {
 
 // claim reserves a notification in the log (the unique indexes make it once-only); false means
 // it was already announced. Callers release() it when the send fails so the next run retries.
-func (n *Notifier) claim(ctx context.Context, typ, scope, date string, milestone int, session *int, qty int, prev *int) (int, bool) {
+func (n *Notifier) claim(ctx context.Context, typ, scope, date string, milestone int, session *int, win *time.Time, qty int, prev *int) (int, bool) {
 	var id int
 	err := n.DB.QueryRow(ctx, `
-		INSERT INTO telegram_notification_log (notification_type, scope, business_date, milestone, live_session_id, qty, previous_best)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id`, typ, scope, date, milestone, session, qty, prev).Scan(&id)
+		INSERT INTO telegram_notification_log (notification_type, scope, business_date, milestone, live_session_id, window_start, qty, previous_best)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING RETURNING id`, typ, scope, date, milestone, session, win, qty, prev).Scan(&id)
 	return id, err == nil
 }
 
@@ -95,7 +95,7 @@ func (n *Notifier) highest(ctx context.Context, typ, scope, date string) int {
 // server log exactly as it goes out. With Send on it claims the notification (once-only) and
 // posts it, releasing the claim on failure so the next run retries. With Send off nothing is
 // sent and nothing is claimed; an in-memory key only stops the same line repeating every tick.
-func (n *Notifier) dispatch(ctx context.Context, cfg Config, token, typ, scope, date string, milestone int, session *int, qty int, prev *int, chat, text string, repeat int, logKey string) {
+func (n *Notifier) dispatch(ctx context.Context, cfg Config, token, typ, scope, date string, milestone int, session *int, win *time.Time, qty int, prev *int, chat, text string, repeat int, logKey string) {
 	if !cfg.SendEnabled {
 		if chat == "" {
 			chat = "(not set)"
@@ -109,7 +109,7 @@ func (n *Notifier) dispatch(ctx context.Context, cfg Config, token, typ, scope, 
 		}
 		return
 	}
-	id, ok := n.claim(ctx, typ, scope, date, milestone, session, qty, prev)
+	id, ok := n.claim(ctx, typ, scope, date, milestone, session, win, qty, prev)
 	if !ok {
 		return
 	}
@@ -191,7 +191,7 @@ func (n *Notifier) hostMilestones(ctx context.Context, token string, cfg Config,
 		}
 		scope := strconv.Itoa(h.hostID)
 		text := Render(c.Template, Vars(TypeHostMilestone, c, h.hostName, h.location, m, h.qty, 0, 0, date))
-		n.dispatch(ctx, cfg, token, TypeHostMilestone, scope, date, m, nil, h.qty, nil, h.chatID, text, RepeatCount(m),
+		n.dispatch(ctx, cfg, token, TypeHostMilestone, scope, date, m, nil, nil, h.qty, nil, h.chatID, text, RepeatCount(m),
 			fmt.Sprintf("%s|%s|%s|%d", TypeHostMilestone, scope, date, m))
 	}
 }
@@ -200,6 +200,7 @@ func (n *Notifier) globalHostMilestones(ctx context.Context, token string, cfg C
 	c := cfg.GlobalHost
 	global := cfg.GlobalChatID
 	if cfg.SendEnabled && global == "" {
+		n.warnOnce("global_host_milestone: Global Group chat id is empty, nothing can be sent")
 		return
 	}
 	for _, h := range hosts {
@@ -209,7 +210,7 @@ func (n *Notifier) globalHostMilestones(ctx context.Context, token string, cfg C
 		}
 		scope := strconv.Itoa(h.hostID)
 		text := Render(c.Template, Vars(TypeGlobalHostMilestone, c, h.hostName, h.location, m, h.qty, 0, 0, date))
-		n.dispatch(ctx, cfg, token, TypeGlobalHostMilestone, scope, date, m, nil, h.qty, nil, global, text, 1,
+		n.dispatch(ctx, cfg, token, TypeGlobalHostMilestone, scope, date, m, nil, nil, h.qty, nil, global, text, 1,
 			fmt.Sprintf("%s|%s|%s|%d", TypeGlobalHostMilestone, scope, date, m))
 	}
 }
@@ -218,6 +219,7 @@ func (n *Notifier) locationMilestones(ctx context.Context, token string, cfg Con
 	c := cfg.LocationMilestone
 	global := cfg.GlobalChatID
 	if cfg.SendEnabled && global == "" {
+		n.warnOnce("location_milestone: Global Group chat id is empty, nothing can be sent")
 		return
 	}
 	type loc struct {
@@ -238,56 +240,54 @@ func (n *Notifier) locationMilestones(ctx context.Context, token string, cfg Con
 			continue
 		}
 		text := Render(c.Template, Vars(TypeLocationMilestone, c, "", l.name, m, l.qty, 0, 0, date))
-		n.dispatch(ctx, cfg, token, TypeLocationMilestone, scope, date, m, nil, l.qty, nil, global, text, 1,
+		n.dispatch(ctx, cfg, token, TypeLocationMilestone, scope, date, m, nil, nil, l.qty, nil, global, text, 1,
 			fmt.Sprintf("%s|%s|%s|%d", TypeLocationMilestone, scope, date, m))
 	}
 }
 
-// personalBests: for every host currently LIVE, the QTY sold during this session (orders created
-// between the session start and now) against the best of the host's earlier sessions. One message
-// per session at most; the record itself never resets.
+// warnOnce logs a configuration problem once per process instead of every tick.
+func (n *Notifier) warnOnce(msg string) {
+	n.mu.Lock()
+	_, seen := n.logged["warn|"+msg]
+	n.logged["warn|"+msg] = struct{}{}
+	n.mu.Unlock()
+	if !seen {
+		log.Printf("telegram notifier: %s", msg)
+	}
+}
+
+// personalBests: a "LIVE" is a host's scheduled shift window (live_shift_hours + the host's shift, on the
+// Location's working days) or a manual Start LIVE session - the same notion of LIVE the website uses. For every
+// host in a LIVE right now (or that ended within personalBestGrace), the QTY sold since that LIVE started is
+// compared with the best of the host's earlier LIVEs. One message per LIVE at most; the record never resets.
 func (n *Notifier) personalBests(ctx context.Context, token string, cfg Config, date string) {
 	c := cfg.PersonalBest
-	sessionQty := `SELECT COALESCE(SUM(oi.qty),0) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-		WHERE oi.host_id = %s AND ` + validOrder + ` AND o.created_at >= %s AND o.created_at < %s`
-	rows, err := n.DB.Query(ctx, `
-		SELECT ls.id, h.name, hl.name, COALESCE(hl.telegram_chat_id,''),
-		  (`+fmt.Sprintf(sessionQty, "h.id", "ls.started_at", "now() + interval '1 minute'")+`) AS cur,
-		  COALESCE((SELECT MAX(q) FROM (
-		      SELECT (`+fmt.Sprintf(sessionQty, "h.id", "p.started_at", "p.ended_at")+`) AS q
-		      FROM live_sessions p
-		      WHERE p.host_id = h.id AND p.id <> ls.id AND p.started_at IS NOT NULL AND p.ended_at IS NOT NULL
-		        AND p.started_at < ls.started_at) x), 0) AS prev,
-		  h.id
-		FROM live_sessions ls
-		JOIN hosts h ON h.id = ls.host_id
-		JOIN host_locations hl ON hl.id = h.location_id
-		WHERE ls.status = 'live' AND ls.started_at IS NOT NULL`)
+	now := time.Now()
+	hosts, err := n.liveHosts(ctx, now)
 	if err != nil {
-		log.Printf("telegram personal best query: %v", err)
+		log.Printf("telegram personal best: %v", err)
 		return
 	}
-	type cand struct {
-		session, hostID, cur, prev int
-		host, loc, chat            string
-	}
-	var cands []cand
-	for rows.Next() {
-		var k cand
-		if rows.Scan(&k.session, &k.host, &k.loc, &k.chat, &k.cur, &k.prev, &k.hostID) == nil {
-			cands = append(cands, k)
-		}
-	}
-	rows.Close()
-	for _, k := range cands {
-		if (cfg.SendEnabled && k.chat == "") || k.cur <= k.prev || k.cur < c.MinQty {
+	for _, h := range hosts {
+		cur, ok := currentWindow(h.windows, now)
+		if !ok || (cfg.SendEnabled && h.chat == "") {
 			continue
 		}
-		session := k.session
-		prev := k.prev
-		scope := strconv.Itoa(k.hostID)
-		text := Render(c.Template, Vars(TypePersonalBest, c, k.host, k.loc, 0, k.cur, k.prev, k.cur, date))
-		n.dispatch(ctx, cfg, token, TypePersonalBest, scope, date, k.cur, &session, k.cur, &prev, k.chat, text, 1,
-			fmt.Sprintf("%s|%s|%s|%d", TypePersonalBest, scope, date, session))
+		sales, err := n.hostSales(ctx, h.id, now.AddDate(0, 0, -personalBestDays))
+		if err != nil {
+			log.Printf("telegram personal best sales: %v", err)
+			continue
+		}
+		curQty := qtyIn(sales, cur.Start, now.Add(time.Minute))
+		prev := bestBefore(sales, h.windows, cur)
+		if curQty <= prev || curQty < c.MinQty {
+			continue
+		}
+		start := cur.Start
+		prevQ := prev
+		scope := strconv.Itoa(h.id)
+		text := Render(c.Template, Vars(TypePersonalBest, c, h.name, h.location, 0, curQty, prev, curQty, date))
+		n.dispatch(ctx, cfg, token, TypePersonalBest, scope, date, curQty, nil, &start, curQty, &prevQ, h.chat, text, 1,
+			fmt.Sprintf("%s|%s|%d", TypePersonalBest, scope, start.Unix()))
 	}
 }

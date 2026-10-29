@@ -91,6 +91,7 @@ export default function ProductAnalytics() {
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className={`${cardClasses} p-4 space-y-3`}>
         <SalesChannelFilter
+          requireLocation
           channel={channel} onChannelChange={setChannel}
           locationId={locationId} onLocationChange={setLocationId} locations={locations}
           hostId={hostId} onHostChange={setHostId} hosts={hosts}

@@ -829,6 +829,12 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		aArgsBase = append(aArgsBase, hostID)
 		nextArg = 5
 	}
+	// Location (Location-based Host filtering): the anchor item's host belongs to that Location.
+	locWhere := ""
+	if id, err := strconv.Atoi(r.URL.Query().Get("location_id")); err == nil {
+		locWhere = " AND oi.host_id IN (SELECT id FROM hosts WHERE location_id = " + strconv.Itoa(id) + ")"
+	}
+	hostWhereA += locWhere
 	aChannelWhere, aChannelArgs := salesChannelWhere(r, "o", nextArg)
 	aArgs := append(aArgsBase, aChannelArgs...)
 	aJoinWhere := `
@@ -884,6 +890,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		pairArgExtra = append(pairArgExtra, hostID)
 		nextPairArg = 6
 	}
+	hostWherePair += locWhere
 	pairChannelWhere, pairChannelArgs := salesChannelWhere(r, "o", nextPairArg)
 	pairJoinWhere := `
 		FROM order_items oi
@@ -927,4 +934,40 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		"total_orders":    totalOrders,
 		"paired_products": paired,
 	})
+}
+
+// ProductOptions serves GET /reports/product-options: the slim product list behind the product pickers of
+// the product analytics pages (code, names, first photo - nothing about cost, stock or suppliers), so a
+// Host account can search products without getting at the full Products API.
+func (h *ReportsHandler) ProductOptions(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT p.id, COALESCE(p.sku,''), p.name, COALESCE(p.names, '{}'::jsonb),
+		       COALESCE((SELECT url FROM product_images i WHERE i.product_id = p.id ORDER BY i.sort_order LIMIT 1), '')
+		FROM products p WHERE p.deleted_at IS NULL ORDER BY p.id`)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch products")
+		return
+	}
+	defer rows.Close()
+	type option struct {
+		ID     int               `json:"id"`
+		SKU    string            `json:"sku"`
+		Name   string            `json:"name"`
+		Names  map[string]string `json:"names"`
+		Images []ProductImage    `json:"images"`
+	}
+	out := []option{}
+	for rows.Next() {
+		var o option
+		var img string
+		if err := rows.Scan(&o.ID, &o.SKU, &o.Name, &o.Names, &img); err != nil {
+			continue
+		}
+		o.Images = []ProductImage{}
+		if img != "" {
+			o.Images = append(o.Images, ProductImage{URL: img})
+		}
+		out = append(out, o)
+	}
+	respondJSON(w, http.StatusOK, out)
 }

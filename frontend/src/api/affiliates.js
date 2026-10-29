@@ -3,7 +3,7 @@ import { cachedLookup, invalidateLookups } from './lookupCache'
 
 export function listAffiliates(includeInactive) {
   const q = includeInactive ? '?include_inactive=true' : ''
-  return cachedLookup(`affiliates${q}`, () => client.get(`/affiliates${q}`).then((res) => res.data))
+  return cachedLookup(`affiliates${q}`, () => client.get(`/affiliates${q}`).then((res) => res.data).catch(() => []))
 }
 
 export function createAffiliate(payload) {

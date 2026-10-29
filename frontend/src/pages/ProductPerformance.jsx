@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getProductPerformance } from '../api/reports'
-import { listProducts } from '../api/products'
+import { getProductPerformance, listProductOptions } from '../api/reports'
 import { listHosts } from '../api/hosts'
 import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
@@ -32,7 +31,7 @@ export default function ProductPerformance() {
   useEffect(() => { listHosts(true).then(setHosts) }, [])
   useEffect(() => { listLocations().then(setLocations) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
-  useEffect(() => { listProducts().then(setProducts) }, [])
+  useEffect(() => { listProductOptions().then(setProducts) }, [])
 
   useEffect(() => {
     if (!sku) { setData(null); return }
@@ -51,6 +50,7 @@ export default function ProductPerformance() {
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className={`${cardClasses} p-4 space-y-3`}>
         <SalesChannelFilter
+          requireLocation
           channel={channel} onChannelChange={setChannel}
           locationId={locationId} onLocationChange={setLocationId} locations={locations}
           hostId={hostId} onHostChange={setHostId} hosts={hosts}

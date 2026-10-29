@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconHeadset } from './Icons'
 
-// Floating CS button above the navigation (opens the CS center, which hands off to WhatsApp).
+// Floating CS button (59px, WEB ADJ 036: 20% smaller than the first 74px) above the navigation (opens the CS center, which hands off to WhatsApp).
 // The red "1" is CS's greeting ("Bingung ukuran? Bingung pesan?"): shown until the visitor opens the CS center once.
 const SEEN = 'ralulu_cs_seen'
 const TIP_OFF = 'ralulu_cs_tip_off' // the speech bubble was closed this session
@@ -25,11 +25,11 @@ export default function CsFab({ bottom = 108, oneLine = false, tip = '' }) {
         <span style={{ fontSize: 13, fontWeight: 700, ...(oneLine ? { whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } : { maxWidth: 190, whiteSpace: 'normal', lineHeight: 1.35 }) }}>{tip || t('fab.tip')}</span>
         <span aria-hidden style={{ position: 'absolute', top: -8, left: -8, width: 20, height: 20, borderRadius: 10, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, lineHeight: '20px', textAlign: 'center' }}>×</span>
       </span>}
-      <span className="cs-shake" style={{ position: 'relative', width: 74, height: 74, borderRadius: 37, background: 'var(--color-primary)', border: '3px solid #FFFFFF', boxShadow: '0 6px 18px rgba(255,140,105,0.28)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-primary)' }}>
-        <IconHeadset size={32} />
-        <span style={{ fontSize: 11, fontWeight: 900, color: '#FFFFFF', letterSpacing: 1, lineHeight: 1.1 }}>CS</span>
-        {!seen && <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 22, height: 22, borderRadius: 11, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', boxSizing: 'content-box' }}>1</span>}
-        <span style={{ position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, background: 'var(--color-success)', border: '2px solid #fff' }} />
+      <span className="cs-shake" style={{ position: 'relative', width: 59, height: 59, borderRadius: 30, background: 'var(--color-primary)', border: '3px solid #FFFFFF', boxShadow: '0 6px 18px rgba(255,140,105,0.28)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-primary)' }}>
+        <IconHeadset size={26} />
+        <span style={{ fontSize: 9, fontWeight: 900, color: '#FFFFFF', letterSpacing: 1, lineHeight: 1.1 }}>CS</span>
+        {!seen && <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', boxSizing: 'content-box' }}>1</span>}
+        <span style={{ position: 'absolute', bottom: 2, right: 2, width: 11, height: 11, borderRadius: 6, background: 'var(--color-success)', border: '2px solid #fff' }} />
       </span>
     </Link>
   )

@@ -1461,7 +1461,11 @@
     "set_password_failed": "Gagal mengatur password",
     "set_password_busy": "Menyimpan...",
     "set_password_submit": "Simpan",
-    "email_update_failed": "Gagal mengubah email"
+    "email_update_failed": "Gagal mengubah email",
+    "role_host": "Host",
+    "host_label": "Host",
+    "host_pick": "Pilih host",
+    "host_link_failed": "Gagal menautkan host"
   },
   "page_sales_analytics": {
     "aov": "AOV",
@@ -2842,6 +2846,20 @@
       "replace_image": "Ganti gambar",
       "add_section": "Tambah section",
       "saved": "Layout kategori tersimpan. Website diperbarui dalam sekitar satu menit."
+    },
+    "announcements": {
+      "title": "Bar pengumuman",
+      "intro": "Pesan singkat yang tampil di bar bawah kotak pencarian beranda, bergantian sesuai urutan ini. Diatur terpisah dari Home Modules di bawah. Tulis pesan dalam bahasa yang dibutuhkan; bahasa yang dikosongkan memakai bahasa lain. Tanpa pesan aktif, website menampilkan chip info bawaan.",
+      "lang_id": "Indonesia",
+      "lang_en": "Inggris",
+      "lang_zh": "Mandarin",
+      "placeholder": "Pesan…",
+      "add": "Tambah pesan",
+      "none": "Belum ada pesan.",
+      "active": "Tampil",
+      "delete": "Hapus",
+      "save": "Simpan pengumuman",
+      "saved": "Pengumuman tersimpan. Website ikut berubah dalam sekitar satu menit."
     }
   },
   "page_members": {

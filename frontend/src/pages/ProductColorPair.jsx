@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getProductColorPair } from '../api/reports'
-import { listProducts } from '../api/products'
+import { getProductColorPair, listProductOptions } from '../api/reports'
 import { listHosts } from '../api/hosts'
+import { listLocations } from '../api/hostLocations'
 import { listAffiliates } from '../api/affiliates'
 import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import SalesChannelFilter from '../components/SalesChannelFilter'
@@ -71,14 +71,17 @@ export default function ProductColorPair() {
   const [skuA, setSkuA] = useState('')
   const [channel, setChannel] = useState('all')
   const [hostId, setHostId] = useState('')
+  const [locationId, setLocationId] = useState('')
+  const [locations, setLocations] = useState([])
   const [hosts, setHosts] = useState([])
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { listProducts().then(setProducts) }, [])
+  useEffect(() => { listProductOptions().then(setProducts) }, [])
   useEffect(() => { listHosts(true).then(setHosts) }, [])
+  useEffect(() => { listLocations().then(setLocations) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates) }, [])
 
   useEffect(() => {
@@ -86,18 +89,20 @@ export default function ProductColorPair() {
     setLoading(true)
     getProductColorPair({
       sku_a: skuA, date_from: range.from, date_to: range.to,
-      channel, host_id: channel === 'live' ? hostId : '',
+      channel, host_id: channel === 'live' ? hostId : '', location_id: channel === 'live' ? locationId : '',
       affiliate_id: channel === 'website' ? affiliateId : '',
     })
       .then((res) => { setData(res); setLoading(false) })
       .catch(() => { setData(null); setLoading(false) })
-  }, [skuA, range, channel, hostId, affiliateId])
+  }, [skuA, range, channel, hostId, locationId, affiliateId])
 
   return (
     <div className="px-4 sm:px-6 py-6 space-y-4">
       <div className={`${cardClasses} p-4 space-y-3`}>
         <SalesChannelFilter
+          requireLocation
           channel={channel} onChannelChange={setChannel}
+          locationId={locationId} onLocationChange={setLocationId} locations={locations}
           hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />

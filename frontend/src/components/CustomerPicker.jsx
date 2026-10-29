@@ -4,7 +4,7 @@ import client from '../api/client'
 
 // Taiwan mobile format: "09" followed by 8 more digits (10 digits total).
 export const TW_PHONE_REGEX = /^09\d{8}$/
-// Same email check as the website checkout. The e-invoice email is required on every new order.
+// Same email check as the website checkout. The e-invoice email is optional, but a typed one must be valid.
 export const EMAIL_REGEX = /^\S+@\S+\.\S+$/
 
 // Two always-visible fields (Nama Pelanggan / Telepon Pelanggan), matching the reference design
@@ -18,7 +18,7 @@ export const EMAIL_REGEX = /^\S+@\S+\.\S+$/
 //   existing: the full customer row from the search API (id, name, phone, address, plus
 //             last_pickup_chain_id/last_pickup_store_name/last_pickup_store_code)
 //   new/manual: { name, phone, address: '', email }
-// The email (Taiwan e-invoice) is required: picking a customer pre-fills the one saved on them, and it stays editable.
+// The email (Taiwan e-invoice) is optional: picking a customer pre-fills the one saved on them, and it stays editable.
 export default function CustomerPicker({ onChange }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
@@ -138,7 +138,7 @@ export default function CustomerPicker({ onChange }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_email_label')} <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('shared.customer_email_label')}</label>
         <input
           type="email"
           value={email}
@@ -146,7 +146,6 @@ export default function CustomerPicker({ onChange }) {
           onFocus={() => setOpen(false)}
           placeholder={t('shared.customer_email_placeholder')}
           maxLength={150}
-          required
           className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
             email && !EMAIL_REGEX.test(email) ? 'border-red-400' : 'border-gray-300'
           }`}

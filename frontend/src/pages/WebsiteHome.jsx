@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getCategoryLayout, getHomeModules, saveHomeModules } from '../api/website'
+import HomeAnnouncements from '../components/website/HomeAnnouncements'
 import HomeBanners from '../components/website/HomeBanners'
 import FeaturedCategoriesPicker from '../components/website/FeaturedCategoriesPicker'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
@@ -38,6 +39,7 @@ export default function WebsiteHome() {
         <p className="text-sm text-gray-500">{t('page_website.home.intro')}</p>
       </div>
       {msg && <div className={`text-sm px-4 py-2 rounded-lg ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>}
+      <HomeAnnouncements />
       <HomeBanners />
       {mods.map((m, i) => (
         <div key={m.key} className={`${cardCls} space-y-3`}>

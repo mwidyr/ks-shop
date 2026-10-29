@@ -575,7 +575,8 @@ type storeOrderRequest struct {
 
 var phonePattern = regexp.MustCompile(`^[0-9+\-\s]{8,20}$`)
 
-// CreateOrder is guest checkout. Stock is checked under a row lock so two shoppers can't both
+// CreateOrder needs a signed-in website member (email-registered account; invoices and fake-order protection).
+// Stock is checked under a row lock so two shoppers can't both
 // take the last unit; the order lands as 'pending' for the warehouse like any other order.
 func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var req storeOrderRequest
@@ -583,7 +584,19 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	ctx := r.Context()
+	// Only a signed-in, active member can place an order.
+	memberID := h.memberFrom(r)
+	var memberActive bool
+	var memberEmail string
+	if memberID == 0 || h.DB.QueryRow(ctx, `SELECT is_active, COALESCE(email,'') FROM members WHERE id=$1`, memberID).Scan(&memberActive, &memberEmail) != nil || !memberActive {
+		respondError(w, http.StatusUnauthorized, "silakan login atau daftar dengan email untuk checkout")
+		return
+	}
 	req.Name, req.Email = strings.TrimSpace(req.Name), strings.TrimSpace(req.Email)
+	if req.Email == "" {
+		req.Email = memberEmail
+	}
 	// Phones are stored in the local Taiwan format (09xxxxxxxx) so the ERP and shipping exports agree.
 	// Storefront checkout must be a Taiwan mobile; an order a staff member keys in for a customer may
 	// carry another country's number.
@@ -593,7 +606,11 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "nama dan nomor HP Taiwan yang valid (09xxxxxxxx) wajib diisi")
 		return
 	}
-	if req.Email != "" && !validEmailAddress(req.Email) {
+	if req.Email == "" {
+		respondError(w, http.StatusBadRequest, "email wajib diisi")
+		return
+	}
+	if !validEmailAddress(req.Email) {
 		respondError(w, http.StatusBadRequest, "format email tidak valid")
 		return
 	}
@@ -601,7 +618,6 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "pilih metode pengambilan")
 		return
 	}
-	ctx := r.Context()
 
 	address, bad := resolvePickupAddress(ctx, h.DB, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, strings.TrimSpace(req.Address))
 	if bad != "" {
@@ -638,12 +654,10 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	req.memberID = h.memberFrom(r)
-	if req.memberID > 0 {
-		// serialise wallet use per member so two checkouts can't spend the same balance
-		var lock int
-		_ = tx.QueryRow(ctx, `SELECT id FROM members WHERE id=$1 FOR UPDATE`, req.memberID).Scan(&lock)
-	}
+	req.memberID = memberID
+	// serialise wallet use per member so two checkouts can't spend the same balance
+	var lock int
+	_ = tx.QueryRow(ctx, `SELECT id FROM members WHERE id=$1 FOR UPDATE`, req.memberID).Scan(&lock)
 	quote, msg := priceCart(ctx, tx, req.storeQuoteRequest, true)
 	if msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
@@ -658,6 +672,16 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusInternalServerError, "failed to create customer")
 		return
 	}
+
+	// A member without an email (signed up with WhatsApp) keeps the one typed at checkout; it also goes on the customer.
+	if memberEmail == "" {
+		var taken bool
+		_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM members WHERE lower(email)=lower($1) AND id<>$2)`, req.Email, req.memberID).Scan(&taken)
+		if !taken {
+			_, _ = tx.Exec(ctx, `UPDATE members SET email=$2 WHERE id=$1 AND email IS NULL`, req.memberID, req.Email)
+		}
+	}
+	_, _ = tx.Exec(ctx, `UPDATE customers SET email=$2 WHERE id=$1 AND COALESCE(email,'')=''`, customerID, req.Email)
 
 	notes := strings.TrimSpace(req.Notes)
 	if req.Email != "" {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createOrder, cvsSearch, img, onImgError, sized } from '../lib/api'
 import { markUsed } from '../lib/claimed'
@@ -360,7 +360,15 @@ function StoreScreen({ chain, onPick, onCs, last, setLast }) {
   )
 }
 
+// Ordering needs a website account (email registration): invoices + no fake orders. Signed-out visitors go to the login and come back here.
 export default function Checkout() {
+  const { signedIn, ready } = useMember()
+  if (!ready) return null
+  if (!signedIn) return <Navigate to="/login?next=/checkout" replace />
+  return <CheckoutForm />
+}
+
+function CheckoutForm() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { desktop } = useOutletContext()
@@ -408,7 +416,7 @@ export default function Checkout() {
   const askCs = () => openCs(cartText(items))
 
   const phoneOk = isTwMobile(s.phone)
-  const emailOk = !s.email.trim() || /^\S+@\S+\.\S+$/.test(s.email.trim())
+  const emailOk = /^\S+@\S+\.\S+$/.test(s.email.trim())
   const nameOk = Boolean(s.name.trim())
   const step1Errors = [!nameOk && { id: 'c-name', label: t('co.err_name_li') }, !phoneOk && { id: 'c-phone', label: t('co.err_phone_li') }, !emailOk && { id: 'c-email', label: t('co.err_email_li') }].filter(Boolean)
   const addrOk = s.address.trim().length >= 6
@@ -602,7 +610,7 @@ export default function Checkout() {
             {tried && !phoneOk ? <span id="e-phone" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}><IconAlert size={16} />{t('co.err_phone')}</span> : <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('co.phone_hint')}</span>}
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 15, fontWeight: 700 }}>{t('co.email')} <span style={{ fontWeight: 400, color: 'var(--color-text-2)' }}>{t('co.optional')}</span></span>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>{t('co.email')}</span>
             <span style={{ display: 'flex', gap: 8 }}><input id="c-email" type="text" inputMode="email" value={s.email} onChange={(e) => set({ email: e.target.value })} onBlur={() => { const v = s.email.trim(); if (v !== s.email) set({ email: v }) }} placeholder="name@email.com" autoComplete="email" aria-invalid={tried && !emailOk} style={field(tried && !emailOk)} /></span>
             {tried && !emailOk && <span role="alert" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--color-live)' }}><IconAlert size={16} />{t('co.err_email')}</span>}
           </label>

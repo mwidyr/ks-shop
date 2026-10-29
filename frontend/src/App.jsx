@@ -106,6 +106,7 @@ const HOME_CANDIDATES = [
   ['performance_dashboard', '/analytics/performance-dashboard'], ['orders', '/orders'], ['shipping_workbench', '/shipping-workbench'],
   ['returns', '/returns'], ['inventory', '/inventory'], ['panel_siaran', '/panel-siaran'], ['products', '/products'],
   ['customers', '/customers'], ['suppliers', '/suppliers'], ['purchases', '/purchases'], ['reports', '/finance/reports'],
+  ['host_performance_analytics', '/analytics/host-performance'], // a Host account lands on its own performance data
 ]
 
 function HomeRedirect() {
