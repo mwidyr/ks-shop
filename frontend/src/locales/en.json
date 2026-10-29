@@ -1465,7 +1465,8 @@
     "role_host": "Host",
     "host_label": "Host",
     "host_pick": "Select host",
-    "host_link_failed": "Could not link the host"
+    "host_link_failed": "Could not link the host",
+    "host_tab_unavailable": "Host accounts can only be given the personal performance pages (view only); other pages show data for many hosts"
   },
   "page_sales_analytics": {
     "aov": "AOV",

@@ -1465,7 +1465,8 @@
     "role_host": "主播",
     "host_label": "主播",
     "host_pick": "選擇主播",
-    "host_link_failed": "無法綁定主播"
+    "host_link_failed": "無法綁定主播",
+    "host_tab_unavailable": "主持人帳號只能開放個人績效頁面（僅檢視）；其他頁面包含多位主持人的資料"
   },
   "page_sales_analytics": {
     "aov": "平均客單價",

@@ -1465,7 +1465,8 @@
     "role_host": "Host",
     "host_label": "Host",
     "host_pick": "Pilih host",
-    "host_link_failed": "Gagal menautkan host"
+    "host_link_failed": "Gagal menautkan host",
+    "host_tab_unavailable": "Akun Host hanya bisa diberi halaman performa pribadi (lihat saja); halaman lain menampilkan data banyak host"
   },
   "page_sales_analytics": {
     "aov": "AOV",

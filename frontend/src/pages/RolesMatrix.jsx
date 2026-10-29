@@ -151,6 +151,7 @@ export default function RolesMatrix() {
   const [loading, setLoading] = useState(true)
   const [roles, setRoles] = useState([])
   const [matrix, setMatrix] = useState({})
+  const [hostTabs, setHostTabs] = useState({})
   const [matrixSaving, setMatrixSaving] = useState(false)
   const [matrixSaved, setMatrixSaved] = useState(false)
   const [rowError, setRowError] = useState({})
@@ -172,6 +173,7 @@ export default function RolesMatrix() {
     getRoleTabAccess().then((res) => {
       setRoles(res.roles)
       setMatrix(res.matrix)
+      setHostTabs(res.host_tabs || {})
     })
   }
 
@@ -362,15 +364,19 @@ export default function RolesMatrix() {
                     <td className="p-2 text-[var(--text-primary)]">{tabLabel(t, tab)}</td>
                     {roles.map((role) => (
                       <td key={role} className="p-2 text-center">
-                        <select
-                          value={matrix[role]?.[tab] || 'none'}
-                          onChange={(e) => setCell(role, tab, e.target.value)}
-                          className="text-xs border border-gray-300 rounded-lg px-1.5 py-1"
-                        >
-                          <option value="none">{t('page_roles.access_none')}</option>
-                          <option value="view">{t('page_roles.access_view')}</option>
-                          <option value="edit">{t('page_roles.access_edit')}</option>
-                        </select>
+                        {role === 'host' && !hostTabs[tab] ? (
+                          <span className="text-xs text-gray-300" title={t('page_roles.host_tab_unavailable')}>—</span>
+                        ) : (
+                          <select
+                            value={matrix[role]?.[tab] || 'none'}
+                            onChange={(e) => setCell(role, tab, e.target.value)}
+                            className="text-xs border border-gray-300 rounded-lg px-1.5 py-1"
+                          >
+                            <option value="none">{t('page_roles.access_none')}</option>
+                            <option value="view">{t('page_roles.access_view')}</option>
+                            {role !== 'host' && <option value="edit">{t('page_roles.access_edit')}</option>}
+                          </select>
+                        )}
                       </td>
                     ))}
                   </tr>

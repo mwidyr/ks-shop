@@ -37,7 +37,15 @@ var tabKeys = []string{
 
 // configurableRoles are every real role except super_user (Admin), which always has full
 // access and isn't a configurable cell.
-var configurableRoles = []string{"management", "spv", "sales", "cs", "warehouse"}
+var configurableRoles = []string{"management", "spv", "sales", "cs", "warehouse", "host"}
+
+// hostTabs are the only tabs a Host account can be given (view only): the pages whose data is pinned
+// to the host's own numbers by middleware.HostScope. Any other cell saved for host is dropped, because
+// the API would answer 403 for it anyway.
+var hostTabs = map[string]bool{
+	"host_performance_analytics": true, "product_analytics": true, "product_trend": true,
+	"product_performance": true, "product_color_pair": true,
+}
 
 // Tabs returns the static tab list - no DB read needed, it's just the sidebar vocabulary.
 func (h *RolePermissionHandler) Tabs(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +105,7 @@ func (h *RolePermissionHandler) Matrix(w http.ResponseWriter, r *http.Request) {
 		}
 		matrix[role][tab] = level
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"roles": configurableRoles, "matrix": matrix})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"roles": configurableRoles, "matrix": matrix, "host_tabs": hostTabs})
 }
 
 type updateTabAccessRequest struct {
@@ -127,6 +135,9 @@ func (h *RolePermissionHandler) UpdateMatrix(w http.ResponseWriter, r *http.Requ
 	for role, tabs := range req.Matrix {
 		for tab, level := range tabs {
 			if level != "view" && level != "edit" {
+				continue
+			}
+			if role == "host" && (!hostTabs[tab] || level != "view") {
 				continue
 			}
 			if _, err := tx.Exec(ctx, `
