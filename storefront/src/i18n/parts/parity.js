@@ -134,7 +134,7 @@ export default {
       next_delivery: '下一步：配送方式', next_review: '下一步：確認訂單', confirm: '確認訂單', sending: '送出中…', total: '合計',
       recipient_sum: '收件人', back_edit: '返回修改', choose_method: '選擇配送方式', delivery_sum: '配送方式',
       at_711: '7-ELEVEN 取貨', at_fm: '全家取貨', at_pay: '{{chain}} 取貨・取貨付款', cvs_sub: '填門市店號或名稱・取貨付款',
-      fee_line: '運費 {{fee}}・滿 {{min}} 免運', fee_free: '免運費', home_hct: '宅配到府（新竹物流）', home_sub: '填寫收件地址', home_fee: '運費 {{fee}}・{{days}} 天送達',
+      fee_line: '運費 {{fee}}・滿 {{min}} 免運', fee_free: '免運費', home_hct: '宅配到府（POS / 郵寄）', home_sub: '填寫收件地址', home_fee: '運費 {{fee}}・{{days}} 天送達',
       pickup_store: '取貨門市', choose_store: '＋ 選擇 {{chain}} 門市', store_missing: '尚未選擇門市，請先選擇取貨門市再繼續', change_store: '更換門市',
       store_confirmed: '✓ 門市已確認', store_unverified: '店號尚未驗證，客服會再確認。',
       logistics_fail_title: '無法載入配送方式', logistics_fail_text: '網路或物流系統暫時沒有回應。收件資料已保留。', reload: '重新載入', ask_cs: '詢問客服',

@@ -284,14 +284,14 @@ func fetchExportItemSummaries(r *http.Request, db queryer, orderIDs []int) (map[
 	return summary, packingSummary, qty, cats
 }
 
-// fetchExportLines returns each order's product lines (variant SKU, localized name, qty, unit price).
+// fetchExportLines returns each order's product lines (variant SKU, Chinese name + Chinese color, qty, unit price).
 func fetchExportLines(r *http.Request, db queryer, orderIDs []int) map[int][]shippingExportLine {
 	out := map[int][]shippingExportLine{}
 	if len(orderIDs) == 0 {
 		return out
 	}
 	rows, err := db.Query(r.Context(), `
-		SELECT oi.order_id, COALESCE(pv.sku,''), `+productNameSQL(r, "p")+`, pv.color, pv.size, oi.qty, oi.price_at_order
+		SELECT oi.order_id, COALESCE(pv.sku,''), `+chineseNameSQL("p")+`, pv.color, oi.qty, oi.price_at_order
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -304,12 +304,13 @@ func fetchExportLines(r *http.Request, db queryer, orderIDs []int) map[int][]shi
 	for rows.Next() {
 		var orderID int
 		var l shippingExportLine
-		var color, size string
-		if err := rows.Scan(&orderID, &l.SKU, &l.Name, &color, &size, &l.Qty, &l.Price); err != nil {
+		var color string
+		if err := rows.Scan(&orderID, &l.SKU, &l.Name, &color, &l.Qty, &l.Price); err != nil {
 			continue
 		}
-		if color != "" || size != "" {
-			l.Name = fmt.Sprintf("%s（%s / %s）", l.Name, color, size)
+		// 品名 = Chinese product name followed by the Chinese color name (variant colors are stored in Chinese)
+		if color != "" {
+			l.Name += " " + color
 		}
 		out[orderID] = append(out[orderID], l)
 	}
