@@ -44,8 +44,11 @@ type shortageView struct {
 
 type eligibleRow struct {
 	shippingExportRow
-	Category  string         `json:"category"`
-	Problems  []string       `json:"problems"`
+	Category string   `json:"category"`
+	Problems []string `json:"problems"`
+	// Warnings never block batching or the export (e.g. a store code our cached directory doesn't know:
+	// the directory isn't linked to the logistics platform, which validates the row itself).
+	Warnings  []string       `json:"warnings"`
 	Shortages []shortageView `json:"shortages"`
 }
 
@@ -96,20 +99,33 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 		return res, err
 	}
 
-	// A store code the carrier's own directory doesn't know would make the platform reject the row
-	// - and FamilyMart stops its whole import at the first rejected row - so catch it up front.
+	// A store code our cached directory doesn't know is only a warning: the directory is not connected
+	// to the logistics platform (new or changed stores), so the platform gets to judge the row.
 	// Only when the cached directory actually has data for the chain (empty = unknown, never flagged).
 	knownStores, err := knownStoreCodes(r.Context(), db, provider)
+	if err != nil {
+		return res, err
+	}
+	// A merged shipment must go out as one parcel: if a member already sits in a batch, the others can't
+	// be batched on their own (they'd ship separately).
+	splitOrders, err := splitGroupOrders(r.Context(), db, orderIDs)
 	if err != nil {
 		return res, err
 	}
 
 	var candidates []allocOrder
 	problemsByKey := map[int][]string{}
+	warningsByKey := map[int][]string{}
 	for _, row := range rows {
 		probs := exportProblems(row)
 		if provider != "courier" && knownStores != nil && isSixDigits(row.PickupStoreCode) && !knownStores[row.PickupStoreCode] {
-			probs = append(probs, "store_unknown")
+			warningsByKey[row.OrderID] = append(warningsByKey[row.OrderID], "store_unknown")
+		}
+		for _, id := range row.OrderIDs {
+			if splitOrders[id] {
+				probs = append(probs, "merged_split")
+				break
+			}
 		}
 		problemsByKey[row.OrderID] = probs
 		if len(probs) > 0 {
@@ -124,7 +140,7 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 	shortages := allocateOrders(candidates, remaining)
 
 	for _, row := range rows {
-		er := eligibleRow{shippingExportRow: row, Problems: problemsByKey[row.OrderID], Shortages: []shortageView{}}
+		er := eligibleRow{shippingExportRow: row, Problems: problemsByKey[row.OrderID], Warnings: warningsByKey[row.OrderID], Shortages: []shortageView{}}
 		switch {
 		case len(er.Problems) > 0:
 			er.Category = catProblem
@@ -139,10 +155,38 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 		if er.Problems == nil {
 			er.Problems = []string{}
 		}
+		if er.Warnings == nil {
+			er.Warnings = []string{}
+		}
 		res.Rows = append(res.Rows, er)
 	}
 	sort.SliceStable(res.Rows, func(i, j int) bool { return res.Rows[i].earliestCreated.Before(res.Rows[j].earliestCreated) })
 	return res, nil
+}
+
+// splitGroupOrders returns the given orders whose merged shipment group already has a member in a batch.
+func splitGroupOrders(ctx context.Context, db queryer, orderIDs []int) (map[int]bool, error) {
+	out := map[int]bool{}
+	if len(orderIDs) == 0 {
+		return out, nil
+	}
+	rows, err := db.Query(ctx, `
+		SELECT gm.order_id FROM order_shipment_group_members gm
+		WHERE gm.order_id = ANY($1)
+		  AND EXISTS (SELECT 1 FROM order_shipment_group_members g2 JOIN shipping_batch_orders sbo ON sbo.order_id = g2.order_id
+		              WHERE g2.group_id = gm.group_id)`, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
 }
 
 // loadOrderLines returns the (variant, qty) lines of the given orders and the distinct variants.

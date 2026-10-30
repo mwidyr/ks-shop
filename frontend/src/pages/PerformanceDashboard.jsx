@@ -78,9 +78,9 @@ export default function PerformanceDashboard() {
   const [sort, setSort] = useState({ key: 'gmv', dir: 'desc' })
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { listLocations().then(setLocations) }, [])
-  useEffect(() => { listAffiliates().then(setAffiliates) }, [])
-  useEffect(() => { listHosts(false, locationId || undefined).then(setHosts) }, [locationId])
+  useEffect(() => { listLocations().then(setLocations).catch(() => {}) }, [])
+  useEffect(() => { listAffiliates().then(setAffiliates).catch(() => {}) }, [])
+  useEffect(() => { listHosts(false, locationId || undefined).then(setHosts).catch(() => {}) }, [locationId])
 
   const filters = {
     locationId: channel === 'live' ? (locationId || undefined) : undefined,

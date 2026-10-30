@@ -20,8 +20,9 @@ func TestHostScopeRefusesEverythingOutsideTheAllowList(t *testing.T) {
 	h := HostScope(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
 	for _, c := range []struct{ method, target string }{
 		{"GET", "/api/orders"}, {"GET", "/api/customers"}, {"GET", "/api/users"}, {"GET", "/api/hosts"},
-		{"GET", "/api/performance-dashboard/host-ranking"}, {"GET", "/api/heatmap/grid"},
-		{"POST", "/api/host-analytics/summary"}, {"PATCH", "/api/users/1"},
+		{"GET", "/api/heatmap/grid"}, {"GET", "/api/live-sessions/1"}, {"GET", "/api/live-sessions/1/screenshots"},
+		{"POST", "/api/host-analytics/summary"}, {"PATCH", "/api/users/1"}, {"POST", "/api/live-sessions"},
+		{"PATCH", "/api/live-sessions/1/go-live"}, {"GET", "/api/performance-dashboard/other"},
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, hostRequest(c.method, c.target, "host"))

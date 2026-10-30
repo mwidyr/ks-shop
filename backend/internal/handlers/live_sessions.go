@@ -95,6 +95,11 @@ func (h *LiveSessionHandler) List(w http.ResponseWriter, r *http.Request) {
 		args = append(args, hostID)
 		argN++
 	}
+	if locID := q.Get("location_id"); locID != "" {
+		where += " AND h.location_id = $" + strconv.Itoa(argN)
+		args = append(args, locID)
+		argN++
+	}
 	if status := q.Get("status"); status != "" {
 		where += " AND ls.status = $" + strconv.Itoa(argN)
 		args = append(args, status)
@@ -105,7 +110,7 @@ func (h *LiveSessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	total := 0
 	limit := " LIMIT 100"
 	if isPaged(r) {
-		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM live_sessions ls`+where, args...).Scan(&total)
+		h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM live_sessions ls LEFT JOIN hosts h ON h.id = ls.host_id`+where, args...).Scan(&total)
 		limit = pg.limitSQL(&args)
 	}
 	rows, err := h.DB.Query(r.Context(), liveSessionSelect+where+" ORDER BY ls.created_at DESC, ls.id DESC"+limit, args...)

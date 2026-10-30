@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { listLiveSessions, getLiveDataCurrentCode } from '../api/liveSessions'
 import SessionStatusPill from '../components/SessionStatusPill'
+import { useAccess } from '../context/AccessContext'
 
 function LiveDataCodeCard() {
   const { t } = useTranslation()
@@ -46,6 +47,7 @@ export default function PanelSiaran() {
   const [current, setCurrent] = useState(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const isHost = useAccess().role === 'host' // a Host account sees the code and the list, not the session editor
 
   function reload() {
     // the newest draft and the number of sessions: one row and a count each, not the whole history
@@ -85,9 +87,11 @@ export default function PanelSiaran() {
                 <span>{t('page_panel_siaran.label_live_cart')} <span className="font-semibold">{current.cart_count}</span></span>
                 <span>{t('page_panel_siaran.label_orders')} <span className="font-semibold">{current.order_count}</span></span>
               </div>
-              <Link to={`/panel-siaran/${current.id}`} className="text-sm text-brand-600 font-semibold hover:underline mt-2 inline-block">
-                {t('page_panel_siaran.manage_session_link')}
-              </Link>
+              {!isHost && (
+                <Link to={`/panel-siaran/${current.id}`} className="text-sm text-brand-600 font-semibold hover:underline mt-2 inline-block">
+                  {t('page_panel_siaran.manage_session_link')}
+                </Link>
+              )}
             </div>
             <SessionStatusPill status={current.status} />
           </div>

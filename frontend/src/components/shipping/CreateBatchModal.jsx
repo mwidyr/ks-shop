@@ -138,6 +138,9 @@ export default function CreateBatchModal({ provider, onClose }) {
                       {r.problems.map((p) => (
                         <p key={p} className="text-[11px] font-semibold text-red-600">⚠ {t(`page_shipping_wb.problem_${p}`)}</p>
                       ))}
+                      {r.warnings?.map((w) => (
+                        <p key={w} className="text-[11px] font-semibold text-amber-600">⚠ {t(`page_shipping_wb.warning_${w}`)}</p>
+                      ))}
                       {r.shortages.map((s) => (
                         <p key={s.sku} className="text-[11px] font-semibold text-amber-700">
                           {t('page_shipping_wb.short_line', { sku: s.sku, need: s.need, have: s.have })}

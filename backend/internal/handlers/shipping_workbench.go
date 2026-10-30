@@ -196,6 +196,7 @@ type batchOrderView struct {
 	OrderID         int    `json:"order_id"`
 	OrderNo         string `json:"order_no"`
 	Seq             int    `json:"seq"`
+	ShipmentNo      int    `json:"shipment_no"`
 	Status          string `json:"status"`
 	CustomerName    string `json:"customer_name"`
 	StoreName       string `json:"store_name"`
@@ -267,7 +268,8 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		       COALESCE((SELECT MAX(l.created_at) FROM order_status_log l WHERE l.order_id = o.id AND l.status_to = o.status), o.created_at),
 		       o.exported_at,
 		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_packing'),
-		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_sticker')
+		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_sticker'),
+		       (SELECT gm.group_id FROM order_shipment_group_members gm WHERE gm.order_id = o.id)
 		FROM shipping_batch_orders sbo
 		JOIN orders o ON o.id = sbo.order_id
 		JOIN customers c ON c.id = o.customer_id
@@ -277,15 +279,28 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	orders := []batchOrderView{}
+	shipments := 0
+	groupShipment := map[int]int{}
 	for orows.Next() {
 		var v batchOrderView
 		var since time.Time
 		var exp, pack, stick *time.Time
+		var groupID *int
 		if err := orows.Scan(&v.OrderID, &v.OrderNo, &v.Seq, &v.Status, &v.CustomerName, &v.StoreName, &v.StoreCode,
-			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &pack, &stick); err != nil {
+			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &pack, &stick, &groupID); err != nil {
 			orows.Close()
 			respondError(w, http.StatusInternalServerError, "failed to read batch orders")
 			return
+		}
+		// merged orders ship as one parcel (one row in the exported files): they share one shipment number
+		if groupID != nil && groupShipment[*groupID] > 0 {
+			v.ShipmentNo = groupShipment[*groupID]
+		} else {
+			shipments++
+			v.ShipmentNo = shipments
+			if groupID != nil {
+				groupShipment[*groupID] = shipments
+			}
 		}
 		v.StatusSince = since.Format(time.RFC3339)
 		v.ExportedAt, v.PackingAt, v.StickerAt = fmtTimePtr(exp), fmtTimePtr(pack), fmtTimePtr(stick)
@@ -364,7 +379,7 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
-		"batch": sum, "orders": orders, "exports": exports, "imports": imports, "issues": issues,
+		"batch": sum, "shipments": shipments, "orders": orders, "exports": exports, "imports": imports, "issues": issues,
 	})
 }
 

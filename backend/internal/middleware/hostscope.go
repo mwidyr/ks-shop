@@ -26,6 +26,17 @@ var hostAllowedPaths = map[string]bool{
 	"/api/reports/product-options":           true,
 }
 
+// hostLocationPaths are reachable too, but pinned to the host's LOCATION (every host of that studio)
+// instead of the host: the Dashboard (Performance Dashboard) and the LIVE Data Portal's session list.
+// current-code is the rotating upload code the portal shows; it carries no data of its own.
+var hostLocationPaths = map[string]bool{
+	"/api/performance-dashboard/summary":          true,
+	"/api/performance-dashboard/host-ranking":     true,
+	"/api/performance-dashboard/performance-data": true,
+	"/api/live-sessions":                          true,
+	"/api/live-data-upload/current-code":          true,
+}
+
 // HostScope confines a 'host' account to its own data. Other roles pass untouched (their access stays
 // the per-tab permission matrix). For a host: only hostAllowedPaths are reachable, and the query string
 // is rewritten before any handler or response cache sees it, so the handler can only ever compute the
@@ -39,13 +50,17 @@ func HostScope(db *pgxpool.Pool) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if !hostAllowedPaths[strings.TrimSuffix(r.URL.Path, "/")] || r.Method != http.MethodGet {
+			path := strings.TrimSuffix(r.URL.Path, "/")
+			byLocation := hostLocationPaths[path]
+			if !(hostAllowedPaths[path] || byLocation) || r.Method != http.MethodGet {
 				http.Error(w, `{"error":"forbidden: host accounts only see their own performance data"}`, http.StatusForbidden)
 				return
 			}
-			var hostID *int
+			var hostID, locationID *int
 			var active bool
-			if err := db.QueryRow(r.Context(), `SELECT host_id, is_active FROM users WHERE id=$1`, claims.UserID).Scan(&hostID, &active); err != nil || hostID == nil || !active {
+			if err := db.QueryRow(r.Context(), `
+				SELECT u.host_id, h.location_id, u.is_active FROM users u LEFT JOIN hosts h ON h.id = u.host_id WHERE u.id=$1`,
+				claims.UserID).Scan(&hostID, &locationID, &active); err != nil || hostID == nil || locationID == nil || !active {
 				http.Error(w, `{"error":"forbidden: this account is not linked to a host"}`, http.StatusForbidden)
 				return
 			}
@@ -53,7 +68,11 @@ func HostScope(db *pgxpool.Pool) func(http.Handler) http.Handler {
 			for _, k := range []string{"location_id", "affiliate_id", "host_id", "channel"} {
 				q.Del(k)
 			}
-			q.Set("host_id", strconv.Itoa(*hostID))
+			if byLocation {
+				q.Set("location_id", strconv.Itoa(*locationID))
+			} else {
+				q.Set("host_id", strconv.Itoa(*hostID))
+			}
 			q.Set("channel", "live")
 			r2 := r.Clone(r.Context())
 			r2.URL = &url.URL{Path: r.URL.Path, RawQuery: q.Encode()}

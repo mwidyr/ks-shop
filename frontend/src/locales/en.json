@@ -3133,7 +3133,13 @@
     "issue_import_platform_reports_cancelled": "Platform reports a cancellation",
     "confirm_all_not_created_btn": "Confirm all as not created ({{count}})",
     "confirm_all_not_created": "Confirm all {{count}} orders were NOT created on the platform? They will all be included in the retry file.",
-    "open_order": "Open order details"
+    "open_order": "Open order details",
+    "total_shipments": "Total Shipments",
+    "shipments_hint": "{{orders}} orders (merged orders ship as one)",
+    "problem_merged_split": "Merged with an order that is already in another batch. Ask the warehouse/CS to review it",
+    "warning_store_unknown": "Store code not found in our directory (it may be new). You can still batch it; the logistics platform will validate it",
+    "fig_problem": "Problem Orders",
+    "fig_created_today": "Created Today (not batchable yet)"
   },
   "keep_date": {
     "type_label": "Date type",

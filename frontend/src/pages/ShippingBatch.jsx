@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
-import { buildPackingLabel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
+import { buildThreePLExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
 import StatusPill from '../components/StatusPill'
 import {
@@ -66,7 +66,7 @@ export default function ShippingBatch() {
   if (data === false) return <div className="p-8 text-center text-gray-500">{t('page_shipping_wb.batch_not_found')}</div>
   if (!data) return <div className="p-8 text-center text-gray-500">{t('common.loading')}</div>
 
-  const { batch, orders, exports, imports, issues } = data
+  const { batch, orders, exports, imports, issues, shipments } = data
   const provider = batch.provider
   const c = batch.counts
   const byKind = (kind) => exports.filter((e) => e.kind === kind)
@@ -113,7 +113,7 @@ export default function ShippingBatch() {
   const downloadPacking = (exportedAt) => run('dl-pack', async () => {
     const res = await getExportRows(id, '3pl_packing', exportedAt)
     if (res.rows.length === 0) { setError(t('page_shipping_wb.nothing_to_export')); return }
-    downloadBlob(await buildPackingLabel(res.rows), exportFilename(exportedAt ? '3pl-packing-again' : '3pl-packing', batch.batch_no))
+    downloadBlob(await buildThreePLExcel(res.rows), exportFilename(exportedAt ? '3pl-packing-again' : '3pl-packing', batch.batch_no))
     if (!exportedAt) await recordExport(id, '3pl_packing', res.rows.flatMap((r) => r.order_ids))
   })
 
@@ -139,7 +139,7 @@ export default function ShippingBatch() {
           <div className="flex gap-2 items-center"><StagePill stage={batch.stage} /><BatchStatusPill status={batch.status} /></div>
         </div>
         <div className="flex flex-wrap gap-2 mt-4">
-          <Stat label={t('page_shipping_wb.total_orders')} value={c.total} />
+          <Stat label={t('page_shipping_wb.total_shipments')} value={shipments} hint={shipments !== c.total ? t('page_shipping_wb.shipments_hint', { orders: c.total }) : undefined} />
           {c.new > 0 && <Stat label={t('page_shipping_wb.chip_new')} value={c.new} />}
           <Stat label={t('page_shipping_wb.chip_processing')} value={c.processing} />
           <Stat label={t('page_shipping_wb.chip_ready_to_ship')} value={c.ready_to_ship} />
@@ -165,7 +165,7 @@ export default function ShippingBatch() {
               <tbody>
                 {orders.map((o) => (
                   <tr key={o.order_id} className="border-b last:border-0">
-                    <td className="py-1.5 pr-2 text-gray-400">{o.seq}</td>
+                    <td className="py-1.5 pr-2 text-gray-400">{o.shipment_no}</td>
                     <td className="pr-2"><Link to={`/orders/${o.order_id}`} className="font-semibold text-brand-700 hover:underline">{o.order_no}</Link><span className="text-gray-400"> {o.customer_name}</span></td>
                     <td className="pr-2"><StatusPill status={o.status} /></td>
                     <td className="pr-2 font-mono">{o.platform_order_no || '-'}</td>
@@ -239,7 +239,6 @@ export default function ShippingBatch() {
           <button onClick={() => downloadPacking()} disabled={!!busy || verifiedNotSent === 0} className={primaryBtn}>{t('page_shipping_wb.download_3pl_packing')}</button>
           <button disabled className={ghostBtn} title={t('page_shipping_wb.format_pending')}>{t('page_shipping_wb.download_sticker')}</button>
         </div>
-        <div className="mt-3"><Notice tone="info">{t('page_shipping_wb.packing_placeholder')}</Notice></div>
         <History items={byKind('3pl_packing')} render={(e) => (
           <li key={e.exported_at} className="flex items-center justify-between gap-2">
             <span>{formatDateTime(e.exported_at)} · {e.user} · {t('page_shipping_wb.n_orders', { count: e.orders })}</span>

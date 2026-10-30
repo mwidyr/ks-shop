@@ -24,6 +24,13 @@ type ShippingExportHandler struct {
 	DB *pgxpool.Pool
 }
 
+type shippingExportLine struct {
+	SKU   string  `json:"sku"`
+	Name  string  `json:"name"`
+	Qty   int     `json:"qty"`
+	Price float64 `json:"price"`
+}
+
 type shippingExportRow struct {
 	OrderID         int      `json:"order_id"`
 	OrderIDs        []int    `json:"order_ids"`
@@ -40,18 +47,20 @@ type shippingExportRow struct {
 	ItemsSummary    string   `json:"items_summary"`
 	// CategoriesZh: unique Chinese category names of the order's items, concatenated without
 	// separators (7-ELEVEN "商品" column - product names can trip the carrier's keyword filter).
-	CategoriesZh          string  `json:"categories_zh"`
-	PackingProducts       string  `json:"packing_products"`
-	TotalQty              int     `json:"total_qty"`
-	ItemValue             float64 `json:"item_value"`
-	ShippingFee           float64 `json:"shipping_fee"`
-	TotalToPay            float64 `json:"total_to_pay"`
-	OrderDate             string  `json:"order_date"`
-	InternalNotesCombined string  `json:"internal_notes_combined"`
-	Status                string  `json:"status"`
-	ExportedAt            *string `json:"exported_at"`
-	TrackingNumber        *string `json:"tracking_number"`
-	PlatformOrderNo       *string `json:"platform_order_no"`
+	CategoriesZh    string `json:"categories_zh"`
+	PackingProducts string `json:"packing_products"`
+	// Lines: one entry per product line of the shipment (merged orders combined) - the 3PL file has a row each.
+	Lines                 []shippingExportLine `json:"lines"`
+	TotalQty              int                  `json:"total_qty"`
+	ItemValue             float64              `json:"item_value"`
+	ShippingFee           float64              `json:"shipping_fee"`
+	TotalToPay            float64              `json:"total_to_pay"`
+	OrderDate             string               `json:"order_date"`
+	InternalNotesCombined string               `json:"internal_notes_combined"`
+	Status                string               `json:"status"`
+	ExportedAt            *string              `json:"exported_at"`
+	TrackingNumber        *string              `json:"tracking_number"`
+	PlatformOrderNo       *string              `json:"platform_order_no"`
 	// earliestCreated / latestCreated bound the creation time of the shipment's member orders
 	// (server-side only: batch eligibility uses the Taiwan business date of the latest one).
 	earliestCreated time.Time
@@ -125,6 +134,7 @@ func loadShipmentRows(r *http.Request, db queryer, where string, args ...any) ([
 		orderIDs[i] = o.ID
 	}
 	itemsByOrder, packingByOrder, qtyByOrder, catsByOrder := fetchExportItemSummaries(r, db, orderIDs)
+	linesByOrder := fetchExportLines(r, db, orderIDs)
 
 	groups := map[string][]exportOrderRow{}
 	var groupKeys []string
@@ -176,6 +186,7 @@ func loadShipmentRows(r *http.Request, db queryer, where string, args ...any) ([
 			}
 			row.ItemValue += m.ItemValue
 			row.TotalQty += qtyByOrder[m.ID]
+			row.Lines = append(row.Lines, linesByOrder[m.ID]...)
 			if frag := itemsByOrder[m.ID]; frag != "" {
 				itemFragments = append(itemFragments, frag)
 			}
@@ -271,6 +282,38 @@ func fetchExportItemSummaries(r *http.Request, db queryer, orderIDs []int) (map[
 		packingSummary[orderID] = strings.Join(frags, "\n")
 	}
 	return summary, packingSummary, qty, cats
+}
+
+// fetchExportLines returns each order's product lines (variant SKU, localized name, qty, unit price).
+func fetchExportLines(r *http.Request, db queryer, orderIDs []int) map[int][]shippingExportLine {
+	out := map[int][]shippingExportLine{}
+	if len(orderIDs) == 0 {
+		return out
+	}
+	rows, err := db.Query(r.Context(), `
+		SELECT oi.order_id, COALESCE(pv.sku,''), `+productNameSQL(r, "p")+`, pv.color, pv.size, oi.qty, oi.price_at_order
+		FROM order_items oi
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE oi.order_id = ANY($1)
+		ORDER BY oi.order_id, oi.id`, orderIDs)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var orderID int
+		var l shippingExportLine
+		var color, size string
+		if err := rows.Scan(&orderID, &l.SKU, &l.Name, &color, &size, &l.Qty, &l.Price); err != nil {
+			continue
+		}
+		if color != "" || size != "" {
+			l.Name = fmt.Sprintf("%s（%s / %s）", l.Name, color, size)
+		}
+		out[orderID] = append(out[orderID], l)
+	}
+	return out
 }
 
 func containsString(list []string, v string) bool {

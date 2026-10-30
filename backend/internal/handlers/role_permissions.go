@@ -40,11 +40,12 @@ var tabKeys = []string{
 var configurableRoles = []string{"management", "spv", "sales", "cs", "warehouse", "host"}
 
 // hostTabs are the only tabs a Host account can be given (view only): the pages whose data is pinned
-// to the host's own numbers by middleware.HostScope. Any other cell saved for host is dropped, because
+// to the host's own numbers (or, for Dashboard and LIVE Data Portal, to the host's location) by middleware.HostScope. Any other cell saved for host is dropped, because
 // the API would answer 403 for it anyway.
 var hostTabs = map[string]bool{
 	"host_performance_analytics": true, "product_analytics": true, "product_trend": true,
 	"product_performance": true, "product_color_pair": true,
+	"performance_dashboard": true, "panel_siaran": true,
 }
 
 // Tabs returns the static tab list - no DB read needed, it's just the sidebar vocabulary.

@@ -14,9 +14,12 @@ type providerOverview struct {
 	Provider      string `json:"provider"`
 	ReadyToExport int    `json:"ready_to_export"`
 	Insufficient  int    `json:"insufficient_stock"`
-	Processing    int    `json:"processing"`
-	ReadyToShip   int    `json:"ready_to_ship"`
-	Shipped       int    `json:"shipped"`
+	Problem       int    `json:"problem"`
+	// CreatedToday: pending orders created today (Taiwan time); they become batchable tomorrow.
+	CreatedToday int `json:"created_today"`
+	Processing   int `json:"processing"`
+	ReadyToShip  int `json:"ready_to_ship"`
+	Shipped      int `json:"shipped"`
 }
 
 func countOrders(rows []eligibleRow, category string) int {
@@ -54,6 +57,8 @@ func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string) (prov
 	}
 	ov.ReadyToExport = countOrders(elig.Rows, catReady)
 	ov.Insufficient = countOrders(elig.Rows, catInsufficient)
+	ov.Problem = countOrders(elig.Rows, catProblem)
+	ov.CreatedToday = elig.TodayExcluded
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT COUNT(*) FILTER (WHERE o.status = 'processing'),
 		       COUNT(*) FILTER (WHERE o.status = 'ready_to_ship'),

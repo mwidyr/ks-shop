@@ -10,6 +10,8 @@ import { useCanEdit } from '../context/AccessContext'
 const FIGURES = [
   ['ready_to_export', 'fig_ready_to_export'],
   ['insufficient_stock', 'fig_insufficient'],
+  ['problem', 'fig_problem'],
+  ['created_today', 'fig_created_today'],
   ['processing', 'fig_processing'],
   ['ready_to_ship', 'fig_ready_to_ship'],
   ['shipped', 'fig_shipped'],

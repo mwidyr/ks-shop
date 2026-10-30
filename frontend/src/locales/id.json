@@ -3133,7 +3133,13 @@
     "issue_import_platform_reports_cancelled": "Platform melaporkan pembatalan",
     "confirm_all_not_created_btn": "Konfirmasi semua belum dibuat ({{count}})",
     "confirm_all_not_created": "Konfirmasi {{count}} pesanan TIDAK dibuat di platform? Semuanya masuk ke file coba ulang.",
-    "open_order": "Buka detail pesanan"
+    "open_order": "Buka detail pesanan",
+    "total_shipments": "Total Pengiriman",
+    "shipments_hint": "{{orders}} pesanan (pesanan yang digabung dikirim sebagai satu)",
+    "problem_merged_split": "Digabung dengan pesanan yang sudah ada di batch lain. Minta gudang/CS memeriksanya",
+    "warning_store_unknown": "Kode toko tidak ada di direktori kami (mungkin toko baru). Tetap bisa dibatch; platform logistik yang akan memvalidasi",
+    "fig_problem": "Pesanan Bermasalah",
+    "fig_created_today": "Dibuat Hari Ini (belum bisa dibatch)"
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

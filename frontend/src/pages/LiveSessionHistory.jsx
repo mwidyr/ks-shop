@@ -6,12 +6,14 @@ import SessionStatusPill from '../components/SessionStatusPill'
 import { IconArrowRight } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import Pager from '../components/Pager'
+import { useAccess } from '../context/AccessContext'
 
 export default function LiveSessionHistory() {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const isHost = useAccess().role === 'host' // a Host account only sees the list, not the session editor
 
   useEffect(() => { listLiveSessions({ page, page_size: 25 }).then((res) => { setSessions(res.items); setTotal(res.total) }) }, [page])
 
@@ -22,9 +24,11 @@ export default function LiveSessionHistory() {
           <Link to="/panel-siaran" className="text-gray-500 hover:text-gray-800">←</Link>
           <h1 className="text-xl font-bold text-gray-800">{t('page_live_session_history.title')}</h1>
         </div>
-        <Link to="/panel-siaran/new" className="bg-gray-800 hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg">
-          {t('page_live_session_history.add_session_button')}
-        </Link>
+        {!isHost && (
+          <Link to="/panel-siaran/new" className="bg-gray-800 hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            {t('page_live_session_history.add_session_button')}
+          </Link>
+        )}
       </div>
 
       {!sessions ? (
@@ -55,9 +59,11 @@ export default function LiveSessionHistory() {
                   <td className="p-3.5 text-right text-[var(--text-secondary)]">{s.peak_viewers}</td>
                   <td className="p-3.5 text-[var(--text-secondary)]">{new Date(s.created_at).toLocaleDateString('id-ID')}</td>
                   <td className="p-3.5">
-                    <Link to={`/panel-siaran/${s.id}`} className="text-brand-600 font-semibold text-xs hover:underline flex items-center gap-1">
-                      {t('page_live_session_history.manage_link')} <IconArrowRight width={13} height={13} />
-                    </Link>
+                    {!isHost && (
+                      <Link to={`/panel-siaran/${s.id}`} className="text-brand-600 font-semibold text-xs hover:underline flex items-center gap-1">
+                        {t('page_live_session_history.manage_link')} <IconArrowRight width={13} height={13} />
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

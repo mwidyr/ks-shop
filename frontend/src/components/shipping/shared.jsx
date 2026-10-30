@@ -92,12 +92,13 @@ export function SectionCard({ id, step, title, hint, tone, children }) {
   )
 }
 
-export function Stat({ label, value, tone }) {
+export function Stat({ label, value, tone, hint }) {
   const color = tone === 'bad' ? 'text-red-600' : tone === 'good' ? 'text-green-600' : 'text-gray-800'
   return (
     <div className="bg-gray-50 rounded-xl px-3 py-2 min-w-[96px]">
       <p className="text-[11px] uppercase text-gray-400">{label}</p>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
+      {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
     </div>
   )
 }

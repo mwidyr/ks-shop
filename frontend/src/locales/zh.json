@@ -3133,7 +3133,13 @@
     "issue_import_platform_reports_cancelled": "平台回報取消",
     "confirm_all_not_created_btn": "全部確認未建立（{{count}} 筆）",
     "confirm_all_not_created": "確認這 {{count}} 筆訂單「未」在平台建立？全部將納入重試檔。",
-    "open_order": "開啟訂單詳情"
+    "open_order": "開啟訂單詳情",
+    "total_shipments": "出貨總數",
+    "shipments_hint": "{{orders}} 筆訂單（合併訂單視為一筆出貨）",
+    "problem_merged_split": "與已在其他批次的訂單合併，請倉庫/客服處理",
+    "warning_store_unknown": "門市代碼不在我方門市目錄中（可能為新門市），仍可建立批次，由物流平台驗證",
+    "fig_problem": "問題訂單",
+    "fig_created_today": "今日建立（尚不可建批次）"
   },
   "keep_date": {
     "type_label": "日期類型",
