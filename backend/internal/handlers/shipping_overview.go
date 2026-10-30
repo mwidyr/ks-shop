@@ -17,9 +17,11 @@ type providerOverview struct {
 	Problem       int    `json:"problem"`
 	// CreatedToday: pending orders created today (Taiwan time); they become batchable tomorrow.
 	CreatedToday int `json:"created_today"`
-	Processing   int `json:"processing"`
-	ReadyToShip  int `json:"ready_to_ship"`
-	Shipped      int `json:"shipped"`
+	// Held: pending orders not batchable yet because of their keep (hold) date.
+	Held        int `json:"held"`
+	Processing  int `json:"processing"`
+	ReadyToShip int `json:"ready_to_ship"`
+	Shipped     int `json:"shipped"`
 }
 
 func countOrders(rows []eligibleRow, category string) int {
@@ -59,6 +61,17 @@ func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string) (prov
 	ov.Insufficient = countOrders(elig.Rows, catInsufficient)
 	ov.Problem = countOrders(elig.Rows, catProblem)
 	ov.CreatedToday = elig.TodayExcluded
+	var pending int
+	if err = h.DB.QueryRow(r.Context(), `
+		SELECT COUNT(*) FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.status = 'pending' AND pc.chain_type = $1
+		  AND NOT EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)`, p).Scan(&pending); err != nil {
+		return ov, err
+	}
+	for _, row := range elig.Rows {
+		pending -= len(row.OrderIDs)
+	}
+	ov.Held = max(pending-ov.CreatedToday, 0)
 	err = h.DB.QueryRow(r.Context(), `
 		SELECT COUNT(*) FILTER (WHERE o.status = 'processing'),
 		       COUNT(*) FILTER (WHERE o.status = 'ready_to_ship'),

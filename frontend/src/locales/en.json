@@ -3139,7 +3139,8 @@
     "problem_merged_split": "Merged with an order that is already in another batch. Ask the warehouse/CS to review it",
     "warning_store_unknown": "Store code not found in our directory (it may be new). You can still batch it; the logistics platform will validate it",
     "fig_problem": "Problem Orders",
-    "fig_created_today": "Created Today (not batchable yet)"
+    "fig_created_today": "Created Today (not batchable yet)",
+    "fig_held": "On Hold (keep date)"
   },
   "keep_date": {
     "type_label": "Date type",

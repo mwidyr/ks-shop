@@ -3139,7 +3139,8 @@
     "problem_merged_split": "與已在其他批次的訂單合併，請倉庫/客服處理",
     "warning_store_unknown": "門市代碼不在我方門市目錄中（可能為新門市），仍可建立批次，由物流平台驗證",
     "fig_problem": "問題訂單",
-    "fig_created_today": "今日建立（尚不可建批次）"
+    "fig_created_today": "今日建立（尚不可建批次）",
+    "fig_held": "保留中（保留日期）"
   },
   "keep_date": {
     "type_label": "日期類型",

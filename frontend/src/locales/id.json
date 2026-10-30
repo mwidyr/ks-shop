@@ -3139,7 +3139,8 @@
     "problem_merged_split": "Digabung dengan pesanan yang sudah ada di batch lain. Minta gudang/CS memeriksanya",
     "warning_store_unknown": "Kode toko tidak ada di direktori kami (mungkin toko baru). Tetap bisa dibatch; platform logistik yang akan memvalidasi",
     "fig_problem": "Pesanan Bermasalah",
-    "fig_created_today": "Dibuat Hari Ini (belum bisa dibatch)"
+    "fig_created_today": "Dibuat Hari Ini (belum bisa dibatch)",
+    "fig_held": "Ditahan (tanggal keep)"
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

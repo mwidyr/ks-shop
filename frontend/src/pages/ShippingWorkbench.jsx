@@ -12,6 +12,7 @@ const FIGURES = [
   ['insufficient_stock', 'fig_insufficient'],
   ['problem', 'fig_problem'],
   ['created_today', 'fig_created_today'],
+  ['held', 'fig_held'],
   ['processing', 'fig_processing'],
   ['ready_to_ship', 'fig_ready_to_ship'],
   ['shipped', 'fig_shipped'],

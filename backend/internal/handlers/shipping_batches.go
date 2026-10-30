@@ -54,7 +54,7 @@ type eligibleRow struct {
 
 type eligibleResult struct {
 	Rows []eligibleRow `json:"rows"`
-	// TodayExcluded counts shipments left out only because they were created today (Taiwan time).
+	// TodayExcluded counts orders left out only because they were created today (Taiwan time).
 	TodayExcluded int `json:"today_excluded"`
 }
 
@@ -77,7 +77,7 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 	var rows []shippingExportRow
 	for _, row := range all {
 		if !createdBeforeToday(row.latestCreated, now) {
-			res.TodayExcluded++
+			res.TodayExcluded += len(row.OrderIDs)
 			continue
 		}
 		rows = append(rows, row)
