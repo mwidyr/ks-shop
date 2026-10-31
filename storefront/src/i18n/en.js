@@ -35,7 +35,7 @@ export default {
   when: { today_evening: 'tonight {{time}}', today: 'today {{time}}', tomorrow: 'tomorrow {{time}}', other: '{{day}} {{time}}' },
   footer: {
     about: 'About us', orders: 'My orders', returns: 'Return / exchange policy', style: 'Style topics', shipping: 'Shipping & payment',
-    cs_center: 'CS center', copyright: '© ralulu', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
+    cs_center: 'CS center', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
   toast: { added: '✓ Added to cart' },
 }

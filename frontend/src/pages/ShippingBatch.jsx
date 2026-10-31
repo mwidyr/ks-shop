@@ -79,7 +79,10 @@ export default function ShippingBatch() {
   const pendingVerification = orders.filter((o) => o.verification === 'pending_verification')
   const awaiting = orders.filter((o) => o.verification === 'awaiting_results').length
   const unresolvedFailed = [...failedOrders, ...pendingVerification]
-  const verifiedNotSent = orders.filter((o) => o.status === 'ready_to_ship' && !o.packing_exported_at).length
+  // POS / 郵寄 orders go straight to the 3PL: no platform export/import steps, so they are available from the start
+  const direct3PL = provider === 'courier'
+  const sendable = direct3PL ? ['pending', 'processing', 'ready_to_ship'] : ['ready_to_ship']
+  const verifiedNotSent = orders.filter((o) => sendable.includes(o.status) && !o.packing_exported_at).length
   const sentTo3PL = orders.filter((o) => o.packing_exported_at).length
 
   async function run(label, fn) {
@@ -181,7 +184,8 @@ export default function ShippingBatch() {
 
       {error && <Notice tone="bad">{error}</Notice>}
 
-      {/* 01 Initial order export */}
+      {/* 01-03 platform export / instructions / result import: not for POS / 郵寄 */}
+      {!direct3PL && (<>
       <SectionCard id="s1" step="01" title={t('page_shipping_wb.s1_title')} hint={t('page_shipping_wb.s1_hint')}>
         <div className="flex flex-wrap gap-2 mb-3">
           <Stat label={t('page_shipping_wb.orders_in_batch')} value={c.total} />
@@ -229,8 +233,10 @@ export default function ShippingBatch() {
         <IssueList issues={issues} kinds={ISSUE_KINDS.results} />
       </SectionCard>
 
+      </>)}
+
       {/* 04 3PL packing documents */}
-      <SectionCard id="s4" step="04" title={t('page_shipping_wb.s4_title')} hint={t('page_shipping_wb.s4_hint')}>
+      <SectionCard id="s4" step={direct3PL ? '01' : '04'} title={t('page_shipping_wb.s4_title')} hint={t(direct3PL ? 'page_shipping_wb.s4_hint_direct' : 'page_shipping_wb.s4_hint')}>
         <div className="flex flex-wrap gap-2 mb-3">
           <Stat label={t('page_shipping_wb.verified_available')} value={verifiedNotSent} />
           <Stat label={t('page_shipping_wb.sent_to_3pl')} value={sentTo3PL} />
@@ -259,7 +265,7 @@ export default function ShippingBatch() {
       </SectionCard>
 
       {/* 06 Failed orders & retry - visually separated at the very bottom */}
-      <div className="pt-6 border-t-2 border-dashed border-gray-300">
+      <div hidden={direct3PL} className="pt-6 border-t-2 border-dashed border-gray-300">
         <SectionCard id="s7" step="06" title={t('page_shipping_wb.s7_title')} hint={t('page_shipping_wb.s7_hint')} tone="danger">
           <div className="flex flex-wrap gap-2 mb-3">
             <Stat label={t('page_shipping_wb.unresolved_orders')} value={unresolvedFailed.length} tone={unresolvedFailed.length ? 'bad' : 'good'} />

@@ -1,3 +1,4 @@
+import { COMPANY_NAME_ZH, COMPANY_TAX_ID } from '../lib/company'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -111,7 +112,9 @@ export function Footer() {
         {social(t('footer.facebook'), settings.social?.facebook)}
         {social(t('footer.tiktok'), settings.social?.tiktok)}
       </div>
-      <span style={{ fontSize: 12, color: 'var(--color-disabled)' }}>{t('footer.copyright')}</span>
+      <span data-testid="footer-company" style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.7 }}>
+        © Ralulu<br />{COMPANY_NAME_ZH}｜統一編號：{COMPANY_TAX_ID}
+      </span>
     </footer>
   )
 }

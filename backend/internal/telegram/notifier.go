@@ -256,10 +256,30 @@ func (n *Notifier) warnOnce(msg string) {
 	}
 }
 
+// recentSellers is the set of hosts with a valid sale since `since`.
+func (n *Notifier) recentSellers(ctx context.Context, since time.Time) map[int]bool {
+	out := map[int]bool{}
+	rows, err := n.DB.Query(ctx, `SELECT DISTINCT oi.host_id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+		WHERE oi.host_id IS NOT NULL AND `+validOrder+` AND o.created_at >= $1`, since)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		if rows.Scan(&id) == nil {
+			out[id] = true
+		}
+	}
+	return out
+}
+
 // personalBests: a "LIVE" is a host's scheduled shift window (live_shift_hours + the host's shift, on the
 // Location's working days) or a manual Start LIVE session - the same notion of LIVE the website uses. For every
 // host in a LIVE right now (or that ended within personalBestGrace), the QTY sold since that LIVE started is
-// compared with the best of the host's earlier LIVEs. One message per LIVE at most; the record never resets.
+// compared with the best of the host's earlier LIVEs. A host outside any window (no shift, or a LIVE run outside
+// its shift) is judged by its sales instead: sales less than salesLiveGap apart are one LIVE. One message per LIVE
+// at most; the record never resets.
 func (n *Notifier) personalBests(ctx context.Context, token string, cfg Config, date string) {
 	c := cfg.PersonalBest
 	now := time.Now()
@@ -268,9 +288,14 @@ func (n *Notifier) personalBests(ctx context.Context, token string, cfg Config, 
 		log.Printf("telegram personal best: %v", err)
 		return
 	}
+	recent := n.recentSellers(ctx, now.Add(-4*time.Hour))
 	for _, h := range hosts {
-		cur, ok := currentWindow(h.windows, now)
-		if !ok || (cfg.SendEnabled && h.chat == "") {
+		// a host with no scheduled / manual LIVE right now is only worth a look when it has sold lately
+		if _, inWindow := currentWindow(h.windows, now); !inWindow && !recent[h.id] {
+			continue
+		}
+		if cfg.SendEnabled && h.chat == "" {
+			n.warnOnce("personal_best: Location " + h.location + " has no Telegram chat id, so " + h.name + "'s record cannot be sent")
 			continue
 		}
 		sales, err := n.hostSales(ctx, h.id, now.AddDate(0, 0, -personalBestDays))
@@ -278,9 +303,8 @@ func (n *Notifier) personalBests(ctx context.Context, token string, cfg Config, 
 			log.Printf("telegram personal best sales: %v", err)
 			continue
 		}
-		curQty := qtyIn(sales, cur.Start, now.Add(time.Minute))
-		prev := bestBefore(sales, h.windows, cur)
-		if curQty <= prev || curQty < c.MinQty {
+		cur, curQty, prev, ok := personalBestState(h.windows, sales, now)
+		if !ok || curQty <= prev || curQty < c.MinQty {
 			continue
 		}
 		start := cur.Start

@@ -6,7 +6,7 @@ import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
 import { formatCurrency } from '../utils/format'
-import { copyToClipboard } from '../utils/clipboard'
+import CopyPhone from '../components/CopyPhone'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -80,15 +80,6 @@ export default function Orders() {
   const [mergeSuggestions, setMergeSuggestions] = useState([])
   const [mergeAllBusy, setMergeAllBusy] = useState(false)
   const [mergeAllResult, setMergeAllResult] = useState('')
-  const [copiedPhoneId, setCopiedPhoneId] = useState(null)
-
-  async function handleCopyPhone(e, orderId, phone) {
-    e.stopPropagation()
-    if (await copyToClipboard(phone)) {
-      setCopiedPhoneId(orderId)
-      setTimeout(() => setCopiedPhoneId((id) => (id === orderId ? null : id)), 1500)
-    }
-  }
 
   function fetchMergeSuggestions() {
     getMergeSuggestions().then(setMergeSuggestions)
@@ -377,13 +368,7 @@ export default function Orders() {
                       </p>
                     </td>
                     <td className="p-3.5">
-                      <button
-                        type="button"
-                        onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
-                        className="text-[var(--text-secondary)] hover:text-brand-600 hover:underline"
-                      >
-                        {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
-                      </button>
+                      <CopyPhone phone={o.customer_phone} textClassName="text-[var(--text-secondary)]" />
                     </td>
                     <td className="p-3.5 text-[var(--text-secondary)]">
                       {o.pickup_chain_name}
@@ -432,13 +417,7 @@ export default function Orders() {
                       <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600 shrink-0">{t('page_orders.blacklist_badge')}</span>
                     )}
                   </p>
-                  <button
-                    type="button"
-                    onClick={(e) => handleCopyPhone(e, o.id, o.customer_phone)}
-                    className="text-xs text-[var(--text-secondary)] shrink-0"
-                  >
-                    {copiedPhoneId === o.id ? t('page_orders.phone_copied') : o.customer_phone}
-                  </button>
+                  <CopyPhone phone={o.customer_phone} className="shrink-0" textClassName="text-xs text-[var(--text-secondary)]" />
                 </div>
                 {/* Created date/time + item count on the left, amount on the right (one row) */}
                 <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">

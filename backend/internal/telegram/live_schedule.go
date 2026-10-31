@@ -14,6 +14,10 @@ var taipeiTZ = time.FixedZone("CST", 8*60*60)
 const (
 	personalBestDays  = 45               // how far back earlier LIVEs are compared
 	personalBestGrace = 30 * time.Minute // a LIVE that just ended still counts for the final orders
+	// salesLiveGap: a host's sales closer together than this belong to one LIVE. This is the fallback for a host
+	// that is not inside a scheduled / manual window (no shift set, or a LIVE run outside its shift), so that
+	// Personal Best still works for what really happened instead of staying silent.
+	salesLiveGap = 90 * time.Minute
 )
 
 type liveWindow struct{ Start, End time.Time }
@@ -104,6 +108,37 @@ func bestBefore(sales []sale, ws []liveWindow, cur liveWindow) int {
 	return best
 }
 
+// salesWindows groups sales into LIVEs: a new LIVE starts whenever the gap since the previous sale exceeds
+// salesLiveGap. A window runs from its first sale to just after its last one.
+func salesWindows(sales []sale) []liveWindow {
+	sorted := append([]sale(nil), sales...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].at.Before(sorted[j].at) })
+	var out []liveWindow
+	for _, s := range sorted {
+		if n := len(out); n > 0 && s.at.Sub(out[n-1].End) <= salesLiveGap {
+			out[n-1].End = s.at.Add(time.Second)
+			continue
+		}
+		out = append(out, liveWindow{s.at, s.at.Add(time.Second)})
+	}
+	return out
+}
+
+// personalBestState says which LIVE a host is in at `now` and how it compares with the earlier ones: the
+// scheduled / manual windows first, else the cluster of recent sales. ok is false when the host is in no LIVE.
+func personalBestState(scheduled []liveWindow, sales []sale, now time.Time) (cur liveWindow, curQty, prev int, ok bool) {
+	all := scheduled
+	cur, ok = currentWindow(scheduled, now)
+	if !ok {
+		all = append(append([]liveWindow(nil), scheduled...), salesWindows(sales)...)
+		cur, ok = currentWindow(salesWindows(sales), now)
+	}
+	if !ok {
+		return liveWindow{}, 0, 0, false
+	}
+	return cur, qtyIn(sales, cur.Start, now.Add(time.Minute)), bestBefore(sales, all, cur), true
+}
+
 func (n *Notifier) hostSales(ctx context.Context, hostID int, since time.Time) ([]sale, error) {
 	rows, err := n.DB.Query(ctx, `
 		SELECT o.created_at, oi.qty FROM order_items oi JOIN orders o ON o.id = oi.order_id
@@ -122,7 +157,7 @@ func (n *Notifier) hostSales(ctx context.Context, hostID int, since time.Time) (
 	return out, nil
 }
 
-// liveHosts loads every host with a shift or a manual session lately, with its windows.
+// liveHosts loads every host with its scheduled / manual windows (empty for a host without a shift).
 func (n *Notifier) liveHosts(ctx context.Context, now time.Time) ([]liveHost, error) {
 	shifts := map[string][][]string{}
 	if rows, err := n.DB.Query(ctx, `SELECT shift, ranges::text FROM live_shift_hours`); err == nil {
@@ -185,9 +220,7 @@ func (n *Notifier) liveHosts(ctx context.Context, now time.Time) ([]liveHost, er
 		}
 		h.windows = append(shiftWindows(shifts[shift], set, daysOff[locID], since, now), manual[h.id]...)
 		sort.Slice(h.windows, func(i, j int) bool { return h.windows[i].Start.Before(h.windows[j].Start) })
-		if len(h.windows) > 0 {
-			out = append(out, h)
-		}
+		out = append(out, h) // a host without a window can still be in a LIVE by its sales (personalBestState)
 	}
 	return out, nil
 }

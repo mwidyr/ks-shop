@@ -7,22 +7,34 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// An order is "locked" once it joins a shipping batch (its stock is allocated and the batch file is
-// built from its data) or has been exported to a logistics provider (orders.exported_at is set on
-// the first export): its details (items, prices, shipping fee, customer, delivery,
-// remarks) are then frozen for everybody, because the exported file is already with the carrier.
-// Only the order STATUS can still move, and only by warehouse and super_user (see
-// canChangeLockedStatus).
+// An order is "locked" once it has been exported through the Shipping Workbench (orders.exported_at is
+// set on the first export): the file is then with the logistics platform / 3PL, so its details (items,
+// prices, shipping fee, customer, delivery, remarks) are frozen for everybody. Only the order STATUS can
+// still move, and only by warehouse and super_user (see canChangeLockedStatus).
+// An order that is merely in a batch (stock allocated, nothing exported yet) is NOT locked and stays
+// editable; it can only not be merged / unmerged any more (see anyOrderBatchedOrLocked).
 
 // rowQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
 type rowQuerier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-const orderLockedMsg = "order sudah masuk batch pengiriman / di-export ke logistik, detail order terkunci dan tidak bisa diubah"
+const orderLockedMsg = "order sudah di-export lewat Shipping Workbench, detail order terkunci dan tidak bisa diubah"
+const orderBatchedMsg = "order sudah masuk batch pengiriman, tidak bisa digabung / dipisah lagi"
 
 // anyOrderLocked reports whether at least one of the given orders was already exported.
 func anyOrderLocked(ctx context.Context, q rowQuerier, ids ...int) bool {
+	var locked bool
+	if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM orders WHERE id = ANY($1) AND exported_at IS NOT NULL)`, ids).
+		Scan(&locked); err != nil {
+		return false
+	}
+	return locked
+}
+
+// anyOrderBatchedOrLocked: exported OR already a member of a shipping batch. Used by the merge
+// feature, so a merged shipment can never be split across batches.
+func anyOrderBatchedOrLocked(ctx context.Context, q rowQuerier, ids ...int) bool {
 	var locked bool
 	if err := q.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM orders WHERE id = ANY($1) AND exported_at IS NOT NULL)

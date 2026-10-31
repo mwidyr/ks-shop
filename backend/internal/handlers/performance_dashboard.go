@@ -49,19 +49,59 @@ func includeWebsiteSales(r *http.Request) bool {
 	return q.Get("channel") != "live" && q.Get("location_id") == "" && q.Get("host_id") == ""
 }
 
+// liveLocationID is the ?location_id= of a LIVE request (0 when absent / not LIVE / not a number). Args
+// built from it always sit at $3, right after [from, to].
+func liveLocationID(r *http.Request) int {
+	if r.URL.Query().Get("channel") != "live" {
+		return 0
+	}
+	id, _ := strconv.Atoi(r.URL.Query().Get("location_id"))
+	return id
+}
+
+// liveLocationFilter narrows a query over live_sessions `ls` + hosts `hostAlias` to the LIVE Location
+// filter. A LIVE record belongs to the Location of the session it was recorded in (the Location picked
+// in the LIVE Data upload), falling back to the host's own Location - the same rule the Performance
+// Comparison page uses. Empty when the request has no Location filter.
+func liveLocationFilter(r *http.Request, hostAlias string) string {
+	if liveLocationID(r) == 0 {
+		return ""
+	}
+	return " AND COALESCE(ls.location_id, " + hostAlias + ".location_id) = $3"
+}
+
 // validHostsCTE builds the "WITH valid_hosts AS (...)" fragment shared by every endpoint below:
-// every host with at least one valid LIVE Session whose started_at falls in [from, to), narrowed
-// to one Location Tag and/or one Host when ?location_id=/?host_id= are given. Args always start
-// with [from, to].
+// every host with LIVE activity in [from, to) - at least one session with recorded LIVE data
+// (started_at in the period) or at least one LIVE sale (order date in the period) - narrowed to one
+// Location (by where the activity happened, see liveLocationFilter) and/or one Host when
+// ?location_id=/?host_id= are given. A host with LIVE sales but no uploaded LIVE data used to vanish,
+// leaving the dashboard at zero although orders existed. Args always start with [from, to].
 func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
-	where, args := hostsCTEFilter(r)
+	locJoin := "JOIN host_locations hl ON hl.id = h.location_id"
+	if loc := liveLocationID(r); loc != 0 {
+		args = append(args, loc)
+		locJoin = "JOIN host_locations hl ON hl.id = $3"
+	}
+	hostWhere := ""
+	if hostID := r.URL.Query().Get("host_id"); hostID != "" {
+		if id, err := strconv.Atoi(hostID); err == nil {
+			args = append(args, id)
+			hostWhere = " AND h.id = $" + strconv.Itoa(2+len(args))
+		}
+	}
+	sessLoc := liveLocationFilter(r, "h")
 	sql = `valid_hosts AS (
-		SELECT DISTINCT h.id AS host_id, h.name AS host_name, h.location_id, hl.name AS location_name
+		SELECT h.id AS host_id, h.name AS host_name, hl.id AS location_id, hl.name AS location_name
 		FROM hosts h
-		JOIN host_locations hl ON hl.id = h.location_id
-		JOIN live_sessions ls ON ls.host_id = h.id
-		WHERE ls.live_data_recorded_at IS NOT NULL
-		  AND ls.started_at >= $1 AND ls.started_at < $2` + where + `
+		` + locJoin + `
+		WHERE (EXISTS (SELECT 1 FROM live_sessions ls
+		               WHERE ls.host_id = h.id AND ls.live_data_recorded_at IS NOT NULL
+		                 AND ls.started_at >= $1 AND ls.started_at < $2` + sessLoc + `)
+		    OR EXISTS (SELECT 1 FROM order_items oi
+		               JOIN orders o ON o.id = oi.order_id
+		               LEFT JOIN live_sessions ls ON ls.id = oi.live_session_id
+		               WHERE oi.host_id = h.id AND o.sales_channel = 'live' AND o.status NOT IN ('cancelled','return')
+		                 AND o.created_at >= $1 AND o.created_at < $2` + sessLoc + `))` + hostWhere + `
 	)`
 	return sql, args
 }
@@ -133,9 +173,11 @@ func (h *PerformanceDashboardHandler) Summary(w http.ResponseWriter, r *http.Req
 			       COALESCE(SUM(oi.qty * oi.price_at_order),0) AS gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
+			LEFT JOIN hosts hh ON hh.id = oi.host_id
+			LEFT JOIN live_sessions ls ON ls.id = oi.live_session_id
 			WHERE (oi.host_id IN (SELECT host_id FROM valid_hosts)` + websiteOr + `)
 			  AND o.created_at >= $1 AND o.created_at < $2
-			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + liveLocationFilter(r, "hh") + `
 		)
 		SELECT sales.qty, sales.ord, sales.gmv FROM sales`
 
@@ -199,9 +241,11 @@ func (h *PerformanceDashboardHandler) HostRanking(w http.ResponseWriter, r *http
 			       SUM(oi.qty * oi.price_at_order) AS gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
+			JOIN hosts hh ON hh.id = oi.host_id
+			LEFT JOIN live_sessions ls ON ls.id = oi.live_session_id
 			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
 			  AND o.created_at >= $1 AND o.created_at < $2
-			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + liveLocationFilter(r, "hh") + `
 			GROUP BY oi.host_id
 		)
 		SELECT vh.host_id, vh.host_name, vh.location_name,
@@ -300,9 +344,10 @@ func (h *PerformanceDashboardHandler) PerformanceData(w http.ResponseWriter, r *
 			                 / SUM(EXTRACT(EPOCH FROM (ls.ended_at - ls.started_at))) END AS acu,
 			       SUM(ls.follows) AS follows, SUM(ls.chats) AS chats, SUM(ls.shares) AS shares, SUM(ls.likes) AS likes
 			FROM live_sessions ls
+			JOIN hosts h ON h.id = ls.host_id
 			WHERE ls.host_id IN (SELECT host_id FROM valid_hosts)
 			  AND ls.live_data_recorded_at IS NOT NULL
-			  AND ls.started_at >= $1 AND ls.started_at < $2
+			  AND ls.started_at >= $1 AND ls.started_at < $2` + liveLocationFilter(r, "h") + `
 			GROUP BY ls.host_id
 		),
 		sales_agg AS (
@@ -310,9 +355,11 @@ func (h *PerformanceDashboardHandler) PerformanceData(w http.ResponseWriter, r *
 			       COALESCE(SUM(oi.qty * oi.price_at_order),0) AS gmv
 			FROM order_items oi
 			JOIN orders o ON o.id = oi.order_id
+			JOIN hosts hh ON hh.id = oi.host_id
+			LEFT JOIN live_sessions ls ON ls.id = oi.live_session_id
 			WHERE oi.host_id IN (SELECT host_id FROM valid_hosts)
 			  AND o.created_at >= $1 AND o.created_at < $2
-			  AND o.status NOT IN ('cancelled','return')` + channelWhere + `
+			  AND o.status NOT IN ('cancelled','return')` + channelWhere + liveLocationFilter(r, "hh") + `
 			GROUP BY oi.host_id
 		),
 		return_agg AS (

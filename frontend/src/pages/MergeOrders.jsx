@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getMergeSuggestions, createMergeGroup } from '../api/orders'
+import CopyPhone from '../components/CopyPhone'
 
 export default function MergeOrders() {
   const { t } = useTranslation()
@@ -77,7 +78,7 @@ export default function MergeOrders() {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <p className="font-semibold text-gray-800">{s.customer_name}</p>
-                    <p className="text-xs text-gray-500">{s.customer_phone} · {s.pickup_chain_name}{s.pickup_store_code && ` #${s.pickup_store_code}`}</p>
+                    <p className="text-xs text-gray-500"><CopyPhone phone={s.customer_phone} /> · {s.pickup_chain_name}{s.pickup_store_code && ` #${s.pickup_store_code}`}</p>
                   </div>
                   <button
                     onClick={() => handleMerge(s, key)}

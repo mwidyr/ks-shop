@@ -134,9 +134,10 @@ export function buildThreePLRows(rows) {
       row[0] = r.chain_type === 'courier' ? r.order_no : (r.platform_order_no || r.order_no)
       row[1] = r.order_date || ''
       row[3] = r.customer_name
-      row[4] = r.is_home_delivery ? r.shipping_address : r.pickup_store_name
+      // convenience store: the 6-digit store code goes in the Address column (our store names can't always be
+      // recognised by the 3PL), column H stays empty
+      row[4] = r.is_home_delivery ? r.shipping_address : r.pickup_store_code
       row[5] = normalizePhone(r.customer_phone)
-      row[7] = r.is_home_delivery ? '' : r.pickup_store_code
       row[8] = r.total_to_pay
       row[11] = l.sku
       row[12] = l.name

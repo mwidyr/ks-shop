@@ -49,3 +49,44 @@ func TestPersonalBestWindowMath(t *testing.T) {
 		t.Error("a LIVE that just ended still counts for the final orders")
 	}
 }
+
+func TestSalesWindowsSplitOnLongGaps(t *testing.T) {
+	sales := []sale{
+		{tp(t, "2026-10-27 20:40"), 5}, {tp(t, "2026-10-27 20:00"), 10}, {tp(t, "2026-10-27 20:20"), 7}, // unsorted on purpose
+		{tp(t, "2026-10-27 23:30"), 3},
+	}
+	ws := salesWindows(sales)
+	if len(ws) != 2 {
+		t.Fatalf("windows = %v, want 2 LIVEs", ws)
+	}
+	if got := qtyIn(sales, ws[0].Start, ws[0].End); !ws[0].Start.Equal(tp(t, "2026-10-27 20:00")) || got != 22 {
+		t.Errorf("first LIVE = %v qty %d, want start 20:00 and 22 PCS (its last sale is inside the window)", ws[0], got)
+	}
+}
+
+// Personal Best used to need a scheduled / manual window, so a host without a shift (or LIVE-ing outside it)
+// never got a message however much it sold. Its sales now form the LIVE.
+func TestPersonalBestWithoutAnyWindowUsesSales(t *testing.T) {
+	sales := []sale{
+		{tp(t, "2026-10-26 20:00"), 20}, {tp(t, "2026-10-26 20:30"), 12}, // earlier LIVE: 32 PCS
+		{tp(t, "2026-10-27 20:00"), 25}, {tp(t, "2026-10-27 20:30"), 10}, // today's LIVE so far: 35 PCS
+	}
+	now := tp(t, "2026-10-27 20:35")
+	cur, qty, prev, ok := personalBestState(nil, sales, now)
+	if !ok || qty != 35 || prev != 32 || !cur.Start.Equal(tp(t, "2026-10-27 20:00")) {
+		t.Fatalf("state = %v qty %d prev %d ok %v, want today's LIVE 35 vs 32", cur, qty, prev, ok)
+	}
+	// not selling any more: after the grace the host is not in a LIVE and nothing fires
+	if _, _, _, ok := personalBestState(nil, sales, tp(t, "2026-10-27 21:30")); ok {
+		t.Error("a host that stopped selling more than the grace ago is not in a LIVE")
+	}
+}
+
+func TestPersonalBestPrefersScheduledWindow(t *testing.T) {
+	w := liveWindow{tp(t, "2026-10-27 19:00"), tp(t, "2026-10-27 22:00")}
+	sales := []sale{{tp(t, "2026-10-27 19:30"), 40}, {tp(t, "2026-10-27 21:00"), 5}}
+	cur, qty, prev, ok := personalBestState([]liveWindow{w}, sales, tp(t, "2026-10-27 21:10"))
+	if !ok || !cur.Start.Equal(w.Start) || qty != 45 || prev != 0 {
+		t.Fatalf("state = %v qty %d prev %d ok %v", cur, qty, prev, ok)
+	}
+}

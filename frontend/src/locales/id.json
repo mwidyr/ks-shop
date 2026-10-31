@@ -672,7 +672,7 @@
     "internal_notes_label": "Catatan Internal",
     "keep_order_held_until": "Ditahan sampai {{date}}",
     "keep_order_label": "Keep Order",
-    "locked_banner": "Order sudah di-export ke logistik, jadi detailnya terkunci (produk, harga, ongkir, pelanggan, pengiriman, catatan).",
+    "locked_banner": "Order ini sudah di-export lewat Shipping Workbench (mungkin sudah dikirim ke platform logistik / 3PL), jadi detailnya terkunci dan tidak bisa diedit lagi.",
     "locked_status_hint": "Hanya Warehouse dan Super Admin yang boleh mengubah status.",
     "mark_urgent_label": "Tandai sebagai mendesak",
     "no_attachments": "Belum ada lampiran.",
@@ -744,7 +744,27 @@
     "return_received_confirm": "Catat penerimaan? Ini hanya bisa dilakukan sekali.",
     "delete_attachment": "Hapus lampiran",
     "delete_attachment_confirm": "Hapus lampiran ini?",
-    "delete_attachment_failed": "Gagal menghapus lampiran."
+    "delete_attachment_failed": "Gagal menghapus lampiran.",
+    "edit_button": "Edit Order",
+    "edit_title": "Edit order {{orderNo}}",
+    "edit_hint": "Seluruh detail order bisa diedit sampai di-export lewat Shipping Workbench. Setelah di-export order terkunci.",
+    "edit_group_hint": "Order ini digabung dengan order lain dalam satu pengiriman: data pelanggan dan pengiriman terkunci di sini. Pisahkan penggabungan dulu untuk mengubahnya.",
+    "edit_customer_section": "Pelanggan",
+    "edit_name": "Nama",
+    "edit_phone": "Telepon",
+    "edit_email": "Email invoice",
+    "edit_delivery_section": "Pengiriman",
+    "edit_items_section": "Item",
+    "edit_add_item": "Tambah produk",
+    "edit_qty": "Qty",
+    "edit_price": "Harga",
+    "edit_remove_item": "Hapus item",
+    "edit_discount": "Diskon",
+    "edit_additional": "Biaya tambahan",
+    "edit_subtotal": "Subtotal item: {{amount}}",
+    "edit_err_customer": "Nama dan telepon pelanggan wajib diisi",
+    "edit_err_items": "Tambahkan minimal satu item dengan qty",
+    "edit_failed": "Gagal menyimpan order"
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -880,7 +900,8 @@
     "store_unverified": "Toko belum diverifikasi",
     "source_self_checkout": "Checkout website",
     "source_cs_assisted": "Dibantu CS (website)",
-    "open_shipping_workbench": "Buka Shipping Workbench"
+    "open_shipping_workbench": "Buka Shipping Workbench",
+    "copy_phone_aria": "Salin nomor telepon {{phone}}"
   },
   "page_panel_siaran": {
     "error_start_failed": "Gagal mulai siaran",
@@ -3140,7 +3161,8 @@
     "warning_store_unknown": "Kode toko tidak ada di direktori kami (mungkin toko baru). Tetap bisa dibatch; platform logistik yang akan memvalidasi",
     "fig_problem": "Pesanan Bermasalah",
     "fig_created_today": "Dibuat Hari Ini (belum bisa dibatch)",
-    "fig_held": "Ditahan (tanggal keep)"
+    "fig_held": "Ditahan (tanggal keep)",
+    "s4_hint_direct": "Pesanan dikirim langsung ke 3PL, tanpa langkah platform logistik. Saat file 3PL pertama kali diunduh, pesanannya menjadi Shipped. Pesanan yang sudah dikirim tidak diekspor lagi."
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

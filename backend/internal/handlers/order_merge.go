@@ -97,7 +97,8 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
-	if rejectIfLocked(w, ctx, tx, req.OrderIDs...) {
+	if anyOrderBatchedOrLocked(ctx, tx, req.OrderIDs...) {
+		respondError(w, http.StatusConflict, orderBatchedMsg)
 		return
 	}
 	rows, err := tx.Query(ctx, `
@@ -235,8 +236,8 @@ func (h *OrderMergeHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
-	if anyOrderLocked(ctx, tx, id) || groupHasLockedMember(ctx, tx, id) {
-		respondError(w, http.StatusConflict, orderLockedMsg)
+	if groupHasLockedMember(ctx, tx, id) {
+		respondError(w, http.StatusConflict, orderBatchedMsg)
 		return
 	}
 	var feeOrderID int

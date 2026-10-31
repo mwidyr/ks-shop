@@ -672,7 +672,7 @@
     "internal_notes_label": "內部備註",
     "keep_order_held_until": "保留至 {{date}}",
     "keep_order_label": "保留訂單",
-    "locked_banner": "此訂單已匯出至物流，內容已鎖定（商品、價格、運費、客戶、配送、備註）。",
+    "locked_banner": "此訂單已透過出貨工作台匯出（可能已送至物流平台或 3PL），內容已鎖定，無法再編輯。",
     "locked_status_hint": "僅倉庫與超級管理員可變更狀態。",
     "mark_urgent_label": "標記為緊急",
     "no_attachments": "尚無附件。",
@@ -744,7 +744,27 @@
     "return_received_confirm": "確認入庫？此動作只能執行一次。",
     "delete_attachment": "刪除附件",
     "delete_attachment_confirm": "確定刪除此附件？",
-    "delete_attachment_failed": "無法刪除附件。"
+    "delete_attachment_failed": "無法刪除附件。",
+    "edit_button": "編輯訂單",
+    "edit_title": "編輯訂單 {{orderNo}}",
+    "edit_hint": "訂單在透過出貨工作台匯出之前可完整編輯，匯出後即鎖定。",
+    "edit_group_hint": "此訂單已與其他訂單合併為同一筆出貨：此處的客戶與配送資料已鎖定，請先取消合併再修改。",
+    "edit_customer_section": "客戶",
+    "edit_name": "姓名",
+    "edit_phone": "電話",
+    "edit_email": "發票 Email",
+    "edit_delivery_section": "配送",
+    "edit_items_section": "商品",
+    "edit_add_item": "新增商品",
+    "edit_qty": "數量",
+    "edit_price": "單價",
+    "edit_remove_item": "移除商品",
+    "edit_discount": "折扣",
+    "edit_additional": "額外費用",
+    "edit_subtotal": "商品小計：{{amount}}",
+    "edit_err_customer": "必須填寫客戶姓名與電話",
+    "edit_err_items": "請至少新增一項有數量的商品",
+    "edit_failed": "儲存訂單失敗"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -880,7 +900,8 @@
     "store_unverified": "門市尚未驗證",
     "source_self_checkout": "網站結帳",
     "source_cs_assisted": "客服代下單（網站）",
-    "open_shipping_workbench": "開啟出貨工作台"
+    "open_shipping_workbench": "開啟出貨工作台",
+    "copy_phone_aria": "複製電話 {{phone}}"
   },
   "page_panel_siaran": {
     "error_start_failed": "開始直播失敗",
@@ -3140,7 +3161,8 @@
     "warning_store_unknown": "門市代碼不在我方門市目錄中（可能為新門市），仍可建立批次，由物流平台驗證",
     "fig_problem": "問題訂單",
     "fig_created_today": "今日建立（尚不可建批次）",
-    "fig_held": "保留中（保留日期）"
+    "fig_held": "保留中（保留日期）",
+    "s4_hint_direct": "訂單直接送交 3PL，不需經過物流平台。首次下載 3PL 檔案時，訂單會變為已出貨。已送出的訂單不會再次匯出。"
   },
   "keep_date": {
     "type_label": "日期類型",

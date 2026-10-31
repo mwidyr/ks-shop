@@ -665,7 +665,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		)
 		SELECT array_to_string(colors, ' + '), COUNT(*)
 		FROM order_colors WHERE n_colors > 1
-		GROUP BY colors ORDER BY 2 DESC LIMIT 20`, args...)
+		GROUP BY colors ORDER BY 2 DESC, 1 LIMIT 20`, args...)
 	colorCombos := []colorComboRow{}
 	if err == nil {
 		defer comboRows.Close()
@@ -690,7 +690,7 @@ func (h *ReportsHandler) ProductPerformance(w http.ResponseWriter, r *http.Reque
 		JOIN order_items oi2 ON oi2.order_id = oi.order_id
 		JOIN product_variants pv2 ON pv2.id = oi2.variant_id
 		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id`+joinHosts+where+`
-		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, args...)
+		GROUP BY p2.id, p2.sku, p2.name ORDER BY 4 DESC, p2.sku LIMIT 20`, args...)
 	crossSell := []crossSellRow{}
 	if err == nil {
 		defer crossSellRows.Close()
@@ -859,7 +859,7 @@ func (h *ReportsHandler) productColorPairAuto(w http.ResponseWriter, r *http.Req
 		JOIN products p2 ON p2.id = pv2.product_id AND p2.id <> p.id
 		WHERE p.sku = $1
 		  AND o.status <> 'cancelled' AND o.created_at >= $2 AND o.created_at < $3`+hostWhereA+aChannelWhere+`
-		GROUP BY p2.id, p2.sku, p2.name ORDER BY 3 DESC LIMIT 20`, aArgs...)
+		GROUP BY p2.id, p2.sku, p2.name ORDER BY 4 DESC, p2.sku LIMIT 20`, aArgs...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to rank paired products")
 		return

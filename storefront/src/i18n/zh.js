@@ -35,7 +35,7 @@ export default {
   when: { today_evening: '今晚 {{time}}', today: '今天 {{time}}', tomorrow: '明天 {{time}}', other: '{{day}} {{time}}' },
   footer: {
     about: '關於我們', orders: '我的訂單', returns: '退換貨政策', style: '穿搭專題', shipping: '配送與付款',
-    cs_center: '客服中心', copyright: '© ralulu', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
+    cs_center: '客服中心', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
   toast: { added: '✓ 已加入購物車' },
 }

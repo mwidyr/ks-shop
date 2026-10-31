@@ -13,6 +13,8 @@ import { formatCurrency } from '../utils/format'
 import { uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
+import CopyPhone from '../components/CopyPhone'
+import EditOrderModal from '../components/EditOrderModal'
 import { useAuth } from '../context/AuthContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import OrderLineItem from '../components/OrderLineItem'
@@ -398,6 +400,7 @@ export default function OrderDetail() {
   const [splitOpen, setSplitOpen] = useState(false)
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [pickupModalOpen, setPickupModalOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [pickupChains, setPickupChains] = useState([])
 
   function load() {
@@ -546,13 +549,18 @@ export default function OrderDetail() {
           )}
         </h1>
         <div className="flex items-center gap-2">
+          {!locked && order.status === 'pending' && (
+            <button onClick={() => setEditOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
+              {t('page_order_detail.edit_button')}
+            </button>
+          )}
           <button onClick={copyOrderInfo} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
             {copied ? t('page_order_detail.copied_label') : t('page_order_detail.copy_info_button')}
           </button>
           <StatusPill status={order.status} />
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6">{order.customer_name} · {order.customer_phone}{order.customer_email ? ` · ${order.customer_email}` : ''}</p>
+      <p className="text-sm text-gray-500 mb-6 flex flex-wrap items-center gap-x-1">{order.customer_name} · <CopyPhone phone={order.customer_phone} />{order.customer_email ? ` · ${order.customer_email}` : ''}</p>
       {locked && (
         <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           🔒 {t('page_order_detail.locked_banner')}{!canChangeStatus && ` ${t('page_order_detail.locked_status_hint')}`}
@@ -604,7 +612,7 @@ export default function OrderDetail() {
             <p className="text-sm font-semibold text-gray-700 mb-1">{t('page_order_detail.customer_contact_label')}</p>
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600">{order.customer_name}</p>
-              <p className="text-sm text-brand-600 font-medium">☎ {order.customer_phone}</p>
+              <CopyPhone phone={order.customer_phone} prefix="☎ " textClassName="text-sm text-brand-600 font-medium" />
             </div>
             <p className="text-sm text-gray-600 mt-1 break-all">✉ {order.customer_email || '-'}</p>
           </div>
@@ -916,6 +924,7 @@ export default function OrderDetail() {
       {notesModalOpen && (
         <NotesModal order={order} onClose={() => setNotesModalOpen(false)} onDone={() => { setNotesModalOpen(false); load() }} />
       )}
+      {editOpen && <EditOrderModal order={order} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); load() }} />}
       {pickupModalOpen && (
         <PickupMethodModal
           order={order}

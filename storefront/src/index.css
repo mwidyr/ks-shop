@@ -40,13 +40,23 @@ h1, h2, .serif { font-family: 'Noto Serif TC', 'Songti TC', serif; letter-spacin
 @keyframes langMarquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
 .lang-track { display: flex; align-items: center; gap: 8px; width: max-content; animation: langMarquee 22s linear infinite; }
 .lang-track:hover { animation-play-state: paused; }
-@keyframes announceIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-.announce-msg { animation: announceIn .4s ease-out; }
+.announce-bar { margin: 10px 16px 0; height: 40px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; background: var(--color-primary); color: var(--color-on-primary); font-size: 14px; font-weight: 600; }
+@keyframes announceMarquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.announce-track { display: flex; width: max-content; animation: announceMarquee 20s linear infinite; }
+.announce-track:hover { animation-play-state: paused; }
+.announce-copy { display: flex; flex: none; white-space: nowrap; min-width: 100vw; }
+.announce-item { display: inline-flex; align-items: center; }
+.announce-dot { margin: 0 18px; font-size: 8px; opacity: .7; }
 @keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(201,60,41,.6) } 70% { box-shadow: 0 0 0 12px rgba(201,60,41,0) } 100% { box-shadow: 0 0 0 0 rgba(201,60,41,0) } }
 .live-pulse { animation: livePulse 1.6s ease-out infinite; }
 @keyframes liveDot { 50% { opacity: .25 } }
 .live-dot { animation: liveDot 1s steps(1) infinite; }
-@media (prefers-reduced-motion: reduce) { .cs-shake, .cs-tip, .lang-track, .live-pulse, .live-dot, .announce-msg { animation: none; } html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { .cs-shake, .cs-tip, .lang-track, .live-pulse, .live-dot, .announce-track { animation: none; } html { scroll-behavior: auto; }
+  .announce-bar { height: auto; min-height: 40px; padding: 8px 14px; justify-content: center; text-align: center; box-sizing: border-box; }
+  .announce-track { width: auto; }
+  .announce-copy { min-width: 0; flex-wrap: wrap; justify-content: center; white-space: normal; }
+  .announce-copy[aria-hidden] { display: none; }
+  .announce-dot { display: none; } .announce-item + .announce-item { margin-left: 12px; } }
 @keyframes spin { to { transform: rotate(360deg) } }
 .spin { animation: spin .9s linear infinite; }
 @keyframes shimmer { 0% { opacity: .55 } 50% { opacity: 1 } 100% { opacity: .55 } }

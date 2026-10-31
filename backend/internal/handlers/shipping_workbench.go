@@ -434,8 +434,13 @@ func (h *ShippingWorkbenchHandler) ExportRows(w http.ResponseWriter, r *http.Req
 		case "retry":
 			cond = ` AND o.status = 'processing' AND sbo.create_result = 'failed'`
 		default:
-			// 3PL files: verified orders not yet sent with this kind of file
-			cond = ` AND o.status = 'ready_to_ship' AND NOT EXISTS (SELECT 1 FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '` + kind + `')`
+			// 3PL files: verified orders not yet sent with this kind of file. POS / 郵寄 (courier) orders go
+			// straight to the 3PL: there is no logistics platform to verify them on first.
+			statuses := `= 'ready_to_ship'`
+			if provider == "courier" {
+				statuses = `IN ('pending','processing','ready_to_ship')`
+			}
+			cond = ` AND o.status ` + statuses + ` AND NOT EXISTS (SELECT 1 FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '` + kind + `')`
 		}
 	}
 	idRows, err := h.DB.Query(ctx, `
@@ -506,6 +511,12 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 		return
 	}
 	defer tx.Rollback(ctx)
+	var provider string
+	if err := tx.QueryRow(ctx, `SELECT provider FROM shipping_batches WHERE id=$1`, id).Scan(&provider); err != nil {
+		respondError(w, http.StatusNotFound, "batch not found")
+		return
+	}
+	direct3PL := provider == "courier" // POS / 郵寄 orders are sent to the 3PL directly
 
 	type member struct {
 		id     int
@@ -536,7 +547,8 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 		case "initial", "retry":
 			ok = m.status == "pending" || m.status == "processing" || (req.Kind == "initial" && m.status == "ready_to_ship")
 		default:
-			ok = m.status == "ready_to_ship" || m.status == "shipped" || m.status == "delivered"
+			ok = m.status == "ready_to_ship" || m.status == "shipped" || m.status == "delivered" ||
+				(direct3PL && (m.status == "pending" || m.status == "processing"))
 		}
 		if !ok {
 			respondError(w, http.StatusConflict, fmt.Sprintf("order %d (%s) cannot be part of a %s export", m.id, m.status, req.Kind))
@@ -579,10 +591,23 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 	shipped := 0
 	if req.Kind == "3pl_packing" {
 		for _, m := range members {
-			if m.status != "ready_to_ship" {
+			status := m.status
+			if direct3PL && status == "pending" {
+				// never exported to a platform: lock the order and reserve its cost first, as the initial export would
+				if _, err := tx.Exec(ctx, `UPDATE orders SET exported_at = COALESCE(exported_at, $2) WHERE id=$1`, m.id, exportedAt); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to lock order")
+					return
+				}
+				if err := applyStatusChange(ctx, tx, m.id, "pending", "processing", &claims.UserID, "system: 3PL file exported (direct to 3PL)"); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to update order status")
+					return
+				}
+				status = "processing"
+			}
+			if status != "ready_to_ship" && !(direct3PL && status == "processing") {
 				continue
 			}
-			if err := applyStatusChange(ctx, tx, m.id, "ready_to_ship", "shipped", &claims.UserID, "system: sent to 3PL (3PL file exported)"); err != nil {
+			if err := applyStatusChange(ctx, tx, m.id, status, "shipped", &claims.UserID, "system: sent to 3PL (3PL file exported)"); err != nil {
 				respondError(w, http.StatusInternalServerError, "failed to update order status")
 				return
 			}

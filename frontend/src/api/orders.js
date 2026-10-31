@@ -63,3 +63,8 @@ export function deleteMergeGroup(groupId) {
 export function markReturnReceived(id, lines, note) {
   return client.post(`/orders/${id}/return-received`, { lines, note }).then((res) => res.data)
 }
+
+// Full edit of an order that has not been exported yet (customer, delivery, items, amounts).
+export function updateOrder(id, payload) {
+  return client.put(`/orders/${id}`, payload).then((res) => res.data)
+}

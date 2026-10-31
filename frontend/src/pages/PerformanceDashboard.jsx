@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPerformanceSummary, getHostRanking, getPerformanceData } from '../api/performanceDashboard'
 import { listLocations } from '../api/hostLocations'
-import { listHosts } from '../api/hosts'
 import { listAffiliates } from '../api/affiliates'
 import { formatCurrency } from '../utils/format'
 import SalesChannelFilter from '../components/SalesChannelFilter'
@@ -66,8 +65,6 @@ export default function PerformanceDashboard() {
   const { t } = useTranslation()
   const [locations, setLocations] = useState([])
   const [locationId, setLocationId] = useState('')
-  const [hosts, setHosts] = useState([])
-  const [hostId, setHostId] = useState('')
   const [channel, setChannel] = useState('all')
   const [affiliateId, setAffiliateId] = useState('')
   const [affiliates, setAffiliates] = useState([])
@@ -80,11 +77,9 @@ export default function PerformanceDashboard() {
 
   useEffect(() => { listLocations().then(setLocations).catch(() => {}) }, [])
   useEffect(() => { listAffiliates().then(setAffiliates).catch(() => {}) }, [])
-  useEffect(() => { listHosts(false, locationId || undefined).then(setHosts).catch(() => {}) }, [locationId])
 
   const filters = {
     locationId: channel === 'live' ? (locationId || undefined) : undefined,
-    hostId: channel === 'live' ? (hostId || undefined) : undefined,
     from: range.from, to: range.to, channel,
     affiliateId: channel === 'website' ? (affiliateId || undefined) : undefined,
   }
@@ -115,8 +110,7 @@ export default function PerformanceDashboard() {
   }, [filtersKey, sort])
 
   const selectedLocationName = locationId ? locations.find((l) => String(l.id) === String(locationId))?.name : null
-  const selectedHostName = hostId ? hosts.find((h) => String(h.id) === String(hostId))?.name : null
-  const titleParts = [selectedLocationName, selectedHostName].filter(Boolean)
+  const titleParts = [selectedLocationName].filter(Boolean) // LIVE is filtered by Location only, never by single Host
   const dashboardTitle = channel === 'live'
     ? (titleParts.length ? titleParts.join(' — ') : t('page_performance_dashboard.all_locations_agents'))
     : null
@@ -133,7 +127,6 @@ export default function PerformanceDashboard() {
         <SalesChannelFilter
           channel={channel} onChannelChange={setChannel}
           locationId={locationId} onLocationChange={setLocationId} locations={locations}
-          hostId={hostId} onHostChange={setHostId} hosts={hosts}
           affiliateId={affiliateId} onAffiliateChange={setAffiliateId} affiliates={affiliates}
         />
         <PeriodPicker shared value={range} onChange={setRange} />

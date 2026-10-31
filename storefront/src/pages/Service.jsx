@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { money } from '../lib/format'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { greetingText } from '../lib/wa'
@@ -8,13 +7,10 @@ import { csChannels } from '../lib/cs'
 // CS center: one button per chat app (WhatsApp, LINE ...), each opening the chat with the general greeting filled in.
 export default function Service() {
   const { t } = useTranslation()
-  const { settings, threshold, chainFee } = useStore()
+  const { settings } = useStore()
   useSeo({ title: t('service.title'), description: t('service.intro'), canonical: '/service' })
   const channels = csChannels(settings, greetingText())
-  const faq = [
-    [t('service.q1'), t('service.a1')], [t('service.q2'), t('service.a2')],
-    [t('service.q3'), t('service.a3', { fee: money(chainFee('cvs_711') || 60), min: money(threshold) })], [t('service.q4'), t('service.a4')],
-  ]
+  const faq = [1, 2, 3, 4, 5, 6].map((n) => [t(`service.q${n}`), t(`service.a${n}`)])
   return (
     <div style={{ paddingBottom: 130 }}>
       <header style={{ padding: 16, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', flexDirection: 'column', gap: 10 }}>

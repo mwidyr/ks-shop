@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -74,6 +75,8 @@ func websiteDayKeys(launch *time.Time, from, to, now time.Time) []string {
 // Host (those are LIVE concepts), same rule as includeWebsiteSales.
 func computeOperatingDays(ctx context.Context, db *pgxpool.Pool, r *http.Request, from, to time.Time) (operatingDays, error) {
 	where, locArgs := hostFilter(r, "ls", 3)
+	// a session counts for the Location it was recorded in (falling back to the host's own)
+	where = strings.Replace(where, "h.location_id", "COALESCE(ls.location_id, h.location_id)", 1)
 	args := append([]interface{}{from, to}, locArgs...)
 	rows, err := db.Query(ctx, `
 		SELECT DISTINCT to_char((ls.started_at AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD')

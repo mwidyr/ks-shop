@@ -36,7 +36,7 @@ export default {
   when: { today_evening: 'malam ini {{time}}', today: 'hari ini {{time}}', tomorrow: 'besok {{time}}', other: '{{day}} {{time}}' },
   footer: {
     about: 'Tentang kami', orders: 'Pesanan saya', returns: 'Kebijakan retur / tukar', style: 'Topik gaya', shipping: 'Pengiriman & pembayaran',
-    cs_center: 'Pusat CS', copyright: '© ralulu', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
+    cs_center: 'Pusat CS', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
   toast: { added: '✓ Masuk keranjang' },
 }

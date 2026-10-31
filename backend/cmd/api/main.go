@@ -354,6 +354,7 @@ func main() {
 			r.With(edit("orders")).Patch("/orders/{id}/notes", orderH.UpdateNotes)
 			r.With(edit("orders")).Patch("/orders/{id}/keep-date", orderH.UpdateKeepDate)
 			r.With(edit("orders")).Patch("/orders/{id}/pickup", orderH.UpdatePickup)
+			r.With(edit("orders")).Put("/orders/{id}", orderH.Edit)
 			r.With(edit("orders")).Post("/orders/{id}/attachments", orderH.AddAttachment)
 			r.With(edit("orders")).Delete("/orders/{id}/attachments/{attachmentId}", orderH.DeleteAttachment)
 			r.With(edit("orders")).Post("/orders/{id}/split", orderH.Split)

@@ -672,7 +672,7 @@
     "internal_notes_label": "Internal Notes",
     "keep_order_held_until": "Held until {{date}}",
     "keep_order_label": "Keep Order",
-    "locked_banner": "This order was exported to logistics, so its details are locked (products, prices, shipping fee, customer, delivery, remarks).",
+    "locked_banner": "This order was exported through the Shipping Workbench (it may already be with the logistics platform or the 3PL), so its details are locked and can no longer be edited.",
     "locked_status_hint": "Only Warehouse and Super Admin can change the status.",
     "mark_urgent_label": "Mark as urgent",
     "no_attachments": "No attachments yet.",
@@ -744,7 +744,27 @@
     "return_received_confirm": "Book these goods into stock? This can only be done once.",
     "delete_attachment": "Remove attachment",
     "delete_attachment_confirm": "Remove this attachment?",
-    "delete_attachment_failed": "Could not remove the attachment."
+    "delete_attachment_failed": "Could not remove the attachment.",
+    "edit_button": "Edit Order",
+    "edit_title": "Edit order {{orderNo}}",
+    "edit_hint": "The whole order can be edited until it is exported through the Shipping Workbench. After the export it is locked.",
+    "edit_group_hint": "This order is merged with other orders into one shipment: customer and delivery details are locked here. Unmerge first to change them.",
+    "edit_customer_section": "Customer",
+    "edit_name": "Name",
+    "edit_phone": "Phone",
+    "edit_email": "Invoice email",
+    "edit_delivery_section": "Delivery",
+    "edit_items_section": "Items",
+    "edit_add_item": "Add product",
+    "edit_qty": "Qty",
+    "edit_price": "Price",
+    "edit_remove_item": "Remove item",
+    "edit_discount": "Discount",
+    "edit_additional": "Additional charge",
+    "edit_subtotal": "Items subtotal: {{amount}}",
+    "edit_err_customer": "Customer name and phone are required",
+    "edit_err_items": "Add at least one item with a quantity",
+    "edit_failed": "Failed to save the order"
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -880,7 +900,8 @@
     "store_unverified": "Store not verified",
     "source_self_checkout": "Website checkout",
     "source_cs_assisted": "CS-assisted (website)",
-    "open_shipping_workbench": "Open Shipping Workbench"
+    "open_shipping_workbench": "Open Shipping Workbench",
+    "copy_phone_aria": "Copy phone number {{phone}}"
   },
   "page_panel_siaran": {
     "error_start_failed": "Failed to start broadcast",
@@ -3140,7 +3161,8 @@
     "warning_store_unknown": "Store code not found in our directory (it may be new). You can still batch it; the logistics platform will validate it",
     "fig_problem": "Problem Orders",
     "fig_created_today": "Created Today (not batchable yet)",
-    "fig_held": "On Hold (keep date)"
+    "fig_held": "On Hold (keep date)",
+    "s4_hint_direct": "Orders are sent straight to the 3PL, no logistics platform step is needed. The first time a 3PL file is downloaded its orders become Shipped. Orders already sent are never exported again."
   },
   "keep_date": {
     "type_label": "Date type",

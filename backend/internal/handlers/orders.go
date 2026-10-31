@@ -1028,6 +1028,12 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
+	if req.PickupChainID != curChain {
+		if msg := pickupBatchConflict(ctx, h.DB, id, req.PickupChainID); msg != "" {
+			respondError(w, http.StatusConflict, msg)
+			return
+		}
+	}
 
 	var ct pgconn.CommandTag
 	switch {
