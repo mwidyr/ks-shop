@@ -1,0 +1,176 @@
+// Legal & policy pages (/info/about, /info/shipping, /info/terms, /info/privacy). Chinese is the client's own
+// wording (Taiwanese regulations); en / id are translations. Each page: { title, intro?, sections: [{ h, b }] },
+// where b is a list of blocks: a string = paragraph, an array of strings = bullet list.
+export default {
+  zh: {
+    footer: { terms: '定型化契約', privacy: '隱私權政策', returns: '退貨與退款政策' },
+    legal: {
+      about: {
+        title: '關於我們',
+        sections: [{ h: '歡迎來到 Ralulu！', b: [
+          'Ralulu 專注於服務來自世界各國、生活在台灣的姊妹們。',
+          '不論你來自印尼、菲律賓、越南，或世界任何一個國家，我們都希望讓你在台灣也能輕鬆享受購物的樂趣。',
+          '透過線上直播與多樣化的時尚服飾，讓你隨時隨地都能發現喜歡的商品，享受簡單又有趣的購物體驗。',
+          '如果有任何商品、尺寸或訂單相關問題，歡迎隨時聯繫我們的客服團隊，我們很樂意為你提供協助！',
+        ] }],
+      },
+      shipping: {
+        title: '配送與付款政策',
+        intro: 'Ralulu 提供台灣地區線上購物及配送服務。實際配送方式、運費及付款資訊，以網站及訂單確認內容為準。',
+        sections: [
+          { h: '一、配送方式', b: ['本網站提供以下配送服務：', ['7-ELEVEN 超商取貨', '全家便利商店取貨', '宅配及郵寄服務'], '實際可使用的配送方式，依結帳頁面顯示為準。'] },
+          { h: '二、運費與免運優惠', b: [['7-ELEVEN 超商取貨：NT$60', '全家便利商店取貨：依結帳頁面顯示', '宅配及郵寄：NT$100'], '單筆訂單商品金額滿 NT$1,500，可享免運優惠。', '實際運費及優惠適用條件，以結帳時顯示的金額為準。'] },
+          { h: '三、訂單處理與出貨', b: ['訂單確認後，本網站將依商品庫存及訂單狀態安排出貨。', '如遇商品缺貨、物流異常或其他影響出貨的情況，本網站將通知顧客並協調處理。'] },
+          { h: '四、配送時間', b: ['實際出貨及送達時間可能因商品庫存、物流作業、國定假日或不可抗力因素而有所不同。如有預計配送時間，將於訂單資訊或客服通知中提供。'] },
+          { h: '五、配送異常與未取貨', b: ['顧客應提供正確的收件資料，並於物流業者通知的期限內領取包裹。', '如因收件資料錯誤、逾期未取貨或配送失敗而產生額外費用，本網站將依實際情況與顧客確認處理方式，不影響消費者依法享有的權利。'] },
+          { h: '六、付款方式', b: ['本網站提供的付款方式，依結帳頁面及客服確認資訊為準。', '顧客應於完成訂單前確認商品金額、運費及付款資訊。'] },
+          { h: '七、客服與配送問題', b: ['如需查詢訂單、修改配送資料或反映付款與物流問題，請透過網站「客服中心」聯繫我們。'] },
+        ],
+      },
+      terms: {
+        title: '定型化契約',
+        intro: '歡迎使用 Ralulu（以下簡稱本網站）。本網站提供線上商品購物服務，相關交易依本契約及中華民國相關法令辦理。',
+        sections: [
+          { h: '一、企業經營者資訊', b: [['公司名稱：拉魯魯有限公司', '統一編號：{{taxId}}', '電子郵件：ralulu.admin@gmail.com'], '備註： Ralulu 為純線上電子商務平台，無實體門市。上述地址為公司登記地址，非實體門市或顧客取貨、退貨地點。如需退換貨或其他服務，請先聯繫客服中心。'] },
+          { h: '二、商品資訊與價格', b: ['商品頁面所顯示的名稱、價格、規格、數量及相關說明，均為交易契約的一部分。', '如商品資訊有誤或發生缺貨，本網站將聯繫顧客協調處理，不得擅自變更已成立的契約內容。'] },
+          { h: '三、訂單確認與成立', b: ['雙方同意以電子文件進行交易。', '顧客下單前可確認商品、數量、價格及配送資訊。訂單送出後，經本網站系統或客服明確確認接受，買賣契約即成立，雙方應依約履行。'] },
+          { h: '四、訂購數量限制', b: ['部分商品可能設有訂購數量上限，相關限制將事先於商品頁面公告。超過上限的訂單，依公告數量上限處理。'] },
+          { h: '五、付款與配送', b: ['本網站提供的付款方式、配送選項、運費及預計交付時間，依訂單頁面及「配送與付款政策」公告辦理。', '顧客可選擇本網站提供的配送方式，本網站將依確認的訂單內容安排出貨。'] },
+          { h: '六、退貨與退款', b: ['依《消費者保護法》第19條，顧客原則上享有收到商品後七日內解除契約的權利，無須說明理由或負擔費用；依法符合例外情形者除外。', '退貨申請、退款方式及處理流程，詳見「退貨與退款政策」。本網站不限制消費者依法享有的權利。'] },
+          { h: '七、個人資料保護', b: ['本網站依《個人資料保護法》蒐集、處理及利用顧客資料，詳細內容請參閱「隱私權政策」。'] },
+          { h: '八、帳號與系統安全', b: ['本網站應維持符合合理期待的交易系統安全。', '如發現顧客帳號或密碼遭冒用，本網站將立即暫停該帳號所生交易的處理及後續利用，並協助處理相關問題。'] },
+          { h: '九、客服與消費爭議', b: ['顧客如有訂單、商品、配送或退貨相關問題，可透過網站「客服中心」提出詢問或申訴。', '本網站將受理並協助處理消費爭議，必要時依相關法律及消費爭議處理程序辦理。'] },
+          { h: '十、契約適用與解釋', b: ['本契約依中華民國法律辦理。如條款有疑義，應作有利於消費者的解釋。', '本契約不得排除或限制消費者依法享有的權利。'] },
+        ],
+      },
+      privacy: {
+        title: '隱私權政策',
+        intro: 'Ralulu（拉魯魯有限公司，以下簡稱本網站）重視顧客的個人資料與隱私權，並依中華民國《個人資料保護法》蒐集、處理及利用個人資料。',
+        sections: [
+          { h: '一、個人資料蒐集', b: ['本網站可能蒐集顧客的姓名、電話、電子郵件、配送地址、會員資料、訂單紀錄、客服對話及網站使用紀錄等必要資訊。'] },
+          { h: '二、資料使用目的', b: ['個人資料僅於合法且必要的範圍內，用於會員管理、訂單處理、商品配送、客戶服務、交易安全、法定義務及網站服務改善。行銷用途將依相關法律辦理。'] },
+          { h: '三、資料利用範圍', b: ['個人資料於上述目的存續期間及依法應保存的期間內使用，處理地區包括台灣及實際提供服務的境外地區。', '本網站可能依業務需要，透過系統或人工方式，將必要資料提供予物流、客服、網站維護及其他相關服務供應商，並依適用法律處理。'] },
+          { h: '四、Cookies 與網站分析', b: ['本網站可能使用 Cookies、Google Analytics 4 等工具分析網站流量及改善使用體驗。相關資料將依適用法律及各服務提供者的隱私規範處理。'] },
+          { h: '五、個人資料保護', b: ['本網站採取合理的安全措施保護個人資料，防止未經授權的存取、洩漏、竄改或遺失。'] },
+          { h: '六、顧客權利', b: ['顧客可依法請求查詢、閱覽、取得複製本、補充、更正、停止蒐集、處理或利用，以及刪除個人資料。', '如需行使上述權利，請透過網站客服中心聯繫我們。本網站將依法處理。'] },
+          { h: '七、資料提供與影響', b: ['顧客可自行選擇是否提供個人資料，但若未提供完成註冊、訂單或配送所需的必要資訊，可能無法使用相關服務。非必要資料可選擇不提供。'] },
+          { h: '八、政策更新與聯絡方式', b: ['本網站可能因法令或服務調整更新本政策，更新內容將公布於網站。', '如有隱私權或個人資料相關問題，請透過網站客服中心或以下電子郵件聯絡：', ['電子郵件：ralulu.admin@gmail.com']] },
+        ],
+      },
+    },
+  },
+  en: {
+    footer: { terms: 'Terms & Conditions', privacy: 'Privacy Policy', returns: 'Returns & Refunds Policy' },
+    legal: {
+      about: {
+        title: 'About Us',
+        sections: [{ h: 'Welcome to Ralulu!', b: [
+          'Ralulu is dedicated to serving the sisters from all over the world who live in Taiwan.',
+          'Whether you come from Indonesia, the Philippines, Vietnam or anywhere else in the world, we want you to enjoy shopping easily in Taiwan.',
+          'Through live streams and a wide range of fashion, you can discover items you love anytime, anywhere, and enjoy a simple and fun shopping experience.',
+          'If you have any questions about products, sizes or orders, feel free to contact our customer service team. We are happy to help!',
+        ] }],
+      },
+      shipping: {
+        title: 'Shipping & Payment Policy',
+        intro: 'Ralulu provides online shopping and delivery in Taiwan. The actual delivery methods, shipping fees and payment information are as shown on the website and in your order confirmation.',
+        sections: [
+          { h: '1. Delivery methods', b: ['We offer the following delivery services:', ['7-ELEVEN store pickup', 'FamilyMart store pickup', 'Home delivery and postal service'], 'The delivery methods available to you are those shown at checkout.'] },
+          { h: '2. Shipping fees and free shipping', b: [['7-ELEVEN store pickup: NT$60', 'FamilyMart store pickup: as shown at checkout', 'Home delivery and postal service: NT$100'], 'Orders with a product total of NT$1,500 or more in a single order enjoy free shipping.', 'The actual shipping fee and the conditions for offers are as shown at checkout.'] },
+          { h: '3. Order processing and shipping', b: ['After your order is confirmed, we arrange shipment according to product stock and order status.', 'If a product is out of stock, or logistics problems or other issues affect shipment, we will notify you and work out a solution with you.'] },
+          { h: '4. Delivery time', b: ['Actual shipping and arrival times may vary due to stock, logistics operations, public holidays or force majeure. If an estimated delivery time is available, it will be provided in the order information or in a customer service message.'] },
+          { h: '5. Delivery problems and uncollected parcels', b: ['Please provide correct recipient details and collect your parcel within the period notified by the logistics provider.', 'If extra costs arise from incorrect recipient details, an uncollected parcel past the deadline or a failed delivery, we will confirm with you how to handle it according to the situation. This does not affect your rights under the law.'] },
+          { h: '6. Payment methods', b: ['The payment methods we offer are as shown at checkout and as confirmed by customer service.', 'Please check the product amount, shipping fee and payment information before completing your order.'] },
+          { h: '7. Customer service and delivery questions', b: ['To check an order, change delivery details, or report a payment or logistics problem, please contact us through the website\'s "Customer Service Center".'] },
+        ],
+      },
+      terms: {
+        title: 'Terms & Conditions',
+        intro: 'Welcome to Ralulu (the "Website"). The Website provides online product shopping services, and related transactions are governed by this contract and the relevant laws of the Republic of China (Taiwan).',
+        sections: [
+          { h: '1. Business operator information', b: [['Company name: 拉魯魯有限公司', 'Unified Business Number: {{taxId}}', 'Email: ralulu.admin@gmail.com'], 'Note: Ralulu is a purely online e-commerce platform with no physical store. The address above is the registered company address, not a physical store or a place for customers to pick up or return goods. For returns, exchanges or other services, please contact the Customer Service Center first.'] },
+          { h: '2. Product information and prices', b: ['The names, prices, specifications, quantities and related descriptions shown on product pages are part of the transaction contract.', 'If product information is wrong or an item is out of stock, the Website will contact you to work out a solution and will not change the terms of an established contract on its own.'] },
+          { h: '3. Order confirmation and formation', b: ['Both parties agree to transact by electronic documents.', 'Before placing an order you can check the products, quantities, prices and delivery information. After the order is submitted, the sales contract is formed once the Website\'s system or customer service clearly confirms acceptance, and both parties must perform the contract.'] },
+          { h: '4. Order quantity limits', b: ['Some products may have a maximum order quantity; any such limit is announced in advance on the product page. Orders above the limit are handled according to the announced maximum quantity.'] },
+          { h: '5. Payment and delivery', b: ['The payment methods, delivery options, shipping fees and estimated delivery time are as stated on the order page and in the "Shipping & Payment Policy".', 'You may choose among the delivery methods offered, and the Website will arrange shipment according to the confirmed order.'] },
+          { h: '6. Returns and refunds', b: ['Under Article 19 of the Consumer Protection Act, you generally have the right to cancel the contract within seven days after receiving the goods, without giving a reason or bearing any cost, except in the cases the law makes exceptions for.', 'For return requests, refund methods and the process, see the "Returns & Refunds Policy". The Website does not limit the rights consumers have by law.'] },
+          { h: '7. Personal data protection', b: ['The Website collects, processes and uses customer data in accordance with the Personal Data Protection Act. For details, please see the "Privacy Policy".'] },
+          { h: '8. Account and system security', b: ['The Website shall maintain transaction system security that meets reasonable expectations.', 'If a customer\'s account or password is found to have been used without authorisation, the Website will immediately suspend the processing and further use of transactions made through that account, and will help resolve the matter.'] },
+          { h: '9. Customer service and consumer disputes', b: ['If you have questions about an order, product, delivery or return, you can ask or file a complaint through the website\'s "Customer Service Center".', 'The Website will accept and help handle consumer disputes and, where necessary, proceed under the relevant laws and consumer dispute procedures.'] },
+          { h: '10. Application and interpretation of this contract', b: ['This contract is governed by the laws of the Republic of China (Taiwan). Any doubt about a clause shall be interpreted in favour of the consumer.', 'This contract shall not exclude or limit the rights consumers have by law.'] },
+        ],
+      },
+      privacy: {
+        title: 'Privacy Policy',
+        intro: 'Ralulu (拉魯魯有限公司, the "Website") values your personal data and privacy, and collects, processes and uses personal data in accordance with the Personal Data Protection Act of the Republic of China (Taiwan).',
+        sections: [
+          { h: '1. Collection of personal data', b: ['The Website may collect necessary information such as your name, phone number, email, delivery address, member data, order records, customer service conversations and website usage records.'] },
+          { h: '2. Purposes of use', b: ['Personal data is used only within what is lawful and necessary, for member management, order processing, product delivery, customer service, transaction security, legal obligations and improving website services. Marketing use follows the relevant laws.'] },
+          { h: '3. Scope of use', b: ['Personal data is used during the period the above purposes continue and the period the law requires it to be kept. Processing areas include Taiwan and the overseas regions where services are actually provided.', 'As business needs require, the Website may provide necessary data, by system or manually, to logistics, customer service, website maintenance and other related service providers, and handles it in accordance with applicable laws.'] },
+          { h: '4. Cookies and website analytics', b: ['The Website may use tools such as Cookies and Google Analytics 4 to analyse website traffic and improve the user experience. The related data is handled according to applicable laws and the privacy rules of each service provider.'] },
+          { h: '5. Protection of personal data', b: ['The Website takes reasonable security measures to protect personal data against unauthorised access, disclosure, alteration or loss.'] },
+          { h: '6. Your rights', b: ['You may, in accordance with the law, request to inquire about or review your personal data, obtain a copy, supplement or correct it, stop its collection, processing or use, and have it deleted.', 'To exercise these rights, please contact us through the website\'s Customer Service Center. The Website will handle your request in accordance with the law.'] },
+          { h: '7. Providing data and its effects', b: ['You may choose whether to provide personal data. If you do not provide the information needed to complete registration, an order or delivery, you may not be able to use the related services. You may choose not to provide non-essential data.'] },
+          { h: '8. Policy updates and contact', b: ['The Website may update this policy because of changes in the law or in its services; updates will be published on the website.', 'For questions about privacy or personal data, please contact us through the website\'s Customer Service Center or by email:', ['Email: ralulu.admin@gmail.com']] },
+        ],
+      },
+    },
+  },
+  id: {
+    footer: { terms: 'Syarat & Ketentuan', privacy: 'Kebijakan Privasi', returns: 'Kebijakan Pengembalian & Refund' },
+    legal: {
+      about: {
+        title: 'Tentang Kami',
+        sections: [{ h: 'Selamat datang di Ralulu!', b: [
+          'Ralulu hadir untuk melayani para saudari dari berbagai negara yang tinggal di Taiwan.',
+          'Baik kamu berasal dari Indonesia, Filipina, Vietnam, maupun negara mana pun di dunia, kami ingin kamu bisa menikmati belanja dengan mudah di Taiwan.',
+          'Lewat siaran langsung dan beragam pilihan busana, kamu bisa menemukan produk yang kamu suka kapan saja dan di mana saja, dengan pengalaman belanja yang simpel dan menyenangkan.',
+          'Jika ada pertanyaan tentang produk, ukuran, atau pesanan, silakan hubungi tim layanan pelanggan kami kapan saja. Kami dengan senang hati membantu!',
+        ] }],
+      },
+      shipping: {
+        title: 'Kebijakan Pengiriman & Pembayaran',
+        intro: 'Ralulu menyediakan layanan belanja online dan pengiriman di wilayah Taiwan. Metode pengiriman, ongkos kirim, dan informasi pembayaran yang berlaku mengikuti yang tertera di website dan konfirmasi pesanan.',
+        sections: [
+          { h: '1. Metode pengiriman', b: ['Kami menyediakan layanan pengiriman berikut:', ['Ambil di toko 7-ELEVEN', 'Ambil di toko FamilyMart', 'Pengiriman ke alamat dan layanan pos'], 'Metode pengiriman yang tersedia mengikuti yang ditampilkan di halaman checkout.'] },
+          { h: '2. Ongkos kirim dan gratis ongkir', b: [['Ambil di toko 7-ELEVEN: NT$60', 'Ambil di toko FamilyMart: sesuai yang tampil di halaman checkout', 'Pengiriman ke alamat dan pos: NT$100'], 'Pesanan dengan total harga produk NT$1.500 atau lebih dalam satu pesanan mendapat gratis ongkir.', 'Ongkos kirim dan syarat promo yang berlaku mengikuti jumlah yang tampil saat checkout.'] },
+          { h: '3. Pemrosesan dan pengiriman pesanan', b: ['Setelah pesanan dikonfirmasi, kami mengatur pengiriman sesuai stok produk dan status pesanan.', 'Jika produk habis, ada gangguan logistik, atau kendala lain yang memengaruhi pengiriman, kami akan memberi tahu kamu dan mencari solusi bersama.'] },
+          { h: '4. Waktu pengiriman', b: ['Waktu pengiriman dan kedatangan yang sebenarnya dapat berbeda karena stok produk, operasional logistik, hari libur nasional, atau keadaan memaksa. Jika ada perkiraan waktu pengiriman, informasinya akan diberikan di data pesanan atau lewat pemberitahuan layanan pelanggan.'] },
+          { h: '5. Kendala pengiriman dan paket tidak diambil', b: ['Mohon isi data penerima dengan benar dan ambil paket dalam batas waktu yang diberitahukan oleh pihak logistik.', 'Jika muncul biaya tambahan karena data penerima salah, paket tidak diambil melewati batas waktu, atau pengiriman gagal, kami akan mengonfirmasi cara penanganannya kepadamu sesuai keadaan. Hal ini tidak memengaruhi hak konsumen menurut hukum.'] },
+          { h: '6. Metode pembayaran', b: ['Metode pembayaran yang kami sediakan mengikuti yang tampil di halaman checkout dan yang dikonfirmasi oleh layanan pelanggan.', 'Mohon periksa jumlah harga produk, ongkos kirim, dan informasi pembayaran sebelum menyelesaikan pesanan.'] },
+          { h: '7. Layanan pelanggan dan pertanyaan pengiriman', b: ['Untuk mengecek pesanan, mengubah data pengiriman, atau melaporkan masalah pembayaran dan logistik, silakan hubungi kami lewat "Pusat Layanan Pelanggan" di website.'] },
+        ],
+      },
+      terms: {
+        title: 'Syarat & Ketentuan',
+        intro: 'Selamat datang di Ralulu (selanjutnya disebut "Website"). Website menyediakan layanan belanja produk secara online, dan transaksi terkait diatur oleh perjanjian ini serta hukum Republik Tiongkok (Taiwan) yang berlaku.',
+        sections: [
+          { h: '1. Informasi pelaku usaha', b: [['Nama perusahaan: 拉魯魯有限公司', 'Nomor Induk Usaha (Unified Business Number): {{taxId}}', 'Email: ralulu.admin@gmail.com'], 'Catatan: Ralulu adalah platform e-commerce murni online tanpa toko fisik. Alamat di atas adalah alamat terdaftar perusahaan, bukan toko fisik atau tempat pengambilan/pengembalian barang. Untuk pengembalian, penukaran, atau layanan lainnya, silakan hubungi Pusat Layanan Pelanggan terlebih dahulu.'] },
+          { h: '2. Informasi produk dan harga', b: ['Nama, harga, spesifikasi, jumlah, dan keterangan terkait yang tampil di halaman produk merupakan bagian dari perjanjian transaksi.', 'Jika informasi produk salah atau stok habis, Website akan menghubungi kamu untuk mencari solusi dan tidak akan mengubah isi perjanjian yang telah terbentuk secara sepihak.'] },
+          { h: '3. Konfirmasi dan terbentuknya pesanan', b: ['Kedua pihak setuju bertransaksi menggunakan dokumen elektronik.', 'Sebelum memesan, kamu dapat memeriksa produk, jumlah, harga, dan informasi pengiriman. Setelah pesanan dikirim, perjanjian jual beli terbentuk ketika sistem Website atau layanan pelanggan menyatakan penerimaan dengan jelas, dan kedua pihak wajib melaksanakan perjanjian tersebut.'] },
+          { h: '4. Batas jumlah pemesanan', b: ['Sebagian produk mungkin memiliki batas maksimal jumlah pemesanan; batas tersebut diumumkan lebih dahulu di halaman produk. Pesanan yang melebihi batas diproses sesuai jumlah maksimal yang diumumkan.'] },
+          { h: '5. Pembayaran dan pengiriman', b: ['Metode pembayaran, pilihan pengiriman, ongkos kirim, dan perkiraan waktu pengiriman mengikuti halaman pesanan dan "Kebijakan Pengiriman & Pembayaran".', 'Kamu dapat memilih metode pengiriman yang disediakan, dan Website akan mengatur pengiriman sesuai pesanan yang telah dikonfirmasi.'] },
+          { h: '6. Pengembalian barang dan dana', b: ['Berdasarkan Pasal 19 Undang-Undang Perlindungan Konsumen, pada prinsipnya kamu berhak membatalkan perjanjian dalam tujuh hari setelah menerima barang, tanpa perlu memberi alasan dan tanpa menanggung biaya, kecuali dalam hal-hal yang dikecualikan oleh hukum.', 'Untuk pengajuan pengembalian, cara pengembalian dana, dan prosesnya, lihat "Kebijakan Pengembalian & Refund". Website tidak membatasi hak konsumen menurut hukum.'] },
+          { h: '7. Perlindungan data pribadi', b: ['Website mengumpulkan, mengolah, dan menggunakan data pelanggan sesuai Undang-Undang Perlindungan Data Pribadi. Untuk rinciannya, silakan lihat "Kebijakan Privasi".'] },
+          { h: '8. Akun dan keamanan sistem', b: ['Website wajib menjaga keamanan sistem transaksi sesuai harapan yang wajar.', 'Jika ditemukan akun atau kata sandi pelanggan digunakan tanpa izin, Website akan segera menghentikan pemrosesan dan pemanfaatan lanjutan atas transaksi dari akun tersebut, serta membantu menangani masalahnya.'] },
+          { h: '9. Layanan pelanggan dan sengketa konsumen', b: ['Jika ada pertanyaan terkait pesanan, produk, pengiriman, atau pengembalian, kamu dapat bertanya atau mengajukan keluhan lewat "Pusat Layanan Pelanggan" di website.', 'Website akan menerima dan membantu menangani sengketa konsumen, dan bila perlu menempuh prosedur sesuai hukum dan penyelesaian sengketa konsumen yang berlaku.'] },
+          { h: '10. Berlakunya dan penafsiran perjanjian', b: ['Perjanjian ini tunduk pada hukum Republik Tiongkok (Taiwan). Jika ada keraguan atas suatu ketentuan, ketentuan itu ditafsirkan untuk menguntungkan konsumen.', 'Perjanjian ini tidak boleh meniadakan atau membatasi hak konsumen menurut hukum.'] },
+        ],
+      },
+      privacy: {
+        title: 'Kebijakan Privasi',
+        intro: 'Ralulu (拉魯魯有限公司, selanjutnya disebut "Website") menghargai data pribadi dan privasi pelanggan, serta mengumpulkan, mengolah, dan menggunakan data pribadi sesuai Undang-Undang Perlindungan Data Pribadi Republik Tiongkok (Taiwan).',
+        sections: [
+          { h: '1. Pengumpulan data pribadi', b: ['Website dapat mengumpulkan informasi yang diperlukan seperti nama, nomor telepon, email, alamat pengiriman, data member, riwayat pesanan, percakapan layanan pelanggan, dan catatan penggunaan website.'] },
+          { h: '2. Tujuan penggunaan data', b: ['Data pribadi hanya digunakan dalam batas yang sah dan perlu, untuk pengelolaan member, pemrosesan pesanan, pengiriman produk, layanan pelanggan, keamanan transaksi, kewajiban hukum, dan peningkatan layanan website. Penggunaan untuk pemasaran mengikuti hukum yang berlaku.'] },
+          { h: '3. Cakupan penggunaan data', b: ['Data pribadi digunakan selama tujuan di atas masih berlangsung dan selama jangka waktu penyimpanan yang diwajibkan hukum. Wilayah pemrosesan mencakup Taiwan dan wilayah luar negeri tempat layanan benar-benar diberikan.', 'Sesuai kebutuhan operasional, Website dapat memberikan data yang diperlukan, melalui sistem atau secara manual, kepada penyedia layanan logistik, layanan pelanggan, pemeliharaan website, dan layanan terkait lainnya, serta menanganinya sesuai hukum yang berlaku.'] },
+          { h: '4. Cookies dan analitik website', b: ['Website dapat menggunakan Cookies, Google Analytics 4, dan alat sejenis untuk menganalisis lalu lintas website dan meningkatkan pengalaman pengguna. Data terkait ditangani sesuai hukum yang berlaku dan aturan privasi masing-masing penyedia layanan.'] },
+          { h: '5. Perlindungan data pribadi', b: ['Website menerapkan langkah keamanan yang wajar untuk melindungi data pribadi dari akses tanpa izin, kebocoran, perubahan, atau kehilangan.'] },
+          { h: '6. Hak pelanggan', b: ['Sesuai hukum, kamu dapat meminta untuk menanyakan atau melihat data pribadimu, memperoleh salinannya, melengkapi atau memperbaikinya, menghentikan pengumpulan, pengolahan, atau penggunaannya, serta menghapusnya.', 'Untuk menggunakan hak-hak tersebut, silakan hubungi kami lewat Pusat Layanan Pelanggan di website. Website akan menanganinya sesuai hukum.'] },
+          { h: '7. Penyediaan data dan akibatnya', b: ['Kamu bebas memilih apakah memberikan data pribadi, tetapi jika informasi yang diperlukan untuk menyelesaikan pendaftaran, pesanan, atau pengiriman tidak diberikan, kamu mungkin tidak dapat menggunakan layanan terkait. Data yang tidak wajib boleh tidak diberikan.'] },
+          { h: '8. Pembaruan kebijakan dan kontak', b: ['Website dapat memperbarui kebijakan ini karena perubahan hukum atau layanan; pembaruan akan diumumkan di website.', 'Jika ada pertanyaan tentang privasi atau data pribadi, silakan hubungi kami lewat Pusat Layanan Pelanggan di website atau melalui email berikut:', ['Email: ralulu.admin@gmail.com']] },
+        ],
+      },
+    },
+  },
+}

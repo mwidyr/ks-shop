@@ -15,6 +15,7 @@ function make(children, { sw = 1.8, fill } = {}) {
   }
 }
 
+export const IconMegaphone = make(<><path d="M4 10v4h3l7 4V6L7 10H4z" /><path d="M17 9.5a3.5 3.5 0 0 1 0 5" /></>)
 export const IconHome = make(<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z" />)
 export const IconDoc = make(<><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 9h6M9 13h6M9 17h3" /></>)
 export const IconCart = make(<><path d="M6 7h12l-1 13H7L6 7z" /><path d="M9 7a3 3 0 0 1 6 0" /></>)

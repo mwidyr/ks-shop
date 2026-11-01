@@ -99,13 +99,16 @@ export function Footer() {
   )
   return (
     <footer style={{ marginTop: 24, padding: '24px 16px 190px', background: 'var(--color-bg-soft)', display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 24px' }}>
+      <nav aria-label="footer" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px' }}>
         <Link to="/info/about" style={a}>{t('footer.about')}</Link>
         <Link to="/orders" style={a}>{t('footer.orders')}</Link>
         <Link to="/style" style={a}>{t('footer.style')}</Link>
         <Link to="/info/shipping" style={a}>{t('footer.shipping')}</Link>
         <Link to="/service" style={a}>{t('footer.cs_center')}</Link>
-      </div>
+        <Link to="/info/terms" style={a}>{t('footer.terms')}</Link>
+        <Link to="/info/privacy" style={a}>{t('footer.privacy')}</Link>
+        <Link to="/info/returns" style={a}>{t('footer.returns')}</Link>
+      </nav>
       <div style={{ display: 'flex', gap: 8 }}>
         {social(t('footer.youtube'), settings.social?.youtube)}
         {social(t('footer.instagram'), settings.social?.instagram)}
