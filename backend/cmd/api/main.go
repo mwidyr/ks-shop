@@ -378,6 +378,7 @@ func main() {
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/confirm-all-failed", shippingWBH.ConfirmAllNotCreated)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/imports", shippingWBH.Import)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/issues/{id}/resolve", shippingWBH.ResolveIssue)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/search", shippingWBH.Search)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/overview", shippingWBH.Overview)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/issues", shippingWBH.Issues)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/settings", shippingWBH.GetSettings)

@@ -2982,7 +2982,7 @@
     "filter_pending": "進行中",
     "filter_closed": "已結案",
     "filter_all": "全部",
-    "search_batch": "搜尋批次編號",
+    "search_batch": "批次",
     "sort_date": "日期",
     "no_batches": "找不到批次。",
     "col_batch_id": "批次編號",
@@ -3162,7 +3162,18 @@
     "fig_problem": "問題訂單",
     "fig_created_today": "今日建立（尚不可建批次）",
     "fig_held": "保留中（保留日期）",
-    "s4_hint_direct": "訂單直接送交 3PL，不需經過物流平台。首次下載 3PL 檔案時，訂單會變為已出貨。已送出的訂單不會再次匯出。"
+    "s4_hint_direct": "訂單直接送交 3PL，不需經過物流平台。首次下載 3PL 檔案時，訂單會變為已出貨。已送出的訂單不會再次匯出。",
+    "global_search_ph": "搜尋訂單編號、平台訂單編號、7-ELEVEN 配送單編號、全家寄件編號、3PL 訂單編號或批次編號",
+    "search_none": "找不到結果",
+    "search_provider": "物流商",
+    "search_no_batch": "尚未加入批次",
+    "search_removed": "已移出批次",
+    "batch_search_ph": "搜尋此批次：訂單編號、平台訂單編號或配送單編號",
+    "batch_search_none": "此批次中沒有符合的訂單",
+    "removed_title": "已從此批次移出的訂單",
+    "edit_remove_btn": "編輯訂單並移出批次",
+    "edit_release_hint": "修正訂單後儲存：訂單會移出此批次，並回到（新）物流商的待處理，可重新建立批次。批次紀錄會保留。",
+    "save_and_remove": "儲存並移出批次"
   },
   "keep_date": {
     "type_label": "日期類型",

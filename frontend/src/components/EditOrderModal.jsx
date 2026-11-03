@@ -15,7 +15,7 @@ const label = 'block text-sm font-medium text-gray-700 mb-1'
 
 // Edits every detail of an order that was NOT exported yet, in one save (PUT /orders/{id}). The server
 // refuses (409) once the order is exported, merged lines/stock rules are enforced there too.
-export default function EditOrderModal({ order, onClose, onDone }) {
+export default function EditOrderModal({ order, onClose, onDone, releaseFromBatch = false }) {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const [pickupChains, setPickupChains] = useState([])
@@ -83,6 +83,7 @@ export default function EditOrderModal({ order, onClose, onDone }) {
         items: items.map((it) => ({
           ...(it.id ? { id: it.id } : {}), variant_id: it.variantId, qty: Number(it.qty), price: Number(it.price) || 0, host_id: Number(it.hostId) || 0,
         })),
+        ...(releaseFromBatch ? { release_from_batch: true } : {}),
         discount_amount: Number(discount) || 0,
         additional_amount: Number(additional) || 0,
         ...(Number(fee) !== Number(order.shipping_fee || 0) ? { shipping_fee_override: Number(fee) || 0 } : {}),
@@ -103,7 +104,7 @@ export default function EditOrderModal({ order, onClose, onDone }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label={t('common.back')}><IconClose /></button>
         </div>
         <div className="p-5 space-y-5 overflow-y-auto">
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t('page_order_detail.edit_hint')}</p>
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t(releaseFromBatch ? 'page_shipping_wb.edit_release_hint' : 'page_order_detail.edit_hint')}</p>
           {grouped && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t('page_order_detail.edit_group_hint')}</p>}
 
           <section className="space-y-3">
@@ -178,7 +179,7 @@ export default function EditOrderModal({ order, onClose, onDone }) {
         <div className="p-5 border-t border-gray-100 flex justify-end gap-2 shrink-0">
           <button onClick={onClose} className="border border-gray-300 text-gray-600 text-sm font-semibold px-5 py-2 rounded-full hover:bg-gray-50">{t('common.back')}</button>
           <button onClick={save} disabled={saving || !storeCodeValid} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-full">
-            {saving ? t('page_order_detail.saving_button') : t('common.save')}
+            {saving ? t('page_order_detail.saving_button') : t(releaseFromBatch ? 'page_shipping_wb.save_and_remove' : 'common.save')}
           </button>
         </div>
       </div>

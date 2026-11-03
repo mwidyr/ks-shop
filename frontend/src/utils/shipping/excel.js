@@ -123,15 +123,22 @@ export const THREEPL_HEADERS = [
   '出貨人名稱', '出貨人電話', '發票號碼', '縣市', '鄉鎮市區', '街道地址',
 ]
 
+export function threePLOrderNo(r) {
+  if (r.chain_type === 'courier') return r.order_no
+  if (!r.platform_order_no) return r.order_no
+  return r.platform_order_no + (r.chain_type === 'cvs_familymart' ? '1' : '-0')
+}
+
 export function buildThreePLRows(rows) {
   const out = []
   for (const r of rows) {
     const lines = r.lines?.length ? r.lines : [{ sku: '', name: r.packing_products || '', qty: r.total_qty, price: '' }]
     for (const l of lines) {
       const row = new Array(THREEPL_HEADERS.length).fill('')
-      // 7-ELEVEN / FamilyMart: the order number the platform gave us (CM...); POS / 郵寄: our own number.
-      // Our own number always goes to 額外單號 (T)
-      row[0] = r.chain_type === 'courier' ? r.order_no : (r.platform_order_no || r.order_no)
+      // 7-ELEVEN / FamilyMart: the 3PL's order number is the platform order number (CM... / FamilyMart 訂單編號) with the
+      // 3PL's suffix ("-0" for 7-ELEVEN, "1" for FamilyMart); POS / 郵寄: our own number. Our own number always goes to
+      // 額外單號 (T), which is what the import matches on
+      row[0] = threePLOrderNo(r)
       row[1] = r.order_date || ''
       row[3] = r.customer_name
       // convenience store: the 6-digit store code goes in the Address column (our store names can't always be

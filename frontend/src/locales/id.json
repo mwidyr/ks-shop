@@ -2982,7 +2982,7 @@
     "filter_pending": "Tertunda",
     "filter_closed": "Selesai",
     "filter_all": "Semua",
-    "search_batch": "Cari ID Batch",
+    "search_batch": "Batch",
     "sort_date": "Tanggal",
     "no_batches": "Batch tidak ditemukan.",
     "col_batch_id": "ID Batch",
@@ -3162,7 +3162,18 @@
     "fig_problem": "Pesanan Bermasalah",
     "fig_created_today": "Dibuat Hari Ini (belum bisa dibatch)",
     "fig_held": "Ditahan (tanggal keep)",
-    "s4_hint_direct": "Pesanan dikirim langsung ke 3PL, tanpa langkah platform logistik. Saat file 3PL pertama kali diunduh, pesanannya menjadi Shipped. Pesanan yang sudah dikirim tidak diekspor lagi."
+    "s4_hint_direct": "Pesanan dikirim langsung ke 3PL, tanpa langkah platform logistik. Saat file 3PL pertama kali diunduh, pesanannya menjadi Shipped. Pesanan yang sudah dikirim tidak diekspor lagi.",
+    "global_search_ph": "Cari no. order, no. order platform, no. pengiriman 7-ELEVEN, no. kirim FamilyMart, no. order 3PL atau ID batch",
+    "search_none": "Tidak ditemukan",
+    "search_provider": "Provider",
+    "search_no_batch": "Belum masuk batch",
+    "search_removed": "sudah dikeluarkan dari batch",
+    "batch_search_ph": "Cari di batch ini: no. order, no. order platform atau no. pengiriman",
+    "batch_search_none": "Tidak ada order yang cocok di batch ini",
+    "removed_title": "Order yang dikeluarkan dari batch ini",
+    "edit_remove_btn": "Edit Order & Keluarkan dari Batch",
+    "edit_release_hint": "Perbaiki order lalu simpan: order dikeluarkan dari batch ini dan kembali ke Pending di provider yang (baru), siap masuk batch baru. Riwayat batch tetap tersimpan.",
+    "save_and_remove": "Simpan & keluarkan dari batch"
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

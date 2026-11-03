@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { getOrder } from '../api/orders'
+import EditOrderModal from '../components/EditOrderModal'
+import { useAuth } from '../context/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
 import { buildThreePLExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
@@ -59,6 +62,11 @@ export default function ShippingBatch() {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [showOrders, setShowOrders] = useState(false)
+  const [orderSearch, setOrderSearch] = useState('')
+  const [editing, setEditing] = useState(null)
+  const { user } = useAuth()
+  // only these roles may fix a failed order and take it out of the batch (the server enforces it too)
+  const canRelease = ['management', 'spv', 'warehouse', 'super_user'].includes(user?.role)
 
   const load = useCallback(() => getBatch(id).then(setData).catch(() => setData(false)), [id])
   useEffect(() => { load() }, [load])
@@ -66,7 +74,7 @@ export default function ShippingBatch() {
   if (data === false) return <div className="p-8 text-center text-gray-500">{t('page_shipping_wb.batch_not_found')}</div>
   if (!data) return <div className="p-8 text-center text-gray-500">{t('common.loading')}</div>
 
-  const { batch, orders, exports, imports, issues, shipments } = data
+  const { batch, orders, exports, imports, issues, shipments, removed = [] } = data
   const provider = batch.provider
   const c = batch.counts
   const byKind = (kind) => exports.filter((e) => e.kind === kind)
@@ -79,6 +87,10 @@ export default function ShippingBatch() {
   const pendingVerification = orders.filter((o) => o.verification === 'pending_verification')
   const awaiting = orders.filter((o) => o.verification === 'awaiting_results').length
   const unresolvedFailed = [...failedOrders, ...pendingVerification]
+  const sq = orderSearch.trim().toLowerCase()
+  const visibleOrders = sq
+    ? orders.filter((o) => [o.order_no, o.platform_order_no, o.shipping_no, o.customer_name].some((v) => (v || '').toLowerCase().includes(sq)))
+    : orders
   // POS / 郵寄 orders go straight to the 3PL: no platform export/import steps, so they are available from the start
   const direct3PL = provider === 'courier'
   const sendable = direct3PL ? ['pending', 'processing', 'ready_to_ship'] : ['ready_to_ship']
@@ -156,9 +168,13 @@ export default function ShippingBatch() {
           <div className="mt-3"><Notice tone="warn">⚠ {t('page_shipping_wb.missing_shipping_warning', { count: batch.missing_shipping_no })}</Notice></div>
         )}
         <button onClick={() => setShowOrders(!showOrders)} className="mt-3 text-sm font-semibold text-gray-600 hover:underline">
-          {showOrders ? '▾' : '▸'} {t('page_shipping_wb.order_list')}
+          {showOrders || orderSearch.trim() ? '▾' : '▸'} {t('page_shipping_wb.order_list')}
         </button>
-        {showOrders && (
+        <input
+          value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} placeholder={t('page_shipping_wb.batch_search_ph')}
+          className="mt-2 block w-full sm:max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+        {(showOrders || orderSearch.trim()) && (
           <div className="overflow-x-auto mt-2">
             <table className="w-full text-xs">
               <thead><tr className="text-left text-gray-400 uppercase border-b">
@@ -166,7 +182,7 @@ export default function ShippingBatch() {
                 <th className="pr-2">{t('page_shipping_wb.platform_no')}</th><th className="pr-2">{t('page_shipping_wb.shipping_no')}</th><th>{t('page_shipping_wb.col_result')}</th>
               </tr></thead>
               <tbody>
-                {orders.map((o) => (
+                {visibleOrders.map((o) => (
                   <tr key={o.order_id} className="border-b last:border-0">
                     <td className="py-1.5 pr-2 text-gray-400">{o.shipment_no}</td>
                     <td className="pr-2"><Link to={`/orders/${o.order_id}`} className="font-semibold text-brand-700 hover:underline">{o.order_no}</Link><span className="text-gray-400"> {o.customer_name}</span></td>
@@ -178,6 +194,19 @@ export default function ShippingBatch() {
                 ))}
               </tbody>
             </table>
+            {visibleOrders.length === 0 && <p className="text-sm text-gray-400 py-3">{t('page_shipping_wb.batch_search_none')}</p>}
+          </div>
+        )}
+        {removed.length > 0 && (
+          <div className="mt-3 text-xs text-gray-500">
+            <p className="font-semibold">{t('page_shipping_wb.removed_title')}</p>
+            <ul className="mt-1 space-y-0.5">
+              {removed.map((r) => (
+                <li key={`${r.order_id}-${r.removed_at}`}>
+                  <Link to={`/orders/${r.order_id}`} className="font-semibold text-brand-700 hover:underline">{r.order_no}</Link> · {formatDateTime(r.removed_at)} · {r.removed_by}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </section>
@@ -301,6 +330,11 @@ export default function ShippingBatch() {
                     {o.likely_failing && <p className="text-xs font-semibold text-red-600">⚠ {t('page_shipping_wb.likely_failing')}</p>}
                   </div>
                   <div className="flex gap-3 items-center shrink-0">
+                    {o.verification === 'failed' && canRelease && (
+                      <button onClick={(ev) => { ev.stopPropagation(); run(`ed-${o.order_id}`, async () => setEditing(await getOrder(o.order_id))) }} className="text-xs font-semibold text-brand-600 hover:underline">
+                        {t('page_shipping_wb.edit_remove_btn')}
+                      </button>
+                    )}
                     {o.verification === 'pending_verification' && (
                       <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm(t('page_shipping_wb.confirm_not_created'))) run(`cf-${o.order_id}`, () => confirmNotCreated(id, o.order_id)) }} className="text-xs font-semibold text-brand-600 hover:underline">
                         {t('page_shipping_wb.confirm_not_created_btn')}
@@ -329,6 +363,7 @@ export default function ShippingBatch() {
           )} />
         </SectionCard>
       </div>
+      {editing && <EditOrderModal order={editing} releaseFromBatch onClose={() => setEditing(null)} onDone={() => { setEditing(null); load() }} />}
     </div>
   )
 }

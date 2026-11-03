@@ -2982,7 +2982,7 @@
     "filter_pending": "Pending",
     "filter_closed": "Closed",
     "filter_all": "All",
-    "search_batch": "Search Batch ID",
+    "search_batch": "Batch",
     "sort_date": "Date",
     "no_batches": "No batches found.",
     "col_batch_id": "Batch ID",
@@ -3162,7 +3162,18 @@
     "fig_problem": "Problem Orders",
     "fig_created_today": "Created Today (not batchable yet)",
     "fig_held": "On Hold (keep date)",
-    "s4_hint_direct": "Orders are sent straight to the 3PL, no logistics platform step is needed. The first time a 3PL file is downloaded its orders become Shipped. Orders already sent are never exported again."
+    "s4_hint_direct": "Orders are sent straight to the 3PL, no logistics platform step is needed. The first time a 3PL file is downloaded its orders become Shipped. Orders already sent are never exported again.",
+    "global_search_ph": "Search order no, platform order no, 7-ELEVEN delivery no, FamilyMart shipping no, 3PL order no or batch ID",
+    "search_none": "Nothing found",
+    "search_provider": "Provider",
+    "search_no_batch": "Not in a batch",
+    "search_removed": "removed from batch",
+    "batch_search_ph": "Search this batch: order no, platform order no or shipping no",
+    "batch_search_none": "No matching order in this batch",
+    "removed_title": "Orders taken out of this batch",
+    "edit_remove_btn": "Edit Order & Remove from Batch",
+    "edit_release_hint": "Fix the order, then save: it is taken out of this batch and goes back to Pending under its (new) provider, ready for a new batch. The batch history is kept.",
+    "save_and_remove": "Save & remove from batch"
   },
   "keep_date": {
     "type_label": "Date type",

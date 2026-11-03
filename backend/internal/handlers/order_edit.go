@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	appmw "ordermgmt/internal/middleware"
 )
@@ -41,6 +42,71 @@ type editOrderRequest struct {
 	DiscountAmount      float64         `json:"discount_amount"`
 	AdditionalAmount    float64         `json:"additional_amount"`
 	ShippingFeeOverride *float64        `json:"shipping_fee_override"`
+	// Failed Orders & Retry: edit a failed order and, in the same save, take it (and its merged siblings) out of
+	// its batch and back to Pending.
+	ReleaseFromBatch bool `json:"release_from_batch"`
+}
+
+// releaseFailedFromBatch takes an order whose platform creation failed out of its batch: the batch row goes
+// (the removal is kept in shipping_batch_removals), the order returns to Pending / un-exported with its reserved
+// FIFO cost given back. Merged siblings travel with it so the group is never split across batches.
+func releaseFailedFromBatch(ctx context.Context, tx pgx.Tx, orderID int, userID *int) (string, error) {
+	var batchID int
+	var batchNo, lastErr string
+	if err := tx.QueryRow(ctx, `
+		SELECT b.id, b.batch_no, COALESCE(sbo.last_error,'') FROM shipping_batch_orders sbo
+		JOIN shipping_batches b ON b.id = sbo.batch_id
+		WHERE sbo.order_id=$1 AND sbo.create_result='failed'`, orderID).Scan(&batchID, &batchNo, &lastErr); err != nil {
+		return "order ini bukan order gagal di sebuah batch", nil
+	}
+	ids := []int{orderID}
+	grows, err := tx.Query(ctx, `
+		SELECT m2.order_id FROM order_shipment_group_members m1
+		JOIN order_shipment_group_members m2 ON m2.group_id = m1.group_id AND m2.order_id <> m1.order_id
+		WHERE m1.order_id=$1`, orderID)
+	if err != nil {
+		return "", err
+	}
+	for grows.Next() {
+		var sid int
+		if grows.Scan(&sid) == nil {
+			ids = append(ids, sid)
+		}
+	}
+	grows.Close()
+	for _, oid := range ids {
+		var status string
+		if err := tx.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1 FOR UPDATE`, oid).Scan(&status); err != nil {
+			return "", err
+		}
+		if status != "pending" && status != "processing" {
+			return "order belum bisa dikeluarkan dari batch (status: " + status + ")", nil
+		}
+		if status == "processing" {
+			if err := releaseOrderCostTx(ctx, tx, oid); err != nil {
+				return "", err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE orders SET status='pending' WHERE id=$1`, oid); err != nil {
+				return "", err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
+				VALUES ($1,'processing','pending',$2,$3)`, oid, userID, "removed from batch "+batchNo+" (failed order edited)"); err != nil {
+				return "", err
+			}
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO shipping_batch_removals (batch_id, order_id, removed_by, last_error)
+			SELECT batch_id, order_id, $2, last_error FROM shipping_batch_orders WHERE order_id=$1`, oid, userID); err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM shipping_batch_orders WHERE order_id=$1`, oid); err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE orders SET exported_at=NULL, platform_order_no=NULL, tracking_number=NULL, updated_at=now() WHERE id=$1`, oid); err != nil {
+			return "", err
+		}
+		logActivity(ctx, tx, "order", oid, "removed_from_batch", userID, batchNo)
+	}
+	return "", nil
 }
 
 // batchProvider returns the provider (chain_type) of the batch the order belongs to, "" when it is in none.
@@ -136,6 +202,22 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		Scan(&status, &channel, &customerID, &curChain, &exported, &curOverride, &curFee, &promoDiscount, &curStore, &curAddress, &inGroup, &feeHolder); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
+	}
+	if req.ReleaseFromBatch {
+		if claims.Role != "management" && claims.Role != "spv" && claims.Role != "warehouse" && claims.Role != "super_user" {
+			respondError(w, http.StatusForbidden, "hanya Management, SPV, dan Warehouse yang bisa mengedit order gagal dan mengeluarkannya dari batch")
+			return
+		}
+		msg, err := releaseFailedFromBatch(ctx, tx, id, &claims.UserID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to remove order from batch")
+			return
+		}
+		if msg != "" {
+			respondError(w, http.StatusConflict, msg)
+			return
+		}
+		exported, status = false, "pending"
 	}
 	if exported {
 		respondError(w, http.StatusConflict, orderLockedMsg)

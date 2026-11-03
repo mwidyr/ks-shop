@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings } from '../api/shippingWorkbench'
+import { getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings, searchShipping } from '../api/shippingWorkbench'
 import CrossBatchImportModal from '../components/shipping/CrossBatchImportModal'
 import { BatchStatusPill, PROVIDERS, PROVIDER_KEYS, ProgressChips, StagePill, batchPath, elapsed, ghostBtn, primaryBtn } from '../components/shipping/shared'
+import StatusPill from '../components/StatusPill'
 import { useCanEdit } from '../context/AccessContext'
 
 const FIGURES = [
@@ -52,6 +53,55 @@ function SettingsModal({ onClose }) {
   )
 }
 
+// Global search: our order no, platform order no, shipping number (7-ELEVEN 配送單編號 / FamilyMart 寄件編號) or batch no
+function GlobalSearch() {
+  const { t } = useTranslation()
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState(null)
+  useEffect(() => {
+    const term = q.trim()
+    if (term.length < 2) { setHits(null); return undefined }
+    const timer = setTimeout(() => { searchShipping(term).then((r) => setHits(r.hits)).catch(() => setHits([])) }, 300)
+    return () => clearTimeout(timer)
+  }, [q])
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-4">
+      <input
+        value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('page_shipping_wb.global_search_ph')}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+      />
+      {hits && (hits.length === 0 ? (
+        <p className="text-sm text-gray-400 pt-3">{t('page_shipping_wb.search_none')}</p>
+      ) : (
+        <div className="overflow-x-auto mt-3">
+          <table className="w-full text-xs">
+            <thead><tr className="text-left text-gray-400 uppercase border-b">
+              <th className="py-1.5 pr-2">{t('page_shipping_wb.col_order')}</th><th className="pr-2">{t('page_shipping_wb.platform_no')}</th>
+              <th className="pr-2">{t('page_shipping_wb.shipping_no')}</th><th className="pr-2">{t('page_shipping_wb.search_provider')}</th>
+              <th className="pr-2">{t('page_shipping_wb.search_batch')}</th><th>{t('page_shipping_wb.col_status')}</th>
+            </tr></thead>
+            <tbody>
+              {hits.map((h, i) => (
+                <tr key={`${h.order_id}-${h.batch_id}-${i}`} className="border-b last:border-0">
+                  <td className="py-1.5 pr-2"><Link to={`/orders/${h.order_id}`} className="font-semibold text-brand-700 hover:underline">{h.order_no}</Link></td>
+                  <td className="pr-2 font-mono">{h.platform_order_no || '-'}</td>
+                  <td className="pr-2 font-mono">{h.shipping_no || '-'}</td>
+                  <td className="pr-2">{PROVIDERS[h.provider] ? t(`page_shipping_wb.${PROVIDERS[h.provider].nameKey}`) : '-'}</td>
+                  <td className="pr-2">{h.batch_id
+                    ? <Link to={batchPath(h.provider, h.batch_id)} className="font-semibold text-brand-600 hover:underline">{h.batch_no}</Link>
+                    : <span className="text-gray-400">{t('page_shipping_wb.search_no_batch')}</span>}
+                    {h.removed && <span className="ml-1 text-amber-600">({t('page_shipping_wb.search_removed')})</span>}</td>
+                  <td><StatusPill status={h.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ShippingWorkbench() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -92,6 +142,8 @@ export default function ShippingWorkbench() {
           {canEdit && <button onClick={() => setImportOpen(true)} className={primaryBtn}>{t('page_shipping_wb.cross_batch_import')}</button>}
         </div>
       </div>
+
+      <GlobalSearch />
 
       <div className="grid md:grid-cols-3 gap-4">
         {PROVIDER_KEYS.map((key) => {

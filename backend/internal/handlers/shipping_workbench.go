@@ -378,9 +378,87 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		xrows.Close()
 	}
 
+	// orders taken out of this batch (failed orders that were edited): kept for tracking
+	type removedView struct {
+		OrderID   int    `json:"order_id"`
+		OrderNo   string `json:"order_no"`
+		RemovedBy string `json:"removed_by"`
+		RemovedAt string `json:"removed_at"`
+		LastError string `json:"last_error"`
+	}
+	removed := []removedView{}
+	rrows, err := h.DB.Query(ctx, `
+		SELECT rm.order_id, o.order_no, COALESCE(u.name,''), rm.removed_at, COALESCE(rm.last_error,'')
+		FROM shipping_batch_removals rm JOIN orders o ON o.id = rm.order_id LEFT JOIN users u ON u.id = rm.removed_by
+		WHERE rm.batch_id = $1 ORDER BY rm.removed_at DESC`, id)
+	if err == nil {
+		for rrows.Next() {
+			var v removedView
+			var at time.Time
+			if rrows.Scan(&v.OrderID, &v.OrderNo, &v.RemovedBy, &at, &v.LastError) == nil {
+				v.RemovedAt = at.Format(time.RFC3339)
+				removed = append(removed, v)
+			}
+		}
+		rrows.Close()
+	}
+
 	respondJSON(w, http.StatusOK, map[string]any{
 		"batch": sum, "shipments": shipments, "orders": orders, "exports": exports, "imports": imports, "issues": issues,
+		"removed": removed,
 	})
+}
+
+type shippingSearchHit struct {
+	OrderID         int    `json:"order_id"`
+	OrderNo         string `json:"order_no"`
+	PlatformOrderNo string `json:"platform_order_no"`
+	ShippingNo      string `json:"shipping_no"`
+	Status          string `json:"status"`
+	Provider        string `json:"provider"`
+	BatchID         *int   `json:"batch_id"`
+	BatchNo         string `json:"batch_no"`
+	CreateResult    string `json:"create_result"`
+	Removed         bool   `json:"removed"` // no longer in that batch (taken out after failing)
+}
+
+// Search handles GET /shipping-workbench/search?q=: finds an order (or a batch) by our order number, the
+// platform order number (CM... / FamilyMart 訂單編號), the shipping number (7-ELEVEN 配送單編號 / FamilyMart
+// 寄件編號, also the number the 3PL returns) or the batch number, across every provider and batch.
+func (h *ShippingWorkbenchHandler) Search(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(q) < 2 {
+		respondJSON(w, http.StatusOK, map[string]any{"hits": []shippingSearchHit{}})
+		return
+	}
+	like := "%" + strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q) + "%"
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT o.id, o.order_no, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''), o.status,
+		       COALESCE(b.provider, pc.chain_type, ''), b.id, COALESCE(b.batch_no,''), COALESCE(sbo.create_result,''), false
+		FROM orders o
+		LEFT JOIN shipping_batch_orders sbo ON sbo.order_id = o.id
+		LEFT JOIN shipping_batches b ON b.id = sbo.batch_id
+		LEFT JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.order_no ILIKE $1 OR o.platform_order_no ILIKE $1 OR o.tracking_number ILIKE $1 OR b.batch_no ILIKE $1
+		UNION ALL
+		SELECT o.id, o.order_no, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''), o.status,
+		       b.provider, b.id, b.batch_no, '', true
+		FROM shipping_batch_removals rm JOIN orders o ON o.id = rm.order_id JOIN shipping_batches b ON b.id = rm.batch_id
+		WHERE o.order_no ILIKE $1 OR b.batch_no ILIKE $1
+		ORDER BY 1 DESC LIMIT 60`, like)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "search failed")
+		return
+	}
+	defer rows.Close()
+	hits := []shippingSearchHit{}
+	for rows.Next() {
+		var h shippingSearchHit
+		if rows.Scan(&h.OrderID, &h.OrderNo, &h.PlatformOrderNo, &h.ShippingNo, &h.Status, &h.Provider, &h.BatchID, &h.BatchNo, &h.CreateResult, &h.Removed) == nil {
+			hits = append(hits, h)
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"hits": hits})
 }
 
 func fmtTimePtr(t *time.Time) *string {
