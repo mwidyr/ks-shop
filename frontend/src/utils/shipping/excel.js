@@ -114,8 +114,7 @@ export function buildPlatformExcel(provider, rows) {
 export const platformFileExt = (provider) => (provider === 'cvs_711' ? 'xlsm' : 'xlsx')
 
 // The 3PL's own order-import template (訂單匯出, 34 columns A-AH, the literal headers of 3PL_Export_Template.xlsx).
-// One row per product line; a merged shipment is ONE order number carrying all its lines. Logistics type (G),
-// COD (J) and unit price (O) stay blank. Used for 7-ELEVEN and FamilyMart batches alike.
+// One row per product line; a merged shipment is ONE order number carrying all its lines. COD (J) and unit price (O) stay blank. Used for 7-ELEVEN and FamilyMart batches alike.
 export const THREEPL_HEADERS = [
   '訂單編號*', '訂單日期', '單據類別', '收件人姓名或常用地址代號*', '地址*', '電話', '物流類型', '超商門市店號(超取必填)',
   '訂單金額(超取必填)', '是否代收貨款(Y/N)\n(超取付款可不填)', '來回件', '品號*', '品名', '數量*', '單品單價', '單品備註', '訂單備註',
@@ -123,10 +122,14 @@ export const THREEPL_HEADERS = [
   '出貨人名稱', '出貨人電話', '發票號碼', '縣市', '鄉鎮市區', '街道地址',
 ]
 
+// Logistics type (G) the 3PL expects per provider
+const THREEPL_LOGISTICS = { cvs_711: 'seven-c2c', cvs_familymart: 'family-c2c', courier: 'Maple' }
+
+// Column A: 7-ELEVEN 配送單編號 / FamilyMart 寄件編號 (the shipping number, stored as the tracking number); POS / 郵寄:
+// our own order number. Without a shipping number yet it falls back to our own number.
 export function threePLOrderNo(r) {
   if (r.chain_type === 'courier') return r.order_no
-  if (!r.platform_order_no) return r.order_no
-  return r.platform_order_no + (r.chain_type === 'cvs_familymart' ? '1' : '-0')
+  return r.tracking_number || r.order_no
 }
 
 export function buildThreePLRows(rows) {
@@ -135,9 +138,7 @@ export function buildThreePLRows(rows) {
     const lines = r.lines?.length ? r.lines : [{ sku: '', name: r.packing_products || '', qty: r.total_qty, price: '' }]
     for (const l of lines) {
       const row = new Array(THREEPL_HEADERS.length).fill('')
-      // 7-ELEVEN / FamilyMart: the 3PL's order number is the platform order number (CM... / FamilyMart 訂單編號) with the
-      // 3PL's suffix ("-0" for 7-ELEVEN, "1" for FamilyMart); POS / 郵寄: our own number. Our own number always goes to
-      // 額外單號 (T), which is what the import matches on
+      // Our own order number always goes to 額外單號 (T), which is what the import matches on
       row[0] = threePLOrderNo(r)
       row[1] = r.order_date || ''
       row[3] = r.customer_name
@@ -145,13 +146,14 @@ export function buildThreePLRows(rows) {
       // recognised by the 3PL), column H stays empty
       row[4] = r.is_home_delivery ? r.shipping_address : r.pickup_store_code
       row[5] = normalizePhone(r.customer_phone)
+      row[6] = THREEPL_LOGISTICS[r.chain_type] || ''
       row[8] = r.total_to_pay
       row[11] = l.sku
       row[12] = l.name
       row[13] = l.qty
       row[16] = r.internal_notes_combined || ''
       row[19] = r.order_no // internal order number (a merged shipment: its merged order number)
-      row[21] = r.tracking_number || ''
+      row[21] = r.platform_order_no || '' // 指定托運單號: 7-ELEVEN CM... / FamilyMart 訂單編號 (POS / 郵寄: none)
       out.push(row)
     }
   }

@@ -17,16 +17,20 @@ describe('3PL export', () => {
   it('writes one row per product line with ONE order number for a merged shipment', () => {
     const rows = buildThreePLRows([row])
     expect(rows).toHaveLength(2)
-    expect(rows.every((r) => r.length === 34 && r[0] === 'CM2610300619206-0' && r[19] === 'ORD-1')).toBe(true)
-    expect([rows[0][6], rows[0][9], rows[0][14]]).toEqual(['', '', ''])
+    expect(rows.every((r) => r.length === 34 && r[0] === 'ORD-1' && r[19] === 'ORD-1')).toBe(true)
+    expect([rows[0][9], rows[0][14]]).toEqual(['', ''])
     expect(rows[0][5]).toBe('0911172477')
     expect(rows[0][4]).toBe('195896')
     expect(rows[0][7]).toBe('')
     expect(rows[1].slice(11, 14)).toEqual(['C002-PINK-FREESIZE', 'Kaos', 2])
   })
-  it('column A is the platform order number plus the 3PL suffix: -0 for 7-ELEVEN, 1 for FamilyMart', () => {
-    expect(buildThreePLRows([row])[0][0]).toBe('CM2610300619206-0')
-    expect(buildThreePLRows([{ ...row, chain_type: 'cvs_familymart', platform_order_no: 'L26B03029M' }])[0][0]).toBe('L26B03029M1')
-    expect(buildThreePLRows([{ ...row, platform_order_no: null }])[0][0]).toBe('ORD-1')
+  it('A = shipping number, V = platform order number, G = fixed logistics type per provider', () => {
+    const f = (o) => buildThreePLRows([o])[0]
+    const seven = f({ ...row, tracking_number: 'H21867786009' })
+    expect([seven[0], seven[21], seven[6], seven[19]]).toEqual(['H21867786009', 'CM2610300619206', 'seven-c2c', 'ORD-1'])
+    const fam = f({ ...row, chain_type: 'cvs_familymart', platform_order_no: 'L26B03029Z', tracking_number: '16353655993' })
+    expect([fam[0], fam[21], fam[6]]).toEqual(['16353655993', 'L26B03029Z', 'family-c2c'])
+    const pos = f({ ...row, chain_type: 'courier', platform_order_no: null })
+    expect([pos[0], pos[6], pos[21]]).toEqual(['ORD-1', 'Maple', ''])
   })
 })
