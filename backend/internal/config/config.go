@@ -94,7 +94,7 @@ func Load() Config {
 		ECPayLogisticsBaseURL:    getEnv("ECPAY_LOGISTICS_BASE_URL", defaultBaseURL),
 
 		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", ""),
-		OpenAIVisionModel:    getEnv("OPENAI_VISION_MODEL", "gpt-4o-mini"),
+		OpenAIVisionModel:    getEnv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
 		LiveDataAccessSecret: getEnv("LIVE_DATA_ACCESS_SECRET", "dev-live-data-secret-change-me"),
 	}
 }
