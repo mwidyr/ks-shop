@@ -131,13 +131,24 @@ export function parse711Export({ XLSX, wb }) {
 }
 
 // FamilyMart - the order export taken after the shipping numbers were obtained on the platform.
+// Our order number sits in 賣場名稱 (the older export) or, in the newer 44-column export without that column, in 商品名稱.
+const FM_ORDER_COLS = ['賣場名稱', '商品名稱']
+
+function locateFamilyMart(XLSX, wb) {
+  for (const c of FM_ORDER_COLS) {
+    const found = locate(XLSX, wb, [c, '訂單編號', '寄件編號'])
+    if (found) return { ...found, orderCol: c }
+  }
+  return null
+}
+
 export function parseFamilyMart({ XLSX, wb }) {
-  const found = locate(XLSX, wb, ['賣場名稱', '訂單編號', '寄件編號'])
+  const found = locateFamilyMart(XLSX, wb)
   if (!found) return null
   const records = []
   for (let i = found.headerIndex + 1; i < found.rows.length; i++) {
     const r = found.rows[i]
-    const orderNo = text(r[found.col[clean('賣場名稱')]])
+    const orderNo = text(r[found.col[clean(found.orderCol)]])
     if (!orderNo) continue
     records.push({
       row: i + 1,
@@ -153,7 +164,7 @@ export function parseFamilyMart({ XLSX, wb }) {
 export function detectKind(parsed) {
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])) return '711_validation'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號', '配送單編號'], [ORDER_SHEET])) return '711_export'
-  if (locate(parsed.XLSX, parsed.wb, ['賣場名稱', '訂單編號', '寄件編號'])) return 'fm_result'
+  if (locateFamilyMart(parsed.XLSX, parsed.wb)) return 'fm_result'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號'], parsed.wb.SheetNames.filter((n) => n !== '非訂單匯入'))) return '711_validation'
   return null
 }

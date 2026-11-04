@@ -53,4 +53,11 @@ describe('FamilyMart result export', () => {
     expect(recs.length).toBe(51)
     expect(recs[0]).toMatchObject({ order_no: 'TST-FM-076', platform_order_no: 'L26A160U9P', shipping_no: '16352289609' })
   })
+  it('also reads the newer export that has no 賣場名稱 column (our order number is in 商品名稱)', () => {
+    const p2 = load('familymart_result_new.xlsx')
+    expect(detectKind(p2)).toBe('fm_result')
+    const recs = parseFamilyMart(p2)
+    expect(recs).toHaveLength(6)
+    expect(recs[0]).toMatchObject({ order_no: 'ORD-1793701074-2765', platform_order_no: 'L26B0402C0', shipping_no: '16353754424' })
+  })
 })
