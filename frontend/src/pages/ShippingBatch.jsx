@@ -4,7 +4,7 @@ import { getOrder } from '../api/orders'
 import EditOrderModal from '../components/EditOrderModal'
 import { useAuth } from '../context/AuthContext'
 import { useTranslation } from 'react-i18next'
-import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
+import { confirmAllNotCreated, confirmNotCreated, removeFromBatch, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
 import { buildThreePLExcel, buildPosExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
 import StatusPill from '../components/StatusPill'
@@ -338,9 +338,14 @@ export default function ShippingBatch() {
                     {o.likely_failing && <p className="text-xs font-semibold text-red-600">⚠ {t('page_shipping_wb.likely_failing')}</p>}
                   </div>
                   <div className="flex gap-3 items-center shrink-0">
-                    {o.verification === 'failed' && canRelease && (
+                    {canRelease && (
                       <button onClick={(ev) => { ev.stopPropagation(); run(`ed-${o.order_id}`, async () => setEditing(await getOrder(o.order_id))) }} className="text-xs font-semibold text-brand-600 hover:underline">
-                        {t('page_shipping_wb.edit_remove_btn')}
+                        {t('page_shipping_wb.edit_order_btn')}
+                      </button>
+                    )}
+                    {o.verification === 'failed' && canRelease && (
+                      <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm(t('page_shipping_wb.confirm_remove_from_batch', { orderNo: o.order_no }))) run(`rm-${o.order_id}`, () => removeFromBatch(id, o.order_id)) }} className="text-xs font-semibold text-red-600 hover:underline">
+                        {t('page_shipping_wb.remove_from_batch_btn')}
                       </button>
                     )}
                     {o.verification === 'pending_verification' && (
@@ -371,7 +376,7 @@ export default function ShippingBatch() {
           )} />
         </SectionCard>
       </div>
-      {editing && <EditOrderModal order={editing} releaseFromBatch onClose={() => setEditing(null)} onDone={() => { setEditing(null); load() }} />}
+      {editing && <EditOrderModal order={editing} batchEdit afterShip={editing.status !== 'pending' || Boolean(editing.locked)} onClose={() => setEditing(null)} onDone={() => { setEditing(null); load() }} />}
     </div>
   )
 }

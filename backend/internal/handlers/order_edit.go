@@ -45,9 +45,21 @@ type editOrderRequest struct {
 	DiscountAmount      float64         `json:"discount_amount"`
 	AdditionalAmount    float64         `json:"additional_amount"`
 	ShippingFeeOverride *float64        `json:"shipping_fee_override"`
-	// Failed Orders & Retry: edit a failed order and, in the same save, take it (and its merged siblings) out of
-	// its batch and back to Pending.
-	ReleaseFromBatch bool `json:"release_from_batch"`
+}
+
+// canEditBatchOrder: the lock override (users.can_edit_shipped_orders / super admin), or Management / SPV / Warehouse
+// for an order that sits in a shipping batch (a data mistake found in the batch is fixed in place, then the corrected
+// file is exported again; removing the order from the batch is a separate action).
+func canEditBatchOrder(ctx context.Context, q rowQuerier, role string, userID, orderID int) bool {
+	if canOverrideLock(ctx, q, role, userID) {
+		return true
+	}
+	if role != "management" && role != "spv" && role != "warehouse" {
+		return false
+	}
+	var inBatch bool
+	_ = q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM shipping_batch_orders WHERE order_id=$1)`, orderID).Scan(&inBatch)
+	return inBatch
 }
 
 // releaseFailedFromBatch takes an order whose platform creation failed out of its batch: the batch row goes
@@ -207,29 +219,13 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
-	if req.ReleaseFromBatch {
-		if claims.Role != "management" && claims.Role != "spv" && claims.Role != "warehouse" && claims.Role != "super_user" {
-			respondError(w, http.StatusForbidden, "hanya Management, SPV, dan Warehouse yang bisa mengedit order gagal dan mengeluarkannya dari batch")
-			return
-		}
-		msg, err := releaseFailedFromBatch(ctx, tx, id, &claims.UserID)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to remove order from batch")
-			return
-		}
-		if msg != "" {
-			respondError(w, http.StatusConflict, msg)
-			return
-		}
-		exported, status = false, "pending"
-	}
 	// An order that was exported / is past Pending is locked for everybody except a user who may override the lock
 	// (users.can_edit_shipped_orders, or super admin). Such an edit only touches the recipient and delivery data:
 	// items, amounts, fee and the delivery provider stay as exported, so stock, FIFO cost and the COD amount at
 	// the 3PL stay consistent, and the status does not move.
 	afterShip := false
 	if exported || status != "pending" {
-		if !canOverrideLock(ctx, tx, claims.Role, claims.UserID) {
+		if !canEditBatchOrder(ctx, tx, claims.Role, claims.UserID, id) {
 			if exported {
 				respondError(w, http.StatusConflict, orderLockedMsg)
 			} else {

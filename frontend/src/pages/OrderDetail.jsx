@@ -510,6 +510,16 @@ export default function OrderDetail() {
     const shippingInfo = shippingFee > 0
       ? fmtNT(shippingFee)
       : t('page_order_detail.free_label') + (order.shipment_group_id ? t('page_order_detail.copy_combined_shipment_note') : '')
+    // Discounts come straight from the order (manual discount, coupon / promotion, extra charge). A merged shipment only
+    // has the group total, so its discount is the difference between items + shipping and what is payable.
+    const manualDiscount = isGrouped ? Math.max(0, productSubtotal + shippingFee - total) : (order.discount_amount || 0)
+    const couponDiscount = isGrouped ? 0 : (order.promotion_discount_amount || 0)
+    const extraCharge = isGrouped ? 0 : (order.additional_amount || 0)
+    const discountLines = [
+      ...(manualDiscount > 0 ? [t('page_order_detail.copy_discount_label', { amount: '-' + fmtNT(manualDiscount) })] : []),
+      ...(couponDiscount > 0 ? [t('page_order_detail.copy_coupon_label', { code: order.promotion_code ? ` (${order.promotion_code})` : '', amount: '-' + fmtNT(couponDiscount) })] : []),
+      ...(extraCharge > 0 ? [t('page_order_detail.copy_additional_label', { amount: '+' + fmtNT(extraCharge) })] : []),
+    ]
     // Double blank lines between each section (not single) - sent as-is to customers via
     // WhatsApp/LINE, where a single blank line reads as cramped; the extra line makes each
     // block (order/customer/products/totals) visually distinct at a glance.
@@ -527,6 +537,7 @@ export default function OrderDetail() {
       })),
       '', '',
       t('page_order_detail.copy_subtotal_label', { subtotal: fmtNT(productSubtotal) }),
+      ...discountLines,
       t('page_order_detail.copy_shipping_label', { fee: shippingInfo }),
       t('page_order_detail.copy_total_label', { total: fmtNT(total) }),
     ]

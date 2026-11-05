@@ -2,10 +2,10 @@
 """Turns the client's Google Sheet tab "DataFromHost" (the old LIVE Data form answers) into an SQL file that
 loads them into live_sessions, so the Performance Dashboard / Host Analytics can be checked against the sheet.
 
-  python3 scripts/import_host_live_data.py sheet.xlsx --from 2026-10-25 > import_live_data.sql
+  python3 scripts/import_host_live_data.py sheet.xlsx --from 2026-10-25 [--to 2026-11-05] > import_live_data.sql
   psql "$DATABASE_URL" -f import_live_data.sql
 
-- Only rows with Approved = 1 and a timestamp on/after --from are used (the timestamp is read in --tz, the sheet's timezone).
+- Only rows with Approved = 1 and a timestamp on/after --from (and before --to, if given) are used (the timestamp is read in --tz, the sheet's timezone).
 - The sheet has no LIVE duration: every session gets --duration-min minutes, ending at the form timestamp
   (the dashboard weights ACU by duration, so equal durations = a plain average, like the sheet).
 - The host is matched by name (case-insensitive); the location comes from the host. Unknown hosts are skipped and listed.
@@ -67,6 +67,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('xlsx')
     ap.add_argument('--from', dest='start', default='2026-10-25')
+    ap.add_argument('--to', dest='end', default=None, help='exclusive end date, e.g. 2026-11-05 to stop after 4 Nov')
     ap.add_argument('--tz', default='Asia/Jakarta')
     ap.add_argument('--duration-min', type=int, default=60)
     ap.add_argument('--sheet', default='DataFromHost')
@@ -75,6 +76,7 @@ def main():
     rows = read_sheet(a.xlsx, a.sheet)
     head = next(i for i, r in enumerate(rows) if len(r) > 3 and r[1].strip() == '時間戳記')
     start = datetime.datetime.strptime(a.start, '%Y-%m-%d')
+    end = datetime.datetime.strptime(a.end, '%Y-%m-%d') if a.end else None
     out = []
     for r in rows[head + 1:]:
         r = r + [''] * (14 - len(r))
@@ -82,7 +84,7 @@ def main():
             continue
         ts = datetime.datetime(1899, 12, 30) + datetime.timedelta(days=float(r[1]))
         ts = ts.replace(microsecond=0)
-        if ts < start:
+        if ts < start or (end and ts >= end):
             continue
         f = lambda x: float(x or 0)
         # Views, UV, Active, AWT (m:ss), PCU, ACU, Follows, Chats, Shares, Likes
@@ -90,7 +92,7 @@ def main():
         out.append((ts, r[2].strip(), num))
 
     w = sys.stdout.write
-    w(f"-- {len(out)} LIVE data rows from '{a.sheet}' since {a.start} (sheet timezone {a.tz}, {a.duration_min} min per session)\n")
+    w(f"-- {len(out)} LIVE data rows from '{a.sheet}' since {a.start}{' until ' + a.end if a.end else ''} (sheet timezone {a.tz}, {a.duration_min} min per session)\n")
     w('BEGIN;\nCREATE TEMP TABLE imp (ts timestamp, host text, views int, uv int, active int, awt int, pcu int, acu numeric, follows int, chats int, shares int, likes int) ON COMMIT DROP;\n')
     w('INSERT INTO imp VALUES\n')
     w(',\n'.join(f"({q(ts.isoformat(' '))},{q(h)},{n[0]},{n[1]},{n[2]},{n[3]},{n[4]},{n[5]},{n[6]},{n[7]},{n[8]},{n[9]})" for ts, h, n in out) + ';\n')

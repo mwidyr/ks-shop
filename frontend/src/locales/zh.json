@@ -766,7 +766,10 @@
     "edit_err_items": "請至少新增一項有數量的商品",
     "edit_failed": "儲存訂單失敗",
     "edit_after_ship_hint": "此訂單已匯出／出貨。只能更正收件人、門市與地址（及電子郵件）；商品、價格、金額與物流商維持匯出時的內容。儲存後，請至批次重新下載 3PL 檔案（Download again），讓檔案帶入更正後的資料。",
-    "edit_apply_all": "將此客戶資料套用到其所有訂單（當此客戶的其他訂單，例如合併出貨，必須維持同一客戶時使用）。不勾選則只修改此訂單。"
+    "edit_apply_all": "將此客戶資料套用到其所有訂單（當此客戶的其他訂單，例如合併出貨，必須維持同一客戶時使用）。不勾選則只修改此訂單。",
+    "copy_discount_label": "折扣：{{amount}}",
+    "copy_coupon_label": "優惠券折扣{{code}}：{{amount}}",
+    "copy_additional_label": "額外費用：{{amount}}"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -3190,10 +3193,11 @@
     "batch_search_ph": "搜尋此批次：訂單編號、平台訂單編號或配送單編號",
     "batch_search_none": "此批次中沒有符合的訂單",
     "removed_title": "已從此批次移出的訂單",
-    "edit_remove_btn": "編輯訂單並移出批次",
-    "edit_release_hint": "修正訂單後儲存：訂單會移出此批次，並回到（新）物流商的待處理，可重新建立批次。批次紀錄會保留。",
-    "save_and_remove": "儲存並移出批次",
-    "download_pos_excel": "下載 POS / 郵寄 Excel"
+    "download_pos_excel": "下載 POS / 郵寄 Excel",
+    "edit_order_btn": "編輯訂單",
+    "remove_from_batch_btn": "移出批次",
+    "confirm_remove_from_batch": "要將 {{orderNo}} 移出此批次嗎？訂單會回到待處理，批次紀錄會保留。若只是資料錯誤，請直接編輯訂單後重新匯出檔案。",
+    "edit_batch_hint": "儲存修正後的資料，再重新下載檔案（重試檔 / 3PL 包裝文件）。訂單仍留在此批次。只有在訂單必須離開批次時才使用「移出批次」。"
   },
   "keep_date": {
     "type_label": "日期類型",

@@ -29,9 +29,9 @@ function LiveDataCodeCard() {
         <span className="font-mono font-bold text-base">{data.code}</span>
         {' '}<span className="text-amber-700">{t('page_panel_siaran.live_data_code_rotates', { minutes: data.minutes_until_rotate })}</span>
       </p>
-      {/* The upload page lives on the VPS address for now. */}
+      {/* Same origin as this admin: admin.ralulu.com in production, the testing server's address in staging */}
       <a
-        href="http://116.193.191.197/live-data-upload"
+        href="/live-data-upload"
         target="_blank"
         rel="noopener noreferrer"
         className="text-sm font-semibold px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white whitespace-nowrap"

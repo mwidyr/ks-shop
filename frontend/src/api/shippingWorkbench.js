@@ -22,6 +22,8 @@ export const getExportRows = (batchId, kind, exportedAt) =>
   client.get(`/shipping-workbench/batches/${batchId}/export-rows${qs({ kind, exported_at: exportedAt })}`).then((r) => r.data)
 export const recordExport = (batchId, kind, orderIds) =>
   client.post(`/shipping-workbench/batches/${batchId}/exports`, { kind, order_ids: orderIds }).then((r) => r.data)
+export const removeFromBatch = (batchId, orderId) =>
+  client.post(`/shipping-workbench/batches/${batchId}/orders/${orderId}/remove`).then((r) => r.data)
 export const confirmNotCreated = (batchId, orderId) =>
   client.post(`/shipping-workbench/batches/${batchId}/orders/${orderId}/confirm-failed`).then((r) => r.data)
 

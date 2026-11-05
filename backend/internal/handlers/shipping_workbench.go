@@ -790,3 +790,50 @@ func (h *ShippingWorkbenchHandler) ConfirmAllNotCreated(w http.ResponseWriter, r
 	invalidateShippingCache()
 	respondJSON(w, http.StatusOK, map[string]int64{"confirmed": ct.RowsAffected()})
 }
+
+// RemoveFromBatch handles POST /shipping-workbench/batches/{id}/orders/{orderId}/remove: takes a FAILED order (and its
+// merged siblings) out of the batch and back to Pending. Only for Management / SPV / Warehouse (and Admin). It is a
+// separate action from editing the order: a plain data mistake is fixed with Edit + export again, this is only for
+// when the order really must leave the batch (e.g. wrong provider).
+func (h *ShippingWorkbenchHandler) RemoveFromBatch(w http.ResponseWriter, r *http.Request) {
+	id, err1 := strconv.Atoi(chi.URLParam(r, "id"))
+	orderID, err2 := strconv.Atoi(chi.URLParam(r, "orderId"))
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	if claims.Role != "management" && claims.Role != "spv" && claims.Role != "warehouse" && claims.Role != "super_user" {
+		respondError(w, http.StatusForbidden, "hanya Management, SPV, dan Warehouse yang bisa mengeluarkan order dari batch")
+		return
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var inThisBatch bool
+	_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM shipping_batch_orders WHERE batch_id=$1 AND order_id=$2)`, id, orderID).Scan(&inThisBatch)
+	if !inThisBatch {
+		respondError(w, http.StatusNotFound, "order is not in this batch")
+		return
+	}
+	msg, err := releaseFailedFromBatch(ctx, tx, orderID, &claims.UserID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to remove order from batch")
+		return
+	}
+	if msg != "" {
+		respondError(w, http.StatusConflict, msg)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	invalidateShippingCache()
+	invalidateOrderCaches()
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}

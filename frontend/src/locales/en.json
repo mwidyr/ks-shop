@@ -766,7 +766,10 @@
     "edit_err_items": "Add at least one item with a quantity",
     "edit_failed": "Failed to save the order",
     "edit_after_ship_hint": "This order was already exported / shipped. You can only correct the recipient, store and address (and the email). Products, prices, amounts and the delivery provider stay as exported. After saving, download the 3PL file again from the batch (Download again) so it carries the corrected data.",
-    "edit_apply_all": "Update this customer record for all of their orders (use this when the customer's other orders, e.g. a merged shipment, must keep the same customer). Leave unticked to change only this order."
+    "edit_apply_all": "Update this customer record for all of their orders (use this when the customer's other orders, e.g. a merged shipment, must keep the same customer). Leave unticked to change only this order.",
+    "copy_discount_label": "Discount: {{amount}}",
+    "copy_coupon_label": "Coupon discount{{code}}: {{amount}}",
+    "copy_additional_label": "Additional charge: {{amount}}"
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -3190,10 +3193,11 @@
     "batch_search_ph": "Search this batch: order no, platform order no or shipping no",
     "batch_search_none": "No matching order in this batch",
     "removed_title": "Orders taken out of this batch",
-    "edit_remove_btn": "Edit Order & Remove from Batch",
-    "edit_release_hint": "Fix the order, then save: it is taken out of this batch and goes back to Pending under its (new) provider, ready for a new batch. The batch history is kept.",
-    "save_and_remove": "Save & remove from batch",
-    "download_pos_excel": "Download POS Excel"
+    "download_pos_excel": "Download POS Excel",
+    "edit_order_btn": "Edit Order",
+    "remove_from_batch_btn": "Remove from Batch",
+    "confirm_remove_from_batch": "Remove {{orderNo}} from this batch? It goes back to Pending and the batch history is kept. For a simple data mistake just edit the order and download the file again.",
+    "edit_batch_hint": "Save the corrected data, then download the file again (retry file / 3PL packing). The order stays in this batch. Use \"Remove from Batch\" only when the order really has to leave the batch."
   },
   "keep_date": {
     "type_label": "Date type",

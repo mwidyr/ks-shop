@@ -766,7 +766,10 @@
     "edit_err_items": "Tambahkan minimal satu item dengan qty",
     "edit_failed": "Gagal menyimpan order",
     "edit_after_ship_hint": "Order ini sudah di-export / dikirim. Yang boleh dikoreksi hanya penerima, toko, dan alamat (serta email). Produk, harga, nominal, dan provider pengiriman tetap seperti saat di-export. Setelah disimpan, unduh ulang file 3PL dari batch (Download again) agar berisi data yang sudah dikoreksi.",
-    "edit_apply_all": "Ubah data pelanggan ini untuk semua ordernya (pakai bila order lain pelanggan ini, mis. satu pengiriman gabungan, harus tetap memakai pelanggan yang sama). Biarkan tidak dicentang untuk mengubah order ini saja."
+    "edit_apply_all": "Ubah data pelanggan ini untuk semua ordernya (pakai bila order lain pelanggan ini, mis. satu pengiriman gabungan, harus tetap memakai pelanggan yang sama). Biarkan tidak dicentang untuk mengubah order ini saja.",
+    "copy_discount_label": "Diskon：{{amount}}",
+    "copy_coupon_label": "Diskon kupon{{code}}：{{amount}}",
+    "copy_additional_label": "Biaya tambahan：{{amount}}"
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -3190,10 +3193,11 @@
     "batch_search_ph": "Cari di batch ini: no. order, no. order platform atau no. pengiriman",
     "batch_search_none": "Tidak ada order yang cocok di batch ini",
     "removed_title": "Order yang dikeluarkan dari batch ini",
-    "edit_remove_btn": "Edit Order & Keluarkan dari Batch",
-    "edit_release_hint": "Perbaiki order lalu simpan: order dikeluarkan dari batch ini dan kembali ke Pending di provider yang (baru), siap masuk batch baru. Riwayat batch tetap tersimpan.",
-    "save_and_remove": "Simpan & keluarkan dari batch",
-    "download_pos_excel": "Unduh Excel POS"
+    "download_pos_excel": "Unduh Excel POS",
+    "edit_order_btn": "Edit Order",
+    "remove_from_batch_btn": "Hapus dari Batch",
+    "confirm_remove_from_batch": "Hapus {{orderNo}} dari batch ini? Order kembali ke Pending dan riwayat batch tetap tersimpan. Untuk kesalahan data biasa, cukup edit order lalu unduh ulang file-nya.",
+    "edit_batch_hint": "Simpan data yang sudah dikoreksi, lalu unduh ulang file-nya (file retry / 3PL packing). Order tetap berada di batch ini. Pakai \"Hapus dari Batch\" hanya jika order memang harus keluar dari batch."
   },
   "keep_date": {
     "type_label": "Jenis tanggal",
