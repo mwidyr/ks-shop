@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
+
+	appmw "ordermgmt/internal/middleware"
 )
 
 // An order is "locked" once it has been exported through the Shipping Workbench (orders.exported_at is
@@ -45,6 +47,36 @@ func anyOrderBatchedOrLocked(ctx context.Context, q rowQuerier, ids ...int) bool
 	return locked
 }
 
+const orderLockedForRoleMsg = "order sudah di-export atau masuk batch pengiriman: hanya user dengan izin \"Edit shipped orders\" (Super Admin / Warehouse) yang boleh mengubah, menggabung, atau memisahkannya"
+
+// canOverrideLock: may this user still edit / merge / unmerge orders that were exported or shipped? Super admin
+// always; everybody else only with the per-user flag users.can_edit_shipped_orders (User Management).
+func canOverrideLock(ctx context.Context, q rowQuerier, role string, userID int) bool {
+	if role == "super_user" {
+		return true
+	}
+	var ok bool
+	if err := q.QueryRow(ctx, `SELECT can_edit_shipped_orders FROM users WHERE id=$1 AND is_active`, userID).Scan(&ok); err != nil {
+		return false
+	}
+	return ok
+}
+
+// requestCanOverrideLock is canOverrideLock for the signed-in caller of the request.
+func requestCanOverrideLock(r *http.Request, q rowQuerier) bool {
+	claims := appmw.GetClaims(r)
+	return claims != nil && canOverrideLock(r.Context(), q, claims.Role, claims.UserID)
+}
+
+// rejectIfLockedFor is rejectIfLocked, except that a user who may override the lock (canOverrideLock) passes.
+func rejectIfLockedFor(w http.ResponseWriter, r *http.Request, q rowQuerier, ids ...int) bool {
+	if !anyOrderLocked(r.Context(), q, ids...) || requestCanOverrideLock(r, q) {
+		return false
+	}
+	respondError(w, http.StatusConflict, orderLockedForRoleMsg)
+	return true
+}
+
 // rejectIfLocked writes a 409 and returns true when the order is locked.
 func rejectIfLocked(w http.ResponseWriter, ctx context.Context, q rowQuerier, ids ...int) bool {
 	if anyOrderLocked(ctx, q, ids...) {
@@ -59,12 +91,13 @@ func canChangeLockedStatus(role string) bool {
 	return role == "warehouse" || role == "super_user"
 }
 
-// groupHasLockedMember: a shipment group can't be dissolved once any member order was exported.
+// groupHasLockedMember: a shipment group can't be dissolved once any member order was exported, is in a batch or
+// is past picking (processing / shipped / ...), except by a user who may override the lock (canOverrideLock).
 func groupHasLockedMember(ctx context.Context, q rowQuerier, groupID int) bool {
 	var locked bool
 	if err := q.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM order_shipment_group_members gm JOIN orders o ON o.id = gm.order_id
-		              WHERE gm.group_id = $1 AND (o.exported_at IS NOT NULL
+		              WHERE gm.group_id = $1 AND (o.exported_at IS NOT NULL OR o.status IN ('processing','shipped','delivered','return')
 		                    OR EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)))`, groupID).Scan(&locked); err != nil {
 		return false
 	}

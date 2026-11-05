@@ -16,6 +16,7 @@ import { copyToClipboard } from '../utils/clipboard'
 import CopyPhone from '../components/CopyPhone'
 import EditOrderModal from '../components/EditOrderModal'
 import { useAuth } from '../context/AuthContext'
+import { useAccess } from '../context/AccessContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import OrderLineItem from '../components/OrderLineItem'
 import AttachmentThumb from '../components/AttachmentThumb'
@@ -383,6 +384,7 @@ export default function OrderDetail() {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const { user } = useAuth()
+  const { canEditShipped } = useAccess()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)
@@ -475,6 +477,9 @@ export default function OrderDetail() {
   // Exported to logistics (status Processing): details are frozen for everyone; only warehouse and
   // super_user can still move the status.
   const locked = Boolean(order.locked)
+  // Super Admin / users with the "Edit shipped orders" permission may still correct an exported / shipped order
+  const postShipEdit = canEditShipped && ['pending', 'processing', 'ready_to_ship', 'shipped'].includes(order.status) && (locked || order.status !== 'pending')
+  const lockedForMe = locked && !canEditShipped
   const isWarehouse = ['warehouse', 'super_user'].includes(user?.role)
   const canChangeStatus = !order.status_locked || isWarehouse
   const nextOptions = canChangeStatus
@@ -549,7 +554,7 @@ export default function OrderDetail() {
           )}
         </h1>
         <div className="flex items-center gap-2">
-          {!locked && order.status === 'pending' && (
+          {((!locked && order.status === 'pending') || postShipEdit) && (
             <button onClick={() => setEditOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
               {t('page_order_detail.edit_button')}
             </button>
@@ -576,9 +581,9 @@ export default function OrderDetail() {
       {order.shipment_group_id && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
           <span>{t('page_order_detail.shipment_group_banner', { groupId: order.shipment_group_id, orderNos: order.shipment_group_order_nos.join(', ') })}</span>
-          <button onClick={handleUnmerge} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-100">
+          {(canEditShipped || !(locked || ['processing', 'shipped', 'delivered', 'return'].includes(order.status))) && <button onClick={handleUnmerge} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-100">
             {t('page_order_detail.unmerge_button')}
-          </button>
+          </button>}
         </div>
       )}
 
@@ -710,7 +715,7 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.pickup_method_label')}</p>
-              {order.status === 'pending' && <button onClick={() => setPickupModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+              {(order.status === 'pending' || postShipEdit) && <button onClick={() => setPickupModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                 {t('page_order_detail.edit_pickup_button')}
               </button>}
             </div>
@@ -741,7 +746,7 @@ export default function OrderDetail() {
                   </span>
                 )}
               </p>
-              {!locked && (
+              {!lockedForMe && (
                 <button onClick={() => setNotesModalOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
                   {t('page_order_detail.edit_notes_button')}
                 </button>
@@ -758,7 +763,7 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-gray-700">{t('page_order_detail.attachments_label')}</p>
-              {!locked && (
+              {!lockedForMe && (
                 <label className="text-xs font-semibold text-brand-600 hover:underline cursor-pointer">
                   {uploading ? t('page_order_detail.uploading_label') : t('page_order_detail.upload_photo_button')}
                   <input type="file" accept="image/*" className="hidden" onChange={handleUploadAttachment} disabled={uploading} />
@@ -769,7 +774,7 @@ export default function OrderDetail() {
               <div className="flex gap-2 flex-wrap">
                 {order.attachments.map((att, i) => (
                   <AttachmentThumb key={att.id} url={att.url} onPreview={() => setPreviewIndex(i)}
-                    onDelete={locked ? undefined : () => handleDeleteAttachment(att)} deleteLabel={t('page_order_detail.delete_attachment')} />
+                    onDelete={lockedForMe ? undefined : () => handleDeleteAttachment(att)} deleteLabel={t('page_order_detail.delete_attachment')} />
                 ))}
               </div>
             ) : (
@@ -924,7 +929,7 @@ export default function OrderDetail() {
       {notesModalOpen && (
         <NotesModal order={order} onClose={() => setNotesModalOpen(false)} onDone={() => { setNotesModalOpen(false); load() }} />
       )}
-      {editOpen && <EditOrderModal order={order} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); load() }} />}
+      {editOpen && <EditOrderModal order={order} afterShip={locked || order.status !== 'pending'} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); load() }} />}
       {pickupModalOpen && (
         <PickupMethodModal
           order={order}

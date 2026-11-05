@@ -34,15 +34,16 @@ function rowLevels(buckets) {
 
 const dec1 = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-export default function SalesDistributionHeatmap({ filters }) {
+// path / titleKey / hintKey let the Performance Comparison page reuse it as its "Host Summary" under its own permission.
+export default function SalesDistributionHeatmap({ filters, path, titleKey = 'page_host_analytics.heat_title', hintKey = 'page_host_analytics.heat_hint' }) {
   const { t } = useTranslation()
   const [data, setData] = useState(null)
   const { locationId, hostId, from, to } = filters
 
   useEffect(() => {
     setData(null)
-    getSalesDistribution({ locationId, hostId, from, to }).then(setData).catch(() => setData({ rows: [], bucket_labels: [] }))
-  }, [locationId, hostId, from, to])
+    getSalesDistribution({ locationId, hostId, from, to }, path).then(setData).catch(() => setData({ rows: [], bucket_labels: [] }))
+  }, [locationId, hostId, from, to, path])
 
   const levels = useMemo(() => (data ? data.rows.map((r) => rowLevels(r.buckets)) : []), [data])
 
@@ -67,8 +68,8 @@ export default function SalesDistributionHeatmap({ filters }) {
 
   return (
     <div className={`${cardClasses} p-5`}>
-      <h2 className="font-bold text-[var(--text-primary)] mb-1">{t('page_host_analytics.heat_title')}</h2>
-      <p className="text-xs text-[var(--text-secondary)] mb-4">{t('page_host_analytics.heat_hint')}</p>
+      <h2 className="font-bold text-[var(--text-primary)] mb-1">{t(titleKey)}</h2>
+      <p className="text-xs text-[var(--text-secondary)] mb-4">{t(hintKey)}</p>
       {!data ? (
         <p className="text-sm text-[var(--text-secondary)] py-6 text-center">{t('common.loading')}</p>
       ) : data.rows.length === 0 ? (

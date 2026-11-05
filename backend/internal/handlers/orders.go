@@ -954,7 +954,7 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if rejectIfLocked(w, r.Context(), h.DB, id) {
+	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
 	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1, is_urgent=$2, notes_deadline=$3 WHERE id=$4`,
@@ -991,7 +991,7 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "pickup_chain_id is required")
 		return
 	}
-	if rejectIfLocked(w, r.Context(), h.DB, id) {
+	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
 	ctx := r.Context()
@@ -1021,8 +1021,16 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 	// Method / address / store can only change before picking starts; once the order is in the
 	// shipping process the parcel data is already in use by the warehouse.
 	if curStatus != "pending" {
-		respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum order masuk Processing (status saat ini: "+curStatus+")")
-		return
+		// a user who may override the lock (Super Admin / "Edit shipped orders") can still correct the store / address of an
+		// order that already shipped, but not its delivery provider or fee
+		switch {
+		case !requestCanOverrideLock(r, h.DB) || !(curStatus == "processing" || curStatus == "ready_to_ship" || curStatus == "shipped"):
+			respondError(w, http.StatusConflict, "metode penerimaan hanya bisa diubah sebelum order masuk Processing (status saat ini: "+curStatus+")")
+			return
+		case req.PickupChainID != curChain || req.ShippingFeeOverride != nil:
+			respondError(w, http.StatusConflict, "setelah di-export, provider pengiriman dan ongkir tidak bisa diubah (hanya toko dan alamat)")
+			return
+		}
 	}
 	if msg := validateExportFields(ctx, h.DB, req.PickupChainID, "", finalAddress); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
@@ -1082,7 +1090,11 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 	if claims != nil {
 		userID = &claims.UserID
 	}
-	logActivity(ctx, h.DB, "order", id, "pickup_updated", userID, fmt.Sprintf("pickup_chain_id=%d store=%s", req.PickupChainID, req.PickupStoreCode))
+	action := "pickup_updated"
+	if curStatus != "pending" {
+		action = "order_edited_after_shipped"
+	}
+	logActivity(ctx, h.DB, "order", id, action, userID, fmt.Sprintf("pickup_chain_id=%d store=%s status=%s", req.PickupChainID, req.PickupStoreCode, curStatus))
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -1162,7 +1174,7 @@ func (h *OrderHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if rejectIfLocked(w, r.Context(), h.DB, id) {
+	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
 	ct, err := h.DB.Exec(r.Context(), `DELETE FROM order_attachments WHERE id=$1 AND order_id=$2`, attID, id)
@@ -1192,7 +1204,7 @@ func (h *OrderHandler) AddAttachment(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "url is required")
 		return
 	}
-	if rejectIfLocked(w, r.Context(), h.DB, id) {
+	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
 	var attID int

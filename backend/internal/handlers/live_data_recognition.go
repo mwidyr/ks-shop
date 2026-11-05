@@ -10,13 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	_ "image/jpeg"
 	"image/png"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -24,7 +25,7 @@ import (
 )
 
 // LiveDataHandler implements the public "LIVE Data Upload" wizard - a no-login replacement for
-// the client's old Google Form. Hosts pick Location + Host, upload 3 TikTok LIVE screenshots,
+// the client's old Google Form. Hosts pick Location + Host, upload the 2 TikTok LIVE screenshots (Penonton + Engagement),
 // get AI-recognized values to review/correct, then submit; submitting creates a new live_sessions
 // row directly (this flow never requires a Panel Siaran Go-Live/End cycle first).
 type LiveDataHandler struct {
@@ -141,37 +142,28 @@ func (h *LiveDataHandler) CurrentCode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ---- Image stitching ----
+// ---- Screenshot recognition ----
 //
-// The client's real screenshots overlap (two of the three are the same scrollable panel at
-// different scroll positions) rather than being 3 distinct pages - rather than risk the model
-// double-counting or getting confused by repeated rows, stack all 3 into one tall image before
-// recognition. No attempt at smart crop-matching of the overlap: every row is independently
-// text-labeled ("Penonton unik", "Suka", ...), so a duplicated row just reads the same value
-// twice, which is harmless given the host reviews everything anyway.
-func stitchImages(images []image.Image) []byte {
-	maxWidth, totalHeight := 0, 0
-	for _, img := range images {
-		b := img.Bounds()
-		if b.Dx() > maxWidth {
-			maxWidth = b.Dx()
-		}
-		totalHeight += b.Dy()
-	}
-	canvas := image.NewRGBA(image.Rect(0, 0, maxWidth, totalHeight))
-	draw.Draw(canvas, canvas.Bounds(), &image.Uniform{C: color.White}, image.Point{}, draw.Src)
-	y := 0
-	for _, img := range images {
-		b := img.Bounds()
-		draw.Draw(canvas, image.Rect(0, y, b.Dx(), y+b.Dy()), img, b.Min, draw.Src)
-		y += b.Dy()
-	}
-	var buf bytes.Buffer
-	_ = png.Encode(&buf, canvas)
-	return buf.Bytes()
-}
+// TikTok's LIVE analytics now needs only 2 screenshots: the "Penonton" tab (6 metrics) and the
+// "Engagement" tab (5 metrics). Hosts upload them together in any order, so every image is read on
+// its own: the model says which tab it shows and reads that tab's numbers. The page merges the
+// per-image answers (see mergeLiveData in the frontend); the header of each screenshot also shows
+// the total LIVE duration.
 
 func downloadAndDecodeImage(url string) (image.Image, error) {
+	// local-disk uploads (no Cloudinary configured, e.g. dev) come back as "/uploads/<file>"
+	if strings.HasPrefix(url, "/uploads/") {
+		f, err := os.Open(filepath.Join("uploads", filepath.Base(url)))
+		if err != nil {
+			return nil, fmt.Errorf("open: %w", err)
+		}
+		defer f.Close()
+		img, _, err := image.Decode(f)
+		if err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+		return img, nil
+	}
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -188,9 +180,23 @@ func downloadAndDecodeImage(url string) (image.Image, error) {
 	return img, nil
 }
 
+func encodePNG(img image.Image) []byte {
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
 // ---- OpenAI vision recognition ----
 
+const (
+	tabViewers    = "penonton"
+	tabEngagement = "engagement"
+	tabOther      = "other"
+)
+
+// recognizedLiveData holds what one screenshot shows. Tab says which analytics tab it is.
 type recognizedLiveData struct {
+	Tab                 string   `json:"tab"`
 	Views               *int     `json:"views"`
 	UV                  *int     `json:"uv"`
 	ActiveViewers       *int     `json:"active_viewers"`
@@ -204,25 +210,52 @@ type recognizedLiveData struct {
 	LiveDurationSeconds *int     `json:"live_duration_seconds"`
 }
 
-const visionPrompt = `You are reading a combined screenshot of a TikTok LIVE analytics summary (Indonesian UI, labels like "Tayangan", "Penonton unik", "Rata-rata durasi menonton", "Suka", etc). Extract these fields and respond with ONLY a JSON object, no other text:
+// normalizeRecognized cleans the model's answer: an unknown tab name becomes "other", and a tab only
+// keeps the fields it really has (a Penonton screenshot never carries Likes, an Engagement one never
+// carries Views), so a model that over-reads cannot overwrite the other screenshot's numbers.
+func normalizeRecognized(r *recognizedLiveData) {
+	r.Tab = strings.ToLower(strings.TrimSpace(r.Tab))
+	switch r.Tab {
+	case tabViewers, tabEngagement:
+	default:
+		r.Tab = tabOther
+	}
+	switch r.Tab {
+	case tabViewers:
+		r.Follows, r.Chats, r.Shares, r.Likes = nil, nil, nil, nil
+	case tabEngagement:
+		r.Views, r.UV, r.ActiveViewers, r.AWTSeconds, r.PCU, r.ACU = nil, nil, nil, nil, nil, nil
+	default:
+		*r = recognizedLiveData{Tab: tabOther}
+	}
+}
+
+const visionPrompt = `You are reading ONE screenshot of the TikTok LIVE analytics "Metrik utama" panel (Indonesian UI). The panel has tabs "Penonton", "Engagement" and "Berlian"; the selected tab is the highlighted one. Respond with ONLY a JSON object, no other text.
+
+First set "tab": "penonton" (rows Tayangan, Penonton unik, Penonton aktif, Rata-rata durasi menonton, Jumlah penonton serentak tertinggi, Rata-rata penonton serentak), "engagement" (rows Pemberi hadiah, Pengikut baru, Komentar, Berbagi, Suka), or "other" (any other tab such as Berlian, or not a TikTok LIVE analytics screenshot).
+
+If tab is "penonton" read:
 - views (Tayangan)
 - uv (Penonton unik)
 - active_viewers (Penonton aktif)
-- awt_seconds (Rata-rata durasi menonton, convert from its MM:SS-like display to total seconds)
+- awt_seconds (Rata-rata durasi menonton, shown like "0m37d" = 0 minutes 37 seconds, or "1m5d"; convert to total seconds)
 - pcu (Jumlah penonton serentak tertinggi)
 - acu (Rata-rata penonton serentak)
+If tab is "engagement" read:
 - follows (Pengikut baru)
 - chats (Komentar)
 - shares (Berbagi)
-- likes (Suka - if shown like "1K", convert to a number, e.g. 1000)
-- live_duration_seconds (total LIVE duration if shown anywhere, e.g. "1 jam 9 menit" -> 4140, else null)
-Use null for any field you can't find. Respond with raw JSON only, matching exactly these keys.`
+- likes (Suka - if shown like "1K" or "1,2 rb", convert to a number, e.g. 1000)
+Always also read live_duration_seconds: the total LIVE duration shown under the account name in the header (e.g. "2 jam 51 menit" -> 10260, "1 jam 9 menit" -> 4140, "45 menit" -> 2700), else null.
+Use null for any field you cannot find. Numbers are plain integers (no thousands separators), except acu which may be decimal. Respond with raw JSON only, using exactly these keys: tab, views, uv, active_viewers, awt_seconds, pcu, acu, follows, chats, shares, likes, live_duration_seconds.`
 
-func callOpenAIVision(ctx context.Context, apiKey, model string, stitchedImage []byte) (*recognizedLiveData, error) {
+var openAIChatURL = "https://api.openai.com/v1/chat/completions"
+
+func callOpenAIVision(ctx context.Context, apiKey, model string, imagePNG []byte) (*recognizedLiveData, error) {
 	if apiKey == "" {
 		return nil, errors.New("AI recognition is not configured yet (OPENAI_API_KEY not set)")
 	}
-	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(stitchedImage)
+	dataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(imagePNG)
 
 	payload := map[string]interface{}{
 		"model": model,
@@ -242,7 +275,7 @@ func callOpenAIVision(ctx context.Context, apiKey, model string, stitchedImage [
 		return nil, fmt.Errorf("encode payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, openAIChatURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -275,9 +308,21 @@ func callOpenAIVision(ctx context.Context, apiKey, model string, stitchedImage [
 	if err := json.Unmarshal([]byte(parsed.Choices[0].Message.Content), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse recognized fields: %w", err)
 	}
+	normalizeRecognized(&result)
 	return &result, nil
 }
 
+// maxRecognizeImages bounds one request (2 needed; a few spare for a wrong upload being replaced).
+const maxRecognizeImages = 4
+
+type recognizedImage struct {
+	URL   string              `json:"url"`
+	Data  *recognizedLiveData `json:"data"`
+	Error string              `json:"error,omitempty"`
+}
+
+// Recognize reads every given screenshot on its own (in parallel) and answers per image: which tab
+// it is and the numbers on it. One unreadable image does not fail the others.
 func (h *LiveDataHandler) Recognize(w http.ResponseWriter, r *http.Request) {
 	if err := requireLiveDataToken(r, h.LiveDataAccessSecret); err != nil {
 		respondError(w, http.StatusUnauthorized, err.Error())
@@ -286,28 +331,49 @@ func (h *LiveDataHandler) Recognize(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ImageURLs []string `json:"image_urls"`
 	}
-	if err := decodeJSON(r, &req); err != nil || len(req.ImageURLs) == 0 {
-		respondError(w, http.StatusBadRequest, "image_urls is required")
+	if err := decodeJSON(r, &req); err != nil || len(req.ImageURLs) == 0 || len(req.ImageURLs) > maxRecognizeImages {
+		respondError(w, http.StatusBadRequest, "image_urls is required (1-4 screenshots)")
+		return
+	}
+	if h.OpenAIAPIKey == "" {
+		respondError(w, http.StatusBadGateway, "AI recognition is not configured yet (OPENAI_API_KEY not set)")
 		return
 	}
 
-	images := make([]image.Image, 0, len(req.ImageURLs))
-	for _, url := range req.ImageURLs {
-		img, err := downloadAndDecodeImage(url)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, "failed to read screenshot: "+err.Error())
-			return
+	out := make([]recognizedImage, len(req.ImageURLs))
+	var wg sync.WaitGroup
+	for i, url := range req.ImageURLs {
+		out[i].URL = url
+		wg.Add(1)
+		go func(i int, url string) {
+			defer wg.Done()
+			img, err := downloadAndDecodeImage(url)
+			if err != nil {
+				out[i].Error = "failed to read screenshot: " + err.Error()
+				return
+			}
+			data, err := callOpenAIVision(r.Context(), h.OpenAIAPIKey, h.OpenAIVisionModel, encodePNG(img))
+			if err != nil {
+				out[i].Error = err.Error()
+				return
+			}
+			out[i].Data = data
+		}(i, url)
+	}
+	wg.Wait()
+
+	// every image failed: report it as an error so the page can say so (the host can still type the numbers)
+	allFailed := true
+	for _, o := range out {
+		if o.Data != nil {
+			allFailed = false
 		}
-		images = append(images, img)
 	}
-	stitched := stitchImages(images)
-
-	result, err := callOpenAIVision(r.Context(), h.OpenAIAPIKey, h.OpenAIVisionModel, stitched)
-	if err != nil {
-		respondError(w, http.StatusBadGateway, err.Error())
+	if allFailed {
+		respondError(w, http.StatusBadGateway, out[0].Error)
 		return
 	}
-	respondJSON(w, http.StatusOK, result)
+	respondJSON(w, http.StatusOK, map[string]interface{}{"images": out})
 }
 
 // ---- Submit ----
@@ -342,8 +408,8 @@ func (h *LiveDataHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req submitPublicLiveDataRequest
-	if err := decodeJSON(r, &req); err != nil || req.HostID == 0 || len(req.ImageURLs) == 0 {
-		respondError(w, http.StatusBadRequest, "host_id and image_urls are required")
+	if err := decodeJSON(r, &req); err != nil || req.HostID == 0 || len(req.ImageURLs) < 2 || len(req.ImageURLs) > maxRecognizeImages {
+		respondError(w, http.StatusBadRequest, "host_id and 2 screenshots (Penonton + Engagement) are required")
 		return
 	}
 
@@ -383,9 +449,9 @@ func (h *LiveDataHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The same recognized_data snapshot is attached to all 3 screenshot rows (they were
-	// recognized together as one stitched image, not individually) - lets staff later see
-	// exactly what the AI read for this batch vs. what the host ended up submitting.
+	// The recognized_data snapshot (the AI's per-screenshot answers) is attached to every screenshot row -
+	// lets staff later see exactly what the AI read vs. what the host ended up submitting. Sessions saved
+	// before the 2-screenshot change keep their 3 rows.
 	recognizedSnapshot := req.RecognizedData
 	if len(recognizedSnapshot) == 0 {
 		recognizedSnapshot = json.RawMessage("null")

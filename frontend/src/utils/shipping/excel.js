@@ -186,6 +186,32 @@ export async function buildPackingLabel(rows) {
   return new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: XLSX_MIME })
 }
 
+// POS / 郵寄 order list (the postal office's import sheet, 便利帶 template): one row per shipment, headers and
+// layout exactly as in the template. 收件人郵遞區號 and 備註二/三 stay empty; 備註 carries our order number.
+export const POS_HEADERS = ['收件人姓名', '收件人電話', '收件人郵遞區號', '收件人地址', '代收貨款', '備註', '備註二', '備註三']
+export const POS_COL_WIDTHS = [24, 16, 16, 45.54, 16, 40, 40, 40]
+
+export function buildPosRows(rows) {
+  return rows.map((r) => [
+    r.customer_name,
+    normalizePhone(r.customer_phone), // text, keeps the leading 0
+    null, // no cell at all, like the template
+    r.shipping_address || '',
+    Number(r.total_to_pay) || 0, // 代收貨款: products + shipping fee (a merged shipment: combined)
+    r.order_no, // internal order number (a merged shipment: its merged order number)
+    null, null,
+  ])
+}
+
+export async function buildPosExcel(rows) {
+  const XLSX = await import('xlsx')
+  const ws = XLSX.utils.aoa_to_sheet([POS_HEADERS, ...buildPosRows(rows)])
+  ws['!cols'] = POS_COL_WIDTHS.map((wch) => ({ wch }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet 1')
+  return new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: XLSX_MIME })
+}
+
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

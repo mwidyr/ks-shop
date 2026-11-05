@@ -33,6 +33,9 @@ type editOrderRequest struct {
 		Name  string `json:"name"`
 		Phone string `json:"phone"`
 		Email string `json:"email"`
+		// the customer's name / phone is corrected on the customer record itself (all their orders show it) instead
+		// of moving this order to a new record; needed when its siblings must stay mergeable with it
+		ApplyToAll bool `json:"apply_to_all"`
 	} `json:"customer"`
 	ShippingAddress     string          `json:"shipping_address"`
 	PickupChainID       int             `json:"pickup_chain_id"`
@@ -190,16 +193,17 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	var status, channel string
 	var customerID, curChain int
 	var exported, curOverride, inGroup, feeHolder bool
-	var curFee, promoDiscount float64
+	var curFee, promoDiscount, curDiscount, curAdditional float64
 	var curStore, curAddress string
 	if err := tx.QueryRow(ctx, `
 		SELECT o.status, o.sales_channel, o.customer_id, o.pickup_chain_id, o.exported_at IS NOT NULL, o.free_shipping_override,
 		       o.shipping_fee, o.promotion_discount_amount, COALESCE(o.pickup_store_code,''), COALESCE(o.shipping_address,''),
+		       o.discount_amount, o.additional_amount,
 		       EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id),
 		       COALESCE((SELECT g.shipping_fee_order_id = o.id FROM order_shipment_group_members gm
 		                 JOIN order_shipment_groups g ON g.id = gm.group_id WHERE gm.order_id = o.id), true)
 		FROM orders o WHERE o.id=$1 FOR UPDATE`, id).
-		Scan(&status, &channel, &customerID, &curChain, &exported, &curOverride, &curFee, &promoDiscount, &curStore, &curAddress, &inGroup, &feeHolder); err != nil {
+		Scan(&status, &channel, &customerID, &curChain, &exported, &curOverride, &curFee, &promoDiscount, &curStore, &curAddress, &curDiscount, &curAdditional, &inGroup, &feeHolder); err != nil {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
 	}
@@ -219,13 +223,31 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		}
 		exported, status = false, "pending"
 	}
-	if exported {
-		respondError(w, http.StatusConflict, orderLockedMsg)
-		return
-	}
-	if status != "pending" {
-		respondError(w, http.StatusConflict, "order hanya bisa diedit selama statusnya New/pending (status saat ini: "+status+")")
-		return
+	// An order that was exported / is past Pending is locked for everybody except a user who may override the lock
+	// (users.can_edit_shipped_orders, or super admin). Such an edit only touches the recipient and delivery data:
+	// items, amounts, fee and the delivery provider stay as exported, so stock, FIFO cost and the COD amount at
+	// the 3PL stay consistent, and the status does not move.
+	afterShip := false
+	if exported || status != "pending" {
+		if !canOverrideLock(ctx, tx, claims.Role, claims.UserID) {
+			if exported {
+				respondError(w, http.StatusConflict, orderLockedMsg)
+			} else {
+				respondError(w, http.StatusConflict, "order hanya bisa diedit selama statusnya New/pending (status saat ini: "+status+")")
+			}
+			return
+		}
+		switch status {
+		case "pending", "processing", "ready_to_ship", "shipped":
+			afterShip = true
+		default:
+			respondError(w, http.StatusConflict, "order dengan status "+status+" tidak bisa diedit")
+			return
+		}
+		if req.PickupChainID != curChain {
+			respondError(w, http.StatusConflict, "setelah di-export, provider pengiriman tidak bisa diganti (hanya data penerima, toko, dan alamat)")
+			return
+		}
 	}
 
 	// Delivery: same validation as Create Order / the pickup editor.
@@ -262,7 +284,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		}
 		var others int
 		_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE customer_id=$1 AND id<>$2`, customerID, id).Scan(&others)
-		if others == 0 {
+		if others == 0 || req.Customer.ApplyToAll {
 			if _, err := tx.Exec(ctx, `UPDATE customers SET name=$2, phone=$3 WHERE id=$1`, customerID, req.Customer.Name, req.Customer.Phone); err != nil {
 				respondError(w, http.StatusInternalServerError, "failed to update customer")
 				return
@@ -284,12 +306,12 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 
 	// Items: compare with the current lines.
 	type curItem struct {
-		variantID, qty, picked int
-		price                  float64
+		variantID, qty, picked, hostID int
+		price                          float64
 	}
 	cur := map[int]curItem{}
 	curQtyByVariant := map[int]int{}
-	irows, err := tx.Query(ctx, `SELECT id, variant_id, qty, picked_qty, price_at_order FROM order_items WHERE order_id=$1`, id)
+	irows, err := tx.Query(ctx, `SELECT id, variant_id, qty, picked_qty, price_at_order, COALESCE(host_id,0) FROM order_items WHERE order_id=$1`, id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load items")
 		return
@@ -297,12 +319,31 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	for irows.Next() {
 		var itemID int
 		var c curItem
-		if irows.Scan(&itemID, &c.variantID, &c.qty, &c.picked, &c.price) == nil {
+		if irows.Scan(&itemID, &c.variantID, &c.qty, &c.picked, &c.price, &c.hostID) == nil {
 			cur[itemID] = c
 			curQtyByVariant[c.variantID] += c.qty
 		}
 	}
 	irows.Close()
+
+	if afterShip {
+		frozen := len(req.Items) == len(cur) && req.DiscountAmount == curDiscount && req.AdditionalAmount == curAdditional &&
+			(req.ShippingFeeOverride == nil || *req.ShippingFeeOverride == curFee)
+		for _, it := range req.Items {
+			var c curItem
+			ok := false
+			if it.ID != nil {
+				c, ok = cur[*it.ID]
+			}
+			if !ok || it.VariantID != c.variantID || it.Qty != c.qty || (it.Price != nil && *it.Price != c.price) || (it.HostID != 0 && it.HostID != c.hostID) {
+				frozen = false
+			}
+		}
+		if !frozen {
+			respondError(w, http.StatusConflict, "setelah di-export, produk, qty, harga, diskon, dan ongkir tidak bisa diubah: hanya data penerima, toko, dan alamat")
+			return
+		}
+	}
 
 	keep := map[int]bool{}
 	newQtyByVariant := map[int]int{}
@@ -464,7 +505,11 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to update order")
 		return
 	}
-	logActivity(ctx, tx, "order", id, "order_edited", &claims.UserID, fmt.Sprintf("items=%d subtotal=%.0f fee=%.0f", len(req.Items), subtotal, fee))
+	action := "order_edited"
+	if afterShip {
+		action = "order_edited_after_shipped"
+	}
+	logActivity(ctx, tx, "order", id, action, &claims.UserID, fmt.Sprintf("status=%s items=%d subtotal=%.0f fee=%.0f", status, len(req.Items), subtotal, fee))
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return

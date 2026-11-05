@@ -97,9 +97,21 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
-	if anyOrderBatchedOrLocked(ctx, tx, req.OrderIDs...) {
-		respondError(w, http.StatusConflict, orderBatchedMsg)
-		return
+	// Orders already exported / in a batch can only be (re)merged by a user who may override the lock, and only when
+	// they all sit in the same batch (or none does): a merged shipment must never be split across batches.
+	lockedMerge := anyOrderBatchedOrLocked(ctx, tx, req.OrderIDs...)
+	if lockedMerge {
+		if !canOverrideLock(ctx, tx, claims.Role, claims.UserID) {
+			respondError(w, http.StatusConflict, orderLockedForRoleMsg)
+			return
+		}
+		var batches int
+		var inBatch int
+		tx.QueryRow(ctx, `SELECT COUNT(DISTINCT batch_id), COUNT(*) FROM shipping_batch_orders WHERE order_id = ANY($1)`, req.OrderIDs).Scan(&batches, &inBatch)
+		if batches > 1 || (inBatch > 0 && inBatch != len(req.OrderIDs)) {
+			respondError(w, http.StatusConflict, "order berada di batch yang berbeda (atau sebagian belum masuk batch): satu gabungan pengiriman tidak boleh terpecah antar batch")
+			return
+		}
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT id, customer_id, pickup_chain_id, COALESCE(pickup_store_code,''), status, shipping_fee, free_shipping_override
@@ -132,16 +144,17 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	for _, o := range orders {
-		if o.Status == "processing" {
+		if lockedMerge && (o.Status == "processing" || o.Status == "shipped" || o.Status == "delivered") {
+			// re-merging orders that were unmerged after export (override users only)
+		} else if o.Status == "processing" {
 			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already being processed for shipping and can't be merged")
 			return
-		}
-		if o.Status != "pending" && o.Status != "ready_to_ship" {
+		} else if o.Status != "pending" && o.Status != "ready_to_ship" {
 			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already shipped and can't be merged")
 			return
 		}
 		if o.CustomerID != orders[0].CustomerID {
-			respondError(w, http.StatusBadRequest, "orders must belong to the same customer")
+			respondError(w, http.StatusBadRequest, "orders must belong to the same customer (after correcting a name / phone, tick \"update all orders of this customer\" in Edit Order so the orders keep the same customer record)")
 			return
 		}
 		if o.PickupChainID != orders[0].PickupChainID || o.StoreCode != orders[0].StoreCode {
@@ -236,8 +249,8 @@ func (h *OrderMergeHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback(ctx)
 
-	if groupHasLockedMember(ctx, tx, id) {
-		respondError(w, http.StatusConflict, orderBatchedMsg)
+	if groupHasLockedMember(ctx, tx, id) && !requestCanOverrideLock(r, tx) {
+		respondError(w, http.StatusConflict, orderLockedForRoleMsg)
 		return
 	}
 	var feeOrderID int
@@ -264,6 +277,9 @@ func (h *OrderMergeHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if claims := appmw.GetClaims(r); claims != nil {
+		logActivity(ctx, tx, "shipment_group", id, "unmerged", &claims.UserID, "")
+	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return

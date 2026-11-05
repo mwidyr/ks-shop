@@ -532,6 +532,9 @@ func main() {
 			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/sales-distribution", hostAnalyticsH.SalesDistribution)
 			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/location-shift", perfComparisonH.LocationShift)
 			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/custom", perfComparisonH.Custom)
+			// Host Summary on the Performance Comparison page: the same per-host LIVE-day / daily-QTY distribution as the
+			// Host Analytics heatmap, under this page's own permission
+			r.With(view("performance_comparison"), reportCache).Get("/performance-comparison/host-summary", hostAnalyticsH.SalesDistribution)
 			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/historical-best", hostAnalyticsH.HistoricalBest)
 			r.With(view("host_performance_analytics"), reportCache).Get("/host-analytics/performance-data", hostAnalyticsH.PerformanceData)
 

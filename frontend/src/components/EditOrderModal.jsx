@@ -15,7 +15,7 @@ const label = 'block text-sm font-medium text-gray-700 mb-1'
 
 // Edits every detail of an order that was NOT exported yet, in one save (PUT /orders/{id}). The server
 // refuses (409) once the order is exported, merged lines/stock rules are enforced there too.
-export default function EditOrderModal({ order, onClose, onDone, releaseFromBatch = false }) {
+export default function EditOrderModal({ order, onClose, onDone, releaseFromBatch = false, afterShip = false }) {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
   const [pickupChains, setPickupChains] = useState([])
@@ -23,6 +23,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
   const [name, setName] = useState(order.customer_name || '')
   const [phone, setPhone] = useState(order.customer_phone || '')
   const [email, setEmail] = useState(order.customer_email || '')
+  const [applyAll, setApplyAll] = useState(false)
   const [chainId, setChainId] = useState(String(order.pickup_chain_id || ''))
   const [storeName, setStoreName] = useState(order.pickup_store_name || '')
   const [storeCode, setStoreCode] = useState(order.pickup_store_code || '')
@@ -75,7 +76,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
     setSaving(true)
     try {
       await updateOrder(order.id, {
-        customer: { name, phone, email },
+        customer: { name, phone, email, apply_to_all: applyAll },
         pickup_chain_id: Number(chainId),
         pickup_store_name: storeName,
         pickup_store_code: storeCode,
@@ -105,6 +106,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
         </div>
         <div className="p-5 space-y-5 overflow-y-auto">
           <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t(releaseFromBatch ? 'page_shipping_wb.edit_release_hint' : 'page_order_detail.edit_hint')}</p>
+          {afterShip && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t('page_order_detail.edit_after_ship_hint')}</p>}
           {grouped && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t('page_order_detail.edit_group_hint')}</p>}
 
           <section className="space-y-3">
@@ -113,6 +115,12 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
               <div><label className={label}>{t('page_order_detail.edit_name')}</label><input value={name} onChange={(e) => setName(e.target.value)} disabled={grouped} className={field} /></div>
               <div><label className={label}>{t('page_order_detail.edit_phone')}</label><input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={grouped} className={field} /></div>
             </div>
+            {!grouped && (name !== (order.customer_name || '') || phone !== (order.customer_phone || '')) && (
+              <label className="flex items-start gap-2 text-xs text-gray-600">
+                <input type="checkbox" checked={applyAll} onChange={(e) => setApplyAll(e.target.checked)} className="mt-0.5" />
+                <span>{t('page_order_detail.edit_apply_all')}</span>
+              </label>
+            )}
             <div><label className={label}>{t('page_order_detail.edit_email')}</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} /></div>
           </section>
 
@@ -120,7 +128,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
             <h3 className="text-sm font-bold text-gray-700">{t('page_order_detail.edit_delivery_section')}</h3>
             <div className="flex flex-wrap gap-2">
               {pickupChains.map((c) => (
-                <button key={c.id} type="button" disabled={grouped} onClick={() => setChainId(String(c.id))}
+                <button key={c.id} type="button" disabled={grouped || afterShip} onClick={() => setChainId(String(c.id))}
                   className={`text-sm font-semibold px-4 py-2 rounded-lg border disabled:opacity-50 ${chainId === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
                   {c.name}
                 </button>
@@ -142,6 +150,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
             ))}
           </section>
 
+          <fieldset disabled={afterShip} className="contents">
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-gray-700">{t('page_order_detail.edit_items_section')}</h3>
@@ -172,6 +181,7 @@ export default function EditOrderModal({ order, onClose, onDone, releaseFromBatc
             <div><label className={label}>{t('page_order_detail.edit_additional')}</label><input type="number" min="0" value={additional} onChange={(e) => setAdditional(e.target.value)} className={field} /></div>
             <div><label className={label}>{t('page_order_create.shipping_fee_label')}</label><input type="number" min="0" value={fee} onChange={(e) => setFee(e.target.value)} className={field} /></div>
           </section>
+          </fieldset>
           <p className="text-sm text-gray-500">{t('page_order_detail.edit_subtotal', { amount: formatCurrency(subtotal) })}</p>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

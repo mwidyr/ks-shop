@@ -36,12 +36,14 @@ type userView struct {
 	IsActive bool   `json:"is_active"`
 	HostID   *int   `json:"host_id"`
 	HostName string `json:"host_name"`
+	// may edit / re-export / merge / unmerge orders after they were exported or shipped
+	CanEditShipped bool `json:"can_edit_shipped_orders"`
 }
 
 // List returns every internal staff account (customer-role rows, if any remain, are excluded).
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT u.id, u.name, u.email, ro.name, u.is_active, u.host_id, COALESCE(h.name,'')
+		SELECT u.id, u.name, u.email, ro.name, u.is_active, u.host_id, COALESCE(h.name,''), u.can_edit_shipped_orders
 		FROM users u JOIN roles ro ON ro.id = u.role_id
 		LEFT JOIN hosts h ON h.id = u.host_id
 		WHERE ro.name <> 'customer'
@@ -55,7 +57,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	list := []userView{}
 	for rows.Next() {
 		var u userView
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.IsActive, &u.HostID, &u.HostName); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.IsActive, &u.HostID, &u.HostName, &u.CanEditShipped); err != nil {
 			continue
 		}
 		list = append(list, u)
@@ -68,6 +70,8 @@ type createUserRequest struct {
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	HostID *int   `json:"host_id"` // required for role 'host': the host whose data this account may see
+	// optional; default true for warehouse (and super_user), false otherwise. Only a super admin may set it.
+	CanEditShipped *bool `json:"can_edit_shipped_orders"`
 }
 
 // Create provisions a new staff account (name/email/role) as pending: no password yet,
@@ -84,11 +88,19 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	canEditShipped := req.Role == "warehouse" || req.Role == "super_user"
+	if req.CanEditShipped != nil {
+		if claims := appmw.GetClaims(r); claims == nil || claims.Role != "super_user" {
+			respondError(w, http.StatusForbidden, "hanya Super Admin yang boleh mengatur izin Edit shipped orders")
+			return
+		}
+		canEditShipped = *req.CanEditShipped
+	}
 	var id int
 	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO users (name, email, password_hash, role_id, is_active, host_id)
-		VALUES ($1,$2,NULL,(SELECT id FROM roles WHERE name=$3),false,$4) RETURNING id`,
-		req.Name, req.Email, req.Role, hostID).Scan(&id)
+		INSERT INTO users (name, email, password_hash, role_id, is_active, host_id, can_edit_shipped_orders)
+		VALUES ($1,$2,NULL,(SELECT id FROM roles WHERE name=$3),false,$4,$5) RETURNING id`,
+		req.Name, req.Email, req.Role, hostID, canEditShipped).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create user (email mungkin sudah dipakai)")
 		return
@@ -151,6 +163,8 @@ type updateUserRequest struct {
 	Role     *string `json:"role"`
 	IsActive *bool   `json:"is_active"`
 	Email    *string `json:"email"`
+	// only a super admin may change it
+	CanEditShipped *bool `json:"can_edit_shipped_orders"`
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +198,17 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logActivity(r.Context(), h.DB, "user", id, "role_changed", actorID, fmt.Sprintf("role -> %s", *req.Role))
+	}
+	if req.CanEditShipped != nil {
+		if claims == nil || claims.Role != "super_user" {
+			respondError(w, http.StatusForbidden, "hanya Super Admin yang boleh mengatur izin Edit shipped orders")
+			return
+		}
+		if _, err := h.DB.Exec(r.Context(), `UPDATE users SET can_edit_shipped_orders=$1 WHERE id=$2`, *req.CanEditShipped, id); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update permission")
+			return
+		}
+		logActivity(r.Context(), h.DB, "user", id, "can_edit_shipped_changed", actorID, fmt.Sprintf("can_edit_shipped_orders -> %v", *req.CanEditShipped))
 	}
 	if req.IsActive != nil {
 		if _, err := h.DB.Exec(r.Context(), `UPDATE users SET is_active=$1 WHERE id=$2`, *req.IsActive, id); err != nil {

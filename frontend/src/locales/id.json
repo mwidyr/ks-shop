@@ -764,7 +764,9 @@
     "edit_subtotal": "Subtotal item: {{amount}}",
     "edit_err_customer": "Nama dan telepon pelanggan wajib diisi",
     "edit_err_items": "Tambahkan minimal satu item dengan qty",
-    "edit_failed": "Gagal menyimpan order"
+    "edit_failed": "Gagal menyimpan order",
+    "edit_after_ship_hint": "Order ini sudah di-export / dikirim. Yang boleh dikoreksi hanya penerima, toko, dan alamat (serta email). Produk, harga, nominal, dan provider pengiriman tetap seperti saat di-export. Setelah disimpan, unduh ulang file 3PL dari batch (Download again) agar berisi data yang sudah dikoreksi.",
+    "edit_apply_all": "Ubah data pelanggan ini untuk semua ordernya (pakai bila order lain pelanggan ini, mis. satu pengiriman gabungan, harus tetap memakai pelanggan yang sama). Biarkan tidak dicentang untuk mengubah order ini saja."
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -1487,7 +1489,10 @@
     "host_label": "Host",
     "host_pick": "Pilih host",
     "host_link_failed": "Gagal menautkan host",
-    "host_tab_unavailable": "Akun Host hanya bisa diberi halaman performa pribadi (lihat saja); halaman lain menampilkan data banyak host"
+    "host_tab_unavailable": "Akun Host hanya bisa diberi halaman performa pribadi (lihat saja); halaman lain menampilkan data banyak host",
+    "edit_shipped_label": "Edit shipped orders",
+    "edit_shipped_hint": "Boleh mengedit (penerima, toko, alamat, catatan), export ulang, menggabung, dan memisahkan order setelah di-export / dikirim. Super Admin selalu boleh; Warehouse mendapatkannya secara default.",
+    "edit_shipped_failed": "Gagal mengubah izin"
   },
   "page_sales_analytics": {
     "aov": "AOV",
@@ -2112,7 +2117,7 @@
     "next_button": "Lanjut",
     "recognize_failed": "Gagal membaca screenshot - Anda tetap bisa isi angkanya manual di langkah berikutnya.",
     "recognizing": "Membaca screenshot...",
-    "screenshots_label": "Upload 3 screenshot LIVE",
+    "screenshots_label": "Upload 2 screenshot LIVE",
     "session_expired": "Sesi Anda sudah berakhir, silakan masukkan kode lagi.",
     "step1_title": "Informasi & Upload",
     "step2_title": "Review & Edit",
@@ -2127,7 +2132,19 @@
     "upload_failed": "Upload gagal",
     "uploading": "Mengupload...",
     "verifying": "Memeriksa...",
-    "remove_screenshot": "Hapus screenshot"
+    "remove_screenshot": "Hapus screenshot",
+    "screenshots_hint": "Pilih kedua screenshot analisis LIVE TikTok sekaligus, urutan bebas: tab \"Penonton\" dan tab \"Engagement\". Sistem membacanya otomatis.",
+    "pick_screenshots": "Ketuk untuk pilih screenshot (atau seret ke sini)",
+    "too_many": "Maksimal {{max}} screenshot. Hapus salah satu dulu.",
+    "tab_penonton": "Tab Penonton",
+    "tab_engagement": "Tab Engagement",
+    "tab_other": "Tidak dikenali",
+    "read_failed_short": "Gagal dibaca",
+    "problem_not_recognised": "Ada screenshot yang bukan tab Penonton atau Engagement. Hapus (×) lalu upload yang benar.",
+    "problem_duplicate_penonton": "Tab Penonton ter-upload dua kali. Hapus yang salah (×) lalu upload tab Engagement.",
+    "problem_duplicate_engagement": "Tab Engagement ter-upload dua kali. Hapus yang salah (×) lalu upload tab Penonton.",
+    "missing_tab": "Masih kurang: screenshot {{tab}}.",
+    "need_two": "Upload screenshot kedua juga ya."
   },
   "page_performance_comparison": {
     "title": "Perbandingan Performa",
@@ -2158,7 +2175,9 @@
     "results_title": "Hasil Perbandingan",
     "results_subtitle": "Grup di baris, metrik di kolom. Perubahan dibandingkan dengan Baseline.",
     "results_note": "Metrik yang tidak dimiliki grup (mis. metrik LIVE untuk Website) tampil \"—\", bukan 0. Jika tidak ada grup dengan data LIVE, kolom khusus LIVE disembunyikan.",
-    "rename_group": "Ubah nama grup"
+    "rename_group": "Ubah nama grup",
+    "host_summary": "Ringkasan Host",
+    "host_summary_hint": "Jumlah hari LIVE per rentang QTY harian, per host (mengikuti periode di atas)"
   },
   "page_telegram": {
     "bot_connection": "Koneksi Bot & Pengaturan Grup",
@@ -3173,7 +3192,8 @@
     "removed_title": "Order yang dikeluarkan dari batch ini",
     "edit_remove_btn": "Edit Order & Keluarkan dari Batch",
     "edit_release_hint": "Perbaiki order lalu simpan: order dikeluarkan dari batch ini dan kembali ke Pending di provider yang (baru), siap masuk batch baru. Riwayat batch tetap tersimpan.",
-    "save_and_remove": "Simpan & keluarkan dari batch"
+    "save_and_remove": "Simpan & keluarkan dari batch",
+    "download_pos_excel": "Unduh Excel POS"
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

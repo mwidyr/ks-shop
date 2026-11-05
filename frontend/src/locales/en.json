@@ -764,7 +764,9 @@
     "edit_subtotal": "Items subtotal: {{amount}}",
     "edit_err_customer": "Customer name and phone are required",
     "edit_err_items": "Add at least one item with a quantity",
-    "edit_failed": "Failed to save the order"
+    "edit_failed": "Failed to save the order",
+    "edit_after_ship_hint": "This order was already exported / shipped. You can only correct the recipient, store and address (and the email). Products, prices, amounts and the delivery provider stay as exported. After saving, download the 3PL file again from the batch (Download again) so it carries the corrected data.",
+    "edit_apply_all": "Update this customer record for all of their orders (use this when the customer's other orders, e.g. a merged shipment, must keep the same customer). Leave unticked to change only this order."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -1487,7 +1489,10 @@
     "host_label": "Host",
     "host_pick": "Select host",
     "host_link_failed": "Could not link the host",
-    "host_tab_unavailable": "Host accounts can only be given the personal performance pages (view only); other pages show data for many hosts"
+    "host_tab_unavailable": "Host accounts can only be given the personal performance pages (view only); other pages show data for many hosts",
+    "edit_shipped_label": "Edit shipped orders",
+    "edit_shipped_hint": "May edit (recipient, store, address, notes), re-export, merge and unmerge orders after they were exported / shipped. Super Admin always may; Warehouse has it by default.",
+    "edit_shipped_failed": "Failed to change the permission"
   },
   "page_sales_analytics": {
     "aov": "AOV",
@@ -2112,7 +2117,7 @@
     "next_button": "Next",
     "recognize_failed": "Failed to read screenshots - you can still fill in the numbers manually on the next step.",
     "recognizing": "Reading screenshots...",
-    "screenshots_label": "Upload 3 LIVE screenshots",
+    "screenshots_label": "Upload the 2 LIVE screenshots",
     "session_expired": "Your session expired, please enter the code again.",
     "step1_title": "Info & Upload",
     "step2_title": "Review & Edit",
@@ -2127,7 +2132,19 @@
     "upload_failed": "Upload failed",
     "uploading": "Uploading...",
     "verifying": "Checking...",
-    "remove_screenshot": "Remove screenshot"
+    "remove_screenshot": "Remove screenshot",
+    "screenshots_hint": "Select both TikTok LIVE analytics screenshots at once, in any order: the \"Penonton\" tab and the \"Engagement\" tab. The system reads them automatically.",
+    "pick_screenshots": "Tap to choose screenshots (or drop them here)",
+    "too_many": "Maximum {{max}} screenshots. Remove one first.",
+    "tab_penonton": "Penonton tab",
+    "tab_engagement": "Engagement tab",
+    "tab_other": "Not recognised",
+    "read_failed_short": "Could not read",
+    "problem_not_recognised": "A screenshot is not the Penonton or Engagement tab. Remove it (×) and upload the right one.",
+    "problem_duplicate_penonton": "You uploaded the Penonton tab twice. Remove the wrong one (×) and upload the Engagement tab.",
+    "problem_duplicate_engagement": "You uploaded the Engagement tab twice. Remove the wrong one (×) and upload the Penonton tab.",
+    "missing_tab": "Still missing: {{tab}} screenshot.",
+    "need_two": "Please upload the second screenshot too."
   },
   "page_performance_comparison": {
     "title": "Performance Comparison",
@@ -2158,7 +2175,9 @@
     "results_title": "Comparison Results",
     "results_subtitle": "Groups down the rows, metrics across the columns. Changes are compared with the Baseline.",
     "results_note": "Metrics a group does not have (e.g. LIVE metrics for Website) show \"—\", not 0. If no group has LIVE data, the LIVE-only columns are hidden.",
-    "rename_group": "Rename group"
+    "rename_group": "Rename group",
+    "host_summary": "Host Summary",
+    "host_summary_hint": "LIVE days per daily QTY range, per host (follows the period above)"
   },
   "page_telegram": {
     "bot_connection": "Bot Connection & Group Settings",
@@ -3173,7 +3192,8 @@
     "removed_title": "Orders taken out of this batch",
     "edit_remove_btn": "Edit Order & Remove from Batch",
     "edit_release_hint": "Fix the order, then save: it is taken out of this batch and goes back to Pending under its (new) provider, ready for a new batch. The batch history is kept.",
-    "save_and_remove": "Save & remove from batch"
+    "save_and_remove": "Save & remove from batch",
+    "download_pos_excel": "Download POS Excel"
   },
   "keep_date": {
     "type_label": "Date type",

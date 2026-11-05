@@ -33,6 +33,6 @@ export function getPeriodSummary(filters) {
   return client.get(`/host-analytics/period-summary${buildQuery(filters)}`).then((res) => res.data)
 }
 
-export function getSalesDistribution(filters) {
-  return client.get(`/host-analytics/sales-distribution${buildQuery(filters)}`).then((res) => res.data)
+export function getSalesDistribution(filters, path = '/host-analytics/sales-distribution') {
+  return client.get(`${path}${buildQuery(filters)}`).then((res) => res.data)
 }

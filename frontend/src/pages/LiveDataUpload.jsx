@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   getStoredSessionToken, verifyAccessCode, listPublicLocations, listPublicHosts,
@@ -6,19 +6,7 @@ import {
 } from '../api/liveDataPublic'
 import AttachmentThumb from '../components/AttachmentThumb'
 import ImagePreviewModal from '../components/ImagePreviewModal'
-
-function secondsToMMSS(totalSeconds) {
-  if (!totalSeconds && totalSeconds !== 0) return ''
-  const m = Math.floor(totalSeconds / 60)
-  const s = totalSeconds % 60
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-function mmssToSeconds(text) {
-  const match = /^(\d+):(\d{1,2})$/.exec((text || '').trim())
-  if (!match) return 0
-  return Number(match[1]) * 60 + Number(match[2])
-}
+import { MAX_SCREENSHOTS, analyzeScreenshots, mmssToSeconds, secondsToMMSS } from '../utils/liveData'
 
 const emptyForm = {
   views: '', uv: '', active_viewers: '', awt_text: '', pcu: '', acu: '',
@@ -26,7 +14,8 @@ const emptyForm = {
 }
 
 // Public, no-login mobile wizard replacing the client's old Google Form - hosts pick
-// Location + Host, upload 3 TikTok LIVE screenshots, review AI-recognized values, submit.
+// Location + Host, upload the 2 TikTok LIVE screenshots (Penonton + Engagement) together in any order - the
+// server reads each one and says which tab it is, then the page moves on by itself - review the values, submit.
 // Step 0 (code gate) is skipped on return visits if a still-stored session token exists; if a
 // later call 401s because that token expired, we bounce back here rather than anywhere else.
 export default function LiveDataUpload() {
@@ -42,12 +31,14 @@ export default function LiveDataUpload() {
   const [locationId, setLocationId] = useState('')
   const [hostId, setHostId] = useState('')
 
-  const [slots, setSlots] = useState([null, null, null]) // {url, uploading, error}
+  const [images, setImages] = useState([]) // {id, url, status: uploading | reading | done | error, data, error}
+  const nextId = useRef(1)
+  const filledFor = useRef('') // which set of screenshots the review form was last filled from
+  const [dragOver, setDragOver] = useState(false)
   const [previewUrl, setPreviewUrl] = useState(null)
 
   const [form, setForm] = useState(emptyForm)
   const [recognizedRaw, setRecognizedRaw] = useState(null)
-  const [recognizing, setRecognizing] = useState(false)
   const [stepError, setStepError] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
@@ -83,41 +74,62 @@ export default function LiveDataUpload() {
     }
   }
 
-  async function handlePickFile(idx, file) {
-    if (!file) return
-    setSlots((prev) => prev.map((s, i) => (i === idx ? { uploading: true } : s)))
-    try {
-      const url = await uploadPublicImage(file)
-      setSlots((prev) => prev.map((s, i) => (i === idx ? { url } : s)))
-    } catch (err) {
-      if (handleUnauthorized(err)) return
-      setSlots((prev) => prev.map((s, i) => (i === idx ? { error: t('page_live_data_upload.upload_failed') } : s)))
-    }
-  }
+  const patchImage = (id, patch) => setImages((list) => list.map((i) => (i.id === id ? { ...i, ...patch } : i)))
 
-  const allUploaded = slots.every((s) => s?.url)
-  const canProceedStep1 = hostId && locationId && allUploaded && !recognizing
-
-  async function handleGoToReview() {
+  // Several files at once (gallery multi-select / drag & drop): upload each, then let the server read it.
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'))
+    if (files.length === 0) return
     setStepError('')
-    setRecognizing(true)
-    try {
-      const result = await recognizeLiveData(slots.map((s) => s.url))
-      setRecognizedRaw(result)
-      setForm({
-        views: result.views ?? '', uv: result.uv ?? '', active_viewers: result.active_viewers ?? '',
-        awt_text: secondsToMMSS(result.awt_seconds), pcu: result.pcu ?? '', acu: result.acu ?? '',
-        follows: result.follows ?? '', chats: result.chats ?? '', shares: result.shares ?? '', likes: result.likes ?? '',
-        live_duration_minutes: result.live_duration_seconds != null ? Math.round(result.live_duration_seconds / 60) : '',
-      })
-      setStep(2)
-    } catch (err) {
-      if (handleUnauthorized(err)) return
-      setStepError(err.response?.data?.error || t('page_live_data_upload.recognize_failed'))
-    } finally {
-      setRecognizing(false)
-    }
+    const room = MAX_SCREENSHOTS - images.length
+    if (files.length > room) setStepError(t('page_live_data_upload.too_many', { max: MAX_SCREENSHOTS }))
+    await Promise.all(files.slice(0, Math.max(room, 0)).map(async (file) => {
+      const id = nextId.current++
+      setImages((list) => [...list, { id, status: 'uploading' }])
+      try {
+        const url = await uploadPublicImage(file)
+        patchImage(id, { url, status: 'reading' })
+        try {
+          const res = await recognizeLiveData([url])
+          patchImage(id, { status: 'done', data: res.images?.[0]?.data || null })
+        } catch (err) {
+          if (handleUnauthorized(err)) return
+          patchImage(id, { status: 'done', data: null }) // the AI could not read it: the host can still type the numbers
+        }
+      } catch (err) {
+        if (handleUnauthorized(err)) return
+        patchImage(id, { status: 'error', error: t('page_live_data_upload.upload_failed') })
+      }
+    }))
   }
+
+  const removeImage = (id) => { setImages((list) => list.filter((i) => i.id !== id)); setStepError('') }
+
+  const analysis = useMemo(() => analyzeScreenshots(images), [images])
+  const hasError = images.some((i) => i.status === 'error')
+  const canProceedStep1 = hostId && locationId && (analysis.ready || analysis.manual) && !hasError
+  const signature = analysis.saveUrls.join('|')
+
+  function goToReview() {
+    setStepError('')
+    if (filledFor.current !== signature) {
+      filledFor.current = signature
+      const m = analysis.merged
+      setRecognizedRaw(images.map((i) => ({ url: i.url, data: i.data || null })))
+      setForm({
+        views: m.views ?? '', uv: m.uv ?? '', active_viewers: m.active_viewers ?? '',
+        awt_text: secondsToMMSS(m.awt_seconds), pcu: m.pcu ?? '', acu: m.acu ?? '',
+        follows: m.follows ?? '', chats: m.chats ?? '', shares: m.shares ?? '', likes: m.likes ?? '',
+        live_duration_minutes: m.live_duration_seconds != null ? Math.round(m.live_duration_seconds / 60) : '',
+      })
+    }
+    setStep(2)
+  }
+
+  // Both screenshots recognised and Location + Host chosen: go straight to the review (once per set of screenshots)
+  useEffect(() => {
+    if (step === 1 && analysis.ready && hostId && locationId && filledFor.current !== signature) goToReview()
+  }) // eslint-disable-line react-hooks/exhaustive-deps
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -141,7 +153,7 @@ export default function LiveDataUpload() {
         shares: Number(form.shares) || 0,
         likes: Number(form.likes) || 0,
         live_duration_seconds: (Number(form.live_duration_minutes) || 0) * 60,
-        image_urls: slots.map((s) => s.url),
+        image_urls: analysis.saveUrls,
         recognized_data: recognizedRaw,
       })
       setSubmitted(true)
@@ -170,7 +182,7 @@ export default function LiveDataUpload() {
           <button
             className={primaryBtn}
             onClick={() => {
-              setForm(emptyForm); setSlots([null, null, null]); setHostId(''); setLocationId('')
+              setForm(emptyForm); setImages([]); filledFor.current = ''; setHostId(''); setLocationId('')
               setSubmitted(false); setStep(1)
             }}
           >
@@ -213,27 +225,60 @@ export default function LiveDataUpload() {
           </select>
 
           <label className={label}>{t('page_live_data_upload.screenshots_label')}</label>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {slots.map((slot, idx) => (slot?.url ? (
-              // an uploaded screenshot: tap to preview, X to clear the slot and pick another one
-              <AttachmentThumb key={idx} url={slot.url} className="w-full aspect-square" onPreview={() => setPreviewUrl(slot.url)}
-                onDelete={() => setSlots((prev) => prev.map((s, i) => (i === idx ? null : s)))} deleteLabel={t('page_live_data_upload.remove_screenshot')} />
-            ) : (
-              <label key={idx} className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer bg-gray-50 relative">
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handlePickFile(idx, e.target.files?.[0])} />
-                {slot?.uploading ? (
-                  <span className="text-[10px] text-gray-400">{t('page_live_data_upload.uploading')}</span>
-                ) : (
-                  <span className="text-2xl text-gray-300">+</span>
-                )}
-                {slot?.error && <span className="absolute bottom-0 inset-x-0 text-[9px] text-red-600 bg-white/90 text-center">{slot.error}</span>}
-              </label>
-            )))}
-          </div>
+          <p className="text-[11px] text-gray-500 mb-2">{t('page_live_data_upload.screenshots_hint')}</p>
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+            className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-lg py-5 cursor-pointer text-center ${dragOver ? 'border-brand-600 bg-brand-50' : 'border-gray-300 bg-gray-50'} ${images.length >= MAX_SCREENSHOTS ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden"
+              onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }} />
+            <span className="text-2xl text-gray-300">+</span>
+            <span className="text-xs font-semibold text-gray-600">{t('page_live_data_upload.pick_screenshots')}</span>
+          </label>
+
+          {images.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 mt-3 mb-3">
+              {images.map((img) => {
+                const bad = analysis.problems.find((p) => p.urls.includes(img.url))
+                const tab = img.data?.tab
+                return (
+                  <div key={img.id} className="text-center">
+                    {img.url ? (
+                      <AttachmentThumb url={img.url} className="w-full aspect-[3/4]" onPreview={() => setPreviewUrl(img.url)}
+                        onDelete={() => removeImage(img.id)} deleteLabel={t('page_live_data_upload.remove_screenshot')} />
+                    ) : (
+                      <div className="relative w-full aspect-[3/4] rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center">
+                        <span className="text-[11px] text-gray-400">{img.status === 'error' ? img.error : t('page_live_data_upload.uploading')}</span>
+                        {img.status === 'error' && (
+                          <button type="button" onClick={() => removeImage(img.id)} aria-label={t('page_live_data_upload.remove_screenshot')}
+                            className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-gray-900/80 text-white text-sm">×</button>
+                        )}
+                      </div>
+                    )}
+                    <p className={`text-[11px] mt-1 font-semibold ${bad || img.status === 'error' ? 'text-red-600' : img.status === 'done' && tab && tab !== 'other' ? 'text-green-600' : 'text-gray-400'}`}>
+                      {img.status === 'reading' && t('page_live_data_upload.recognizing')}
+                      {img.status === 'done' && (tab === 'penonton' || tab === 'engagement') && `✓ ${t(`page_live_data_upload.tab_${tab}`)}`}
+                      {img.status === 'done' && tab === 'other' && t('page_live_data_upload.tab_other')}
+                      {img.status === 'done' && !img.data && t('page_live_data_upload.read_failed_short')}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {analysis.problems.map((p) => (
+            <p key={p.code} className="text-xs text-red-600 mb-2">{t(`page_live_data_upload.problem_${p.code}`)}</p>
+          ))}
+          {analysis.missing.map((m) => (
+            <p key={m} className="text-xs text-amber-700 mb-2">{t('page_live_data_upload.missing_tab', { tab: t(`page_live_data_upload.tab_${m}`) })}</p>
+          ))}
+          {analysis.manual && <p className="text-xs text-amber-700 mb-2">{t('page_live_data_upload.recognize_failed')}</p>}
+          {images.length === 1 && analysis.missing.length === 0 && !analysis.busy && <p className="text-xs text-gray-500 mb-2">{t('page_live_data_upload.need_two')}</p>}
           {previewUrl && <ImagePreviewModal images={[{ url: previewUrl }]} onClose={() => setPreviewUrl(null)} />}
           {stepError && <p className="text-xs text-red-600 mb-2">{stepError}</p>}
-          <button onClick={handleGoToReview} disabled={!canProceedStep1} className={primaryBtn}>
-            {recognizing ? t('page_live_data_upload.recognizing') : t('page_live_data_upload.next_button')}
+          <button onClick={goToReview} disabled={!canProceedStep1} className={`${primaryBtn} mt-2`}>
+            {analysis.busy ? t('page_live_data_upload.recognizing') : t('page_live_data_upload.next_button')}
           </button>
         </div>
       )}

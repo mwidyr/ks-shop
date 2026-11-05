@@ -5,6 +5,7 @@ import { formatCurrency } from '../utils/format'
 import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import { cardClasses, Metric } from '../components/Table'
 import CustomComparison from '../components/CustomComparison'
+import SalesDistributionHeatmap from '../components/SalesDistributionHeatmap'
 
 const fmtInt = (n) => (n == null ? '—' : Number(n).toLocaleString())
 const fmtDec = (n) => (n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
@@ -141,6 +142,11 @@ export default function PerformanceComparison() {
           </div>
         )}
       </div>
+
+      <SalesDistributionHeatmap
+        filters={{ from: range.from, to: range.to }} path="/performance-comparison/host-summary"
+        titleKey="page_performance_comparison.host_summary" hintKey="page_performance_comparison.host_summary_hint"
+      />
 
       <CustomComparison pageRange={range} />
     </div>

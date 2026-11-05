@@ -206,6 +206,16 @@ export default function RolesMatrix() {
     reload()
   }
 
+  async function toggleEditShipped(u) {
+    try {
+      await updateUser(u.id, { can_edit_shipped_orders: !u.can_edit_shipped_orders })
+      setRowError((e) => ({ ...e, [u.id]: '' }))
+      reload()
+    } catch (err) {
+      setRowError((e) => ({ ...e, [u.id]: err.response?.data?.error || t('page_roles.edit_shipped_failed') }))
+    }
+  }
+
   async function changeRole(u, role) {
     if (role === 'host') { setPickHostFor(u.id); return } // a Host account also needs its host: picked next to the role
     setPickHostFor(null)
@@ -303,6 +313,12 @@ export default function RolesMatrix() {
                         <option value="">{t('page_roles.host_pick')}</option>
                         {hosts.filter((h) => !takenHostIds.has(h.id) || h.id === u.host_id).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                       </select>
+                    )}
+                    {u.role !== 'host' && (
+                      <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer" title={t('page_roles.edit_shipped_hint')}>
+                        <input type="checkbox" checked={Boolean(u.can_edit_shipped_orders) || u.role === 'super_user'} disabled={u.role === 'super_user'} onChange={() => toggleEditShipped(u)} />
+                        {t('page_roles.edit_shipped_label')}
+                      </label>
                     )}
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {u.is_active ? t('page_roles.active_label') : t('page_roles.inactive_label')}

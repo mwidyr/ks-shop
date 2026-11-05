@@ -5,7 +5,7 @@ import EditOrderModal from '../components/EditOrderModal'
 import { useAuth } from '../context/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { confirmAllNotCreated, confirmNotCreated, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
-import { buildThreePLExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
+import { buildThreePLExcel, buildPosExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
 import StatusPill from '../components/StatusPill'
 import {
@@ -130,6 +130,13 @@ export default function ShippingBatch() {
     if (res.rows.length === 0) { setError(t('page_shipping_wb.nothing_to_export')); return }
     downloadBlob(await buildThreePLExcel(res.rows), exportFilename(exportedAt ? '3pl-packing-again' : '3pl-packing', batch.batch_no))
     if (!exportedAt) await recordExport(id, '3pl_packing', res.rows.flatMap((r) => r.order_ids))
+  })
+
+  // POS / 郵寄 order list: every order of the batch in one file, any time; only downloads, changes nothing
+  const downloadPosExcel = () => run('dl-pos', async () => {
+    const res = await getExportRows(id, 'batch')
+    if (res.rows.length === 0) { setError(t('page_shipping_wb.nothing_to_export')); return }
+    downloadBlob(await buildPosExcel(res.rows), exportFilename('pos-orders', batch.batch_no))
   })
 
   const resultKinds = provider === 'cvs_711' ? [['711_validation', 'upload_a'], ['711_export', 'upload_b']]
@@ -273,6 +280,7 @@ export default function ShippingBatch() {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => downloadPacking()} disabled={!!busy || verifiedNotSent === 0} className={primaryBtn}>{t('page_shipping_wb.download_3pl_packing')}</button>
           <button disabled className={ghostBtn} title={t('page_shipping_wb.format_pending')}>{t('page_shipping_wb.download_sticker')}</button>
+          {direct3PL && <button onClick={downloadPosExcel} disabled={!!busy} className={ghostBtn}>{t('page_shipping_wb.download_pos_excel')}</button>}
         </div>
         <History items={byKind('3pl_packing')} render={(e) => (
           <li key={e.exported_at} className="flex items-center justify-between gap-2">

@@ -72,7 +72,9 @@ func (h *RolePermissionHandler) MyAccess(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"role": claimsRole(claims), "access": access})
+	// may edit orders after they were exported / shipped (per-user flag; super admin always)
+	canEditShipped := claims != nil && canOverrideLock(r.Context(), h.DB, claims.Role, claims.UserID)
+	respondJSON(w, http.StatusOK, map[string]interface{}{"role": claimsRole(claims), "access": access, "can_edit_shipped_orders": canEditShipped})
 }
 
 func claimsRole(c *auth.Claims) string {

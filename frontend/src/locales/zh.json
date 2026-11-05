@@ -764,7 +764,9 @@
     "edit_subtotal": "商品小計：{{amount}}",
     "edit_err_customer": "必須填寫客戶姓名與電話",
     "edit_err_items": "請至少新增一項有數量的商品",
-    "edit_failed": "儲存訂單失敗"
+    "edit_failed": "儲存訂單失敗",
+    "edit_after_ship_hint": "此訂單已匯出／出貨。只能更正收件人、門市與地址（及電子郵件）；商品、價格、金額與物流商維持匯出時的內容。儲存後，請至批次重新下載 3PL 檔案（Download again），讓檔案帶入更正後的資料。",
+    "edit_apply_all": "將此客戶資料套用到其所有訂單（當此客戶的其他訂單，例如合併出貨，必須維持同一客戶時使用）。不勾選則只修改此訂單。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -1487,7 +1489,10 @@
     "host_label": "主播",
     "host_pick": "選擇主播",
     "host_link_failed": "無法綁定主播",
-    "host_tab_unavailable": "主持人帳號只能開放個人績效頁面（僅檢視）；其他頁面包含多位主持人的資料"
+    "host_tab_unavailable": "主持人帳號只能開放個人績效頁面（僅檢視）；其他頁面包含多位主持人的資料",
+    "edit_shipped_label": "編輯已出貨訂單",
+    "edit_shipped_hint": "可在訂單匯出／出貨後編輯（收件人、門市、地址、備註）、重新匯出、合併與拆分訂單。超級管理員一律允許；倉庫預設擁有。",
+    "edit_shipped_failed": "變更權限失敗"
   },
   "page_sales_analytics": {
     "aov": "平均客單價",
@@ -2112,7 +2117,7 @@
     "next_button": "下一步",
     "recognize_failed": "讀取截圖失敗 - 您仍可在下一步手動輸入數字。",
     "recognizing": "讀取截圖中...",
-    "screenshots_label": "上傳 3 張 LIVE 截圖",
+    "screenshots_label": "上傳 2 張 LIVE 截圖",
     "session_expired": "您的連線已逾時，請重新輸入驗證碼。",
     "step1_title": "資訊與上傳",
     "step2_title": "檢查與編輯",
@@ -2127,7 +2132,19 @@
     "upload_failed": "上傳失敗",
     "uploading": "上傳中...",
     "verifying": "驗證中...",
-    "remove_screenshot": "移除截圖"
+    "remove_screenshot": "移除截圖",
+    "screenshots_hint": "請一次選取兩張 TikTok LIVE 分析截圖（順序不拘）：「Penonton」分頁與「Engagement」分頁。系統會自動讀取。",
+    "pick_screenshots": "點選以選擇截圖（或拖曳到此處）",
+    "too_many": "最多 {{max}} 張截圖，請先刪除一張。",
+    "tab_penonton": "Penonton 分頁",
+    "tab_engagement": "Engagement 分頁",
+    "tab_other": "無法辨識",
+    "read_failed_short": "無法讀取",
+    "problem_not_recognised": "有截圖不是 Penonton 或 Engagement 分頁，請按 × 刪除並上傳正確的截圖。",
+    "problem_duplicate_penonton": "Penonton 分頁重複上傳了兩次，請按 × 刪除錯誤的，並上傳 Engagement 分頁。",
+    "problem_duplicate_engagement": "Engagement 分頁重複上傳了兩次，請按 × 刪除錯誤的，並上傳 Penonton 分頁。",
+    "missing_tab": "還缺少：{{tab}} 截圖。",
+    "need_two": "請也上傳第二張截圖。"
   },
   "page_performance_comparison": {
     "title": "績效比較",
@@ -2158,7 +2175,9 @@
     "results_title": "比較結果",
     "results_subtitle": "Group 向下排列、Metrics 橫向排列，數值與 Baseline 比較。",
     "results_note": "Group 沒有的指標（例如 Website 的 LIVE 指標）以「—」顯示，不當作 0；若所有 Group 都沒有 LIVE 資料，LIVE 專屬欄位自動隱藏。",
-    "rename_group": "重新命名 Group"
+    "rename_group": "重新命名 Group",
+    "host_summary": "主播摘要",
+    "host_summary_hint": "每位主播在各每日銷量區間的 LIVE 天數（依上方期間）"
   },
   "page_telegram": {
     "bot_connection": "Bot 連線與群組設定",
@@ -3173,7 +3192,8 @@
     "removed_title": "已從此批次移出的訂單",
     "edit_remove_btn": "編輯訂單並移出批次",
     "edit_release_hint": "修正訂單後儲存：訂單會移出此批次，並回到（新）物流商的待處理，可重新建立批次。批次紀錄會保留。",
-    "save_and_remove": "儲存並移出批次"
+    "save_and_remove": "儲存並移出批次",
+    "download_pos_excel": "下載 POS / 郵寄 Excel"
   },
   "keep_date": {
     "type_label": "日期類型",

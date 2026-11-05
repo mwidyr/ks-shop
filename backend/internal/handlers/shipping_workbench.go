@@ -483,7 +483,9 @@ func (h *ShippingWorkbenchHandler) ExportRows(w http.ResponseWriter, r *http.Req
 		return
 	}
 	kind := r.URL.Query().Get("kind")
-	if !exportKinds[kind] {
+	// "batch": every live order of the batch in any status, for a re-downloadable file that is never logged
+	// (so it changes nothing); only offered for POS / 郵寄 batches. Not a recordable kind (see RecordExport).
+	if !exportKinds[kind] && kind != "batch" {
 		respondError(w, http.StatusBadRequest, "invalid export kind")
 		return
 	}
@@ -494,9 +496,16 @@ func (h *ShippingWorkbenchHandler) ExportRows(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if kind == "batch" && provider != "courier" {
+		respondError(w, http.StatusBadRequest, "this file is only available for POS / 郵寄 batches")
+		return
+	}
+
 	var cond string
 	args := []any{id}
-	if at := r.URL.Query().Get("exported_at"); at != "" {
+	if kind == "batch" {
+		cond = ` AND o.status NOT IN ('cancelled')`
+	} else if at := r.URL.Query().Get("exported_at"); at != "" {
 		ts, err := time.Parse(time.RFC3339Nano, at)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, "invalid exported_at")
