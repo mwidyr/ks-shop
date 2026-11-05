@@ -114,8 +114,9 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT id, customer_id, pickup_chain_id, COALESCE(pickup_store_code,''), status, shipping_fee, free_shipping_override
-		FROM orders WHERE id = ANY($1) ORDER BY created_at`, req.OrderIDs)
+		SELECT o.id, o.customer_id, o.pickup_chain_id, COALESCE(o.pickup_store_code,''), o.status, o.shipping_fee, o.free_shipping_override,
+		       lower(btrim(c.name)) || '|' || regexp_replace(COALESCE(c.phone,''), '\D', '', 'g')
+		FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = ANY($1) ORDER BY o.created_at`, req.OrderIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "db error")
 		return
@@ -128,11 +129,12 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		Status               string
 		ShippingFee          float64
 		FreeShippingOverride bool
+		CustomerKey          string // name + phone digits: the same person saved twice (e.g. after a phone correction)
 	}
 	var orders []ov
 	for rows.Next() {
 		var o ov
-		if err := rows.Scan(&o.ID, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status, &o.ShippingFee, &o.FreeShippingOverride); err != nil {
+		if err := rows.Scan(&o.ID, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status, &o.ShippingFee, &o.FreeShippingOverride, &o.CustomerKey); err != nil {
 			continue
 		}
 		orders = append(orders, o)
@@ -153,7 +155,7 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already shipped and can't be merged")
 			return
 		}
-		if o.CustomerID != orders[0].CustomerID {
+		if o.CustomerID != orders[0].CustomerID && o.CustomerKey != orders[0].CustomerKey {
 			respondError(w, http.StatusBadRequest, "orders must belong to the same customer (after correcting a name / phone, tick \"update all orders of this customer\" in Edit Order so the orders keep the same customer record)")
 			return
 		}
