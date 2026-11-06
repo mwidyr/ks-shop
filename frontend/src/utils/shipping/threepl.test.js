@@ -22,7 +22,7 @@ describe('3PL export', () => {
     expect(rows[0][5]).toBe('0911172477')
     expect(rows[0][4]).toBe('195896')
     expect(rows[0][7]).toBe('')
-    expect(rows[1].slice(11, 14)).toEqual(['C002-PINK-FREESIZE', 'Kaos', 2])
+    expect(rows[1].slice(11, 14)).toEqual(['C002PINKFREESIZE', 'Kaos', 2])
   })
   it('A = shipping number, V = platform order number, G = fixed logistics type per provider', () => {
     const f = (o) => buildThreePLRows([o])[0]

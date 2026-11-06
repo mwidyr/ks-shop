@@ -5,6 +5,8 @@
 //   E 數量*      Planned QTY of the SKU (summed when the SKU is planned under more than one supplier)
 //   F 單位*      always 件
 // Every other column stays in place and empty. One row per SKU (a SKU planned under two suppliers is one row).
+import { exportSku } from './exportSku'
+
 export const WMS_STOCK_IN_SHEET = '進倉匯入範例'
 
 export const WMS_STOCK_IN_HEADERS = [
@@ -27,7 +29,7 @@ export function stockInRows(detail) {
       let row = bySku.get(sku)
       if (!row) {
         row = Array(WMS_STOCK_IN_HEADERS.length).fill('')
-        row[COL_SKU] = sku
+        row[COL_SKU] = exportSku(sku)
         row[COL_QTY] = 0
         row[COL_UNIT] = WMS_STOCK_IN_UNIT
         bySku.set(sku, row)

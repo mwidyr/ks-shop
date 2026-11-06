@@ -209,6 +209,7 @@ export default function Heatmap() {
   const todayIso = jakartaIsoDate(new Date())
   const now = range.from === todayIso && range.to === todayIso ? jakartaNow() : null
   const nowSlot = now ? now.slot : null
+  const isSingleDay = range.from === range.to
 
   useEffect(() => {
     setLoading(true)
@@ -299,9 +300,10 @@ export default function Heatmap() {
                   {grid.hosts.map((host) => (
                     <tr key={host.host_id} style={{ height: BODY_ROW_H }}>
                       {host.slots.map((qty, i) => {
-                        // Average QTY = total QTY / valid LIVE sessions in the slot; "—" (neutral)
-                        // when the host had no valid session in it.
-                        const avg = host.avg_qty?.[i] ?? null
+                        // One day = the actual QTY sold in the slot ("—" when nothing sold). A longer
+                        // Period shows Average QTY = total QTY / valid LIVE sessions in the slot;
+                        // "—" (neutral) when the host had no valid session in it.
+                        const avg = isSingleDay ? (qty > 0 ? qty : null) : (host.avg_qty?.[i] ?? null)
                         const color = fixedScaleCell(avg, HOST_AVG_COLORS, 3)
                         return (
                           <td
@@ -309,7 +311,7 @@ export default function Heatmap() {
                             onClick={() => qty > 0 && setActiveCell({ hostId: host.host_id, hostName: host.host_name, slot: i, from: range.from, to: range.to, locationId: locationId || undefined })}
                             className={`p-1 text-center rounded relative ${qty > 0 ? 'cursor-pointer' : ''} ${color.className || ''}`}
                             style={color.style}
-                            title={avg == null ? undefined : `${fmtNum(qty)} QTY / ${host.sessions?.[i] ?? 0}`}
+                            title={avg == null || isSingleDay ? undefined : `${fmtNum(qty)} QTY / ${host.sessions?.[i] ?? 0}`}
                           >
                             {avg == null ? '—' : fmtAvg(avg)}
                             {i === nowSlot && <NowLine />}
@@ -323,7 +325,7 @@ export default function Heatmap() {
                       const color = allRowCell(qty, allCutoffs)
                       return (
                         <td key={i} className={`p-1 text-center font-semibold rounded relative ${color.className || ''}`} style={color.style}>
-                          {qty || ''}
+                          {qty || '—'}
                           {i === nowSlot && <NowLine />}
                         </td>
                       )

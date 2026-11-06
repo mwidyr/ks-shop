@@ -266,13 +266,21 @@ type historicalBestResponse struct {
 // selected Location/Host - not affected by the Period filter.
 func (h *HostAnalyticsHandler) HistoricalBest(w http.ResponseWriter, r *http.Request) {
 	locWhere, locArgs := hostFilter(r, "ls", 1)
+	// A session's sales are the items linked to it by live_session_id, plus - for items with no
+	// link (sessions loaded from the host sheet, orders created outside a LIVE cart) - the same
+	// host's items created inside the session's window. Cancelled/returned orders never count.
+	const sessionSales = `
+		FROM order_items oi JOIN orders o ON o.id = oi.order_id
+		WHERE o.status NOT IN ('cancelled','return')
+		  AND (oi.live_session_id = ls.id
+		       OR (oi.live_session_id IS NULL AND oi.host_id = ls.host_id
+		           AND o.created_at >= ls.started_at
+		           AND o.created_at < COALESCE(ls.ended_at, ls.started_at + interval '1 hour')))`
 	query := `
 		SELECT ls.started_at, h.shift, COALESCE(ls.views,0), COALESCE(ls.pcu,0), COALESCE(ls.awt_seconds,0),
-		       COALESCE((SELECT SUM(oi.qty) FROM order_items oi WHERE oi.live_session_id = ls.id), 0),
-		       COALESCE((SELECT COUNT(DISTINCT oi.order_id) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-		                 WHERE oi.live_session_id = ls.id AND o.status NOT IN ('cancelled','return')), 0),
-		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-		                 WHERE oi.live_session_id = ls.id AND o.status NOT IN ('cancelled','return')), 0)
+		       COALESCE((SELECT SUM(oi.qty)` + sessionSales + `), 0),
+		       COALESCE((SELECT COUNT(DISTINCT oi.order_id)` + sessionSales + `), 0),
+		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order)` + sessionSales + `), 0)
 		FROM live_sessions ls
 		JOIN hosts h ON h.id = ls.host_id
 		WHERE ls.live_data_recorded_at IS NOT NULL` + locWhere
@@ -434,8 +442,8 @@ type periodSummaryResponse struct {
 
 // PeriodSummary feeds the Performance Summary table: the selected Period's Total row and an AVG
 // row = additive metrics / Active Operating Days for the selected channel (LIVE / Website / ALL).
-// Non-additive metrics (AWT, PCU, ACU) stay as in Total and the ratios are recomputed or left
-// empty exactly like the old "AVG / LIVE" row.
+// Non-additive metrics (AWT, PCU, ACU) stay as in Total and the ratios (AOV, RET%, GPM) are the
+// Total row's calculated-from-totals values.
 func (h *HostAnalyticsHandler) PeriodSummary(w http.ResponseWriter, r *http.Request) {
 	from, to, filtered := dateRange(r)
 	if !filtered {
@@ -459,7 +467,8 @@ func (h *HostAnalyticsHandler) PeriodSummary(w http.ResponseWriter, r *http.Requ
 // averageByDays builds the AVG row: sales metrics (ORD, QTY, GMV, returns) are divided by the
 // channel's Active Operating Days n, broadcast metrics (Views, UV, Follows ...) by the LIVE
 // operating days liveDays since they only exist on LIVE days. AWT / PCU / ACU are already an
-// average / a max and stay; AOV, RET% and GPM have no meaningful per-day value (left out).
+// average / a max and stay; AOV, RET% and GPM are ratios, so the AVG row shows the same
+// calculated-from-totals value as the Total row (averaging per day would skew them).
 func averageByDays(total aggregateRow, n, liveDays int) map[string]*float64 {
 	out := map[string]*float64{}
 	if liveDays > 0 {
@@ -497,6 +506,15 @@ func averageByDays(total aggregateRow, n, liveDays int) map[string]*float64 {
 		set("ret", float64(total.Ret)/d)
 		set("ret_amount", total.RetAmount/d)
 		set("ngr", (total.GMV-total.RetAmount)/d)
+	}
+	if total.AOV != nil {
+		out["aov"] = total.AOV
+	}
+	if total.RetPct != nil {
+		out["ret_pct"] = total.RetPct
+	}
+	if total.GPM != nil {
+		out["gpm"] = total.GPM
 	}
 	return out
 }

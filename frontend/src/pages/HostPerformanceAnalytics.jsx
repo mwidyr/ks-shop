@@ -23,7 +23,7 @@ function fmtAwt(seconds) {
 function fmtDec(n) { return n == null ? '—' : Number(n).toFixed(1) }
 // AVG row of the Performance Summary: counts show one decimal, money whole units.
 const fmtAvgCount = (n) => (n == null ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))
-const avgFmt = { gmv: fmtMoney, ret_amount: fmtMoney, ngr: fmtMoney, awt_seconds: fmtAwt, pcu: fmtNum, acu: fmtDec }
+const avgFmt = { gmv: fmtMoney, ret_amount: fmtMoney, ngr: fmtMoney, awt_seconds: fmtAwt, pcu: fmtNum, acu: fmtDec, aov: fmtMoney, ret_pct: fmtPct, gpm: fmtDec }
 
 const metricColumns = [
   { key: 'views', label: 'Views', fmt: fmtNum },

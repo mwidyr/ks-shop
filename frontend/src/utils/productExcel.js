@@ -4,6 +4,8 @@
 //   C 品號      full SKU of the variant (PRODUCT-COLOR-SIZE)
 //   G 單位規格  always 1件
 // One row per color / size combination (= per variant).
+import { exportSku } from './exportSku'
+
 export const WMS_SHEET_NAME = '物料匯入'
 
 export const WMS_HEADERS = [
@@ -21,7 +23,7 @@ export function wmsRows(products) {
     return (p.variants || []).map((v) => {
       const row = Array(WMS_HEADERS.length).fill('')
       row[0] = name
-      row[2] = v.sku || ''
+      row[2] = exportSku(v.sku)
       row[6] = WMS_UNIT_SPEC
       return row
     })

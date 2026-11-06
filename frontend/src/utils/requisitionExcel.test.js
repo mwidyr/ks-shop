@@ -20,7 +20,7 @@ describe('WMS stock-in export', () => {
 
   it('one row per SKU: date blank, full SKU in D, Planned QTY in E (summed across suppliers), 件 in the 單位 column, everything else empty', () => {
     const data = stockInSheetData(detail)
-    expect(data.map((r) => r[3])).toEqual(['品號*', 'P021-WHITE-2XL', 'P021-BLACK-M', 'C010-WHITE-FREESIZE'])
+    expect(data.map((r) => r[3])).toEqual(['品號*', 'P021WHITE2XL', 'P021BLACKM', 'C010WHITEFREESIZE'])
     expect(data.slice(1).map((r) => r[4])).toEqual([7, 3, 10])
     for (const row of data.slice(1)) {
       expect(row).toHaveLength(14)

@@ -111,6 +111,10 @@ WITH ins AS (
   FROM imp i JOIN hosts h ON lower(h.name) = lower(i.host)
   WHERE NOT EXISTS (SELECT 1 FROM live_sessions s WHERE s.host_id = h.id
                     AND s.label = 'LIVE ' || h.name || ' - ' || to_char(i.ts, 'FMDD Mon YYYY HH24:MI') || ' (sheet import)')
+    -- also skip a row the app's own upload already saved (same host + same numbers on the same Jakarta day)
+    AND NOT EXISTS (SELECT 1 FROM live_sessions s WHERE s.host_id = h.id AND s.live_data_recorded_at IS NOT NULL
+                    AND s.views = i.views AND s.uv = i.uv AND s.chats = i.chats AND s.likes = i.likes
+                    AND (s.ended_at AT TIME ZONE {q(a.tz)})::date = i.ts::date)
   RETURNING 1)
 SELECT 'imported: ' || count(*) FROM ins;
 COMMIT;

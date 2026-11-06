@@ -21,9 +21,9 @@ describe('WMS product export', () => {
     expect(data).toHaveLength(1 + 3)
     expect(data[1]).toHaveLength(33)
     expect(data[1][0]).toBe('西裝短褲')
-    expect(data[1][2]).toBe('P021-KHAKI-XL')
+    expect(data[1][2]).toBe('P021KHAKIXL')
     expect(data[1][6]).toBe('1件')
-    expect(data[2][2]).toBe('P021-BLACK-M')
+    expect(data[2][2]).toBe('P021BLACKM')
     expect(data[1].filter((v, i) => v !== '' && ![0, 2, 6].includes(i))).toEqual([])
   })
 

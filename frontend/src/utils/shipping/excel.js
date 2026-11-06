@@ -5,6 +5,8 @@
 // order number always goes in the remark/product column (7-11 商品備註, FamilyMart 商品, HCT 訂單號),
 // because that is what the imported results are matched on.
 
+import { exportSku } from '../exportSku'
+
 // 7-ELEVEN is different: its template is a macro-enabled .xlsm that must stay intact (see xlsm711.js), so
 // it is filled at zip level instead of through exceljs, and the file it produces is an .xlsm too.
 const CVS_711_TEMPLATE_URL = '/cvs-templates/711.xlsm'
@@ -148,7 +150,7 @@ export function buildThreePLRows(rows) {
       row[5] = normalizePhone(r.customer_phone)
       row[6] = THREEPL_LOGISTICS[r.chain_type] || ''
       row[8] = r.total_to_pay
-      row[11] = l.sku
+      row[11] = exportSku(l.sku)
       row[12] = l.name
       row[13] = l.qty
       row[16] = r.internal_notes_combined || ''
