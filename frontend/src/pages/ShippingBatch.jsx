@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { confirmAllNotCreated, confirmNotCreated, removeFromBatch, getBatch, getExportRows, recordExport } from '../api/shippingWorkbench'
 import { buildThreePLExcel, buildPosExcel, buildPlatformExcel, downloadBlob, exportFilename, platformFileExt } from '../utils/shipping/excel'
 import ImportBox from '../components/shipping/ImportBox'
+import BulkCompleteSection from '../components/shipping/BulkCompleteSection'
 import StatusPill from '../components/StatusPill'
 import {
   BatchStatusPill, Notice, PROVIDERS, ProgressChips, SectionCard, StagePill, Stat,
@@ -17,7 +18,7 @@ const RESULT_KINDS = ['711_validation', '711_export', 'fm_result', 'hct_result']
 const INSTRUCTION_STEPS = { cvs_711: 6, cvs_familymart: 5, courier: 5 }
 const INSTRUCTION_PREFIX = { cvs_711: 'instr_711', cvs_familymart: 'instr_fm', courier: 'instr_hct' }
 // which import kinds belong to the "Unmatched or conflicting records" list of each section
-const ISSUE_KINDS = { results: RESULT_KINDS, delivery: ['delivery'] }
+const ISSUE_KINDS = { results: RESULT_KINDS }
 
 // Unmatched / conflicting import rows. Repeated and overlapping imports pile these up, and they are
 // rarely needed, so the list is collapsed until someone opens it.
@@ -290,20 +291,17 @@ export default function ShippingBatch() {
         )} />
       </SectionCard>
 
-      {/* 05 Delivery completion */}
-      <SectionCard id="s6" step="05" title={t('page_shipping_wb.s6_title')} hint={t('page_shipping_wb.s6_hint')}>
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Stat label={t('page_shipping_wb.total_completed')} value={c.completed} tone="good" />
-          <Stat label={t('page_shipping_wb.awaiting_completion')} value={c.shipped} />
-        </div>
-        <ImportBox title={t('page_shipping_wb.upload_delivery')} hint={t('page_shipping_wb.s6_upload_hint')} kinds={['delivery']} provider={provider} batchId={batch.id} onDone={load} />
-        <History items={imports.filter((i) => i.kind === 'delivery')} render={(i) => <li key={i.id}>{formatDateTime(i.created_at)} · {i.file_name} · {i.user}</li>} />
-        <IssueList issues={issues} kinds={ISSUE_KINDS.delivery} />
-      </SectionCard>
+      {/* 05 Completing orders: POS / 郵寄 batches are completed by hand (7-ELEVEN / FamilyMart are completed
+          from the status reports imported on the Shipping Workbench homepage) */}
+      {direct3PL && (
+        <SectionCard id="s6" step="02" title={t('page_shipping_wb.bulk_title')} hint={t('page_shipping_wb.bulk_hint')}>
+          <BulkCompleteSection orders={orders} batchId={batch.id} onDone={load} />
+        </SectionCard>
+      )}
 
       {/* 06 Failed orders & retry - visually separated at the very bottom */}
       <div hidden={direct3PL} className="pt-6 border-t-2 border-dashed border-gray-300">
-        <SectionCard id="s7" step="06" title={t('page_shipping_wb.s7_title')} hint={t('page_shipping_wb.s7_hint')} tone="danger">
+        <SectionCard id="s7" step="05" title={t('page_shipping_wb.s7_title')} hint={t('page_shipping_wb.s7_hint')} tone="danger">
           <div className="flex flex-wrap gap-2 mb-3">
             <Stat label={t('page_shipping_wb.unresolved_orders')} value={unresolvedFailed.length} tone={unresolvedFailed.length ? 'bad' : 'good'} />
             <Stat label={t('page_shipping_wb.failed')} value={failedOrders.length} />

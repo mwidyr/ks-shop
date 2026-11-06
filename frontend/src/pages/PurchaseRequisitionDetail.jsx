@@ -262,7 +262,9 @@ function SupplierGroupCard({ group, requisitionStatus, onChanged, onLive, onLive
       const key = (it.vendor_sku || '') + '\u0000' + it.product_sku
       let g = byKey.get(key)
       if (!g) {
-        g = { name: it.product_name, lines: [] }
+        // Supplier Item No. (Product Management > 供應商貨號 = vendor_sku) goes in front of the name, one space; blank = name only
+        const vendorNo = (it.vendor_sku || '').trim()
+        g = { name: vendorNo ? `${vendorNo} ${it.product_name}` : it.product_name, lines: [] }
         byKey.set(key, g)
         groups.push(g)
       }

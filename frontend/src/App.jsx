@@ -82,6 +82,14 @@ const HostManagement = lazy(() => import('./pages/HostManagement'))
 const Affiliates = lazy(() => import('./pages/Affiliates'))
 const ShippingSettings = lazy(() => import('./pages/ShippingSettings'))
 const TelegramSettings = lazy(() => import('./pages/TelegramSettings'))
+const TikTokAccounts = lazy(() => import('./pages/TikTokAccounts'))
+const TikTokAccountDetail = lazy(() => import('./pages/TikTokAccountDetail'))
+const CekViews = lazy(() => import('./pages/CekViews'))
+const CekViewsSettings = lazy(() => import('./pages/CekViewsSettings'))
+const EmployeeList = lazy(() => import('./pages/EmployeeList'))
+const ShiftSchedule = lazy(() => import('./pages/ShiftSchedule'))
+const Payroll = lazy(() => import('./pages/Payroll'))
+const BonusRanking = lazy(() => import('./pages/BonusRanking'))
 const OpeningInventory = lazy(() => import('./pages/OpeningInventory'))
 
 // `lock`: the page is an editor, so a view-only role gets it with every field and button disabled
@@ -230,6 +238,16 @@ export default function App() {
         <Route path="/system/audit-logs" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
         <Route path="/settings/telegram" element={<ProtectedRoute><TelegramSettings /></ProtectedRoute>} />
         <Route path="/opening-inventory" element={<ProtectedRoute><OpeningInventory /></ProtectedRoute>} />
+
+        <Route path="/tiktok/accounts" element={<ProtectedRoute lock><TikTokAccounts /></ProtectedRoute>} />
+        <Route path="/tiktok/accounts/:id" element={<ProtectedRoute lock><TikTokAccountDetail /></ProtectedRoute>} />
+        <Route path="/tiktok/cek-views" element={<ProtectedRoute lock><CekViews /></ProtectedRoute>} />
+        <Route path="/tiktok/cek-views/settings" element={<ProtectedRoute lock><CekViewsSettings /></ProtectedRoute>} />
+
+        <Route path="/employee/list" element={<ProtectedRoute lock><EmployeeList /></ProtectedRoute>} />
+        <Route path="/employee/shift-schedule" element={<ProtectedRoute lock><ShiftSchedule /></ProtectedRoute>} />
+        <Route path="/employee/payroll" element={<ProtectedRoute lock><Payroll /></ProtectedRoute>} />
+        <Route path="/employee/bonus-ranking" element={<ProtectedRoute lock><BonusRanking /></ProtectedRoute>} />
 
         <Route path="/hosts" element={<ProtectedRoute lock><HostManagement /></ProtectedRoute>} />
         <Route path="/affiliates" element={<ProtectedRoute lock><Affiliates /></ProtectedRoute>} />

@@ -72,6 +72,12 @@ func main() {
 	orderH.OnOrderCreated = telegramNotifier.Kick
 	go telegramNotifier.Run(context.Background(), time.Minute)
 	telegramH := &handlers.TelegramHandler{DB: pool, Store: telegramStore}
+	// CEK VIEWS: the voice reminder checks its schedule every 20 seconds (Asia/Jakarta)
+	voiceReminder := &telegram.VoiceReminder{DB: pool, Store: telegramStore}
+	go voiceReminder.Run(context.Background(), 20*time.Second)
+	cekViewsH := &handlers.CekViewsHandler{DB: pool, Store: telegramStore, Voice: voiceReminder}
+	tiktokH := &handlers.TikTokHandler{DB: pool}
+	employeeH := &handlers.EmployeeHandler{DB: pool}
 	orderMergeH := &handlers.OrderMergeHandler{DB: pool}
 	promotionH := &handlers.PromotionHandler{DB: pool}
 	shippingExportH := &handlers.ShippingExportHandler{DB: pool}
@@ -377,6 +383,7 @@ func main() {
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/orders/{orderId}/confirm-failed", shippingWBH.ConfirmFailed)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/orders/{orderId}/remove", shippingWBH.RemoveFromBatch)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/confirm-all-failed", shippingWBH.ConfirmAllNotCreated)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches/{id}/bulk-complete", shippingWBH.BulkCompleteOrders)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/imports", shippingWBH.Import)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/issues/{id}/resolve", shippingWBH.ResolveIssue)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/search", shippingWBH.Search)
@@ -405,6 +412,51 @@ func main() {
 
 			// Location Tags (item 021) - managed from within the Host Management page,
 			// so reuse the same "hosts" tab permission rather than a new tab.
+			// TikTok Account Management + CEK VIEWS
+			r.With(view("tiktok_accounts")).Get("/tiktok/structure", tiktokH.Structure)
+			r.With(view("tiktok_accounts")).Get("/tiktok/accounts", tiktokH.List)
+			r.With(view("tiktok_accounts")).Get("/tiktok/accounts/{id}", tiktokH.Detail)
+			r.With(edit("tiktok_accounts")).Post("/tiktok/accounts", tiktokH.Create)
+			r.With(edit("tiktok_accounts")).Put("/tiktok/accounts/{id}", tiktokH.Update)
+			r.With(edit("tiktok_accounts")).Post("/tiktok/accounts/{id}/notes", tiktokH.AddNote)
+			r.With(edit("tiktok_accounts")).Post("/tiktok/devices", tiktokH.CreateDevice)
+			r.With(edit("tiktok_accounts")).Put("/tiktok/devices/{id}", tiktokH.UpdateDevice)
+			r.With(view("cek_views")).Get("/cek-views/portal/overview", cekViewsH.PortalOverview)
+			r.With(view("cek_views")).Get("/cek-views/portal/hosts", cekViewsH.PortalHosts)
+			r.With(edit("cek_views")).Post("/cek-views/submit", cekViewsH.Submit)
+			r.With(view("cek_views_settings")).Get("/cek-views/assignments", cekViewsH.Assignments)
+			r.With(edit("cek_views_settings")).Put("/cek-views/assignments", cekViewsH.SaveAssignments)
+			r.With(view("cek_views_settings")).Get("/cek-views/voice", cekViewsH.GetVoice)
+			r.With(edit("cek_views_settings")).Put("/cek-views/voice", cekViewsH.SaveVoice)
+			r.With(edit("cek_views_settings")).Post("/cek-views/voice/file", cekViewsH.UploadVoice)
+			r.With(view("cek_views_settings")).Get("/cek-views/voice/file", cekViewsH.VoiceFile)
+			r.With(edit("cek_views_settings")).Post("/cek-views/voice/test", cekViewsH.TestVoice)
+
+			// EMPLOYEE: Employee List, Shift Schedule, Payroll, Bonus Ranking
+			r.With(view("employee_list")).Get("/employee/meta", employeeH.Meta)
+			r.With(view("employee_list")).Get("/employee/employees", employeeH.List)
+			r.With(view("employee_list")).Get("/employee/employees/export", employeeH.Export)
+			r.With(view("employee_list")).Get("/employee/employees/{id}", employeeH.Detail)
+			r.With(edit("employee_list")).Post("/employee/employees", employeeH.Create)
+			r.With(edit("employee_list")).Post("/employee/employees/import", employeeH.Import)
+			r.With(edit("employee_list")).Put("/employee/employees/{id}", employeeH.Update)
+			r.With(edit("employee_list")).Post("/employee/positions", employeeH.CreatePosition)
+			r.With(view("shift_schedule")).Get("/employee/schedule", employeeH.Schedule)
+			r.With(view("shift_schedule")).Get("/employee/schedule-settings", employeeH.ScheduleSettings)
+			r.With(edit("shift_schedule")).Put("/employee/schedule", employeeH.SaveSchedule)
+			r.With(edit("shift_schedule")).Post("/employee/locations", employeeH.CreateLocation)
+			r.With(edit("shift_schedule")).Put("/employee/locations/{id}", employeeH.UpdateLocation)
+			r.With(edit("shift_schedule")).Post("/employee/attendance-statuses", employeeH.CreateStatus)
+			r.With(edit("shift_schedule")).Put("/employee/attendance-statuses/{id}", employeeH.UpdateStatus)
+			r.With(view("payroll")).Get("/payroll", employeeH.Payroll)
+			r.With(view("payroll")).Get("/payroll/settings", employeeH.PayrollSettings)
+			r.With(edit("payroll")).Put("/payroll/extra", employeeH.SaveExtra)
+			r.With(edit("payroll")).Put("/payroll/paid", employeeH.SetPaid)
+			r.With(edit("payroll")).Put("/payroll/transfer-fee", employeeH.SaveTransferFee)
+			r.With(edit("payroll")).Put("/payroll/settings/salary", employeeH.SaveSalary)
+			r.With(edit("payroll")).Put("/payroll/settings/bonus", employeeH.SaveBonusSettings)
+			r.With(view("bonus_ranking")).Get("/bonus-ranking", employeeH.BonusRanking)
+
 			r.With(view("hosts")).Get("/host-locations", hostLocationH.List)
 			r.With(edit("hosts")).Post("/host-locations", hostLocationH.Create)
 			r.With(edit("hosts")).Patch("/host-locations/{id}", hostLocationH.Update)

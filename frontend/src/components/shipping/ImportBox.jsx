@@ -27,7 +27,7 @@ export default function ImportBox({ title, hint, kinds, provider, batchId, onDon
       if (!kinds.includes(parsed.kind)) throw new Error(`wrong_file:${parsed.kind}`)
       const body = {
         kind: parsed.kind,
-        provider: provider || PROVIDER_OF_KIND[parsed.kind] || '',
+        provider: provider || parsed.provider || PROVIDER_OF_KIND[parsed.kind] || '',
         batch_id: batchId || null,
         file_name: parsed.fileName,
         file_hash: parsed.fileHash,
@@ -40,6 +40,7 @@ export default function ImportBox({ title, hint, kinds, provider, batchId, onDon
       if (err instanceof AdapterNotConfigured) setError(t('page_shipping_wb.format_pending'))
       else if (err.message === 'unrecognised_file') setError(t('page_shipping_wb.err_unrecognised'))
       else if (err.message === 'empty_file') setError(t('page_shipping_wb.err_empty'))
+      else if (err.message === 'no_completed_rows') setError(t('page_shipping_wb.err_no_completed'))
       else if (err.message?.startsWith('wrong_file:')) setError(t('page_shipping_wb.err_wrong_file', { kind: t(`page_shipping_wb.kind_${err.message.split(':')[1]}`) }))
       else setError(err.response?.data?.error || t('page_shipping_wb.err_import_failed'))
     } finally {

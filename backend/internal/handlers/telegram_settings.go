@@ -80,6 +80,10 @@ func (h *TelegramHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Config.GlobalChatID = strings.TrimSpace(req.Config.GlobalChatID)
+	req.Config.CekViewsChatID = strings.TrimSpace(req.Config.CekViewsChatID)
+	if req.Config.CekViewsThreadID < 0 {
+		req.Config.CekViewsThreadID = 0
+	}
 	if err := h.Store.SaveToken(ctx, token); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save bot token")
 		return

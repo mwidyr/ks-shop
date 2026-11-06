@@ -30,6 +30,7 @@ var tabKeys = []string{
 	"performance_dashboard", "host_performance_analytics", "heatmap", "performance_comparison", "profit",
 	"transactions", "payouts", "fees", "reports",
 	"store_profile", "shipping_settings", "hosts", "affiliates", "store_design", "team",
+	"tiktok_accounts", "cek_views", "cek_views_settings", "employee_list", "shift_schedule", "payroll", "bonus_ranking",
 	"website_home", "website_categories", "website_hosts", "website_live", "website_content", "theme", "members",
 	"notifications", "integrations", "roles", "audit_logs",
 	"settings",

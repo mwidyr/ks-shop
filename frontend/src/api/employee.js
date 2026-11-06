@@ -1,0 +1,27 @@
+import client from './client'
+
+export const getEmployeeMeta = () => client.get('/employee/meta').then((r) => r.data)
+export const listEmployees = (params) => client.get('/employee/employees', { params }).then((r) => r.data)
+export const getEmployee = (id) => client.get(`/employee/employees/${id}`).then((r) => r.data)
+export const createEmployee = (body) => client.post('/employee/employees', body).then((r) => r.data)
+export const updateEmployee = (id, body) => client.put(`/employee/employees/${id}`, body).then((r) => r.data)
+export const createPosition = (name) => client.post('/employee/positions', { name }).then((r) => r.data)
+export const exportEmployees = () => client.get('/employee/employees/export').then((r) => r.data)
+export const importEmployees = (rows) => client.post('/employee/employees/import', { rows }).then((r) => r.data)
+
+export const getSchedule = (params) => client.get('/employee/schedule', { params }).then((r) => r.data)
+export const saveSchedule = (changes) => client.put('/employee/schedule', { changes }).then((r) => r.data)
+export const getScheduleSettings = () => client.get('/employee/schedule-settings').then((r) => r.data)
+export const createEmployeeLocation = (body) => client.post('/employee/locations', body).then((r) => r.data)
+export const updateEmployeeLocation = (id, body) => client.put(`/employee/locations/${id}`, body).then((r) => r.data)
+export const createAttendanceStatus = (body) => client.post('/employee/attendance-statuses', body).then((r) => r.data)
+export const updateAttendanceStatus = (id, body) => client.put(`/employee/attendance-statuses/${id}`, body).then((r) => r.data)
+
+export const getPayroll = (params) => client.get('/payroll', { params }).then((r) => r.data)
+export const getPayrollSettings = () => client.get('/payroll/settings').then((r) => r.data)
+export const savePayrollExtra = (body) => client.put('/payroll/extra', body).then((r) => r.data)
+export const setPayrollPaid = (body) => client.put('/payroll/paid', body).then((r) => r.data)
+export const savePayrollTransferFee = (body) => client.put('/payroll/transfer-fee', body).then((r) => r.data)
+export const saveBaseSalary = (body) => client.put('/payroll/settings/salary', body).then((r) => r.data)
+export const saveBonusSettings = (body) => client.put('/payroll/settings/bonus', body).then((r) => r.data)
+export const getBonusRanking = (params) => client.get('/bonus-ranking', { params }).then((r) => r.data)

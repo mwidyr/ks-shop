@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import * as XLSX from 'xlsx'
-import { parse711Validation, parse711Export, parseFamilyMart, detectKind } from './parsers'
+import { parse711Validation, parse711Export, parseFamilyMart, detectKind, detectDelivery, parseDelivery } from './parsers'
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '__fixtures__')
 function load(name) {
@@ -59,5 +59,34 @@ describe('FamilyMart result export', () => {
     const recs = parseFamilyMart(p2)
     expect(recs).toHaveLength(6)
     expect(recs[0]).toMatchObject({ order_no: 'ORD-1793701074-2765', platform_order_no: 'L26B0402C0', shipping_no: '16353754424' })
+  })
+})
+
+describe('completion (delivery) reports', () => {
+  const book = (name, rows) => {
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name)
+    return { XLSX, wb }
+  }
+
+  it('7-ELEVEN: only 「已取件」 rows become completed, matched on 商品備註', () => {
+    const parsed = book('訂單匯入', [
+      ['訂購日期：2026/09/05~2026/11/05'], [],
+      ['訂單編號', '狀態', '已取件日期時間', '配送單編號', '商品備註'],
+      ['CM1', '已取件\n(11/05 19:11)', '(11/05 19:11)', 'H1', 'ORD-1'],
+      ['CM2', '配送中', '', 'H2', 'ORD-2'],
+    ])
+    expect(detectDelivery(parsed)).toBe('cvs_711')
+    expect(parseDelivery(parsed, 'cvs_711')).toEqual([{ row: 4, order_no: 'ORD-1', status: 'completed' }])
+  })
+
+  it('FamilyMart: only 「已付款」 rows become completed, matched on 商品名稱', () => {
+    const parsed = book('Sheet1', [
+      ['訂單編號', '商品名稱', '付款狀態', '寄件編號'],
+      ['L1', 'ORD-1', '已付款', '1635'],
+      ['L2', 'ORD-2', '未付款', '1636'],
+    ])
+    expect(detectDelivery(parsed)).toBe('cvs_familymart')
+    expect(parseDelivery(parsed, 'cvs_familymart')).toEqual([{ row: 2, order_no: 'ORD-1', status: 'completed' }])
   })
 })

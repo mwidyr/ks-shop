@@ -82,6 +82,21 @@ export const navGroups = [
     ],
   },
   {
+    title: 'tiktok', icon: IconBroadcast, items: [
+      { to: '/tiktok/accounts', key: 'tiktok_accounts', icon: IconUser },
+      { to: '/tiktok/cek-views', key: 'cek_views', icon: IconTrendUp },
+      { to: '/tiktok/cek-views/settings', key: 'cek_views_settings', icon: IconSliders },
+    ],
+  },
+  {
+    title: 'employee', icon: IconUsers, items: [
+      { to: '/employee/list', key: 'employee_list', icon: IconUser },
+      { to: '/employee/shift-schedule', key: 'shift_schedule', icon: IconChecklist },
+      { to: '/employee/payroll', key: 'payroll', icon: IconWallet },
+      { to: '/employee/bonus-ranking', key: 'bonus_ranking', icon: IconStar },
+    ],
+  },
+  {
     // Two-level group: Settings -> subcategory -> pages (per the client's nested-menu spec).
     title: 'settings', icon: IconGear, items: [
       { to: '/campaigns', key: 'campaigns', icon: IconSparkles, upcoming: true },
@@ -137,6 +152,7 @@ export const VISIBLE_TAB_KEYS = new Set([
   'reports', 'product_analytics', 'product_trend', 'product_performance', 'product_color_pair', 'host_category_leaderboard', 'performance_dashboard',
   'host_performance_analytics', 'heatmap', 'performance_comparison', 'hosts', 'affiliates', 'returns',
   'suppliers', 'purchases', 'purchase_requisitions', 'replenishment_planning', 'opening_inventory',
+  'tiktok_accounts', 'cek_views', 'cek_views_settings', 'employee_list', 'shift_schedule', 'payroll', 'bonus_ranking',
   'store_profile', 'shipping_settings', 'roles', 'audit_logs', 'telegram_settings', 'profit', 'promotions',
   'website_analytics', 'website_home', 'website_categories', 'website_hosts', 'website_live', 'website_content', 'theme', 'website_requests', 'members',
 ])

@@ -32,3 +32,5 @@ export const confirmAllNotCreated = (batchId) =>
   client.post(`/shipping-workbench/batches/${batchId}/confirm-all-failed`).then((r) => r.data)
 
 export const searchShipping = (q) => client.get(`/shipping-workbench/search${qs({ q })}`).then((r) => r.data)
+export const bulkCompleteOrders = (batchId, orderIds) =>
+  client.post(`/shipping-workbench/batches/${batchId}/bulk-complete`, { order_ids: orderIds }).then((r) => r.data)

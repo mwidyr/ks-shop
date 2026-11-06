@@ -65,10 +65,11 @@ func (h *PurchaseRequisitionHandler) List(w http.ResponseWriter, r *http.Request
 		SELECT pr.id, pr.requisition_no, pr.status, pr.created_at::text, pr.completed_at::text,
 		       COALESCE((SELECT COUNT(*) FROM purchase_requisition_suppliers prs WHERE prs.requisition_id = pr.id), 0),
 		       COALESCE((
-		           SELECT SUM(pri.planned_qty * COALESCE(pri.unit_cost, pv.cost_price, 0))
+		           SELECT SUM(pri.planned_qty * COALESCE(pri.unit_cost, NULLIF(p.cost_rmb, 0), 0))
 		           FROM purchase_requisition_suppliers prs
 		           JOIN purchase_requisition_items pri ON pri.requisition_supplier_id = prs.id
 		           JOIN product_variants pv ON pv.id = pri.variant_id
+		           JOIN products p ON p.id = pv.product_id
 		           WHERE prs.requisition_id = pr.id
 		       ), 0) + COALESCE((
 		           SELECT SUM(prs.shipping_amount + prs.extra_amount - prs.discount_amount)
@@ -371,10 +372,11 @@ func resolveRequisitionSupplier(ctx context.Context, db *pgxpool.Pool, variantID
 
 // requisitionDefaultCostSQL is a line's default RMB unit cost (#134): the chosen supplier's
 // reference price for the variant, else the product's default cost from Product Management.
+// A reference price entered in TWD is never used here (the requisition is in CNY only).
 // $1 = variant id, $2 = supplier id.
 const requisitionDefaultCostSQL = `
 	SELECT COALESCE(
-	    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = $2),
+	    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = $2 AND vs.currency = 'RMB'),
 	    NULLIF(p.cost_rmb, 0), 0)
 	FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $1`
 
@@ -630,7 +632,7 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 		// Default any still-unset Confirmed QTY/Unit Cost before locking the group in.
 		h.DB.Exec(ctx, `
 			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(
-			    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = prs.supplier_id),
+			    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = prs.supplier_id AND vs.currency = 'RMB'),
 			    NULLIF(p.cost_rmb, 0), 0)
 			FROM purchase_requisition_suppliers prs, product_variants pv JOIN products p ON p.id = pv.product_id
 			WHERE prs.id = pri.requisition_supplier_id AND pri.variant_id = pv.id

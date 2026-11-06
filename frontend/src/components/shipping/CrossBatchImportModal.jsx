@@ -24,6 +24,7 @@ export default function CrossBatchImportModal({ onClose, onDone }) {
           title={t('page_shipping_wb.cross_delivery_title')}
           hint={t('page_shipping_wb.cross_delivery_hint')}
           kinds={['delivery']}
+          onDone={onDone}
         />
       </div>
     </div>

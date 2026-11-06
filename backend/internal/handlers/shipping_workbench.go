@@ -211,6 +211,7 @@ type batchOrderView struct {
 	// import the first order without a result is the likely culprit.
 	LikelyFailing bool    `json:"likely_failing"`
 	StatusSince   string  `json:"status_since"`
+	ShippedAt     *string `json:"shipped_at"` // when the shipment was confirmed (last move to Shipped), nil if never shipped
 	PackingAt     *string `json:"packing_exported_at"`
 	StickerAt     *string `json:"sticker_exported_at"`
 	ExportedAt    *string `json:"exported_at"`
@@ -267,6 +268,7 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		       COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''), COALESCE(sbo.create_result,''), COALESCE(sbo.last_error,''),
 		       COALESCE((SELECT MAX(l.created_at) FROM order_status_log l WHERE l.order_id = o.id AND l.status_to = o.status), o.created_at),
 		       o.exported_at,
+		       (SELECT MAX(l.created_at) FROM order_status_log l WHERE l.order_id = o.id AND l.status_to = 'shipped'),
 		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_packing'),
 		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_sticker'),
 		       (SELECT gm.group_id FROM order_shipment_group_members gm WHERE gm.order_id = o.id)
@@ -284,10 +286,10 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 	for orows.Next() {
 		var v batchOrderView
 		var since time.Time
-		var exp, pack, stick *time.Time
+		var exp, shipped, pack, stick *time.Time
 		var groupID *int
 		if err := orows.Scan(&v.OrderID, &v.OrderNo, &v.Seq, &v.Status, &v.CustomerName, &v.StoreName, &v.StoreCode,
-			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &pack, &stick, &groupID); err != nil {
+			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &shipped, &pack, &stick, &groupID); err != nil {
 			orows.Close()
 			respondError(w, http.StatusInternalServerError, "failed to read batch orders")
 			return
@@ -304,6 +306,7 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		}
 		v.StatusSince = since.Format(time.RFC3339)
 		v.ExportedAt, v.PackingAt, v.StickerAt = fmtTimePtr(exp), fmtTimePtr(pack), fmtTimePtr(stick)
+		v.ShippedAt = fmtTimePtr(shipped)
 		switch {
 		case v.CreateResult == "created":
 			v.Verification = "created"
@@ -836,4 +839,75 @@ func (h *ShippingWorkbenchHandler) RemoveFromBatch(w http.ResponseWriter, r *htt
 	invalidateShippingCache()
 	invalidateOrderCaches()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// BulkCompleteOrders handles POST /shipping-workbench/batches/{id}/bulk-complete: staff-selected orders of a
+// POS / 郵寄 batch are marked Completed (status delivered). Nothing is completed automatically by elapsed
+// days. The latest status from Order Management is re-read under a row lock, so only orders that are still
+// Shipped move; cancelled, returned or already completed orders are left alone and counted as skipped.
+func (h *ShippingWorkbenchHandler) BulkCompleteOrders(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	var req struct {
+		OrderIDs []int `json:"order_ids"`
+	}
+	if err != nil || decodeJSON(r, &req) != nil || len(req.OrderIDs) == 0 {
+		respondError(w, http.StatusBadRequest, "order_ids are required")
+		return
+	}
+	claims := appmw.GetClaims(r)
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var provider string
+	if err := tx.QueryRow(ctx, `SELECT provider FROM shipping_batches WHERE id=$1`, id).Scan(&provider); err != nil {
+		respondError(w, http.StatusNotFound, "batch not found")
+		return
+	}
+	if provider != "courier" {
+		respondError(w, http.StatusBadRequest, "bulk completion is only available for POS / 郵寄 batches")
+		return
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT o.id, o.status FROM shipping_batch_orders sbo JOIN orders o ON o.id = sbo.order_id
+		WHERE sbo.batch_id = $1 AND o.id = ANY($2) ORDER BY o.id FOR UPDATE OF o`, id, req.OrderIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to load orders")
+		return
+	}
+	status := map[int]string{}
+	var ids []int
+	for rows.Next() {
+		var oid int
+		var st string
+		if err := rows.Scan(&oid, &st); err != nil {
+			rows.Close()
+			respondError(w, http.StatusInternalServerError, "failed to read orders")
+			return
+		}
+		status[oid] = st
+		ids = append(ids, oid)
+	}
+	rows.Close()
+	completed := 0
+	for _, oid := range ids {
+		if status[oid] != "shipped" {
+			continue
+		}
+		if err := applyStatusChange(ctx, tx, oid, "shipped", "delivered", &claims.UserID, "manual: bulk completed from POS batch"); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to complete order")
+			return
+		}
+		completed++
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	invalidateShippingCache()
+	invalidateOrderCaches()
+	respondJSON(w, http.StatusOK, map[string]int{"completed": completed, "skipped": len(req.OrderIDs) - completed})
 }

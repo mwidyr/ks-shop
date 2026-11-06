@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
@@ -100,6 +101,73 @@ func SendRepeated(ctx context.Context, token, chatID, text string, n int) error 
 		if err := Send(ctx, token, chatID, text); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// SendHTML posts one HTML-formatted message (links, bold) to a chat, inside the forum topic threadID
+// when it is above 0 (a group with Topics enabled).
+func SendHTML(ctx context.Context, token, chatID string, threadID int, html string) error {
+	if strings.TrimSpace(chatID) == "" {
+		return errors.New("no chat id")
+	}
+	payload := map[string]interface{}{
+		"chat_id": strings.TrimSpace(chatID), "text": html, "parse_mode": "HTML", "disable_web_page_preview": true,
+	}
+	if threadID > 0 {
+		payload["message_thread_id"] = threadID
+	}
+	_, err := call(ctx, token, "sendMessage", payload)
+	return err
+}
+
+// SendVoice uploads an OGG/Opus recording as a voice message, in the forum topic threadID when above 0.
+func SendVoice(ctx context.Context, token, chatID string, threadID int, filename string, data []byte) error {
+	if !strings.Contains(token, ":") {
+		return errors.New("invalid bot token")
+	}
+	if strings.TrimSpace(chatID) == "" {
+		return errors.New("no chat id")
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("chat_id", strings.TrimSpace(chatID))
+	if threadID > 0 {
+		_ = mw.WriteField("message_thread_id", fmt.Sprint(threadID))
+	}
+	if filename == "" {
+		filename = "voice.ogg"
+	}
+	part, err := mw.CreateFormFile("voice", filename)
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, APIBase+"/bot"+token+"/sendVoice", &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return errors.New("cannot reach Telegram")
+	}
+	defer resp.Body.Close()
+	var out apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return fmt.Errorf("unexpected Telegram response (HTTP %d)", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Description == "" {
+			out.Description = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return errors.New(out.Description)
 	}
 	return nil
 }

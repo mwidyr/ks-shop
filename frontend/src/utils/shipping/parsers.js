@@ -8,7 +8,8 @@
 //   platform_order_no   the platform's own order number (7-11 CM…, FamilyMart 訂單編號)
 //   shipping_no         the shipping number (7-11 配送單編號 G…, FamilyMart 寄件編號)
 //   result_text         7-ELEVEN 網頁匯入檢核結果說明, kept verbatim (Chinese)
-// The delivery-status format is NOT known yet: its parser refuses to guess. (The 3PL sends no files back.)
+// Delivery (completion) files - the platforms' pickup/payment reports - only carry our order number and a
+// status; see parseDelivery. (The 3PL sends no files back.)
 
 export class AdapterNotConfigured extends Error {
   constructor(kind) {
@@ -160,7 +161,44 @@ export function parseFamilyMart({ XLSX, wb }) {
   return records
 }
 
+// Completion reports. Only the orders the platform reports as picked up / paid become records (status
+// 'completed'); every other row is left out, so those orders stay as they are. Overlap between exports
+// is expected: the backend skips orders that are already Completed.
+//   7-ELEVEN  sheet 訂單匯入: 狀態 contains 「已取件」 (with a timestamp), our order number in 商品備註
+//   FamilyMart: 付款狀態 is 「已付款」, our order number in 商品名稱
+function locate711Delivery(XLSX, wb) {
+  return locate(XLSX, wb, ['商品備註', '狀態', '已取件日期時間'], [ORDER_SHEET])
+}
+function locateFamilyMartDelivery(XLSX, wb) {
+  return locate(XLSX, wb, ['商品名稱', '付款狀態', '寄件編號'])
+}
+
+export function detectDelivery({ XLSX, wb }) {
+  if (locate711Delivery(XLSX, wb)) return 'cvs_711'
+  if (locateFamilyMartDelivery(XLSX, wb)) return 'cvs_familymart'
+  return null
+}
+
+export function parseDelivery({ XLSX, wb }, provider) {
+  const is711 = provider === 'cvs_711'
+  const found = is711 ? locate711Delivery(XLSX, wb) : locateFamilyMartDelivery(XLSX, wb)
+  if (!found) return null
+  const orderCol = found.col[clean(is711 ? '商品備註' : '商品名稱')]
+  const statusCol = found.col[clean(is711 ? '狀態' : '付款狀態')]
+  const done = is711 ? '已取件' : '已付款'
+  const records = []
+  for (let i = found.headerIndex + 1; i < found.rows.length; i++) {
+    const r = found.rows[i]
+    const orderNo = text(r[orderCol])
+    if (!orderNo || !text(r[statusCol]).includes(done)) continue
+    records.push({ row: i + 1, order_no: orderNo, status: 'completed' })
+  }
+  return records
+}
+
 // Detects which of the known files a workbook is. Returns the import kind or null.
+// (A completion report has the same columns as the platform's normal export, so it is never auto-detected:
+// it is only read when the "completed orders" upload box asks for it - see readImportFile.)
 export function detectKind(parsed) {
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])) return '711_validation'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號', '配送單編號'], [ORDER_SHEET])) return '711_export'
@@ -177,7 +215,7 @@ export const PROVIDER_OF_KIND = {
 }
 
 // Kinds whose file format we do not know yet - the UI shows them as "waiting for the file format".
-export const PENDING_KINDS = ['hct_result', 'delivery']
+export const PENDING_KINDS = ['hct_result']
 
 export function parseKind(parsed, kind) {
   switch (kind) {
@@ -188,12 +226,19 @@ export function parseKind(parsed, kind) {
   }
 }
 
-// Reads a file for the expected kind. Returns { kind, records, fileHash, fileName } or throws:
+// Reads a file for the expected kind. Returns { kind, records, fileHash, fileName } (delivery files also { provider }) or throws:
 //   AdapterNotConfigured - the format of this kind is not defined yet;
 //   Error('unrecognised_file') / Error('wrong_file:<detected>') - the file is not the expected one.
 export async function readImportFile(file, expectedKind) {
   if (PENDING_KINDS.includes(expectedKind)) throw new AdapterNotConfigured(expectedKind)
   const parsed = await readWorkbook(file)
+  if (expectedKind === 'delivery') {
+    const provider = detectDelivery(parsed)
+    if (!provider) throw new Error('unrecognised_file')
+    const records = parseDelivery(parsed, provider)
+    if (!records || records.length === 0) throw new Error('no_completed_rows')
+    return { kind: 'delivery', provider, records, fileHash: await sha256Hex(file), fileName: file.name }
+  }
   const detected = detectKind(parsed)
   if (!detected) throw new Error('unrecognised_file')
   if (expectedKind && expectedKind !== 'auto' && detected !== expectedKind) throw new Error(`wrong_file:${detected}`)
