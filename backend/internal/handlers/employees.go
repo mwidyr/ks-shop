@@ -24,11 +24,6 @@ type EmployeeHandler struct {
 
 var employeeStatuses = map[string]bool{"full_time": true, "probationary": true, "resigned": true, "fired": true}
 
-var mbtiTypes = map[string]bool{
-	"INTJ": true, "INTP": true, "ENTJ": true, "ENTP": true, "INFJ": true, "INFP": true, "ENFJ": true, "ENFP": true,
-	"ISTJ": true, "ISFJ": true, "ESTJ": true, "ESFJ": true, "ISTP": true, "ISFP": true, "ESTP": true, "ESFP": true,
-}
-
 // canSeeSensitiveEmployee: NIK, address, bank and emergency-contact details are only for the Super Admin and Management.
 func canSeeSensitiveEmployee(role string) bool { return role == "super_user" || role == "management" }
 
@@ -95,11 +90,16 @@ func (h *EmployeeHandler) Meta(w http.ResponseWriter, r *http.Request) {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	positions, hosts := []idName{}, []idName{}
-	if rows, err := h.DB.Query(ctx, `SELECT id, name FROM employee_positions ORDER BY name`); err == nil {
+	type positionView struct {
+		ID    int    `json:"id"`
+		Name  string `json:"name"`
+		Count int    `json:"employee_count"`
+	}
+	positions, hosts := []positionView{}, []idName{}
+	if rows, err := h.DB.Query(ctx, `SELECT p.id, p.name, (SELECT count(*) FROM employees e WHERE e.position_id = p.id) FROM employee_positions p ORDER BY p.name`); err == nil {
 		for rows.Next() {
-			var p idName
-			if rows.Scan(&p.ID, &p.Name) == nil {
+			var p positionView
+			if rows.Scan(&p.ID, &p.Name, &p.Count) == nil {
 				positions = append(positions, p)
 			}
 		}
@@ -319,8 +319,8 @@ func (in *employeeInput) clean() error {
 		return errors.New("Position and Location are required")
 	case !employeeStatuses[in.Status]:
 		return errors.New("invalid status")
-	case in.MBTI != "" && !mbtiTypes[in.MBTI]:
-		return errors.New("invalid MBTI type")
+	case len([]rune(in.MBTI)) > 10:
+		return errors.New("MBTI must be at most 10 characters (e.g. ENTJ-A)")
 	}
 	if in.Birthday, err = optDate(in.Birthday); err != nil {
 		return err
@@ -539,4 +539,60 @@ func (h *EmployeeHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]int{"created": created, "updated": updated})
+}
+
+// RenamePosition renames a position everywhere it is used (employees reference it by id).
+func (h *EmployeeHandler) RenamePosition(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	var req struct {
+		Name string `json:"name"`
+	}
+	name := ""
+	if decodeJSON(r, &req) == nil {
+		name = strings.TrimSpace(req.Name)
+	}
+	if err != nil || name == "" {
+		respondError(w, http.StatusBadRequest, "position name is required")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `UPDATE employee_positions SET name=$1 WHERE id=$2`, name, id)
+	if isUniqueViolation(err) {
+		respondError(w, http.StatusConflict, "this position already exists")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to rename position")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "position not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DeletePosition removes a position that no employee has; a position still assigned to employees cannot be deleted.
+func (h *EmployeeHandler) DeletePosition(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid position id")
+		return
+	}
+	ctx := r.Context()
+	var used int
+	_ = h.DB.QueryRow(ctx, `SELECT count(*) FROM employees WHERE position_id=$1`, id).Scan(&used)
+	if used > 0 {
+		respondError(w, http.StatusConflict, "this position is assigned to "+strconv.Itoa(used)+" employee(s); reassign them first")
+		return
+	}
+	ct, err := h.DB.Exec(ctx, `DELETE FROM employee_positions WHERE id=$1`, id)
+	if err != nil {
+		respondError(w, http.StatusConflict, "this position is still in use")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "position not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -370,14 +370,12 @@ func resolveRequisitionSupplier(ctx context.Context, db *pgxpool.Pool, variantID
 	return 0, false
 }
 
-// requisitionDefaultCostSQL is a line's default RMB unit cost (#134): the chosen supplier's
-// reference price for the variant, else the product's default cost from Product Management.
-// A reference price entered in TWD is never used here (the requisition is in CNY only).
-// $1 = variant id, $2 = supplier id.
+// requisitionDefaultCostSQL is a line's default unit cost in CNY: the product's Product Cost (RMB) from Product
+// Management (products.cost_rmb) - nothing else. Not the Base Price (TWD selling price), not the variant's cost price
+// and not a supplier reference price. 0 when the product has no Product Cost yet (staff fill it in).
+// $1 = variant id.
 const requisitionDefaultCostSQL = `
-	SELECT COALESCE(
-	    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = $2 AND vs.currency = 'RMB'),
-	    NULLIF(p.cost_rmb, 0), 0)
+	SELECT COALESCE(NULLIF(p.cost_rmb, 0), 0)
 	FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $1`
 
 // AddItem adds one product's variant + Planned QTY to the requisition. The Supplier defaults to the
@@ -425,7 +423,7 @@ func (h *PurchaseRequisitionHandler) AddItem(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var costPrice float64
-	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, req.VariantID, supplierID).Scan(&costPrice)
+	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, req.VariantID).Scan(&costPrice)
 
 	var groupID int
 	if err := h.DB.QueryRow(ctx, `
@@ -499,7 +497,7 @@ func (h *PurchaseRequisitionHandler) ChangeItemSupplier(w http.ResponseWriter, r
 		return
 	}
 	var costPrice float64
-	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, variantID, supplierID).Scan(&costPrice)
+	h.DB.QueryRow(ctx, requisitionDefaultCostSQL, variantID).Scan(&costPrice)
 
 	tx, err := h.DB.Begin(ctx)
 	if err != nil {
@@ -631,12 +629,9 @@ func (h *PurchaseRequisitionHandler) UpdateSupplierGroup(w http.ResponseWriter, 
 	if req.Status != nil && *req.Status == "confirmed" {
 		// Default any still-unset Confirmed QTY/Unit Cost before locking the group in.
 		h.DB.Exec(ctx, `
-			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(
-			    (SELECT NULLIF(vs.ref_price, 0) FROM variant_suppliers vs WHERE vs.variant_id = pv.id AND vs.supplier_id = prs.supplier_id AND vs.currency = 'RMB'),
-			    NULLIF(p.cost_rmb, 0), 0)
-			FROM purchase_requisition_suppliers prs, product_variants pv JOIN products p ON p.id = pv.product_id
-			WHERE prs.id = pri.requisition_supplier_id AND pri.variant_id = pv.id
-			  AND pri.requisition_supplier_id=$1 AND pri.unit_cost IS NULL`, groupID)
+			UPDATE purchase_requisition_items pri SET unit_cost = COALESCE(NULLIF(p.cost_rmb, 0), 0)
+			FROM product_variants pv JOIN products p ON p.id = pv.product_id
+			WHERE pri.variant_id = pv.id AND pri.requisition_supplier_id=$1 AND pri.unit_cost IS NULL`, groupID)
 	}
 	if req.Status != nil {
 		h.DB.Exec(ctx, `UPDATE purchase_requisition_suppliers SET status=$1 WHERE id=$2`, *req.Status, groupID)

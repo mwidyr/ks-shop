@@ -13,14 +13,14 @@ vi.mock('../api/tiktok', () => ({
   getTikTokStructure: () => Promise.resolve(structure),
   listTikTokAccounts: () => Promise.resolve({ counts: { LIVE: 1, BACKUP: 0, BLOCKED: 0, OHCA: 0 }, accounts: [{ id: 1, tiktok_id: 'ohzaza000', status: 'LIVE', device_name: 'iPhone13_001', location_name: 'Dragon', room_name: 'ROOM001', device_id: 111, location_id: 1, room_id: 11 }] }),
   getTikTokAccount: () => Promise.resolve({ id: 1, tiktok_id: 'ohzaza000', status: 'LIVE', account_level: 0, account_created_on: null, device_id: 111, room_id: 11, location_id: 1, can_see_credentials: true, password: 'pw', twofa: '', email: '', email_password: '', notes: [{ id: 1, author: 'A', body: 'hello', created_at: '2026-11-01T10:00:00Z' }] }),
-  createTikTokAccount: vi.fn(), updateTikTokAccount: vi.fn(), addTikTokNote: vi.fn(), createTikTokDevice: vi.fn(), updateTikTokDevice: vi.fn(),
+  createTikTokAccount: vi.fn(), updateTikTokAccount: vi.fn(), addTikTokNote: vi.fn(), deleteTikTokNote: vi.fn(() => Promise.resolve({})), createTikTokDevice: vi.fn(), updateTikTokDevice: vi.fn(),
 }))
 vi.mock('../api/cekViews', () => ({
   getPortalOverview: () => Promise.resolve([{ id: 1, name: 'Dragon', shifts: { morning: 2, middle: 0, evening: 0 } }]),
   getPortalHosts: () => Promise.resolve([{ host_id: 7, host_name: 'Sepia', tiktok_id: 'ohzaza000', room: 'ROOM001', device: 'iPhone13_001' }]),
   submitViews: vi.fn(() => Promise.resolve({ saved: 1, telegram_sent: true })),
   getAssignments: () => Promise.resolve({ hosts: [{ host_id: 7, host_name: 'Sepia', shift: 'morning', tiktok_account_id: 1, is_off: false }], accounts: [{ id: 1, tiktok_id: 'ohzaza000', status: 'LIVE', room_name: 'ROOM001', device_name: 'iPhone13_001' }] }),
-  saveAssignments: vi.fn(), getVoiceSettings: () => Promise.resolve({ days: [1, 2], times: ['06:27'], timezone: 'Asia/Jakarta (GMT+7)', has_file: false }),
+  saveAssignments: vi.fn(), getCekTelegram: () => Promise.resolve({ bot_token_set: true, token_hint: 'abcd', token_source: 'database', chat_id: '-100123', thread_id: 2, send_enabled: true }), saveCekTelegram: vi.fn(), checkCekTelegram: vi.fn(), testCekTelegram: vi.fn(), getVoiceSettings: () => Promise.resolve({ days: [1, 2], times: ['06:27'], timezone: 'Asia/Jakarta (GMT+7)', has_file: false }),
   saveVoiceSettings: vi.fn(), uploadVoiceFile: vi.fn(), fetchVoiceBlob: vi.fn(), testVoice: vi.fn(),
 }))
 const statuses = [
@@ -30,17 +30,17 @@ const statuses = [
 const locations = [{ id: 1, name: 'General', is_active: true, is_default: true }]
 const breakdown = { base_salary: 3500000, work_days: 26, off_days: 4, unpaid_days: 0, leave_days: 0, unpaid_deduction: 0, attendance_bonus: 500000, qty: 10, gmv: 1000, qty_bonus: 0, gmv_bonus: 0, daily_bonus: 0, bonus: 500000, extra: 0, extra_note: '', final_salary: 4000000 }
 vi.mock('../api/employee', () => ({
-  getEmployeeMeta: () => Promise.resolve({ positions: [{ id: 1, name: 'Host' }], locations, hosts: [{ id: 5, name: 'Rere' }], can_see_sensitive: true }),
+  getEmployeeMeta: () => Promise.resolve({ positions: [{ id: 1, name: 'Host', employee_count: 0 }], locations, hosts: [{ id: 5, name: 'Rere' }], can_see_sensitive: true }),
   listEmployees: () => Promise.resolve({ counts: { total: 1, active: 1, inactive: 0 }, employees: [{ id: 1, emp_code: 'EMP001', full_name: 'Rere Full', nickname: 'Rere', position: 'Host', position_id: 1, location: 'General', location_id: 1, whatsapp: '0812', status: 'full_time', join_date: '2026-07-01', mbti: '', birthday: null, host_id: 5, host_name: 'Rere' }] }),
   getEmployee: () => Promise.resolve({ id: 1, emp_code: 'EMP001', full_name: 'Rere Full', nickname: 'Rere', position_id: 1, location_id: 1, host_id: 5, whatsapp: '0812', status: 'full_time', join_date: '2026-07-01', mbti: '', birthday: null, nik: '0012', address: '', bank_holder: '', bank_name: '', bank_account: '000123', emergency_name: '', emergency_number: '' }),
-  createEmployee: vi.fn(), updateEmployee: vi.fn(), createPosition: vi.fn(), exportEmployees: vi.fn(), importEmployees: vi.fn(),
+  createEmployee: vi.fn(), updateEmployee: vi.fn(), createPosition: vi.fn(), renamePosition: vi.fn(), deletePosition: vi.fn(), deleteAttendanceStatus: vi.fn(), exportEmployees: vi.fn(), importEmployees: vi.fn(),
   getSchedule: () => Promise.resolve({ month: '2026-11', dates: ['2026-11-01', '2026-11-02'], statuses, locations, employees: [{ id: 1, nickname: 'Rere', full_name: 'Rere Full', location: 'General', records: { '2026-11-02': 3 } }] }),
   saveSchedule: vi.fn(() => Promise.resolve({})), getScheduleSettings: () => Promise.resolve({ locations, statuses }),
   createEmployeeLocation: vi.fn(), updateEmployeeLocation: vi.fn(), createAttendanceStatus: vi.fn(), updateAttendanceStatus: vi.fn(),
   getPayroll: () => Promise.resolve({ month: '2026-11', locations, counts: { employees: 1, paid: 0, pending: 1 }, summary: { total_salaries: 4000000, transfer_fee: 104000, grand_total: 4104000 }, rows: [{ employee_id: 1, emp_code: 'EMP001', nickname: 'Rere', full_name: 'Rere Full', location: 'General', paid: false, paid_at: null, paid_by: null, finalized: false, details: breakdown }] }),
   getPayrollSettings: () => Promise.resolve({ effective_month: '2026-11', salaries: [{ employee_id: 1, emp_code: 'EMP001', nickname: 'Rere', location: 'General', base_salary: 3500000 }], bonus: { attendance_amount: 500000, qty_tiers: [{ min: 0, max: 200, rate: 0 }], gmv_tiers: [{ min: 150000, bonus: 500000 }], daily: { accumulate: false, tiers: [{ qty: 30, bonus: 100000 }] } } }),
   savePayrollExtra: vi.fn(), setPayrollPaid: vi.fn(), savePayrollTransferFee: vi.fn(), saveBaseSalary: vi.fn(), saveBonusSettings: vi.fn(),
-  getBonusRanking: () => Promise.resolve({ month: '2026-11', locations, rows: [{ rank: 1, employee_id: 1, host: 'Rere', location: 'General', qty: 1250, gmv: 680000, total_bonus: 4175000 }] }),
+  getBonusRanking: () => Promise.resolve({ month: '2026-11', locations, rows: [{ rank: 1, employee_id: 1, host: 'Rere', location: 'General', qty_bonus: 1875000, gmv_bonus: 2000000, daily_bonus: 300000, total_bonus: 4175000 }] }),
 }))
 
 import TikTokAccounts from './TikTokAccounts'
@@ -104,6 +104,10 @@ describe('TikTok + CEK VIEWS + EMPLOYEE pages render', () => {
     expect(c.textContent).toContain('Sepia')
     await click(byText(c, 'button', 'Voice Reminder'))
     expect(c.textContent).toContain('06:27')
+    await click(byText(c, 'button', 'Telegram Bot'))
+    expect(c.textContent).toContain('page_cek_views.telegram_title')
+    expect(c.querySelector('input[type=password]').placeholder).toBe('•••• abcd') // the saved token is never shown, only its end
+    expect(c.querySelector('input[placeholder="-100..."]').value).toBe('-100123')
     expect(errors).toEqual([])
   })
 
@@ -120,6 +124,7 @@ describe('TikTok + CEK VIEWS + EMPLOYEE pages render', () => {
     const c = await mount(<ShiftSchedule />)
     const cells = [...c.querySelectorAll('tbody td')].filter((td) => td.textContent === 'W' || td.textContent === 'LV')
     expect(cells.map((td) => td.textContent)).toEqual(['W', 'LV']) // 2 Nov carries a stored Leave record
+    expect(c.querySelector('thead th.sticky')).not.toBeNull() // the date header stays on top while scrolling
     await act(async () => { cells[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); window.dispatchEvent(new MouseEvent('mouseup')) })
     expect(c.textContent).toContain('page_employee.apply_status')
     expect(errors).toEqual([])
@@ -135,9 +140,21 @@ describe('TikTok + CEK VIEWS + EMPLOYEE pages render', () => {
     expect(errors).toEqual([])
   })
 
+  it('Employee list: Position Settings and a free-text MBTI', async () => {
+    const c = await mount(<EmployeeList />)
+    await click(byText(c, 'button', 'page_employee.position_settings'))
+    expect(c.textContent).toContain('page_employee.position_settings_hint')
+    expect(byText(c, 'button', 'common.delete').disabled).toBe(false) // Host has employee_count 0 in the mock
+    expect(errors).toEqual([])
+  })
+
   it('Bonus ranking', async () => {
     const c = await mount(<BonusRanking />)
     expect(c.textContent).toContain('4,175,000')
+    expect(c.textContent).toContain('1,875,000')
+    expect(c.textContent).toContain('🥇')
+    expect(c.querySelector('td.font-bold').textContent).toBe('4,175,000') // only Total Bonus is bold
+    expect(c.querySelectorAll('td.font-bold').length).toBe(1)
     expect(errors).toEqual([])
   })
 })

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { addTikTokNote, createTikTokAccount, getTikTokAccount, getTikTokStructure, updateTikTokAccount } from '../api/tiktok'
+import { addTikTokNote, createTikTokAccount, deleteTikTokNote, getTikTokAccount, getTikTokStructure, updateTikTokAccount } from '../api/tiktok'
 import { useCanEdit } from '../context/AccessContext'
+import DateInput from '../components/DateInput'
 import { cardClasses } from '../components/Table'
 import { STATUSES, StatusBadge } from './TikTokAccounts'
 
-const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full disabled:bg-gray-50'
+const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full disabled:opacity-60'
 const emptyForm = {
   tiktok_id: '', status: 'BACKUP', account_level: 0, account_created_on: '', device_id: '', room_id: '', location_id: '',
   password: '', twofa: '', email: '', email_password: '',
@@ -100,6 +101,16 @@ export default function TikTokAccountDetail() {
     }
   }
 
+  async function removeNote(n) {
+    if (!window.confirm(t('page_tiktok.delete_note_confirm'))) return
+    try {
+      await deleteTikTokNote(id, n.id)
+      setAccount((a) => ({ ...a, notes: a.notes.filter((x) => x.id !== n.id) }))
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_tiktok.save_error'))
+    }
+  }
+
   if (account === false) return <div className="p-8 text-center text-gray-500">{t('page_tiktok.not_found')}</div>
   if (!isNew && !account) return <div className="p-8 text-center text-gray-500">{t('common.loading')}</div>
 
@@ -123,7 +134,7 @@ export default function TikTokAccountDetail() {
               <select value={form.status} onChange={set('status')} className={inputCls}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </Field>
             <Field label={t('page_tiktok.account_level')}><input type="number" min="0" value={form.account_level} onChange={set('account_level')} className={inputCls} /></Field>
-            <Field label={t('page_tiktok.created_at')}><input type="date" value={form.account_created_on} onChange={set('account_created_on')} className={inputCls} /></Field>
+            <Field label={t('page_tiktok.created_at')}><DateInput value={form.account_created_on} onChange={(v) => { setSaved(false); setForm((f) => ({ ...f, account_created_on: v })) }} className={inputCls} /></Field>
             <Field label={t('page_tiktok.device')}>
               <select value={form.device_id} onChange={pickDevice} className={inputCls}>
                 <option value="">{t('page_tiktok.unassigned')}</option>
@@ -167,7 +178,7 @@ export default function TikTokAccountDetail() {
         {canEdit && (
           <div className="flex items-center justify-end gap-3">
             {saved && <span className="text-sm text-emerald-600">{t('page_tiktok.saved')}</span>}
-            <button type="button" onClick={() => navigate('/tiktok/accounts')} className="border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg">{t('common.cancel')}</button>
+            <button type="button" onClick={() => navigate('/tiktok/accounts')} className="border border-gray-300 text-[var(--text-primary)] text-sm font-semibold px-4 py-2 rounded-lg">{t('common.cancel')}</button>
             <button type="submit" disabled={busy} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg">{t('page_tiktok.save_changes')}</button>
           </div>
         )}
@@ -179,9 +190,12 @@ export default function TikTokAccountDetail() {
           {account.notes.length === 0 && <p className="text-sm text-gray-400">{t('page_tiktok.no_notes')}</p>}
           <ul className="space-y-2">
             {account.notes.map((n) => (
-              <li key={n.id} className="rounded-lg bg-gray-50 p-3">
-                <p className="text-sm whitespace-pre-wrap text-[var(--text-primary)]">{n.body}</p>
-                <p className="text-[11px] text-[var(--text-secondary)] mt-1">{n.author} · {new Date(n.created_at).toLocaleString()}</p>
+              <li key={n.id} className="rounded-lg bg-[var(--table-header-bg)] p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm whitespace-pre-wrap text-[var(--text-primary)]">{n.body}</p>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-1">{n.author} · {new Date(n.created_at).toLocaleString()}</p>
+                </div>
+                {canEdit && <button type="button" onClick={() => removeNote(n)} className="shrink-0 text-xs font-semibold text-red-600 hover:underline">{t('common.delete')}</button>}
               </li>
             ))}
           </ul>

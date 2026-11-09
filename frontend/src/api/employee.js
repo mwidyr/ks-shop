@@ -25,3 +25,6 @@ export const savePayrollTransferFee = (body) => client.put('/payroll/transfer-fe
 export const saveBaseSalary = (body) => client.put('/payroll/settings/salary', body).then((r) => r.data)
 export const saveBonusSettings = (body) => client.put('/payroll/settings/bonus', body).then((r) => r.data)
 export const getBonusRanking = (params) => client.get('/bonus-ranking', { params }).then((r) => r.data)
+export const renamePosition = (id, name) => client.put(`/employee/positions/${id}`, { name }).then((r) => r.data)
+export const deletePosition = (id) => client.delete(`/employee/positions/${id}`).then((r) => r.data)
+export const deleteAttendanceStatus = (id) => client.delete(`/employee/attendance-statuses/${id}`).then((r) => r.data)

@@ -31,7 +31,7 @@ func (h *HostLocationHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("include_inactive") != "true" {
 		query += ` WHERE is_active = true`
 	}
-	query += ` ORDER BY name`
+	query += ` ORDER BY sort_order, name`
 
 	rows, err := h.DB.Query(r.Context(), query)
 	if err != nil {
@@ -62,7 +62,7 @@ func (h *HostLocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	var id int
 	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO host_locations (name) VALUES ($1) RETURNING id`, strings.TrimSpace(req.Name)).Scan(&id)
+		INSERT INTO host_locations (name, sort_order) VALUES ($1, COALESCE((SELECT max(sort_order) FROM host_locations), 0) + 1) RETURNING id`, strings.TrimSpace(req.Name)).Scan(&id)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create location")
 		return
@@ -112,6 +112,36 @@ func (h *HostLocationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to delete location")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Reorder saves the manual order of the Location Tags (drag and drop on Host Management): ids in the new order.
+// It is the order everywhere a Location is picked, e.g. when creating an order.
+func (h *HostLocationHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+	if err := decodeJSON(r, &req); err != nil || len(req.IDs) == 0 {
+		respondError(w, http.StatusBadRequest, "ids are required")
+		return
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	for i, id := range req.IDs {
+		if _, err := tx.Exec(ctx, `UPDATE host_locations SET sort_order=$1 WHERE id=$2`, i+1, id); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save the order")
+			return
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})

@@ -57,24 +57,24 @@ export default function CekViews() {
   const shiftTitle = SHIFTS.find(([k]) => k === shift)?.[1]
 
   return (
-    <div className="max-w-md mx-auto min-h-[70vh] flex flex-col bg-gray-50 sm:rounded-2xl sm:my-4 sm:border sm:border-gray-200 overflow-hidden">
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+    <div className="max-w-md mx-auto min-h-[70vh] flex flex-col bg-[var(--table-page-bg)] sm:rounded-2xl sm:my-4 sm:border sm:border-[var(--table-divider)] overflow-hidden">
+      <header className="bg-[var(--table-card-bg)] border-b border-[var(--table-divider)] px-4 py-3 flex items-center justify-between">
         <div>
-          <h1 className="font-bold text-gray-900">{location ? (shift ? `${shiftTitle} Shift` : location.name) : 'TikTok Views'}</h1>
-          <p className="text-xs text-gray-500">{!location ? t('page_cek_views.choose_location_short') : !shift ? t('page_cek_views.choose_shift_short') : `${location.name} · ${t('page_cek_views.enter_views_sub')}`}</p>
+          <h1 className="font-bold text-[var(--text-primary)]">{location ? (shift ? `${shiftTitle} Shift` : location.name) : 'TikTok Views'}</h1>
+          <p className="text-xs text-[var(--text-secondary)]">{!location ? t('page_cek_views.choose_location_short') : !shift ? t('page_cek_views.choose_shift_short') : `${location.name} · ${t('page_cek_views.enter_views_sub')}`}</p>
         </div>
         {location
-          ? <button type="button" onClick={back} className="text-sm font-semibold border border-gray-300 rounded-lg px-3 py-1.5 bg-white">{shift ? t('page_cek_views.change_shift') : t('page_cek_views.change_location')}</button>
-          : <button type="button" onClick={loadOverview} className="text-sm font-semibold border border-gray-300 rounded-lg px-3 py-1.5 bg-white">Refresh</button>}
+          ? <button type="button" onClick={back} className="text-sm font-semibold border border-[var(--table-divider)] rounded-lg px-3 py-1.5 bg-[var(--table-card-bg)] text-[var(--text-primary)]">{shift ? t('page_cek_views.change_shift') : t('page_cek_views.change_location')}</button>
+          : <button type="button" onClick={loadOverview} className="text-sm font-semibold border border-[var(--table-divider)] rounded-lg px-3 py-1.5 bg-[var(--table-card-bg)] text-[var(--text-primary)]">Refresh</button>}
       </header>
 
       {!location && (
         <div className="p-4 space-y-3">
-          <div className="text-center py-2"><h2 className="text-lg font-extrabold text-gray-900">{t('page_cek_views.choose_location')}</h2><p className="text-xs text-gray-500">{t('page_cek_views.choose_location_hint')}</p></div>
-          {!overview && <p className="text-center text-gray-400">{t('common.loading')}</p>}
+          <div className="text-center py-2"><h2 className="text-lg font-extrabold text-[var(--text-primary)]">{t('page_cek_views.choose_location')}</h2><p className="text-xs text-[var(--text-secondary)]">{t('page_cek_views.choose_location_hint')}</p></div>
+          {!overview && <p className="text-center text-[var(--text-secondary)]">{t('common.loading')}</p>}
           {overview?.map((l) => (
-            <button key={l.id} type="button" onClick={() => setLocation(l)} className="w-full flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-5 py-5 text-left shadow-sm">
-              <span className="text-xl font-extrabold text-gray-900">{l.name}</span><span className="text-gray-400 text-xl">›</span>
+            <button key={l.id} type="button" onClick={() => setLocation(l)} className="w-full flex items-center justify-between bg-[var(--table-card-bg)] rounded-2xl border border-[var(--table-divider)] px-5 py-5 text-left shadow-sm">
+              <span className="text-xl font-extrabold text-[var(--text-primary)]">{l.name}</span><span className="text-[var(--text-secondary)] text-xl">›</span>
             </button>
           ))}
         </div>
@@ -82,13 +82,13 @@ export default function CekViews() {
 
       {location && !shift && (
         <div className="p-4 space-y-3">
-          <div className="text-center py-2"><h2 className="text-lg font-extrabold text-gray-900">{t('page_cek_views.choose_shift')}</h2><p className="text-xs text-gray-500">{t('page_cek_views.choose_shift_hint')}</p></div>
+          <div className="text-center py-2"><h2 className="text-lg font-extrabold text-[var(--text-primary)]">{t('page_cek_views.choose_shift')}</h2><p className="text-xs text-[var(--text-secondary)]">{t('page_cek_views.choose_shift_hint')}</p></div>
           {SHIFTS.map(([key, label]) => {
             const count = location.shifts[key]
             return (
-              <button key={key} type="button" disabled={count === 0} onClick={() => setShift(key)} className="w-full flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-5 py-4 text-left shadow-sm disabled:opacity-50">
-                <span><span className="block text-xl font-extrabold text-gray-900">{label}</span><span className="text-sm text-gray-500">{count} Host</span></span>
-                <span className="text-gray-400 text-xl">›</span>
+              <button key={key} type="button" disabled={count === 0} onClick={() => setShift(key)} className="w-full flex items-center justify-between bg-[var(--table-card-bg)] rounded-2xl border border-[var(--table-divider)] px-5 py-4 text-left shadow-sm disabled:opacity-50">
+                <span><span className="block text-xl font-extrabold text-[var(--text-primary)]">{label}</span><span className="text-sm text-[var(--text-secondary)]">{count} Host</span></span>
+                <span className="text-[var(--text-secondary)] text-xl">›</span>
               </button>
             )
           })}
@@ -97,11 +97,11 @@ export default function CekViews() {
 
       {location && shift && result && (
         <div className="p-4">
-          <div className="bg-white rounded-2xl border border-emerald-200 p-6 text-center space-y-3">
+          <div className="bg-[var(--table-card-bg)] rounded-2xl border border-emerald-500/40 p-6 text-center space-y-3">
             <div className="text-5xl">✅</div>
-            <h2 className="text-xl font-extrabold text-emerald-800">{t('page_cek_views.sent_title')}</h2>
-            <p className="text-sm text-gray-600">{t('page_cek_views.sent_saved', { count: result.saved })}</p>
-            <p className={`text-sm ${result.telegram_sent ? 'text-gray-600' : 'text-red-600 font-semibold'}`}>
+            <h2 className="text-xl font-extrabold text-emerald-600">{t('page_cek_views.sent_title')}</h2>
+            <p className="text-sm text-[var(--text-secondary)]">{t('page_cek_views.sent_saved', { count: result.saved })}</p>
+            <p className={`text-sm ${result.telegram_sent ? 'text-[var(--text-secondary)]' : 'text-red-600 font-semibold'}`}>
               {result.telegram_sent ? t('page_cek_views.sent_telegram_ok') : `${t('page_cek_views.sent_telegram_fail')}: ${result.telegram_error || ''}`}
             </p>
             <button type="button" onClick={again} className="w-full bg-blue-600 text-white font-extrabold rounded-xl py-3 text-lg">{t('page_cek_views.input_again')}</button>
@@ -112,26 +112,26 @@ export default function CekViews() {
       {location && shift && !result && (
         <>
           <div className="flex-1 p-3 space-y-3 pb-24">
-            {hosts.length === 0 && <p className="text-center text-gray-400 py-8">{t('page_cek_views.no_hosts')}</p>}
+            {hosts.length === 0 && <p className="text-center text-[var(--text-secondary)] py-8">{t('page_cek_views.no_hosts')}</p>}
             {hosts.map((h) => (
-              <div key={h.host_id} className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center justify-between gap-3 shadow-sm">
+              <div key={h.host_id} className="bg-[var(--table-card-bg)] rounded-2xl border border-[var(--table-divider)] p-4 flex items-center justify-between gap-3 shadow-sm">
                 <div className="min-w-0">
-                  <p className="text-xl font-extrabold text-gray-900 truncate">{h.host_name}</p>
-                  {h.room && <span className="inline-block text-xs font-bold bg-gray-100 text-gray-700 rounded px-2 py-0.5 my-1">{roomLabel(h.room)}</span>}
-                  <p className="text-xs text-gray-500 truncate">{h.device}</p>
-                  <p className="text-xs text-gray-500 truncate">@{String(h.tiktok_id).replace(/^@/, '')}</p>
+                  <p className="text-xl font-extrabold text-[var(--text-primary)] truncate">{h.host_name}</p>
+                  {h.room && <span className="inline-block text-xs font-bold bg-[var(--table-header-bg)] text-[var(--text-primary)] rounded px-2 py-0.5 my-1">{roomLabel(h.room)}</span>}
+                  <p className="text-xs text-[var(--text-secondary)] truncate">{h.device}</p>
+                  <p className="text-xs text-[var(--text-secondary)] truncate">@{String(h.tiktok_id).replace(/^@/, '')}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] font-bold text-gray-400 tracking-wider">VIEWS</p>
+                  <p className="text-[10px] font-bold text-[var(--text-secondary)] tracking-wider">VIEWS</p>
                   <input inputMode="numeric" pattern="[0-9]*" value={views[h.host_id] ?? ''} onChange={(e) => setValue(h.host_id, e.target.value)}
-                    className="w-28 text-center text-2xl font-extrabold border-2 border-emerald-400 rounded-xl py-2 bg-emerald-50 focus:outline-none focus:border-emerald-600" />
+                    className="w-28 text-center text-2xl font-extrabold border-2 border-emerald-500 rounded-xl py-2 bg-emerald-500/10 text-[var(--text-primary)] focus:outline-none focus:border-emerald-400" />
                 </div>
               </div>
             ))}
             {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           </div>
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-3 flex items-center gap-3">
-            <div className="text-center px-2"><p className="text-[10px] text-gray-500">{t('page_cek_views.filled')}</p><p className="text-xl font-extrabold">{filled.length}</p></div>
+          <div className="sticky bottom-0 bg-[var(--table-card-bg)] border-t border-[var(--table-divider)] p-3 flex items-center gap-3">
+            <div className="text-center px-2"><p className="text-[10px] text-[var(--text-secondary)]">{t('page_cek_views.filled')}</p><p className="text-xl font-extrabold">{filled.length}</p></div>
             <button type="button" onClick={send} disabled={busy || !canEdit || filled.length === 0} className="flex-1 bg-blue-600 disabled:opacity-40 text-white font-extrabold rounded-xl py-3 text-lg">
               {busy ? t('common.loading') : 'Kirim Views'}
             </button>

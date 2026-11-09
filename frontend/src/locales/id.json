@@ -17,7 +17,8 @@
     "previous": "Sebelumnya",
     "save": "Simpan",
     "search": "Cari",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "clear": "Hapus"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -407,7 +408,9 @@
     "shift_middle": "Siang",
     "shift_morning": "Pagi",
     "shift_none": "Tanpa shift",
-    "title": "Host Live"
+    "title": "Host Live",
+    "drag_to_reorder": "Seret untuk mengubah urutan",
+    "reorder_hint": "Seret ikon ⠿ untuk mengubah urutan. Urutan yang sama dipakai di semua pilihan Lokasi, misalnya saat membuat pesanan."
   },
   "page_integrations": {
     "action_connect": "Hubungkan",
@@ -2283,10 +2286,7 @@
     "token_from_env_placeholder": "Token diatur di server",
     "unsaved_changes": "Perubahan belum disimpan",
     "unsaved_confirm": "Pengaturan Telegram belum disimpan. Tinggalkan halaman tanpa menyimpan?",
-    "test_not_saved_note": "Tombol tes memakai isi form saat ini. Data baru tersimpan setelah Anda klik Simpan Pengaturan.",
-    "cek_views_chat_id": "Chat ID grup CEK VIEWS dan ID topik (opsional)",
-    "cek_views_thread_ph": "ID topik",
-    "cek_views_used": "Laporan TikTok Views dan pengingat suara dikirim ke sini. Kosongkan topik untuk grup tanpa Topics."
+    "test_not_saved_note": "Tombol tes memakai isi form saat ini. Data baru tersimpan setelah Anda klik Simpan Pengaturan."
   },
   "page_product_trend": {
     "global_metric": "Metrik Global",
@@ -3326,7 +3326,8 @@
     "no_notes": "Belum ada catatan.",
     "note_ph": "Tulis catatan...",
     "add_note": "Tambah Catatan",
-    "not_found": "Akun tidak ditemukan."
+    "not_found": "Akun tidak ditemukan.",
+    "delete_note_confirm": "Hapus catatan ini? Tindakan ini tidak bisa dibatalkan."
   },
   "page_cek_views": {
     "choose_location_short": "Pilih lokasi",
@@ -3347,7 +3348,7 @@
     "sent_telegram_fail": "Tersimpan, tetapi Telegram TIDAK terkirim",
     "input_again": "Input Lagi",
     "settings_title": "Pengaturan",
-    "settings_subtitle": "Atur akun TikTok untuk setiap Host dan kelola pengingat suara. Token bot dan grup Telegram diatur di Pengaturan Telegram.",
+    "settings_subtitle": "Atur akun TikTok untuk setiap Host, kelola pengingat suara, dan siapkan bot Telegram CEK VIEWS.",
     "assignment_hint": "Host dan Shift diambil dari Manajemen Host. Room, Device, dan Status mengikuti akun TikTok yang dipilih. Centang OFF untuk mengeluarkan Host dari CEK VIEWS tanpa menghapus penugasannya.",
     "from_host_mgmt": "Dari Manajemen Host",
     "no_shift": "Tanpa shift",
@@ -3368,7 +3369,25 @@
     "send_test": "Kirim Tes Sekarang",
     "test_confirm": "Kirim pesan suara ke grup Telegram sekarang?",
     "test_sent": "Pesan suara terkirim.",
-    "voice_hint": "Rekaman dikirim ke grup / topik Telegram CEK VIEWS pada jam yang dijadwalkan. Format: .ogg (Opus), .mp3, .m4a, maks 10 MB."
+    "voice_hint": "Rekaman dikirim ke grup / topik Telegram CEK VIEWS pada jam yang dijadwalkan. Format: .ogg (Opus), .mp3, .m4a, maks 10 MB.",
+    "telegram_title": "Bot Telegram CEK VIEWS",
+    "telegram_hint": "CEK VIEWS memakai bot sendiri, terpisah dari bot Telegram utama (Pengaturan Telegram). Laporan Views dan pengingat suara dikirim dengan bot ini.",
+    "bot_token": "Token Bot",
+    "token_saved": "Token sudah tersimpan. Ketik token baru untuk menggantinya.",
+    "token_from_env": "Token berasal dari environment server (TELEGRAM_CEK_VIEWS_BOT_TOKEN). Mengetik token di sini akan menimpanya.",
+    "token_missing": "Belum ada token - belum ada yang bisa dikirim sampai token diisi.",
+    "chat_id": "Chat ID Grup",
+    "topic_id": "ID Topik (opsional)",
+    "topic_ph": "ID topik",
+    "group_hint": "Kosongkan ID Topik untuk grup tanpa Topics. Tambahkan bot ke grup dan jadikan admin.",
+    "send_enabled": "Pengiriman aktif (matikan untuk menghentikan semua pesan Telegram CEK VIEWS)",
+    "check_connection": "Cek Koneksi",
+    "send_test_message": "Kirim Pesan Tes",
+    "remove_token": "Hapus token",
+    "remove_token_confirm": "Hapus token bot CEK VIEWS? Tidak ada yang bisa dikirim sampai token baru diisi.",
+    "bot_connected": "Terhubung: {{name}}",
+    "bot_no_token": "Belum ada token untuk dicek.",
+    "test_message_sent": "Pesan tes terkirim."
   },
   "page_employee": {
     "active": "Aktif",
@@ -3482,7 +3501,7 @@
     "sensitive_restricted": "NIK, alamat, data bank, dan kontak darurat hanya terlihat oleh Admin dan Management.",
     "settings": "Pengaturan",
     "status": "Status",
-    "status_hint": "Dibayar / Tidak dibayar menentukan apakah hari itu dipotong dari gaji pokok. Potong Bonus Kehadiran menentukan apakah memakai status ini menghilangkan seluruh bonus kehadiran bulanan. Keduanya bekerja independen. Kode W, OFF, dan LV dihitung sebagai hari Kerja, Libur, dan Cuti di Penggajian.",
+    "status_hint": "Dibayar / Tidak dibayar menentukan apakah hari itu dipotong dari gaji pokok. Potong Bonus Kehadiran menentukan apakah status ini menghilangkan seluruh bonus kehadiran bulanan. Keduanya independen. \"Dihitung sebagai\" memberi tahu Penggajian apakah hari itu hari Kerja, Libur, atau Cuti. Semua status bisa ditambah, diubah, dan dihapus.",
     "status_name": "Nama Status",
     "text_color": "Warna Teks",
     "total_bonus": "Total Bonus",
@@ -3493,6 +3512,22 @@
     "unpaid_days": "Hari Tidak Dibayar",
     "unpaid_deduction": "Potongan Cuti Tidak Dibayar",
     "view_details": "Lihat detail",
-    "work_days": "Hari Kerja"
+    "work_days": "Hari Kerja",
+    "position_settings": "Pengaturan Jabatan",
+    "position_settings_hint": "Tambah, ganti nama, atau hapus jabatan. Semua jabatan muncul di dropdown Jabatan pada formulir karyawan. Jabatan yang masih dipakai karyawan tidak bisa dihapus.",
+    "n_employees": "{{count}} karyawan",
+    "position_in_use": "Masih dipakai karyawan - pindahkan dulu",
+    "delete_position_confirm": "Hapus jabatan \"{{name}}\"?",
+    "new_position_ph": "Nama jabatan baru",
+    "search_salary_ph": "Cari nama, ID, atau lokasi",
+    "no_match": "Tidak ada karyawan yang cocok.",
+    "one_letter": "satu huruf",
+    "counts_as": "Penggajian menghitung hari dengan status ini sebagai",
+    "kind_work": "Hari kerja",
+    "kind_off": "Hari libur",
+    "kind_leave": "Hari cuti",
+    "kind_other": "Lainnya (hanya dibayar / tidak dibayar)",
+    "is_default_status": "Bawaan untuk tanggal yang belum diubah",
+    "delete_status_confirm": "Hapus status \"{{name}}\"? Tanggal yang sudah memakainya kembali ke status bawaan."
   }
 }

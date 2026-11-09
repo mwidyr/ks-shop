@@ -78,7 +78,7 @@ func (h *TikTokHandler) Structure(w http.ResponseWriter, r *http.Request) {
 		JOIN tiktok_rooms rm ON rm.location_id = l.id
 		LEFT JOIN tiktok_devices d ON d.room_id = rm.id
 		WHERE l.is_active = true
-		ORDER BY l.name, rm.name, d.name`)
+		ORDER BY l.sort_order, l.name, rm.name, d.name`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load structure")
 		return
@@ -456,4 +456,24 @@ func (h *TikTokHandler) AddNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusCreated, note)
+}
+
+// DeleteNote removes one note of an account (the page asks for confirmation first).
+func (h *TikTokHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
+	accountID, err1 := strconv.Atoi(chi.URLParam(r, "id"))
+	noteID, err2 := strconv.Atoi(chi.URLParam(r, "noteId"))
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ct, err := h.DB.Exec(r.Context(), `DELETE FROM tiktok_account_notes WHERE id=$1 AND account_id=$2`, noteID, accountID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete note")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "note not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

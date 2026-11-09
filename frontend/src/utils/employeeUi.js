@@ -9,9 +9,12 @@ export function shiftMonth(month, delta) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-export function monthLabel(month) {
+// The app language ('id' | 'en' | 'zh') as an Intl locale, so month / weekday names follow the selected system language.
+export const intlLocale = (lang) => ({ id: 'id-ID', en: 'en-US', zh: 'zh-TW' }[String(lang || 'id').slice(0, 2)] || 'id-ID')
+
+export function monthLabel(month, lang = 'en') {
   const [y, m] = month.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString(intlLocale(lang), { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
 export const fmtIDR = (n) => Math.round(Number(n) || 0).toLocaleString('en-US')

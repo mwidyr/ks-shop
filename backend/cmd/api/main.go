@@ -419,6 +419,7 @@ func main() {
 			r.With(edit("tiktok_accounts")).Post("/tiktok/accounts", tiktokH.Create)
 			r.With(edit("tiktok_accounts")).Put("/tiktok/accounts/{id}", tiktokH.Update)
 			r.With(edit("tiktok_accounts")).Post("/tiktok/accounts/{id}/notes", tiktokH.AddNote)
+			r.With(edit("tiktok_accounts")).Delete("/tiktok/accounts/{id}/notes/{noteId}", tiktokH.DeleteNote)
 			r.With(edit("tiktok_accounts")).Post("/tiktok/devices", tiktokH.CreateDevice)
 			r.With(edit("tiktok_accounts")).Put("/tiktok/devices/{id}", tiktokH.UpdateDevice)
 			r.With(view("cek_views")).Get("/cek-views/portal/overview", cekViewsH.PortalOverview)
@@ -431,6 +432,10 @@ func main() {
 			r.With(edit("cek_views_settings")).Post("/cek-views/voice/file", cekViewsH.UploadVoice)
 			r.With(view("cek_views_settings")).Get("/cek-views/voice/file", cekViewsH.VoiceFile)
 			r.With(edit("cek_views_settings")).Post("/cek-views/voice/test", cekViewsH.TestVoice)
+			r.With(view("cek_views_settings")).Get("/cek-views/telegram", cekViewsH.GetTelegram)
+			r.With(edit("cek_views_settings")).Put("/cek-views/telegram", cekViewsH.SaveTelegram)
+			r.With(edit("cek_views_settings")).Post("/cek-views/telegram/status", cekViewsH.TelegramStatus)
+			r.With(edit("cek_views_settings")).Post("/cek-views/telegram/test", cekViewsH.TelegramTest)
 
 			// EMPLOYEE: Employee List, Shift Schedule, Payroll, Bonus Ranking
 			r.With(view("employee_list")).Get("/employee/meta", employeeH.Meta)
@@ -441,6 +446,8 @@ func main() {
 			r.With(edit("employee_list")).Post("/employee/employees/import", employeeH.Import)
 			r.With(edit("employee_list")).Put("/employee/employees/{id}", employeeH.Update)
 			r.With(edit("employee_list")).Post("/employee/positions", employeeH.CreatePosition)
+			r.With(edit("employee_list")).Put("/employee/positions/{id}", employeeH.RenamePosition)
+			r.With(edit("employee_list")).Delete("/employee/positions/{id}", employeeH.DeletePosition)
 			r.With(view("shift_schedule")).Get("/employee/schedule", employeeH.Schedule)
 			r.With(view("shift_schedule")).Get("/employee/schedule-settings", employeeH.ScheduleSettings)
 			r.With(edit("shift_schedule")).Put("/employee/schedule", employeeH.SaveSchedule)
@@ -448,6 +455,7 @@ func main() {
 			r.With(edit("shift_schedule")).Put("/employee/locations/{id}", employeeH.UpdateLocation)
 			r.With(edit("shift_schedule")).Post("/employee/attendance-statuses", employeeH.CreateStatus)
 			r.With(edit("shift_schedule")).Put("/employee/attendance-statuses/{id}", employeeH.UpdateStatus)
+			r.With(edit("shift_schedule")).Delete("/employee/attendance-statuses/{id}", employeeH.DeleteStatus)
 			r.With(view("payroll")).Get("/payroll", employeeH.Payroll)
 			r.With(view("payroll")).Get("/payroll/settings", employeeH.PayrollSettings)
 			r.With(edit("payroll")).Put("/payroll/extra", employeeH.SaveExtra)
@@ -459,6 +467,7 @@ func main() {
 
 			r.With(view("hosts")).Get("/host-locations", hostLocationH.List)
 			r.With(edit("hosts")).Post("/host-locations", hostLocationH.Create)
+			r.With(edit("hosts")).Put("/host-locations/order", hostLocationH.Reorder)
 			r.With(edit("hosts")).Patch("/host-locations/{id}", hostLocationH.Update)
 			r.With(edit("hosts")).Delete("/host-locations/{id}", hostLocationH.Delete)
 

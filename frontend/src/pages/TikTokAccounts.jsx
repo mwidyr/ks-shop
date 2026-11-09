@@ -8,15 +8,15 @@ import { cardClasses } from '../components/Table'
 
 export const STATUSES = ['LIVE', 'BACKUP', 'BLOCKED', 'OHCA']
 export const STATUS_STYLE = {
-  LIVE: 'bg-emerald-100 text-emerald-700',
-  BACKUP: 'bg-slate-200 text-slate-700',
-  BLOCKED: 'bg-red-100 text-red-700',
-  OHCA: 'bg-amber-100 text-amber-700',
+  LIVE: 'bg-emerald-500/20 text-emerald-600',
+  BACKUP: 'bg-slate-500/20 text-[var(--text-secondary)]',
+  BLOCKED: 'bg-red-500/20 text-red-600',
+  OHCA: 'bg-amber-500/20 text-amber-600',
 }
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full'
 
 export function StatusBadge({ status }) {
-  return <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${STATUS_STYLE[status] || 'bg-gray-100 text-gray-700'}`}>{status}</span>
+  return <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${STATUS_STYLE[status] || 'bg-slate-500/20 text-[var(--text-secondary)]'}`}>{status}</span>
 }
 
 function AccountsTab({ structure }) {

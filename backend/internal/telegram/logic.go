@@ -32,7 +32,8 @@ type Config struct {
 	WorkerEnabled bool   `json:"worker_enabled"` // off: the notifier does no checks at all
 	SendEnabled   bool   `json:"send_enabled"`   // off: messages are only logged on the server
 	GlobalChatID  string `json:"global_chat_id"`
-	// CEK VIEWS: the group (and optional forum topic) that gets the Views reports and the voice reminders
+	// Legacy: CEK VIEWS used to keep its group here. It now has its own bot and settings (CekViewsConfig); these two
+	// are only read as a fallback until CEK VIEWS Settings is saved once.
 	CekViewsChatID    string             `json:"cek_views_chat_id"`
 	CekViewsThreadID  int                `json:"cek_views_thread_id"`
 	HostMilestone     NotificationConfig `json:"host_milestone"`

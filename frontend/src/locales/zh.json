@@ -17,7 +17,8 @@
     "previous": "上一頁",
     "save": "儲存",
     "search": "搜尋",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "clear": "清除"
   },
   "nav": {
     "dashboard": "儀表板",
@@ -407,7 +408,9 @@
     "shift_middle": "中班",
     "shift_morning": "早班",
     "shift_none": "无班次",
-    "title": "直播主持人"
+    "title": "直播主持人",
+    "drag_to_reorder": "拖曳以重新排序",
+    "reorder_hint": "拖曳 ⠿ 即可調整順序；所有選擇地點的地方（例如建立訂單）都會使用相同順序。"
   },
   "page_integrations": {
     "action_connect": "連結",
@@ -2283,10 +2286,7 @@
     "token_from_env_placeholder": "Token 已在伺服器設定",
     "unsaved_changes": "尚未儲存的變更",
     "unsaved_confirm": "Telegram 設定尚未儲存，確定要離開此頁面嗎？",
-    "test_not_saved_note": "測試按鈕使用目前表單中輸入的內容，點擊「儲存設定」後才會保存。",
-    "cek_views_chat_id": "CEK VIEWS 群組 Chat ID 與主題 ID（選填）",
-    "cek_views_thread_ph": "主題 ID",
-    "cek_views_used": "TikTok Views 報表與語音提醒會發送到這裡；群組沒有主題功能時請留空。"
+    "test_not_saved_note": "測試按鈕使用目前表單中輸入的內容，點擊「儲存設定」後才會保存。"
   },
   "page_product_trend": {
     "global_metric": "全域指標",
@@ -3326,7 +3326,8 @@
     "no_notes": "尚無備註。",
     "note_ph": "輸入備註...",
     "add_note": "新增備註",
-    "not_found": "找不到帳號。"
+    "not_found": "找不到帳號。",
+    "delete_note_confirm": "要刪除這則備註嗎？此動作無法復原。"
   },
   "page_cek_views": {
     "choose_location_short": "選擇地點",
@@ -3347,7 +3348,7 @@
     "sent_telegram_fail": "已儲存，但 Telegram 未送出",
     "input_again": "再次輸入",
     "settings_title": "設定",
-    "settings_subtitle": "為每位主播指派 TikTok 帳號並管理語音提醒。Telegram 機器人與群組請在 Telegram 設定中填寫。",
+    "settings_subtitle": "為每位主播指派 TikTok 帳號、管理語音提醒，並設定 CEK VIEWS 的 Telegram 機器人。",
     "assignment_hint": "主播與班別來自主播管理；房間、裝置與狀態跟隨所選 TikTok 帳號。勾選 OFF 可暫時將主播排除於 CEK VIEWS，且保留指派。",
     "from_host_mgmt": "來自主播管理",
     "no_shift": "未分班",
@@ -3368,7 +3369,25 @@
     "send_test": "立即測試發送",
     "test_confirm": "現在要把語音訊息發送到 Telegram 群組嗎？",
     "test_sent": "語音訊息已送出。",
-    "voice_hint": "錄音會在排程時間發送到 CEK VIEWS 的 Telegram 群組／主題。格式：.ogg (Opus)、.mp3、.m4a，最大 10 MB。"
+    "voice_hint": "錄音會在排程時間發送到 CEK VIEWS 的 Telegram 群組／主題。格式：.ogg (Opus)、.mp3、.m4a，最大 10 MB。",
+    "telegram_title": "CEK VIEWS Telegram 機器人",
+    "telegram_hint": "CEK VIEWS 使用獨立的機器人，與主要的 Telegram 機器人（Telegram 設定）分開。Views 報表與語音提醒都由此機器人發送。",
+    "bot_token": "機器人 Token",
+    "token_saved": "已儲存 Token。輸入新的即可取代。",
+    "token_from_env": "Token 來自伺服器環境變數（TELEGRAM_CEK_VIEWS_BOT_TOKEN）；在此輸入會覆蓋它。",
+    "token_missing": "尚未設定 Token，設定前無法發送任何訊息。",
+    "chat_id": "群組 Chat ID",
+    "topic_id": "主題 ID（選填）",
+    "topic_ph": "主題 ID",
+    "group_hint": "群組沒有主題功能時請留空。請把機器人加入群組並設為管理員。",
+    "send_enabled": "啟用發送（關閉後 CEK VIEWS 不會發送任何 Telegram 訊息）",
+    "check_connection": "檢查連線",
+    "send_test_message": "發送測試訊息",
+    "remove_token": "移除 Token",
+    "remove_token_confirm": "要移除 CEK VIEWS 機器人 Token 嗎？重新設定前無法發送。",
+    "bot_connected": "已連線：{{name}}",
+    "bot_no_token": "尚無 Token 可檢查。",
+    "test_message_sent": "測試訊息已送出。"
   },
   "page_employee": {
     "active": "在職",
@@ -3482,7 +3501,7 @@
     "sensitive_restricted": "NIK、地址、銀行與緊急聯絡資料僅限管理員與主管查看。",
     "settings": "設定",
     "status": "狀態",
-    "status_hint": "給薪／不給薪決定當天是否從底薪扣除；扣除全勤獎金決定使用此狀態是否失去整月全勤獎金，兩者獨立運作。代碼 W、OFF、LV 在薪資中分別計為工作、休假、請假天數。",
+    "status_hint": "給薪／不給薪決定當天是否從底薪扣除；扣除全勤獎金決定此狀態是否失去整月全勤獎金，兩者獨立運作。「計為」告訴薪資該日算工作、休假或請假。所有狀態都可以新增、編輯與刪除。",
     "status_name": "狀態名稱",
     "text_color": "文字顏色",
     "total_bonus": "獎金總計",
@@ -3493,6 +3512,22 @@
     "unpaid_days": "不給薪天數",
     "unpaid_deduction": "無薪假扣款",
     "view_details": "查看詳情",
-    "work_days": "工作天數"
+    "work_days": "工作天數",
+    "position_settings": "職位設定",
+    "position_settings_hint": "新增、重新命名或刪除職位。所有職位都會出現在員工表單的職位選單中；仍有員工使用的職位無法刪除。",
+    "n_employees": "{{count}} 位員工",
+    "position_in_use": "仍有員工使用，請先改派",
+    "delete_position_confirm": "要刪除職位「{{name}}」嗎？",
+    "new_position_ph": "新職位名稱",
+    "search_salary_ph": "搜尋姓名、編號或地點",
+    "no_match": "沒有符合的員工。",
+    "one_letter": "一個字母",
+    "counts_as": "薪資將此狀態的日子計為",
+    "kind_work": "工作日",
+    "kind_off": "休假日",
+    "kind_leave": "請假日",
+    "kind_other": "其他（僅適用給薪／不給薪）",
+    "is_default_status": "未更動日期的預設狀態",
+    "delete_status_confirm": "要刪除狀態「{{name}}」嗎？已使用它的日期會回到預設狀態。"
   }
 }

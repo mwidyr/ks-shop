@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  createAttendanceStatus, createEmployeeLocation, getSchedule, getScheduleSettings, saveSchedule, updateAttendanceStatus, updateEmployeeLocation,
+  createAttendanceStatus, createEmployeeLocation, deleteAttendanceStatus, getSchedule, getScheduleSettings, saveSchedule, updateAttendanceStatus, updateEmployeeLocation,
 } from '../api/employee'
 import { useCanEdit } from '../context/AccessContext'
 import { cardClasses } from '../components/Table'
-import { STATUS_COLORS, currentMonth, monthLabel, shiftMonth, statusStyle } from '../utils/employeeUi'
+import MonthSwitcher from '../components/MonthSwitcher'
+import { jakartaIsoDate } from '../utils/jakartaDate'
+import { STATUS_COLORS, currentMonth, statusStyle } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -18,10 +20,12 @@ function colorOptions() {
   return Object.entries(STATUS_COLORS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)
 }
 
+const KINDS = ['work', 'off', 'leave', 'other']
+
 function StatusForm({ initial, onCancel, onSaved }) {
   const { t } = useTranslation()
   const isEdit = Boolean(initial?.id)
-  const [f, setF] = useState(initial || { code: '', name: '', is_paid: true, deduct_bonus: false, bg_color: 'gray', text_color: 'black', is_active: true })
+  const [f, setF] = useState(initial || { code: '', name: '', is_paid: true, deduct_bonus: false, bg_color: 'gray', text_color: 'black', kind: 'other', is_default: false, is_active: true })
   const [err, setErr] = useState('')
   async function save() {
     setErr('')
@@ -34,24 +38,27 @@ function StatusForm({ initial, onCancel, onSaved }) {
     }
   }
   return (
-    <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="border border-[var(--table-divider)] rounded-xl p-4 space-y-3">
       <h4 className="font-semibold text-[var(--text-primary)]">{isEdit ? t('page_employee.edit_status') : t('page_employee.add_status')}</h4>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.code')}<input value={f.code} disabled={isEdit} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} maxLength={10} className={`${inputCls} w-full mt-1 disabled:bg-gray-50`} /></label>
+        <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.code')} <span className="font-normal">({t('page_employee.one_letter')})</span><input value={f.code} onChange={(e) => setF({ ...f, code: Array.from(e.target.value.toUpperCase()).slice(-1).join('') })} className={`${inputCls} w-full mt-1`} /></label>
         <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.status_name')}<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={`${inputCls} w-full mt-1`} /></label>
         <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.bg_color')}<select value={f.bg_color} onChange={(e) => setF({ ...f, bg_color: e.target.value })} className={`${inputCls} w-full mt-1`}>{colorOptions()}</select></label>
         <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.text_color')}<select value={f.text_color} onChange={(e) => setF({ ...f, text_color: e.target.value })} className={`${inputCls} w-full mt-1`}>{colorOptions()}</select></label>
+        <label className="block text-xs font-semibold text-[var(--text-secondary)] sm:col-span-2">{t('page_employee.counts_as')}
+          <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} className={`${inputCls} w-full mt-1`}>{KINDS.map((k) => <option key={k} value={k}>{t(`page_employee.kind_${k}`)}</option>)}</select></label>
       </div>
-      <div className="flex flex-wrap gap-5 text-sm">
+      <div className="flex flex-wrap gap-5 text-sm text-[var(--text-primary)]">
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.is_paid} onChange={(e) => setF({ ...f, is_paid: e.target.checked })} />{t('page_employee.paid')}</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.deduct_bonus} onChange={(e) => setF({ ...f, deduct_bonus: e.target.checked })} />{t('page_employee.deduct_bonus')}</label>
-        {isEdit && !initial.is_default && <label className="flex items-center gap-2"><input type="checkbox" checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} />{t('page_employee.active')}</label>}
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.is_default} disabled={isEdit && initial.is_default} onChange={(e) => setF({ ...f, is_default: e.target.checked })} />{t('page_employee.is_default_status')}</label>
+        {isEdit && !f.is_default && <label className="flex items-center gap-2"><input type="checkbox" checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} />{t('page_employee.active')}</label>}
       </div>
       <p className="text-xs text-[var(--text-secondary)]">{t('page_employee.status_hint')}</p>
       {err && <p className="text-sm text-red-600">{err}</p>}
       <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onCancel} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg">{t('common.cancel')}</button>
-        <button type="button" onClick={save} disabled={!f.name.trim() || (!isEdit && !f.code.trim())} className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40">{t('page_employee.save_status')}</button>
+        <button type="button" onClick={onCancel} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg text-[var(--text-primary)]">{t('common.cancel')}</button>
+        <button type="button" onClick={save} disabled={!f.name.trim() || !f.code.trim()} className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40">{t('page_employee.save_status')}</button>
       </div>
     </div>
   )
@@ -87,7 +94,7 @@ function SettingsModal({ onClose, onChanged }) {
           <div className="space-y-3">
             <p className="text-xs text-[var(--text-secondary)]">{t('page_employee.location_settings_hint')}</p>
             {data.locations.map((l) => (
-              <div key={l.id} className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+              <div key={l.id} className="flex items-center gap-2 border border-[var(--table-divider)] rounded-xl px-3 py-2">
                 <input defaultValue={l.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.name) run(() => updateEmployeeLocation(l.id, { name: v, is_active: l.is_active })) }} className={`${inputCls} flex-1 ${l.is_active ? '' : 'opacity-50'}`} />
                 {l.is_default ? <span className="text-xs text-[var(--text-secondary)]">{t('page_employee.default')}</span>
                   : <button type="button" onClick={() => run(() => updateEmployeeLocation(l.id, { name: l.name, is_active: !l.is_active }))} className="text-xs font-semibold border border-gray-300 rounded-lg px-3 py-1.5">{l.is_active ? t('page_employee.deactivate') : t('page_employee.reactivate')}</button>}
@@ -103,12 +110,15 @@ function SettingsModal({ onClose, onChanged }) {
         ) : (
           <div className="space-y-2">
             {data.statuses.map((s) => (
-              <div key={s.id} className="flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2">
+              <div key={s.id} className="flex items-center justify-between border border-[var(--table-divider)] rounded-xl px-3 py-2">
                 <div className="flex items-center gap-3">
                   <span className="rounded-md px-2 py-1 text-xs font-bold" style={statusStyle(s)}>{s.code}</span>
-                  <div><p className="text-sm font-semibold text-[var(--text-primary)]">{s.name}</p><p className="text-[11px] text-[var(--text-secondary)]">{s.is_paid ? t('page_employee.paid') : t('page_employee.unpaid')} · {s.is_active ? t('page_employee.active') : t('page_employee.inactive')}{s.deduct_bonus ? ` · ${t('page_employee.deducts_bonus')}` : ''}</p></div>
+                  <div><p className="text-sm font-semibold text-[var(--text-primary)]">{s.name}</p><p className="text-[11px] text-[var(--text-secondary)]">{s.is_default ? `${t('page_employee.default')} · ` : ''}{s.is_paid ? t('page_employee.paid') : t('page_employee.unpaid')} · {s.is_active ? t('page_employee.active') : t('page_employee.inactive')}{s.deduct_bonus ? ` · ${t('page_employee.deducts_bonus')}` : ''}</p></div>
                 </div>
-                <button type="button" onClick={() => setEditStatus(s)} className="text-xs font-semibold border border-gray-300 rounded-lg px-3 py-1.5">{t('common.edit')}</button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditStatus(s)} className="text-xs font-semibold border border-gray-300 rounded-lg px-3 py-1.5 text-[var(--text-primary)]">{t('common.edit')}</button>
+                  <button type="button" onClick={() => { if (window.confirm(t('page_employee.delete_status_confirm', { name: `${s.code} — ${s.name}` }))) run(() => deleteAttendanceStatus(s.id)) }} className="text-xs font-semibold text-red-600 border border-red-300 rounded-lg px-3 py-1.5">{t('common.delete')}</button>
+                </div>
               </div>
             ))}
             <button type="button" onClick={() => setEditStatus({})} className="w-full border border-dashed border-gray-300 rounded-xl py-2 text-sm font-semibold text-gray-600">+ {t('page_employee.add_status')}</button>
@@ -131,6 +141,7 @@ export default function ShiftSchedule() {
   const [menu, setMenu] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const dragging = useRef(false)
+  const todayIso = jakartaIsoDate()
 
   const load = useCallback(() => getSchedule({ month, location_id: locationId }).then(setData).catch(() => setError('load')), [month, locationId])
   useEffect(() => { setData(null); load() }, [load])
@@ -171,11 +182,7 @@ export default function ShiftSchedule() {
         {canEdit && <button type="button" onClick={() => setSettingsOpen(true)} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-full">⚙ {t('page_employee.settings')}</button>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} className="border border-gray-300 rounded-full w-9 h-9">‹</button>
-          <span className="font-semibold text-[var(--text-primary)] min-w-[9rem] text-center">{monthLabel(month)}</span>
-          <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} className="border border-gray-300 rounded-full w-9 h-9">›</button>
-        </div>
+        <MonthSwitcher value={month} onChange={setMonth} />
         <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
           <option value="">{t('page_employee.all_locations')}</option>
           {(data?.locations || []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -185,37 +192,44 @@ export default function ShiftSchedule() {
       {canEdit && <p className="text-xs text-[var(--text-secondary)]">{t('page_employee.schedule_hint')}</p>}
       {error && <p className="text-sm text-red-600">{error === 'load' ? t('page_employee.load_error') : error}</p>}
 
-      {!data ? <div className={`${cardClasses} p-8 text-center text-gray-400`}>{t('common.loading')}</div> : (
-        <div className={`${cardClasses} overflow-x-auto select-none`}>
-          <table className="border-separate text-xs" style={{ borderSpacing: 3 }}>
+      {!data ? <div className={`${cardClasses} p-8 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div> : (
+        <div className={`${cardClasses} overflow-auto select-none max-h-[78vh]`}>
+          <table className="border-separate text-xs" style={{ borderSpacing: '2px 3px' }}>
             <thead><tr>
-              <th className="sticky left-0 z-10 bg-[var(--table-card-bg)] text-left p-2 min-w-[8rem]">{t('page_employee.employee')}</th>
-              {data.dates.map((d) => { const wd = new Date(`${d}T00:00:00Z`).getUTCDay(); return (
-                <th key={d} className={`p-1 font-normal text-center min-w-[2.25rem] rounded ${wd === 0 || wd === 6 ? 'bg-gray-100' : ''}`}><div className="font-semibold">{Number(d.slice(8))}</div><div className="text-[10px] text-gray-400">{WEEKDAYS[wd]}</div></th>
+              <th className="sticky top-0 left-0 z-30 bg-[var(--table-card-bg)] text-left px-2 py-1 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] text-[var(--text-primary)]">{t('page_employee.employee')}</th>
+              {data.dates.map((d) => { const wd = new Date(`${d}T00:00:00Z`).getUTCDay(); const isToday = d === todayIso; return (
+                <th key={d} className="sticky top-0 z-20 bg-[var(--table-card-bg)] p-0 font-normal text-center w-7 min-w-[1.75rem]">
+                  <div className={`mx-auto w-7 rounded-full py-1 leading-tight ${isToday ? 'bg-brand-600 text-white' : wd === 0 || wd === 6 ? 'bg-[var(--table-header-bg)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>
+                    <div className="font-bold text-[11px]">{Number(d.slice(8))}</div>
+                    <div className={`text-[8px] uppercase ${isToday ? 'text-white/80' : 'text-[var(--text-secondary)]'}`}>{WEEKDAYS[wd]}</div>
+                  </div>
+                </th>
               ) })}
             </tr></thead>
             <tbody>
               {data.employees.map((e, r) => (
                 <tr key={e.id}>
-                  <td className="sticky left-0 z-10 bg-[var(--table-card-bg)] p-2"><p className="font-semibold text-[var(--text-primary)]">{e.nickname}</p><p className="text-[10px] text-[var(--text-secondary)]">{e.location}</p></td>
+                  <td className="sticky left-0 z-10 bg-[var(--table-card-bg)] px-2 py-1 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem]"><p className="font-semibold text-[var(--text-primary)] truncate" title={e.full_name}>{e.nickname}</p><p className="text-[9px] text-[var(--text-secondary)] truncate">{e.location}</p></td>
                   {data.dates.map((d, c) => {
-                    const s = statusById[e.records[d]] || defaultStatus
+                    const st = statusById[e.records[d]] || defaultStatus
+                    const isToday = d === todayIso
                     return (
-                      <td key={d} onMouseDown={() => start(r, c)} onMouseEnter={() => extend(r, c)}
-                        className={`h-9 min-w-[2.25rem] text-center font-semibold rounded-lg ${canEdit ? 'cursor-pointer' : ''} ${inSel(r, c) ? 'ring-2 ring-brand-600' : ''}`}
-                        style={s ? statusStyle(s) : undefined}>{s?.code}</td>
+                      <td key={d} onMouseDown={() => start(r, c)} onMouseEnter={() => extend(r, c)} className={`p-0 ${isToday ? 'bg-[var(--table-row-hover)]' : ''}`}>
+                        <div className={`h-10 w-7 flex items-center justify-center rounded-full text-[11px] font-bold overflow-hidden ${canEdit ? 'cursor-pointer' : ''} ${inSel(r, c) ? 'ring-2 ring-brand-600' : ''}`}
+                          style={st ? statusStyle(st) : { border: '1px dashed var(--table-divider)', color: 'var(--text-secondary)' }}>{st ? st.code : '·'}</div>
+                      </td>
                     )
                   })}
                 </tr>
               ))}
-              {data.employees.length === 0 && <tr><td colSpan={data.dates.length + 1} className="p-6 text-center text-gray-400">{t('page_employee.none')}</td></tr>}
+              {data.employees.length === 0 && <tr><td colSpan={data.dates.length + 1} className="p-6 text-center text-[var(--text-secondary)]">{t('page_employee.none')}</td></tr>}
             </tbody>
           </table>
         </div>
       )}
 
       {menu && box && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-gray-900 text-white rounded-2xl shadow-xl p-4 space-y-2 max-w-[95vw]">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-gray-900 text-white rounded-2xl shadow-xl p-4 space-y-2 max-w-[95vw] border border-gray-600">
           <p className="text-sm">{t('page_employee.apply_status', { count })}</p>
           <div className="flex flex-wrap gap-2">
             {activeStatuses.map((s) => <button key={s.id} type="button" onClick={() => apply(s)} className="border border-gray-500 rounded-full px-3 py-1.5 text-sm hover:bg-gray-700">{s.code} — {s.name}</button>)}

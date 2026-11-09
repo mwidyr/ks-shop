@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -21,10 +22,11 @@ type attendanceStatus struct {
 	TextColor   string `json:"text_color"`
 	IsActive    bool   `json:"is_active"`
 	IsDefault   bool   `json:"is_default"`
+	Kind        string `json:"kind"` // work | off | leave | other: how Payroll counts the day
 }
 
 func (h *EmployeeHandler) loadStatuses(r *http.Request) []attendanceStatus {
-	rows, err := h.DB.Query(r.Context(), `SELECT id, code, name, is_paid, deduct_bonus, bg_color, text_color, is_active, is_default FROM attendance_statuses ORDER BY sort_order, id`)
+	rows, err := h.DB.Query(r.Context(), `SELECT id, code, name, is_paid, deduct_bonus, bg_color, text_color, is_active, is_default, kind FROM attendance_statuses ORDER BY sort_order, id`)
 	out := []attendanceStatus{}
 	if err != nil {
 		return out
@@ -32,7 +34,7 @@ func (h *EmployeeHandler) loadStatuses(r *http.Request) []attendanceStatus {
 	defer rows.Close()
 	for rows.Next() {
 		var s attendanceStatus
-		if rows.Scan(&s.ID, &s.Code, &s.Name, &s.IsPaid, &s.DeductBonus, &s.BgColor, &s.TextColor, &s.IsActive, &s.IsDefault) == nil {
+		if rows.Scan(&s.ID, &s.Code, &s.Name, &s.IsPaid, &s.DeductBonus, &s.BgColor, &s.TextColor, &s.IsActive, &s.IsDefault, &s.Kind) == nil {
 			out = append(out, s)
 		}
 	}
@@ -233,18 +235,33 @@ type statusRequest struct {
 	DeductBonus bool   `json:"deduct_bonus"`
 	BgColor     string `json:"bg_color"`
 	TextColor   string `json:"text_color"`
+	Kind        string `json:"kind"`
+	IsDefault   bool   `json:"is_default"`
 	IsActive    *bool  `json:"is_active"`
 }
 
+var statusKinds = map[string]bool{"work": true, "off": true, "leave": true, "other": true}
+
+// clean validates everything but the code (a code is checked where it is created or changed): one character, since
+// the schedule cells show only the code.
 func (s *statusRequest) clean() string {
 	s.Code, s.Name = strings.ToUpper(strings.TrimSpace(s.Code)), strings.TrimSpace(s.Name)
+	if s.Kind == "" {
+		s.Kind = "other"
+	}
 	switch {
 	case s.Name == "":
 		return "name is required"
 	case !statusColors[s.BgColor] || !statusColors[s.TextColor]:
 		return "choose a background and text color"
+	case !statusKinds[s.Kind]:
+		return "invalid payroll category"
 	}
 	return ""
+}
+
+func validStatusCode(code string) bool {
+	return utf8.RuneCountInString(code) == 1 && !strings.ContainsAny(code, " \t")
 }
 
 // CreateStatus adds an attendance status; it shows up in the schedule's status menu right away.
@@ -258,15 +275,28 @@ func (h *EmployeeHandler) CreateStatus(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
-	if req.Code == "" || len(req.Code) > 10 || strings.ContainsAny(req.Code, " ") {
-		respondError(w, http.StatusBadRequest, "code is required (up to 10 characters, no spaces)")
+	if !validStatusCode(req.Code) {
+		respondError(w, http.StatusBadRequest, "the code must be exactly one character")
 		return
 	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var anyDefault bool
+	_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM attendance_statuses WHERE is_default)`).Scan(&anyDefault)
+	makeDefault := req.IsDefault || !anyDefault // the first status ever is the default
+	if makeDefault {
+		_, _ = tx.Exec(ctx, `UPDATE attendance_statuses SET is_default = false`)
+	}
 	var id int
-	err := h.DB.QueryRow(r.Context(), `
-		INSERT INTO attendance_statuses (code, name, is_paid, deduct_bonus, bg_color, text_color, sort_order)
-		VALUES ($1,$2,$3,$4,$5,$6, COALESCE((SELECT max(sort_order) FROM attendance_statuses), 0) + 1) RETURNING id`,
-		req.Code, req.Name, req.IsPaid, req.DeductBonus, req.BgColor, req.TextColor).Scan(&id)
+	err = tx.QueryRow(ctx, `
+		INSERT INTO attendance_statuses (code, name, is_paid, deduct_bonus, bg_color, text_color, kind, is_default, sort_order)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, COALESCE((SELECT max(sort_order) FROM attendance_statuses), 0) + 1) RETURNING id`,
+		req.Code, req.Name, req.IsPaid, req.DeductBonus, req.BgColor, req.TextColor, req.Kind, makeDefault).Scan(&id)
 	if isUniqueViolation(err) {
 		respondError(w, http.StatusConflict, "this code already exists")
 		return
@@ -275,11 +305,15 @@ func (h *EmployeeHandler) CreateStatus(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to add status")
 		return
 	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
 	respondJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
 
-// UpdateStatus edits a status (the code never changes). Existing attendance records keep pointing at it; the default
-// status (Working) cannot be deactivated.
+// UpdateStatus edits a status, including its code (still one character). Existing attendance records keep pointing at
+// it. The default status (used by dates nobody has changed) cannot be deactivated: pick another default first.
 func (h *EmployeeHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	var req statusRequest
@@ -291,20 +325,88 @@ func (h *EmployeeHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
+	ctx := r.Context()
+	var curCode string
+	var curDefault bool
+	if err := h.DB.QueryRow(ctx, `SELECT code, is_default FROM attendance_statuses WHERE id=$1`, id).Scan(&curCode, &curDefault); err != nil {
+		respondError(w, http.StatusNotFound, "status not found")
+		return
+	}
+	if req.Code == "" {
+		req.Code = curCode
+	}
+	if req.Code != curCode && !validStatusCode(req.Code) {
+		respondError(w, http.StatusBadRequest, "the code must be exactly one character")
+		return
+	}
 	active := true
 	if req.IsActive != nil {
 		active = *req.IsActive
 	}
-	ct, err := h.DB.Exec(r.Context(), `
-		UPDATE attendance_statuses SET name=$1, is_paid=$2, deduct_bonus=$3, bg_color=$4, text_color=$5, is_active = ($6 OR is_default) WHERE id=$7`,
-		req.Name, req.IsPaid, req.DeductBonus, req.BgColor, req.TextColor, active, id)
+	makeDefault := req.IsDefault || curDefault // the default is changed by choosing another one
+	if makeDefault && !active {
+		respondError(w, http.StatusBadRequest, "the default status cannot be deactivated; make another status the default first")
+		return
+	}
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	if req.IsDefault && !curDefault {
+		_, _ = tx.Exec(ctx, `UPDATE attendance_statuses SET is_default = false`)
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE attendance_statuses SET code=$1, name=$2, is_paid=$3, deduct_bonus=$4, bg_color=$5, text_color=$6, kind=$7, is_active=$8, is_default=$9 WHERE id=$10`,
+		req.Code, req.Name, req.IsPaid, req.DeductBonus, req.BgColor, req.TextColor, req.Kind, active, makeDefault, id)
+	if isUniqueViolation(err) {
+		respondError(w, http.StatusConflict, "this code already exists")
+		return
+	}
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update status")
 		return
 	}
-	if ct.RowsAffected() == 0 {
-		respondError(w, http.StatusNotFound, "status not found")
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// DeleteStatus removes a status. Its attendance records go with it (those dates fall back to the default status).
+// When the default is deleted, the first remaining status becomes the default. The response says how many records went.
+func (h *EmployeeHandler) DeleteStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid status id")
+		return
+	}
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var wasDefault bool
+	if err := tx.QueryRow(ctx, `SELECT is_default FROM attendance_statuses WHERE id=$1`, id).Scan(&wasDefault); err != nil {
+		respondError(w, http.StatusNotFound, "status not found")
+		return
+	}
+	var records int
+	_ = tx.QueryRow(ctx, `SELECT count(*) FROM attendance_records WHERE status_id=$1`, id).Scan(&records)
+	if _, err := tx.Exec(ctx, `DELETE FROM attendance_statuses WHERE id=$1`, id); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete status")
+		return
+	}
+	if wasDefault {
+		_, _ = tx.Exec(ctx, `UPDATE attendance_statuses SET is_default = true WHERE id = (SELECT id FROM attendance_statuses ORDER BY sort_order, id LIMIT 1)`)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]int{"deleted_records": records})
 }

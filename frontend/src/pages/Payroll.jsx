@@ -5,7 +5,8 @@ import {
 } from '../api/employee'
 import { useCanEdit } from '../context/AccessContext'
 import { cardClasses } from '../components/Table'
-import { currentMonth, fmtIDR, fmtRp, monthLabel } from '../utils/employeeUi'
+import MonthSwitcher from '../components/MonthSwitcher'
+import { currentMonth, fmtIDR, fmtRp } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
 
@@ -59,10 +60,10 @@ function Detail({ row, month, canEdit, onChanged }) {
     try { await savePayrollExtra({ employee_id: row.employee_id, month, extra: Number(extra) || 0, note }); onChanged() } catch (e) { setErr(e.response?.data?.error || t('page_employee.save_error')) }
   }
   return (
-    <div className="p-4 space-y-2 bg-gray-50/60">
+    <div className="p-4 space-y-2 bg-[var(--table-header-bg)] text-[var(--text-primary)]">
       <div className="flex items-start justify-between gap-3">
         <div><h3 className="font-bold text-[var(--text-primary)]">{row.nickname} — {t('page_employee.salary_details')}</h3><p className="text-xs text-[var(--text-secondary)]">{month}{row.finalized ? ` · ${t('page_employee.finalized')}` : ''}</p></div>
-        <button type="button" onClick={async () => { await copyText(payslipText(row, month, t)); setCopied(true); setTimeout(() => setCopied(false), 1500) }} className="border border-gray-300 bg-white text-sm font-semibold px-3 py-1.5 rounded-lg">{copied ? t('page_employee.copied') : t('page_employee.copy_payslip')}</button>
+        <button type="button" onClick={async () => { await copyText(payslipText(row, month, t)); setCopied(true); setTimeout(() => setCopied(false), 1500) }} className="border border-gray-300 bg-[var(--table-card-bg)] text-[var(--text-primary)] text-sm font-semibold px-3 py-1.5 rounded-lg">{copied ? t('page_employee.copied') : t('page_employee.copy_payslip')}</button>
       </div>
       <dl className="divide-y divide-[var(--table-divider)] text-sm max-w-xl">
         {lines.map(([k, v]) => <div key={k} className="flex justify-between py-1.5"><dt className="text-[var(--text-secondary)]">{t(`page_employee.${k}`)}</dt><dd>{v}</dd></div>)}
@@ -88,6 +89,7 @@ function SettingsModal({ onClose, onSaved }) {
   const [salaries, setSalaries] = useState({})
   const [bonus, setBonus] = useState(null)
   const [msg, setMsg] = useState('')
+  const [search, setSearch] = useState('')
   useEffect(() => { getPayrollSettings().then((d) => { setData(d); setBonus(d.bonus); setSalaries(Object.fromEntries(d.salaries.map((s) => [s.employee_id, String(s.base_salary)]))) }) }, [])
 
   const num = (v) => (v === '' || v == null ? 0 : Number(v))
@@ -125,13 +127,15 @@ function SettingsModal({ onClose, onSaved }) {
         {!data ? <p className="text-center text-gray-400 py-6">{t('common.loading')}</p> : tab === 'salary' ? (
           <div className="space-y-2">
             <p className="text-xs text-[var(--text-secondary)]">{t('page_employee.salary_hint', { month: data.effective_month })}</p>
-            {data.salaries.map((s) => (
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('page_employee.search_salary_ph')} className={`${inputCls} w-full`} />
+            {data.salaries.filter((s) => [s.nickname, s.emp_code, s.location].some((v) => String(v || '').toLowerCase().includes(search.trim().toLowerCase()))).map((s) => (
               <div key={s.employee_id} className="flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2">
                 <div className="flex-1"><p className="font-semibold text-sm text-[var(--text-primary)]">{s.nickname}</p><p className="text-[11px] text-[var(--text-secondary)]">{s.emp_code} · {s.location}</p></div>
                 <input type="number" min="0" value={salaries[s.employee_id] ?? ''} onChange={(e) => setSalaries((m) => ({ ...m, [s.employee_id]: e.target.value }))} onBlur={() => saveSalary(s)} className={`${inputCls} w-44 text-right`} />
               </div>
             ))}
             {data.salaries.length === 0 && <p className="text-center text-gray-400 py-4">{t('page_employee.none')}</p>}
+            {data.salaries.length > 0 && !data.salaries.some((s) => [s.nickname, s.emp_code, s.location].some((v) => String(v || '').toLowerCase().includes(search.trim().toLowerCase()))) && <p className="text-center text-gray-400 py-4">{t('page_employee.no_match')}</p>}
           </div>
         ) : bonus && (
           <div className="space-y-6">
@@ -218,8 +222,7 @@ export default function Payroll() {
         <button type="button" onClick={() => setSettingsOpen(true)} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-full">⚙ {t('page_employee.settings')} ▾</button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.month')}
-          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} className={`${inputCls} w-full mt-1`} /></label>
+        <div><span className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">{t('page_employee.month')}</span><MonthSwitcher value={month} onChange={setMonth} /></div>
         <label className="block text-xs font-semibold text-[var(--text-secondary)]">{t('page_employee.location')}
           <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={`${inputCls} w-full mt-1`}><option value="">{t('page_employee.all_locations')}</option>{(data?.locations || []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
       </div>

@@ -16,3 +16,8 @@ export const uploadVoiceFile = (file) => {
 }
 export const fetchVoiceBlob = () => client.get('/cek-views/voice/file', { responseType: 'blob' }).then((r) => r.data)
 export const testVoice = () => client.post('/cek-views/voice/test').then((r) => r.data)
+
+export const getCekTelegram = () => client.get('/cek-views/telegram').then((r) => r.data)
+export const saveCekTelegram = (body) => client.put('/cek-views/telegram', body).then((r) => r.data)
+export const checkCekTelegram = (botToken) => client.post('/cek-views/telegram/status', { bot_token: botToken || '' }).then((r) => r.data)
+export const testCekTelegram = () => client.post('/cek-views/telegram/test').then((r) => r.data)

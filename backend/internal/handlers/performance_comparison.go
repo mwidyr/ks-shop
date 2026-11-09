@@ -137,7 +137,7 @@ func (h *PerformanceComparisonHandler) LocationShift(w http.ResponseWriter, r *h
 		name string
 	}
 	var locations []location
-	if rows, err := h.DB.Query(ctx, `SELECT id, name FROM host_locations ORDER BY name`); err == nil {
+	if rows, err := h.DB.Query(ctx, `SELECT id, name FROM host_locations ORDER BY sort_order, name`); err == nil {
 		for rows.Next() {
 			var l location
 			if rows.Scan(&l.id, &l.name) == nil {

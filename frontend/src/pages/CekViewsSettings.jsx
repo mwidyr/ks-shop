@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { fetchVoiceBlob, getAssignments, getPortalOverview, getVoiceSettings, saveAssignments, saveVoiceSettings, testVoice, uploadVoiceFile } from '../api/cekViews'
+import { checkCekTelegram, fetchVoiceBlob, getAssignments, getCekTelegram, getPortalOverview, getVoiceSettings, saveAssignments, saveCekTelegram, saveVoiceSettings, testCekTelegram, testVoice, uploadVoiceFile } from '../api/cekViews'
 import { useCanEdit } from '../context/AccessContext'
 import { cardClasses } from '../components/Table'
 import { StatusBadge } from './TikTokAccounts'
@@ -153,7 +153,7 @@ function VoiceTab({ canEdit }) {
         <div className="grid grid-cols-7 gap-2">
           {DAYS.map(([d, label]) => (
             <button key={d} type="button" disabled={!canEdit} onClick={() => toggleDay(d)}
-              className={`rounded-xl border py-3 text-sm font-semibold ${days.includes(d) ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-400'}`}>
+              className={`rounded-xl border py-3 text-sm font-semibold ${days.includes(d) ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600' : 'border-[var(--table-divider)] text-[var(--text-secondary)]'}`}>
               {label}<span className="block text-lg leading-none mt-1">{days.includes(d) ? '✓' : '○'}</span>
             </button>
           ))}
@@ -165,7 +165,7 @@ function VoiceTab({ canEdit }) {
         <p className="text-xs text-[var(--text-secondary)]">{t('page_cek_views.times_hint')}</p>
         <div className="flex flex-wrap gap-2">
           {times.map((tm) => (
-            <span key={tm} className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-mono">
+            <span key={tm} className="inline-flex items-center gap-2 rounded-lg bg-[var(--table-header-bg)] text-[var(--text-primary)] px-3 py-1.5 text-sm font-mono">
               {tm}{canEdit && <button type="button" onClick={() => { setMsg(''); setTimes((cur) => cur.filter((x) => x !== tm)) }} className="text-gray-400 hover:text-red-600">×</button>}
             </span>
           ))}
@@ -204,6 +204,76 @@ function VoiceTab({ canEdit }) {
   )
 }
 
+
+// Telegram Bot: CEK VIEWS has a bot of its own (separate from the main Telegram bot) - its token, the group / topic the
+// reports and voice reminders go to, and an on/off switch. The saved token is never shown again, only its last 4 characters.
+function TelegramTab({ canEdit }) {
+  const { t } = useTranslation()
+  const [data, setData] = useState(null)
+  const [token, setToken] = useState('')
+  const [chatId, setChatId] = useState('')
+  const [threadId, setThreadId] = useState('')
+  const [enabled, setEnabled] = useState(true)
+  const [msg, setMsg] = useState({ ok: true, text: '' })
+  const [busy, setBusy] = useState(false)
+
+  const apply = (d) => { setData(d); setChatId(d.chat_id || ''); setThreadId(d.thread_id ? String(d.thread_id) : ''); setEnabled(d.send_enabled); setToken('') }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { getCekTelegram().then(apply).catch(() => setMsg({ ok: false, text: t('page_cek_views.save_error') })) }, [])
+
+  const say = (ok, text) => setMsg({ ok, text })
+  async function run(fn) {
+    setBusy(true)
+    say(true, '')
+    try { await fn() } catch (e) { say(false, e.response?.data?.error || t('page_cek_views.save_error')) } finally { setBusy(false) }
+  }
+  const save = (extra = {}) => run(async () => {
+    apply(await saveCekTelegram({ bot_token: token.trim(), chat_id: chatId.trim(), thread_id: Number(threadId) || 0, send_enabled: enabled, ...extra }))
+    say(true, t('page_cek_views.saved'))
+  })
+  const check = () => run(async () => {
+    const r = await checkCekTelegram(token.trim())
+    if (r.connected) say(true, t('page_cek_views.bot_connected', { name: `@${r.bot_username}` }))
+    else say(false, r.error === 'no_token' ? t('page_cek_views.bot_no_token') : r.error)
+  })
+  const test = () => run(async () => { await testCekTelegram(); say(true, t('page_cek_views.test_message_sent')) })
+
+  if (!data) return <div className={`${cardClasses} p-6 text-center text-[var(--text-secondary)]`}>{t('common.loading')}</div>
+  const label = 'block text-xs font-semibold text-[var(--text-secondary)] mb-1'
+  return (
+    <div className={`${cardClasses} p-5 space-y-5 max-w-3xl`}>
+      <div><h2 className="font-bold text-[var(--text-primary)]">{t('page_cek_views.telegram_title')}</h2><p className="text-xs text-[var(--text-secondary)]">{t('page_cek_views.telegram_hint')}</p></div>
+
+      <div>
+        <label className={label}>{t('page_cek_views.bot_token')}</label>
+        <input type="password" autoComplete="off" disabled={!canEdit} value={token} onChange={(e) => { setToken(e.target.value); say(true, '') }}
+          placeholder={data.bot_token_set ? `•••• ${data.token_hint}` : '123456789:AA...'} className={`${inputCls} w-full font-mono`} />
+        <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+          {data.bot_token_set ? (data.token_source === 'environment' ? t('page_cek_views.token_from_env') : t('page_cek_views.token_saved')) : t('page_cek_views.token_missing')}
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[2fr,1fr]">
+        <div><label className={label}>{t('page_cek_views.chat_id')}</label><input disabled={!canEdit} value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="-100..." className={`${inputCls} w-full font-mono`} /></div>
+        <div><label className={label}>{t('page_cek_views.topic_id')}</label><input type="number" min="0" disabled={!canEdit} value={threadId} onChange={(e) => setThreadId(e.target.value)} placeholder={t('page_cek_views.topic_ph')} className={`${inputCls} w-full font-mono`} /></div>
+      </div>
+      <p className="text-[11px] text-[var(--text-secondary)] -mt-3">{t('page_cek_views.group_hint')}</p>
+
+      <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]"><input type="checkbox" disabled={!canEdit} checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />{t('page_cek_views.send_enabled')}</label>
+
+      {canEdit && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => save()} className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40">{t('page_cek_views.save_changes')}</button>
+          <button type="button" disabled={busy || (!token.trim() && !data.bot_token_set)} onClick={check} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40 text-[var(--text-primary)]">{t('page_cek_views.check_connection')}</button>
+          <button type="button" disabled={busy || !data.bot_token_set || !data.chat_id} onClick={test} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40 text-[var(--text-primary)]">{t('page_cek_views.send_test_message')}</button>
+          {data.bot_token_set && data.token_source === 'database' && <button type="button" disabled={busy} onClick={() => window.confirm(t('page_cek_views.remove_token_confirm')) && save({ clear_token: true, bot_token: '' })} className="text-sm font-semibold text-red-600 px-3 py-2">{t('page_cek_views.remove_token')}</button>}
+        </div>
+      )}
+      {msg.text && <p className={`text-sm ${msg.ok ? 'text-emerald-600' : 'text-red-600'}`}>{msg.text}</p>}
+    </div>
+  )
+}
+
 export default function CekViewsSettings() {
   const { t } = useTranslation()
   const canEdit = useCanEdit()
@@ -215,11 +285,11 @@ export default function CekViewsSettings() {
         <p className="text-sm text-[var(--text-secondary)]">{t('page_cek_views.settings_subtitle')}</p>
       </div>
       <div className="flex gap-1 border-b border-[var(--table-divider)]">
-        {[['assignment', 'Live Assignment'], ['voice', 'Voice Reminder']].map(([key, label]) => (
+        {[['assignment', 'Live Assignment'], ['voice', 'Voice Reminder'], ['telegram', 'Telegram Bot']].map(([key, label]) => (
           <button key={key} type="button" onClick={() => setTab(key)} className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${tab === key ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500'}`}>{label}</button>
         ))}
       </div>
-      {tab === 'assignment' ? <AssignmentTab canEdit={canEdit} /> : <VoiceTab canEdit={canEdit} />}
+      {tab === 'assignment' ? <AssignmentTab canEdit={canEdit} /> : tab === 'voice' ? <VoiceTab canEdit={canEdit} /> : <TelegramTab canEdit={canEdit} />}
     </div>
   )
 }

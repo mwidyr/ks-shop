@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listHosts, createHost, updateHost, deleteHost } from '../api/hosts'
-import { listLocations, createLocation, updateLocation, deleteLocation } from '../api/hostLocations'
+import { listLocations, createLocation, updateLocation, deleteLocation, reorderLocations } from '../api/hostLocations'
 
 // Builds the payload sent to onCreate/onUpdate from raw (string) form state,
 // converting `numeric` fields to Number so int fields on the backend (e.g.
@@ -45,7 +45,7 @@ function fieldInput(f, value, onChange, t) {
   )
 }
 
-function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, reload, renderExtra }) {
+function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, reload, renderExtra, onReorder }) {
   const { t } = useTranslation()
   const emptyForm = Object.fromEntries(fields.map((f) => [f.key, '']))
   const [form, setForm] = useState(emptyForm)
@@ -53,6 +53,8 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
   const [selected, setSelected] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [dragId, setDragId] = useState(null)
+  const [overId, setOverId] = useState(null)
   const [editForm, setEditForm] = useState(null)
 
   async function handleCreate(e) {
@@ -104,6 +106,23 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
     }
   }
 
+  // Drag and drop (only when onReorder is given): the dragged row moves to where it is dropped.
+  async function handleDrop(targetId) {
+    const from = dragId
+    setDragId(null)
+    setOverId(null)
+    if (from == null || from === targetId) return
+    const ids = items.map((i) => i.id).filter((id) => id !== from)
+    ids.splice(ids.indexOf(targetId), 0, from)
+    setError('')
+    try {
+      await onReorder(ids)
+      reload()
+    } catch (err) {
+      setError(err.response?.data?.error || t('page_hosts.save_error'))
+    }
+  }
+
   function toggleSelect(id) {
     setSelected((s) => {
       const next = new Set(s)
@@ -152,7 +171,13 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
 
       <div className="divide-y mb-4">
         {items.map((item) => (
-          <div key={item.id} className="py-2">
+          <div key={item.id}
+            className={`py-2 ${overId === item.id && dragId !== item.id ? 'border-t-2 border-brand-600' : ''} ${dragId === item.id ? 'opacity-40' : ''}`}
+            draggable={Boolean(onReorder) && editingId !== item.id}
+            onDragStart={onReorder ? (e) => { setDragId(item.id); e.dataTransfer.effectAllowed = 'move' } : undefined}
+            onDragOver={onReorder ? (e) => { e.preventDefault(); if (overId !== item.id) setOverId(item.id) } : undefined}
+            onDrop={onReorder ? (e) => { e.preventDefault(); handleDrop(item.id) } : undefined}
+            onDragEnd={onReorder ? () => { setDragId(null); setOverId(null) } : undefined}>
             {editingId === item.id ? (
               <div className="flex flex-wrap items-end gap-2 bg-gray-50 rounded-lg p-2">
                 {fields.map((f) => (
@@ -169,6 +194,7 @@ function ReferenceTable({ title, items, fields, onCreate, onUpdate, onDelete, re
             ) : (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                  {onReorder && <span className="cursor-grab select-none text-gray-400 hover:text-gray-600 px-1" title={t('page_hosts.drag_to_reorder')} aria-hidden>⠿</span>}
                   <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} />
                   <div>
                     <p className="text-sm font-medium text-gray-800">{item.name}</p>
@@ -248,7 +274,9 @@ export default function HostManagement() {
           onUpdate={updateLocation}
           onDelete={deleteLocation}
           reload={reloadLocations}
+          onReorder={reorderLocations}
         />
+        <p className="text-xs text-gray-500 mt-2">{t('page_hosts.reorder_hint')}</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5">

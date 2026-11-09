@@ -59,19 +59,17 @@ function StatCard({ label, value }) {
   )
 }
 
-function BestCard({ label, metric, t }) {
+// A Historical Best card: the highest DAILY value of the selected filter and the date it was reached (no session / shift).
+function BestCard({ label, metric, fmt = fmtNum }) {
   return (
     <div className={`${cardClasses} p-4`}>
       <p className="text-[11px] uppercase text-[var(--text-secondary)] mb-1">{label}</p>
-      <p className="text-lg font-bold text-[var(--text-primary)]">{metric?.value == null ? '—' : fmtNum(metric.value)}</p>
-      {metric?.value != null && (
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-          {metric.date}{metric.shift ? ` · ${t(`page_hosts.shift_${metric.shift}`)}` : ''}
-        </p>
-      )}
+      <p className="text-lg font-bold text-[var(--text-primary)]">{metric?.value == null ? '—' : fmt(metric.value)}</p>
+      {metric?.value != null && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{metric.date}</p>}
     </div>
   )
 }
+const fmtWhole = (n) => fmtNum(Math.round(Number(n)))
 
 const metricType = (key) => (key === 'qty' ? 'qty' : key === 'ord' ? 'ord' : key === 'gmv' ? 'gmv' : null)
 
@@ -172,13 +170,13 @@ export default function HostPerformanceAnalytics() {
             </div>
             <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.historical_best_title')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-4">
-              <BestCard t={t} label="Highest QTY" metric={best.highest_qty} />
-              <BestCard t={t} label="Highest ORD" metric={best.highest_ord} />
-              <BestCard t={t} label="Highest GMV" metric={best.highest_gmv} />
-              <BestCard t={t} label="Highest Views" metric={best.highest_views} />
-              <BestCard t={t} label="Highest PCU" metric={best.highest_pcu} />
-              <BestCard t={t} label="Best AWT" metric={best.highest_awt} />
-              <BestCard t={t} label="Best GPM" metric={best.highest_gpm} />
+              <BestCard label="Highest QTY" metric={best.highest_qty} />
+              <BestCard label="Highest ORD" metric={best.highest_ord} />
+              <BestCard label="Highest GMV" metric={best.highest_gmv} />
+              <BestCard label="Highest Views" metric={best.highest_views} />
+              <BestCard label="Highest PCU" metric={best.highest_pcu} />
+              <BestCard label="Highest AOV" metric={best.highest_aov} fmt={(n) => `NT$ ${fmtWhole(n)}`} />
+              <BestCard label="Best GPM" metric={best.highest_gpm} fmt={fmtWhole} />
             </div>
           </div>
 

@@ -1,10 +1,11 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createEmployee, createPosition, exportEmployees, getEmployee, getEmployeeMeta, importEmployees, listEmployees, updateEmployee } from '../api/employee'
+import { createEmployee, createPosition, deletePosition, exportEmployees, getEmployee, getEmployeeMeta, importEmployees, listEmployees, renamePosition, updateEmployee } from '../api/employee'
 import { useCanEdit } from '../context/AccessContext'
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import { cardClasses } from '../components/Table'
-import { EMPLOYEE_STATUSES, MBTI_TYPES, statusLabel } from '../utils/employeeUi'
+import DateInput from '../components/DateInput'
+import { EMPLOYEE_STATUSES, statusLabel } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full'
 const emptyForm = {
@@ -99,10 +100,8 @@ function EmployeeForm({ employee, meta, onClose, onSaved }) {
             <Section title={`A. ${t('page_employee.sec_personal')}`}>
               <Field label={t('page_employee.full_name')} required><input value={form.full_name} onChange={set('full_name')} required className={inputCls} /></Field>
               <Field label={t('page_employee.nickname')} required><input value={form.nickname} onChange={set('nickname')} required className={inputCls} /></Field>
-              <Field label="MBTI">
-                <select value={form.mbti} onChange={set('mbti')} className={inputCls}><option value="">{t('page_employee.select_mbti')}</option>{MBTI_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}</select>
-              </Field>
-              <Field label={t('page_employee.birthday')}><input type="date" value={form.birthday} onChange={set('birthday')} className={inputCls} /></Field>
+              <Field label="MBTI"><input value={form.mbti} onChange={set('mbti')} maxLength={10} placeholder="ENTJ-A" className={inputCls} /></Field>
+              <Field label={t('page_employee.birthday')}><DateInput value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} className={inputCls} /></Field>
               {sensitive && <Field label={t('page_employee.nik')}><input value={form.nik} onChange={set('nik')} inputMode="numeric" className={inputCls} /></Field>}
               {sensitive && <Field label={t('page_employee.address')}><input value={form.address} onChange={set('address')} className={inputCls} /></Field>}
             </Section>
@@ -123,7 +122,7 @@ function EmployeeForm({ employee, meta, onClose, onSaved }) {
               <Field label={t('page_employee.status')}>
                 <select value={form.status} onChange={set('status')} className={inputCls}>{EMPLOYEE_STATUSES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
               </Field>
-              <Field label={t('page_employee.join_date')}><input type="date" value={form.join_date} onChange={set('join_date')} className={inputCls} /></Field>
+              <Field label={t('page_employee.join_date')}><DateInput value={form.join_date} onChange={(v) => setForm((f) => ({ ...f, join_date: v }))} className={inputCls} /></Field>
               <p className="sm:col-span-2 text-xs text-[var(--text-secondary)]">{t('page_employee.location_hint')}</p>
             </Section>
             {sensitive ? (
@@ -147,6 +146,40 @@ function EmployeeForm({ employee, meta, onClose, onSaved }) {
           {canEdit && <button type="submit" disabled={busy || loading} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg">{t('page_employee.save_employee')}</button>}
         </div>
       </form>
+    </div>
+  )
+}
+
+
+// Position Settings: add, rename and delete positions. A position that employees still have cannot be deleted.
+function PositionSettings({ positions, onClose, onChanged }) {
+  const { t } = useTranslation()
+  const [name, setName] = useState('')
+  const [err, setErr] = useState('')
+  async function run(fn) {
+    setErr('')
+    try { await fn(); onChanged() } catch (e) { setErr(e.response?.data?.error || t('page_employee.save_error')) }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-[var(--table-card-bg)] rounded-2xl w-full max-w-md p-5 space-y-3 my-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h2 className="font-bold text-lg text-[var(--text-primary)]">{t('page_employee.position_settings')}</h2><button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none">✕</button></div>
+        <p className="text-xs text-[var(--text-secondary)]">{t('page_employee.position_settings_hint')}</p>
+        {positions.map((p) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <input defaultValue={p.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== p.name) run(() => renamePosition(p.id, v)); else e.target.value = p.name }} className={inputCls} />
+            <span className="text-[11px] text-[var(--text-secondary)] whitespace-nowrap">{t('page_employee.n_employees', { count: p.employee_count })}</span>
+            <button type="button" disabled={p.employee_count > 0} title={p.employee_count > 0 ? t('page_employee.position_in_use') : ''}
+              onClick={() => window.confirm(t('page_employee.delete_position_confirm', { name: p.name })) && run(() => deletePosition(p.id))}
+              className="text-xs font-semibold text-red-600 border border-red-300 rounded-lg px-2.5 py-1.5 disabled:opacity-40">{t('common.delete')}</button>
+          </div>
+        ))}
+        <div className="flex gap-2 pt-1">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('page_employee.new_position_ph')} className={inputCls} />
+          <button type="button" disabled={!name.trim()} onClick={() => run(async () => { await createPosition(name.trim()); setName('') })} className="shrink-0 bg-brand-600 text-white text-sm font-semibold px-4 rounded-lg disabled:opacity-40">+ {t('common.add')}</button>
+        </div>
+        {err && <p className="text-sm text-red-600">{err}</p>}
+      </div>
     </div>
   )
 }
@@ -176,10 +209,12 @@ export default function EmployeeList() {
   const [expanded, setExpanded] = useState(null)
   const [form, setForm] = useState(null) // null | {} (new) | employee
   const [message, setMessage] = useState('')
+  const [positionsOpen, setPositionsOpen] = useState(false)
   const fileRef = useRef(null)
   const debouncedQ = useDebouncedValue(q, SEARCH_DEBOUNCE_MS)
 
-  useEffect(() => { getEmployeeMeta().then(setMeta) }, [])
+  const loadMeta = useCallback(() => getEmployeeMeta().then(setMeta), [])
+  useEffect(() => { loadMeta() }, [loadMeta])
   const load = useCallback(() => listEmployees({ q: debouncedQ, location_id: locationId, position_id: positionId, status, group }).then(setData), [debouncedQ, locationId, positionId, status, group])
   useEffect(() => { load() }, [load])
 
@@ -244,6 +279,7 @@ export default function EmployeeList() {
           <button type="button" onClick={doExport} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg">{t('page_employee.export_excel')}</button>
           {canEdit && <><input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={doImport} />
             <button type="button" onClick={() => fileRef.current?.click()} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg">{t('page_employee.import_excel')}</button>
+            <button type="button" onClick={() => setPositionsOpen(true)} className="border border-gray-300 text-sm font-semibold px-4 py-2 rounded-lg">{t('page_employee.position_settings')}</button>
             <button type="button" onClick={() => setForm({})} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">+ {t('page_employee.add_employee')}</button></>}
         </div>
       </div>
@@ -289,7 +325,7 @@ export default function EmployeeList() {
                   <td className="p-3 text-gray-400">{expanded === e.id ? '▴' : '▾'}</td>
                 </tr>
                 {expanded === e.id && (
-                  <tr className="bg-gray-50/60"><td colSpan={7} className="p-4">
+                  <tr className="bg-[var(--table-header-bg)]"><td colSpan={7} className="p-4">
                     <div className="grid gap-3 sm:grid-cols-4 text-sm">
                       <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">MBTI</p><p>{e.mbti || '—'}</p></div>
                       <div><p className="text-[11px] uppercase text-[var(--text-secondary)]">{t('page_employee.birthday')}</p><p>{e.birthday || '—'}</p></div>
@@ -307,6 +343,7 @@ export default function EmployeeList() {
         </table>
       </div>
 
+      {positionsOpen && <PositionSettings positions={meta.positions} onClose={() => setPositionsOpen(false)} onChanged={() => { loadMeta(); load() }} />}
       {form && <EmployeeForm employee={form.id ? form : null} meta={meta} onClose={() => setForm(null)} onSaved={() => { setForm(null); load() }} />}
     </div>
   )

@@ -155,7 +155,7 @@ func (h *CekViewsHandler) PortalOverview(w http.ResponseWriter, r *http.Request)
 		LEFT JOIN hosts h ON h.location_id = l.id
 		LEFT JOIN cek_views_assignments a ON a.host_id = h.id AND `+assignableSQL+`
 		WHERE l.is_active = true
-		GROUP BY l.id, l.name ORDER BY l.name`)
+		GROUP BY l.id, l.name, l.sort_order ORDER BY l.sort_order, l.name`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load locations")
 		return
@@ -315,17 +315,17 @@ func (h *CekViewsHandler) Submit(w http.ResponseWriter, r *http.Request) {
 
 // sendReport posts the report to the CEK VIEWS group / topic; the second value is a short reason when it was not sent.
 func (h *CekViewsHandler) sendReport(ctx context.Context, html string) (bool, string) {
-	token := h.Store.Token(ctx)
-	cfg := h.Store.LoadConfig(ctx)
+	token, _ := h.Store.CekViewsToken(ctx)
+	cfg := h.Store.LoadCekViewsConfig(ctx)
 	switch {
 	case token == "":
-		return false, "Telegram bot token is not set (Telegram Settings)"
-	case cfg.CekViewsChatID == "":
-		return false, "CEK VIEWS chat id is not set (Telegram Settings)"
+		return false, "the CEK VIEWS bot token is not set (CEK VIEWS Settings > Telegram Bot)"
+	case cfg.ChatID == "":
+		return false, "the CEK VIEWS chat id is not set (CEK VIEWS Settings > Telegram Bot)"
 	case !cfg.SendEnabled:
-		return false, "Telegram sending is switched off (Telegram Settings)"
+		return false, "sending is switched off (CEK VIEWS Settings > Telegram Bot)"
 	}
-	if err := telegram.SendHTML(ctx, token, cfg.CekViewsChatID, cfg.CekViewsThreadID, html); err != nil {
+	if err := telegram.SendHTML(ctx, token, cfg.ChatID, cfg.ThreadID, html); err != nil {
 		return false, err.Error()
 	}
 	return true, ""
@@ -415,6 +415,105 @@ func (h *CekViewsHandler) VoiceFile(w http.ResponseWriter, r *http.Request) {
 // TestVoice sends the recording right now, ignoring the schedule.
 func (h *CekViewsHandler) TestVoice(w http.ResponseWriter, r *http.Request) {
 	if err := h.Voice.SendNow(r.Context()); err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+}
+
+// ---- Telegram bot (its own bot, separate from the main Telegram bot) -----------------------------
+
+type cekTelegramView struct {
+	BotTokenSet bool   `json:"bot_token_set"`
+	TokenHint   string `json:"token_hint"`   // the last 4 characters; the token itself is never sent back
+	TokenSource string `json:"token_source"` // database | environment | none
+	ChatID      string `json:"chat_id"`
+	ThreadID    int    `json:"thread_id"`
+	SendEnabled bool   `json:"send_enabled"`
+}
+
+func (h *CekViewsHandler) telegramView(ctx context.Context) cekTelegramView {
+	token, source := h.Store.CekViewsToken(ctx)
+	cfg := h.Store.LoadCekViewsConfig(ctx)
+	v := cekTelegramView{BotTokenSet: token != "", TokenSource: source, ChatID: cfg.ChatID, ThreadID: cfg.ThreadID, SendEnabled: cfg.SendEnabled}
+	if len(token) >= 4 {
+		v.TokenHint = token[len(token)-4:]
+	}
+	return v
+}
+
+func (h *CekViewsHandler) GetTelegram(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, h.telegramView(r.Context()))
+}
+
+// SaveTelegram stores the CEK VIEWS bot token (only when a new one is sent; empty keeps the saved one, clear_token removes
+// it) together with the group, topic and send switch.
+func (h *CekViewsHandler) SaveTelegram(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BotToken    string `json:"bot_token"`
+		ClearToken  bool   `json:"clear_token"`
+		ChatID      string `json:"chat_id"`
+		ThreadID    int    `json:"thread_id"`
+		SendEnabled bool   `json:"send_enabled"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ctx := r.Context()
+	token := strings.TrimSpace(req.BotToken)
+	if token != "" && !strings.Contains(token, ":") {
+		respondError(w, http.StatusBadRequest, "the bot token looks invalid")
+		return
+	}
+	if token != "" || req.ClearToken {
+		if err := h.Store.SaveCekViewsToken(ctx, token); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save the bot token")
+			return
+		}
+	}
+	if err := h.Store.SaveCekViewsConfig(ctx, telegram.CekViewsConfig{ChatID: req.ChatID, ThreadID: req.ThreadID, SendEnabled: req.SendEnabled}); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save the settings")
+		return
+	}
+	respondJSON(w, http.StatusOK, h.telegramView(ctx))
+}
+
+// TelegramStatus checks that the CEK VIEWS bot token connects (the typed one if given, else the saved one).
+func (h *CekViewsHandler) TelegramStatus(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BotToken string `json:"bot_token"`
+	}
+	_ = decodeJSON(r, &req)
+	token := strings.TrimSpace(req.BotToken)
+	if token == "" {
+		token, _ = h.Store.CekViewsToken(r.Context())
+	}
+	if token == "" {
+		respondJSON(w, http.StatusOK, map[string]any{"connected": false, "error": "no_token"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	info, err := telegram.CheckBot(ctx, token)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{"connected": false, "error": err.Error()})
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"connected": true, "bot_username": info.Username, "bot_name": info.Name})
+}
+
+// TelegramTest sends a short test message to the saved CEK VIEWS group / topic with the CEK VIEWS bot.
+func (h *CekViewsHandler) TelegramTest(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	token, _ := h.Store.CekViewsToken(ctx)
+	cfg := h.Store.LoadCekViewsConfig(ctx)
+	if token == "" || cfg.ChatID == "" {
+		respondError(w, http.StatusBadRequest, "save the bot token and the chat id first")
+		return
+	}
+	if err := telegram.SendHTML(ctx, token, cfg.ChatID, cfg.ThreadID, "✅ Ralulu Hub – CEK VIEWS connection test"); err != nil {
 		respondError(w, http.StatusBadGateway, err.Error())
 		return
 	}

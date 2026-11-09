@@ -34,7 +34,7 @@ type telegramSettingsView struct {
 
 func (h *TelegramHandler) locations(ctx context.Context) []telegramLocation {
 	out := []telegramLocation{}
-	rows, err := h.DB.Query(ctx, `SELECT id, name, COALESCE(telegram_chat_id,'') FROM host_locations WHERE is_active = true ORDER BY name`)
+	rows, err := h.DB.Query(ctx, `SELECT id, name, COALESCE(telegram_chat_id,'') FROM host_locations WHERE is_active = true ORDER BY sort_order, name`)
 	if err != nil {
 		return out
 	}
@@ -80,10 +80,6 @@ func (h *TelegramHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Config.GlobalChatID = strings.TrimSpace(req.Config.GlobalChatID)
-	req.Config.CekViewsChatID = strings.TrimSpace(req.Config.CekViewsChatID)
-	if req.Config.CekViewsThreadID < 0 {
-		req.Config.CekViewsThreadID = 0
-	}
 	if err := h.Store.SaveToken(ctx, token); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save bot token")
 		return

@@ -367,14 +367,6 @@ export default function TelegramSettings() {
             {groupTest.global && !groupTest.global.loading && <p className={`text-xs mt-1 ${groupTest.global.ok ? 'text-emerald-600' : 'text-red-600'}`}>{groupTest.global.ok ? t('page_telegram.test_sent') : groupTest.global.msg}</p>}
             <p className="text-[11px] text-[var(--text-secondary)] mt-1">{t('page_telegram.global_group_used')}</p>
           </div>
-          <div>
-            <label className={labelCls}>{t('page_telegram.cek_views_chat_id')}</label>
-            <div className="grid gap-2 sm:grid-cols-[2fr,1fr]">
-              <input value={config.cek_views_chat_id || ''} onChange={(e) => setConfig((c) => ({ ...c, cek_views_chat_id: e.target.value }))} placeholder="-100..." className={`${inputCls} font-mono`} />
-              <input type="number" min="0" value={config.cek_views_thread_id || ''} onChange={(e) => setConfig((c) => ({ ...c, cek_views_thread_id: Number(e.target.value) || 0 }))} placeholder={t('page_telegram.cek_views_thread_ph')} className={`${inputCls} font-mono`} />
-            </div>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-1">{t('page_telegram.cek_views_used')}</p>
-          </div>
         </div>
 
         <div>

@@ -20,3 +20,8 @@ export function updateLocation(id, payload) {
 export function deleteLocation(id) {
   return client.delete(`/host-locations/${id}`).then((res) => { invalidateLookups('locations'); invalidateLookups('hosts'); return res.data })
 }
+
+// Saves the manual order of the Location Tags (ids in the new order); every Location picker follows it.
+export function reorderLocations(ids) {
+  return client.put('/host-locations/order', { ids }).then((res) => { invalidateLookups('locations'); invalidateLookups('hosts'); return res.data })
+}

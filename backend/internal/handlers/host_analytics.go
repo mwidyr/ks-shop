@@ -248,8 +248,7 @@ func (h *HostAnalyticsHandler) Summary(w http.ResponseWriter, r *http.Request) {
 
 type historicalBestMetric struct {
 	Value *float64 `json:"value"`
-	Date  string   `json:"date"`
-	Shift *string  `json:"shift"`
+	Date  string   `json:"date"` // the day the record was reached (Asia/Jakarta)
 }
 
 type historicalBestResponse struct {
@@ -258,66 +257,41 @@ type historicalBestResponse struct {
 	HighestGMV   historicalBestMetric `json:"highest_gmv"`
 	HighestViews historicalBestMetric `json:"highest_views"`
 	HighestPCU   historicalBestMetric `json:"highest_pcu"`
-	HighestAWT   historicalBestMetric `json:"highest_awt"`
+	HighestAOV   historicalBestMetric `json:"highest_aov"`
 	HighestGPM   historicalBestMetric `json:"highest_gpm"`
 }
 
-// HistoricalBest returns the highest value ever achieved in a single LIVE Session, for the
-// selected Location/Host - not affected by the Period filter.
+// HistoricalBest returns, for the selected filter (ALL, one Location or one Host; the channel too), the highest DAILY
+// value of every metric ever reached and the date it happened. It reads the same daily rows as Performance Data, so
+// the numbers are the ones in that table - only their maximum is shown. Not affected by the Period filter.
 func (h *HostAnalyticsHandler) HistoricalBest(w http.ResponseWriter, r *http.Request) {
-	locWhere, locArgs := hostFilter(r, "ls", 1)
-	// A session's sales are the items linked to it by live_session_id, plus - for items with no
-	// link (sessions loaded from the host sheet, orders created outside a LIVE cart) - the same
-	// host's items created inside the session's window. Cancelled/returned orders never count.
-	const sessionSales = `
-		FROM order_items oi JOIN orders o ON o.id = oi.order_id
-		WHERE o.status NOT IN ('cancelled','return')
-		  AND (oi.live_session_id = ls.id
-		       OR (oi.live_session_id IS NULL AND oi.host_id = ls.host_id
-		           AND o.created_at >= ls.started_at
-		           AND o.created_at < COALESCE(ls.ended_at, ls.started_at + interval '1 hour')))`
-	query := `
-		SELECT ls.started_at, h.shift, COALESCE(ls.views,0), COALESCE(ls.pcu,0), COALESCE(ls.awt_seconds,0),
-		       COALESCE((SELECT SUM(oi.qty)` + sessionSales + `), 0),
-		       COALESCE((SELECT COUNT(DISTINCT oi.order_id)` + sessionSales + `), 0),
-		       COALESCE((SELECT SUM(oi.qty * oi.price_at_order)` + sessionSales + `), 0)
-		FROM live_sessions ls
-		JOIN hosts h ON h.id = ls.host_id
-		WHERE ls.live_data_recorded_at IS NOT NULL` + locWhere
-
-	rows, err := h.DB.Query(r.Context(), query, locArgs...)
+	rows, err := h.dailyRows(r, time.Unix(0, 0), time.Now().Add(24*time.Hour), 100000, 0)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch historical best")
 		return
 	}
-	defer rows.Close()
-
 	var res historicalBestResponse
-	track := func(best *historicalBestMetric, value float64, date time.Time, shift *string) {
+	track := func(best *historicalBestMetric, value float64, date string) {
 		if best.Value == nil || value > *best.Value {
 			v := value
-			best.Value = &v
-			best.Date = date.Format("2006-01-02")
-			best.Shift = shift
+			best.Value, best.Date = &v, date
 		}
 	}
-
-	for rows.Next() {
-		var startedAt time.Time
-		var shift *string
-		var views, pcu, awtSeconds, qty, ord int
-		var gmv float64
-		if err := rows.Scan(&startedAt, &shift, &views, &pcu, &awtSeconds, &qty, &ord, &gmv); err != nil {
-			continue
+	for _, d := range rows { // newest first, so on a tie the most recent day keeps the record
+		track(&res.HighestQty, float64(d.Qty), d.Date)
+		track(&res.HighestOrd, float64(d.Ord), d.Date)
+		track(&res.HighestGMV, d.GMV, d.Date)
+		if d.Views != nil {
+			track(&res.HighestViews, float64(*d.Views), d.Date)
 		}
-		track(&res.HighestQty, float64(qty), startedAt, shift)
-		track(&res.HighestOrd, float64(ord), startedAt, shift)
-		track(&res.HighestGMV, gmv, startedAt, shift)
-		track(&res.HighestViews, float64(views), startedAt, shift)
-		track(&res.HighestPCU, float64(pcu), startedAt, shift)
-		track(&res.HighestAWT, float64(awtSeconds), startedAt, shift)
-		if views > 0 {
-			track(&res.HighestGPM, gmv/float64(views)*1000, startedAt, shift)
+		if d.PCU != nil {
+			track(&res.HighestPCU, float64(*d.PCU), d.Date)
+		}
+		if d.AOV != nil {
+			track(&res.HighestAOV, *d.AOV, d.Date)
+		}
+		if d.GPM != nil {
+			track(&res.HighestGPM, *d.GPM, d.Date)
 		}
 	}
 	respondJSON(w, http.StatusOK, res)
@@ -334,17 +308,9 @@ type dailyRow struct {
 // and the Summary above (ALL = LIVE + Website, Website-only days included), so the rows add up to
 // the Total. Broadcast metrics (Views, UV, ...) only exist on days with LIVE Data and show "-"
 // on the other days.
-func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Request) {
-	from, to, filtered := dateRange(r)
-	if !filtered {
-		from, to = time.Unix(0, 0), time.Now().Add(24*time.Hour)
-	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	const pageSize = 50
-
+// dailyRows is the one daily query behind Performance Data AND Historical Best: one row per Jakarta calendar date that
+// has LIVE Data or sales inside [from, to), newest first, with the Location / Host / channel filters of the request.
+func (h *HostAnalyticsHandler) dailyRows(r *http.Request, from, to time.Time, limit, offset int) ([]dailyRow, error) {
 	liveWhere, liveArgs := hostFilter(r, "ls", 3)
 	salesWhere, _ := hostFilter(r, "oi", 3)
 	retWhere, _ := hostFilter(r, "ret", 3)
@@ -411,12 +377,11 @@ func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Re
 	args := append([]interface{}{from, to}, liveArgs...)
 	args = append(args, salesChanArgs...)
 	args = append(args, retChanArgs...)
-	args = append(args, pageSize, (page-1)*pageSize)
+	args = append(args, limit, offset)
 
 	rows, err := h.DB.Query(r.Context(), query, args...)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch performance data")
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -430,6 +395,25 @@ func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Re
 		}
 		fillCalculated(&row)
 		list = append(list, dailyRow{Date: d.Format("2006-01-02"), aggregateRow: row})
+	}
+	return list, nil
+}
+
+func (h *HostAnalyticsHandler) PerformanceData(w http.ResponseWriter, r *http.Request) {
+	from, to, filtered := dateRange(r)
+	if !filtered {
+		from, to = time.Unix(0, 0), time.Now().Add(24*time.Hour)
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	const pageSize = 50
+
+	list, err := h.dailyRows(r, from, to, pageSize, (page-1)*pageSize)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch performance data")
+		return
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"rows": list, "page": page, "page_size": pageSize})
 }

@@ -105,10 +105,12 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 			baseWhere += " AND o.status = ANY(" + addArg(statuses) + ")"
 		}
 	}
-	if dateFrom := q.Get("date_from"); dateFrom != "" {
+	// A search looks through ALL historical orders: the date filter only applies while the search box is empty.
+	searching := strings.TrimSpace(q.Get("q")) != ""
+	if dateFrom := q.Get("date_from"); dateFrom != "" && !searching {
 		baseWhere += " AND o.created_at >= (" + addArg(dateFrom) + "::date)::timestamp AT TIME ZONE 'Asia/Jakarta'"
 	}
-	if dateTo := q.Get("date_to"); dateTo != "" {
+	if dateTo := q.Get("date_to"); dateTo != "" && !searching {
 		baseWhere += " AND o.created_at < (" + addArg(dateTo) + "::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'"
 	}
 	if pickupChainID := q.Get("pickup_chain_id"); pickupChainID != "" {

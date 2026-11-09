@@ -259,13 +259,13 @@ func (h *EmployeeHandler) computeMonth(ctx context.Context, first string, start 
 
 	statuses := map[int]attendanceStatus{}
 	var def attendanceStatus
-	sr, err := h.DB.Query(ctx, `SELECT id, code, name, is_paid, deduct_bonus, bg_color, text_color, is_active, is_default FROM attendance_statuses`)
+	sr, err := h.DB.Query(ctx, `SELECT id, code, name, is_paid, deduct_bonus, bg_color, text_color, is_active, is_default, kind FROM attendance_statuses`)
 	if err != nil {
 		return nil, err
 	}
 	for sr.Next() {
 		var s attendanceStatus
-		if sr.Scan(&s.ID, &s.Code, &s.Name, &s.IsPaid, &s.DeductBonus, &s.BgColor, &s.TextColor, &s.IsActive, &s.IsDefault) == nil {
+		if sr.Scan(&s.ID, &s.Code, &s.Name, &s.IsPaid, &s.DeductBonus, &s.BgColor, &s.TextColor, &s.IsActive, &s.IsDefault, &s.Kind) == nil {
 			statuses[s.ID] = s
 			if s.IsDefault {
 				def = s
@@ -330,12 +330,12 @@ func (h *EmployeeHandler) computeMonth(ctx context.Context, first string, start 
 		}
 		att := attendanceCounts{}
 		count := func(s attendanceStatus, n int) {
-			switch s.Code {
-			case "W":
+			switch s.Kind {
+			case "work":
 				att.Work += n
-			case "OFF":
+			case "off":
 				att.Off += n
-			case "LV":
+			case "leave":
 				att.Leave += n
 			}
 			if !s.IsPaid {
@@ -348,7 +348,9 @@ func (h *EmployeeHandler) computeMonth(ctx context.Context, first string, start 
 		for _, sid := range override[id] {
 			count(statuses[sid], 1)
 		}
-		count(def, daysInMonth-len(override[id]))
+		if def.ID != 0 { // no default status = dates nobody changed are not counted at all
+			count(def, daysInMonth-len(override[id]))
+		}
 		var qty int
 		var gmv float64
 		var daily map[string]int
@@ -557,12 +559,14 @@ type rankingRow struct {
 	EmployeeID int     `json:"employee_id"`
 	Host       string  `json:"host"`
 	Location   string  `json:"location"`
-	Qty        int     `json:"qty"`
-	GMV        float64 `json:"gmv"`
+	QtyBonus   float64 `json:"qty_bonus"`
+	GMVBonus   float64 `json:"gmv_bonus"`
+	DailyBonus float64 `json:"daily_bonus"`
 	TotalBonus float64 `json:"total_bonus"`
 }
 
-// BonusRanking lists the Hosts (employees linked to a Host) of a month by Total Bonus = QTY + GMV + Daily Bonus.
+// BonusRanking lists the Hosts (employees linked to a Host) of a month by Total Bonus = QTY + GMV + Daily Bonus,
+// each with its three parts - the same figures Payroll uses.
 // Base salary, Attendance Bonus and Extra are not part of it.
 func (h *EmployeeHandler) BonusRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -596,7 +600,7 @@ func (h *EmployeeHandler) BonusRanking(w http.ResponseWriter, r *http.Request) {
 		if e.HostName != nil && *e.HostName != "" {
 			name = *e.HostName
 		}
-		rows = append(rows, rankingRow{EmployeeID: e.ID, Host: name, Location: e.Location, Qty: res.Qty, GMV: res.GMV, TotalBonus: res.QtyBonus + res.GMVBonus + res.DailyBonus})
+		rows = append(rows, rankingRow{EmployeeID: e.ID, Host: name, Location: e.Location, QtyBonus: res.QtyBonus, GMVBonus: res.GMVBonus, DailyBonus: res.DailyBonus, TotalBonus: res.QtyBonus + res.GMVBonus + res.DailyBonus})
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].TotalBonus > rows[j].TotalBonus })
 	for i := range rows {

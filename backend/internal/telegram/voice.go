@@ -144,8 +144,8 @@ func (v *VoiceReminder) Tick(ctx context.Context, now time.Time) error {
 	if !due {
 		return nil
 	}
-	if !v.Store.LoadConfig(ctx).SendEnabled {
-		return nil // sending is switched off (Telegram Settings): nothing is claimed, nothing is sent
+	if !v.Store.LoadCekViewsConfig(ctx).SendEnabled {
+		return nil // sending is switched off (CEK VIEWS Settings): nothing is claimed, nothing is sent
 	}
 	day := now.In(reminderZone).Format("2006-01-02")
 	ct, err := v.DB.Exec(ctx, `INSERT INTO cek_views_voice_sent (sent_on, at_time) VALUES ($1,$2) ON CONFLICT DO NOTHING`, day, hhmm)
@@ -165,13 +165,13 @@ func (v *VoiceReminder) Tick(ctx context.Context, now time.Time) error {
 
 // SendNow uploads the saved recording to the CEK VIEWS chat / topic regardless of the schedule.
 func (v *VoiceReminder) SendNow(ctx context.Context) error {
-	token := v.Store.Token(ctx)
+	token, _ := v.Store.CekViewsToken(ctx)
 	if token == "" {
-		return errors.New("no bot token")
+		return errors.New("the CEK VIEWS bot token is not set")
 	}
-	cfg := v.Store.LoadConfig(ctx)
-	if cfg.CekViewsChatID == "" {
-		return errors.New("no CEK VIEWS chat id")
+	cfg := v.Store.LoadCekViewsConfig(ctx)
+	if cfg.ChatID == "" {
+		return errors.New("the CEK VIEWS chat id is not set")
 	}
 	var name string
 	var data []byte
@@ -182,5 +182,5 @@ func (v *VoiceReminder) SendNow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return SendVoice(ctx, token, cfg.CekViewsChatID, cfg.CekViewsThreadID, name, data)
+	return SendVoice(ctx, token, cfg.ChatID, cfg.ThreadID, name, data)
 }

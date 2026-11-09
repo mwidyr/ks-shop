@@ -17,7 +17,8 @@
     "previous": "Previous",
     "save": "Save",
     "search": "Search",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "clear": "Clear"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -407,7 +408,9 @@
     "shift_middle": "Afternoon",
     "shift_morning": "Morning",
     "shift_none": "No shift",
-    "title": "Live Hosts"
+    "title": "Live Hosts",
+    "drag_to_reorder": "Drag to reorder",
+    "reorder_hint": "Drag the ⠿ handle to change the order. The same order is used wherever a Location is selected, for example when creating an order."
   },
   "page_integrations": {
     "action_connect": "Connect",
@@ -2283,10 +2286,7 @@
     "token_from_env_placeholder": "Token set on the server",
     "unsaved_changes": "Unsaved changes",
     "unsaved_confirm": "You have unsaved Telegram settings. Leave this page without saving?",
-    "test_not_saved_note": "Test buttons use what is currently typed in this form. Nothing is stored until you click Save Settings.",
-    "cek_views_chat_id": "CEK VIEWS group chat ID and topic ID (optional)",
-    "cek_views_thread_ph": "Topic ID",
-    "cek_views_used": "The TikTok Views report and the voice reminders are sent here. Leave the topic empty for a group without Topics."
+    "test_not_saved_note": "Test buttons use what is currently typed in this form. Nothing is stored until you click Save Settings."
   },
   "page_product_trend": {
     "global_metric": "Global Metric",
@@ -3326,7 +3326,8 @@
     "no_notes": "No notes yet.",
     "note_ph": "Write a note...",
     "add_note": "Add Note",
-    "not_found": "Account not found."
+    "not_found": "Account not found.",
+    "delete_note_confirm": "Delete this note? This cannot be undone."
   },
   "page_cek_views": {
     "choose_location_short": "Choose location",
@@ -3347,7 +3348,7 @@
     "sent_telegram_fail": "Saved, but Telegram was NOT sent",
     "input_again": "Input Again",
     "settings_title": "Settings",
-    "settings_subtitle": "Assign a TikTok account to each Host and manage the voice reminder. The Telegram bot token and group are set in Telegram Settings.",
+    "settings_subtitle": "Assign a TikTok account to each Host, manage the voice reminder and set up the CEK VIEWS Telegram bot.",
     "assignment_hint": "Host and Shift come from Host Management. Room, Device and Status follow the chosen TikTok account. Tick OFF to leave a Host out of CEK VIEWS without losing the assignment.",
     "from_host_mgmt": "From Host Management",
     "no_shift": "No shift",
@@ -3368,7 +3369,25 @@
     "send_test": "Send Test Now",
     "test_confirm": "Send the voice message to the Telegram group now?",
     "test_sent": "Voice message sent.",
-    "voice_hint": "The recording is sent to the CEK VIEWS Telegram group / topic at the scheduled times. Accepted: .ogg (Opus), .mp3, .m4a, max 10 MB."
+    "voice_hint": "The recording is sent to the CEK VIEWS Telegram group / topic at the scheduled times. Accepted: .ogg (Opus), .mp3, .m4a, max 10 MB.",
+    "telegram_title": "CEK VIEWS Telegram Bot",
+    "telegram_hint": "CEK VIEWS uses a bot of its own, separate from the main Telegram bot (Telegram Settings). The Views reports and the voice reminders are sent with this bot.",
+    "bot_token": "Bot Token",
+    "token_saved": "A token is saved. Type a new one to replace it.",
+    "token_from_env": "The token comes from the server environment (TELEGRAM_CEK_VIEWS_BOT_TOKEN). Typing one here overrides it.",
+    "token_missing": "No token yet - nothing can be sent until it is set.",
+    "chat_id": "Group Chat ID",
+    "topic_id": "Topic ID (optional)",
+    "topic_ph": "Topic ID",
+    "group_hint": "Leave the Topic ID empty for a group without Topics. Add the bot to the group and make it an admin.",
+    "send_enabled": "Sending enabled (switch off to stop all CEK VIEWS Telegram messages)",
+    "check_connection": "Check Connection",
+    "send_test_message": "Send Test Message",
+    "remove_token": "Remove token",
+    "remove_token_confirm": "Remove the CEK VIEWS bot token? Nothing can be sent until a new one is set.",
+    "bot_connected": "Connected: {{name}}",
+    "bot_no_token": "No token to check yet.",
+    "test_message_sent": "Test message sent."
   },
   "page_employee": {
     "active": "Active",
@@ -3482,7 +3501,7 @@
     "sensitive_restricted": "NIK, address, bank and emergency contact details are only visible to Admin and Management.",
     "settings": "Settings",
     "status": "Status",
-    "status_hint": "Paid / Unpaid decides whether the day is deducted from base salary. Deduct Attendance Bonus decides whether it costs the full monthly attendance bonus. The two work independently. Codes W, OFF and LV are counted as Work, Off and Leave days in Payroll.",
+    "status_hint": "Paid / Unpaid decides whether the day is deducted from base salary. Deduct Attendance Bonus decides whether it costs the full monthly attendance bonus. The two work independently. \"Counts as\" tells Payroll whether the day is a Work, Off or Leave day. Every status can be added, edited and deleted.",
     "status_name": "Status Name",
     "text_color": "Text Color",
     "total_bonus": "Total Bonus",
@@ -3493,6 +3512,22 @@
     "unpaid_days": "Unpaid Days",
     "unpaid_deduction": "Unpaid Leave Deductions",
     "view_details": "View details",
-    "work_days": "Work Days"
+    "work_days": "Work Days",
+    "position_settings": "Position Settings",
+    "position_settings_hint": "Add, rename or delete positions. Every position appears in the Position dropdown of the employee form. A position that employees still have cannot be deleted.",
+    "n_employees": "{{count}} employee(s)",
+    "position_in_use": "Assigned to employees - reassign them first",
+    "delete_position_confirm": "Delete the position \"{{name}}\"?",
+    "new_position_ph": "New position name",
+    "search_salary_ph": "Search name, ID or location",
+    "no_match": "No employee matches your search.",
+    "one_letter": "one letter",
+    "counts_as": "Payroll counts a day with this status as",
+    "kind_work": "Work day",
+    "kind_off": "Off day",
+    "kind_leave": "Leave day",
+    "kind_other": "Other (only paid / unpaid applies)",
+    "is_default_status": "Default for dates nobody changed",
+    "delete_status_confirm": "Delete the status \"{{name}}\"? Dates already set to it go back to the default status."
   }
 }
