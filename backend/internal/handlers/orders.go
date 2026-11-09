@@ -72,6 +72,8 @@ type orderListItem struct {
 	CustomerBlocked bool    `json:"customer_blacklisted"`
 	IsUrgent        bool    `json:"is_urgent"`
 	IsMerged        bool    `json:"is_merged"`
+	// ShipmentGroupID: the merged shipment this order belongs to (managed from the group editor), nil when not merged.
+	ShipmentGroupID *int `json:"shipment_group_id"`
 	// Source: staff (created in Ralulu Hub), self_checkout (customer website) or cs_assisted.
 	Source string `json:"source"`
 }
@@ -128,14 +130,18 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := q.Get("q"); search != "" {
 		likeArg := addArg(likePattern(search))
-		baseWhere += " AND (c.name ILIKE " + likeArg + " OR c.phone ILIKE " + likeArg + " OR COALESCE(c.address,'') ILIKE " + likeArg +
+		baseWhere += " AND ((c.name ILIKE " + likeArg + " OR c.phone ILIKE " + likeArg + " OR COALESCE(c.address,'') ILIKE " + likeArg +
 			" OR o.order_no ILIKE " + likeArg + " OR COALESCE(o.platform_order_no,'') ILIKE " + likeArg + " OR COALESCE(o.tracking_number,'') ILIKE " + likeArg +
 			" OR COALESCE(o.shipping_address,'') ILIKE " + likeArg + " OR COALESCE(o.recipient_email,'') ILIKE " + likeArg +
 			" OR COALESCE(o.pickup_store_name,'') ILIKE " + likeArg + " OR COALESCE(o.pickup_store_code,'') ILIKE " + likeArg +
 			" OR EXISTS (SELECT 1 FROM order_items osi JOIN product_variants osv ON osv.id = osi.variant_id JOIN products osp ON osp.id = osv.product_id" +
 			" WHERE osi.order_id = o.id AND (osv.sku ILIKE " + likeArg +
 			" OR EXISTS (SELECT 1 FROM variant_sku_history osh WHERE osh.variant_id = osv.id AND osh.old_sku ILIKE " + likeArg + ")" +
-			" OR COALESCE(osp.sku,'') ILIKE " + likeArg + " OR osp.name ILIKE " + likeArg + " OR osp.names_search ILIKE " + likeArg + ")))"
+			" OR COALESCE(osp.sku,'') ILIKE " + likeArg + " OR osp.name ILIKE " + likeArg + " OR osp.names_search ILIKE " + likeArg + ")))" +
+			// searching one order of a merged shipment shows the whole group
+			" OR EXISTS (SELECT 1 FROM order_shipment_group_members gs JOIN order_shipment_group_members gs2 ON gs2.group_id = gs.group_id" +
+			" JOIN orders os ON os.id = gs2.order_id WHERE gs.order_id = o.id AND gs2.order_id <> o.id AND (os.order_no ILIKE " + likeArg +
+			" OR COALESCE(os.platform_order_no,'') ILIKE " + likeArg + " OR COALESCE(os.tracking_number,'') ILIKE " + likeArg + ")))"
 	}
 	if q.Get("blacklist_only") == "true" {
 		baseWhere += " AND EXISTS (SELECT 1 FROM customer_labels cl WHERE cl.customer_id = o.customer_id AND cl.label = 'blacklist')"
@@ -192,7 +198,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		        AND EXISTS (SELECT 1 FROM cvs_stores cs0 WHERE cs0.chain_type = pc.chain_type)
 		        AND NOT EXISTS (SELECT 1 FROM cvs_stores cs WHERE cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code))
 		        OR NOT o.pickup_store_verified),
-		       o.source`
+		       o.source,
+		       (SELECT gm3.group_id FROM order_shipment_group_members gm3 WHERE gm3.order_id = o.id)`
 	const joinRest = `
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN LATERAL (
@@ -237,7 +244,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged,
-			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source); err != nil {
+			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source, &o.ShipmentGroupID); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)

@@ -3532,5 +3532,14 @@
     "kind_other": "Lainnya (hanya dibayar / tidak dibayar)",
     "is_default_status": "Bawaan untuk tanggal yang belum diubah",
     "delete_status_confirm": "Hapus status \"{{name}}\"? Tanggal yang sudah memakainya kembali ke status bawaan."
+  },
+  "page_merge_edit": {
+    "title": "Edit pengiriman gabungan #{{id}}",
+    "hint": "Pengiriman gabungan adalah tempat mengelola order ini. Item disimpan di order aslinya, jadi tanggal order, Host, dan penjualan tidak berubah. Pembatalan tetap per order asli.",
+    "add_to_order": "Tambah ke order",
+    "load_failed": "Gagal memuat pengiriman gabungan",
+    "edit_group": "Edit pengiriman gabungan",
+    "group_row": "Pengiriman gabungan #{{id}} · {{count}} order",
+    "managed_from_group": "Dikelola dari pengiriman gabungan"
   }
 }

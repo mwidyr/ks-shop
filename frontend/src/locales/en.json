@@ -3532,5 +3532,14 @@
     "kind_other": "Other (only paid / unpaid applies)",
     "is_default_status": "Default for dates nobody changed",
     "delete_status_confirm": "Delete the status \"{{name}}\"? Dates already set to it go back to the default status."
+  },
+  "page_merge_edit": {
+    "title": "Edit merged shipment #{{id}}",
+    "hint": "The merged shipment is where you manage these orders. Items are saved on their original orders, so order dates, Hosts and sales stay unchanged. Cancelling stays per original order.",
+    "add_to_order": "Add to order",
+    "load_failed": "Failed to load the merged shipment",
+    "edit_group": "Edit merged shipment",
+    "group_row": "Merged shipment #{{id}} · {{count}} orders",
+    "managed_from_group": "Managed from the merged shipment"
   }
 }

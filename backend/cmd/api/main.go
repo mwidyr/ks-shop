@@ -373,6 +373,8 @@ func main() {
 			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
 			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)
 			r.With(edit("orders")).Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
+			r.With(view("orders")).Get("/orders/merge-groups/{id}", orderMergeH.GetGroup)
+			r.With(edit("orders")).Put("/orders/merge-groups/{id}", orderMergeH.UpdateGroup)
 
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/eligible", shippingWBH.Eligible)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches", shippingWBH.CreateBatch)

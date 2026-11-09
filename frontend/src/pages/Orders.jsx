@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup, getOrderStatusCounts } from '../api/orders'
@@ -7,6 +7,7 @@ import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
 import { formatCurrency } from '../utils/format'
 import CopyPhone from '../components/CopyPhone'
+import EditGroupModal from '../components/EditGroupModal'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import DateRangePicker from '../components/DateRangePicker'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
@@ -72,6 +73,7 @@ export default function Orders() {
   const [pickupChains, setPickupChains] = useState([])
   const [liveSessions, setLiveSessions] = useState([])
 
+  const [groupEditId, setGroupEditId] = useState(null)
   const [selected, setSelected] = useState(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -184,6 +186,24 @@ export default function Orders() {
     fetchOrders()
     fetchStatusCounts()
   }
+
+  // Orders of one merged shipment sit together under a group row (at the place of the group's first order on the page).
+  const groupCounts = {}
+  for (const o of data.items) if (o.shipment_group_id) groupCounts[o.shipment_group_id] = (groupCounts[o.shipment_group_id] || 0) + 1
+  const orderedItems = []
+  const placedGroups = new Set()
+  for (const o of data.items) {
+    if (!o.shipment_group_id) { orderedItems.push(o); continue }
+    if (placedGroups.has(o.shipment_group_id)) continue
+    placedGroups.add(o.shipment_group_id)
+    orderedItems.push(...data.items.filter((x) => x.shipment_group_id === o.shipment_group_id))
+  }
+  const isFirstOfGroup = (o, i) => o.shipment_group_id && (i === 0 || orderedItems[i - 1].shipment_group_id !== o.shipment_group_id)
+  const groupLabel = (o) => t('page_merge_edit.group_row', { id: o.shipment_group_id, count: groupCounts[o.shipment_group_id] })
+  const groupEditButton = (o) => canEdit && (
+    <button type="button" onClick={(e) => { e.stopPropagation(); setGroupEditId(o.shipment_group_id) }}
+      className="text-xs font-semibold px-3 py-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100">{t('page_merge_edit.edit_group')}</button>
+  )
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size))
   const counts = summary?.order_status_counts || {}
@@ -337,11 +357,21 @@ export default function Orders() {
                 </tr>
               </thead>
               <tbody className={tbodyClasses}>
-                {data.items.map((o) => (
+                {orderedItems.map((o, i) => (
+                  <Fragment key={o.id}>
+                  {isFirstOfGroup(o, i) && (
+                    <tr className="bg-amber-50 text-amber-800">
+                      <td colSpan={8} className="px-3.5 py-2 text-xs font-semibold">
+                        <span className="flex items-center justify-between gap-3">
+                          <span>🔗 {groupLabel(o)}</span>
+                          {groupEditButton(o)}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
                   <tr
-                    key={o.id}
                     onClick={() => navigate(`/orders/${o.id}`)}
-                    className={`${rowClasses} cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
+                    className={`${rowClasses} cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''} ${o.shipment_group_id ? 'border-l-4 border-l-amber-400' : ''}`}
                   >
                     <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
@@ -381,17 +411,24 @@ export default function Orders() {
                     <td className="p-3.5"><Metric type="gmv">{formatCurrency(o.total)}</Metric></td>
                     <td className="p-3.5"><StatusPill status={o.status} /></td>
                   </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
 
           <div className="md:hidden space-y-2">
-            {data.items.map((o) => (
+            {orderedItems.map((o, i) => (
+              <Fragment key={o.id}>
+              {isFirstOfGroup(o, i) && (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-amber-50 text-amber-800 px-3 py-2 text-xs font-semibold">
+                  <span>🔗 {groupLabel(o)}</span>
+                  {groupEditButton(o)}
+                </div>
+              )}
               <div
-                key={o.id}
                 onClick={() => navigate(`/orders/${o.id}`)}
-                className={`${cardClasses} p-3.5 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''}`}
+                className={`${cardClasses} p-3.5 cursor-pointer ${selected.has(o.id) ? 'bg-brand-50/40' : ''} ${o.shipment_group_id ? 'border-l-4 border-l-amber-400' : ''}`}
               >
                 {/* Top: order number + status */}
                 <div className="flex items-center justify-between gap-2">
@@ -446,6 +483,7 @@ export default function Orders() {
                   </p>
                 )}
               </div>
+              </Fragment>
             ))}
           </div>
 
@@ -470,6 +508,8 @@ export default function Orders() {
           </div>
         </div>
       )}
+
+      {groupEditId && <EditGroupModal groupId={groupEditId} onClose={() => setGroupEditId(null)} onDone={() => { setGroupEditId(null); fetchOrders(); fetchStatusCounts() }} />}
 
       {canEdit && <Link
         to="/orders/new"

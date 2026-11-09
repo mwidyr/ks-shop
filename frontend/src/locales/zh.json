@@ -3532,5 +3532,14 @@
     "kind_other": "其他（僅適用給薪／不給薪）",
     "is_default_status": "未更動日期的預設狀態",
     "delete_status_confirm": "要刪除狀態「{{name}}」嗎？已使用它的日期會回到預設狀態。"
+  },
+  "page_merge_edit": {
+    "title": "編輯合併出貨 #{{id}}",
+    "hint": "請在合併出貨中管理這些訂單。商品會儲存在原訂單上，訂單日期、Host 與銷售不會改變。取消仍依原訂單分別處理。",
+    "add_to_order": "加入訂單",
+    "load_failed": "無法載入合併出貨",
+    "edit_group": "編輯合併出貨",
+    "group_row": "合併出貨 #{{id}} · {{count}} 筆訂單",
+    "managed_from_group": "由合併出貨管理"
   }
 }

@@ -15,6 +15,7 @@ import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
 import CopyPhone from '../components/CopyPhone'
 import EditOrderModal from '../components/EditOrderModal'
+import EditGroupModal from '../components/EditGroupModal'
 import { useAuth } from '../context/AuthContext'
 import { useAccess } from '../context/AccessContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
@@ -403,6 +404,7 @@ export default function OrderDetail() {
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [pickupModalOpen, setPickupModalOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [groupEditOpen, setGroupEditOpen] = useState(false)
   const [pickupChains, setPickupChains] = useState([])
 
   function load() {
@@ -566,8 +568,8 @@ export default function OrderDetail() {
         </h1>
         <div className="flex items-center gap-2">
           {((!locked && order.status === 'pending') || postShipEdit) && (
-            <button onClick={() => setEditOpen(true)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
-              {t('page_order_detail.edit_button')}
+            <button onClick={() => (order.shipment_group_id ? setGroupEditOpen(true) : setEditOpen(true))} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
+              {order.shipment_group_id ? t('page_merge_edit.edit_group') : t('page_order_detail.edit_button')}
             </button>
           )}
           <button onClick={copyOrderInfo} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
@@ -592,6 +594,7 @@ export default function OrderDetail() {
       {order.shipment_group_id && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
           <span>{t('page_order_detail.shipment_group_banner', { groupId: order.shipment_group_id, orderNos: order.shipment_group_order_nos.join(', ') })}</span>
+          <span className="text-xs font-semibold">{t('page_merge_edit.managed_from_group')}</span>
           {(canEditShipped || !(locked || ['processing', 'shipped', 'delivered', 'return'].includes(order.status))) && <button onClick={handleUnmerge} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-100">
             {t('page_order_detail.unmerge_button')}
           </button>}
@@ -940,6 +943,7 @@ export default function OrderDetail() {
       {notesModalOpen && (
         <NotesModal order={order} onClose={() => setNotesModalOpen(false)} onDone={() => { setNotesModalOpen(false); load() }} />
       )}
+      {groupEditOpen && <EditGroupModal groupId={order.shipment_group_id} onClose={() => setGroupEditOpen(false)} onDone={() => { setGroupEditOpen(false); load() }} />}
       {editOpen && <EditOrderModal order={order} afterShip={locked || order.status !== 'pending'} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); load() }} />}
       {pickupModalOpen && (
         <PickupMethodModal

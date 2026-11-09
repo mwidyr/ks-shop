@@ -68,3 +68,12 @@ export function markReturnReceived(id, lines, note) {
 export function updateOrder(id, payload) {
   return client.put(`/orders/${id}`, payload).then((res) => res.data)
 }
+
+// The merged shipment is the editor of its orders: every item is written back to its original order.
+export function getMergeGroup(groupId) {
+  return client.get(`/orders/merge-groups/${groupId}`).then((res) => res.data)
+}
+
+export function updateMergeGroup(groupId, payload) {
+  return client.put(`/orders/merge-groups/${groupId}`, payload).then((res) => res.data)
+}

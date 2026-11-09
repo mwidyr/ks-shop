@@ -28,6 +28,12 @@ type editOrderItem struct {
 	Price     *float64 `json:"price"` // nil: keep the line's price (new line: the variant's price)
 }
 
+// editClaims is the slice of the caller's claims the edit core needs.
+type editClaims struct {
+	Role   string
+	UserID int
+}
+
 type editOrderRequest struct {
 	Customer struct {
 		Name  string `json:"name"`
@@ -201,7 +207,23 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
+	if code, msg := editOrderTx(ctx, tx, claims.Role, claims.UserID, id, req, false); code != 0 {
+		respondError(w, code, msg)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "db commit failed")
+		return
+	}
+	invalidateOrderCaches()
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
 
+// editOrderTx applies one validated edit to an order inside the caller's transaction and returns (0, "") on
+// success or the HTTP status and message of the refusal. viaGroup: the edit comes from the merged shipment's
+// editor, which owns the shared delivery data, so changing the customer / store / address of a member is allowed.
+func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, req editOrderRequest, viaGroup bool) (int, string) {
+	claims := &editClaims{Role: role, UserID: userID}
 	var status, channel string
 	var customerID, curChain int
 	var exported, curOverride, inGroup, feeHolder bool
@@ -216,8 +238,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		                 JOIN order_shipment_groups g ON g.id = gm.group_id WHERE gm.order_id = o.id), true)
 		FROM orders o WHERE o.id=$1 FOR UPDATE`, id).
 		Scan(&status, &channel, &customerID, &curChain, &exported, &curOverride, &curFee, &promoDiscount, &curStore, &curAddress, &curDiscount, &curAdditional, &inGroup, &feeHolder); err != nil {
-		respondError(w, http.StatusNotFound, "order not found")
-		return
+		return http.StatusNotFound, "order not found"
 	}
 	// An order that was exported / is past Pending is locked for everybody except a user who may override the lock
 	// (users.can_edit_shipped_orders, or super admin). Such an edit only touches the recipient and delivery data:
@@ -227,45 +248,37 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if exported || status != "pending" {
 		if !canEditBatchOrder(ctx, tx, claims.Role, claims.UserID, id) {
 			if exported {
-				respondError(w, http.StatusConflict, orderLockedMsg)
-			} else {
-				respondError(w, http.StatusConflict, "order hanya bisa diedit selama statusnya New/pending (status saat ini: "+status+")")
+				return http.StatusConflict, orderLockedMsg
 			}
-			return
+			return http.StatusConflict, "order hanya bisa diedit selama statusnya New/pending (status saat ini: " + status + ")"
 		}
 		switch status {
 		case "pending", "processing", "ready_to_ship", "shipped":
 			afterShip = true
 		default:
-			respondError(w, http.StatusConflict, "order dengan status "+status+" tidak bisa diedit")
-			return
+			return http.StatusConflict, "order dengan status " + status + " tidak bisa diedit"
 		}
 		if req.PickupChainID != curChain {
-			respondError(w, http.StatusConflict, "setelah di-export, provider pengiriman tidak bisa diganti (hanya data penerima, toko, dan alamat)")
-			return
+			return http.StatusConflict, "setelah di-export, provider pengiriman tidak bisa diganti (hanya data penerima, toko, dan alamat)"
 		}
 	}
 
 	// Delivery: same validation as Create Order / the pickup editor.
 	finalAddress, bad := resolvePickupAddress(ctx, tx, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
 	if bad != "" {
-		respondError(w, http.StatusBadRequest, bad)
-		return
+		return http.StatusBadRequest, bad
 	}
 	pickupChanged := req.PickupChainID != curChain || req.PickupStoreCode != curStore || finalAddress != curAddress
 	if pickupChanged {
-		if inGroup {
-			respondError(w, http.StatusConflict, "order ini digabung dengan order lain (satu pengiriman): pisahkan penggabungan dulu sebelum mengganti metode / toko / alamat")
-			return
+		if inGroup && !viaGroup {
+			return http.StatusConflict, "order ini digabung dengan order lain (satu pengiriman): pisahkan penggabungan dulu sebelum mengganti metode / toko / alamat"
 		}
 		if msg := pickupBatchConflict(ctx, tx, id, req.PickupChainID); msg != "" {
-			respondError(w, http.StatusConflict, msg)
-			return
+			return http.StatusConflict, msg
 		}
 	}
 	if msg := validateExportFields(ctx, tx, req.PickupChainID, req.Customer.Name, finalAddress); msg != "" {
-		respondError(w, http.StatusBadRequest, msg)
-		return
+		return http.StatusBadRequest, msg
 	}
 
 	// Customer. The customers row is shared with the customer's other orders, so a changed name/phone is
@@ -274,24 +287,21 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	var curName, curPhone string
 	_ = tx.QueryRow(ctx, `SELECT name, phone FROM customers WHERE id=$1`, customerID).Scan(&curName, &curPhone)
 	if curName != req.Customer.Name || curPhone != req.Customer.Phone {
-		if inGroup {
-			respondError(w, http.StatusConflict, "order ini digabung dengan order lain: pisahkan penggabungan dulu sebelum mengganti pelanggan")
-			return
+		if inGroup && !viaGroup {
+			return http.StatusConflict, "order ini digabung dengan order lain: pisahkan penggabungan dulu sebelum mengganti pelanggan"
 		}
 		var others int
 		_ = tx.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE customer_id=$1 AND id<>$2`, customerID, id).Scan(&others)
 		if others == 0 || req.Customer.ApplyToAll {
 			if _, err := tx.Exec(ctx, `UPDATE customers SET name=$2, phone=$3 WHERE id=$1`, customerID, req.Customer.Name, req.Customer.Phone); err != nil {
-				respondError(w, http.StatusInternalServerError, "failed to update customer")
-				return
+				return http.StatusInternalServerError, "failed to update customer"
 			}
 		} else {
 			var newID int
 			if err := tx.QueryRow(ctx, `INSERT INTO customers (name, phone, address, email)
 				SELECT $2, $3, COALESCE(address,''), email FROM customers WHERE id=$1 RETURNING id`,
 				customerID, req.Customer.Name, req.Customer.Phone).Scan(&newID); err != nil {
-				respondError(w, http.StatusInternalServerError, "failed to create customer")
-				return
+				return http.StatusInternalServerError, "failed to create customer"
 			}
 			customerID = newID
 		}
@@ -309,8 +319,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	curQtyByVariant := map[int]int{}
 	irows, err := tx.Query(ctx, `SELECT id, variant_id, qty, picked_qty, price_at_order, COALESCE(host_id,0) FROM order_items WHERE order_id=$1`, id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to load items")
-		return
+		return http.StatusInternalServerError, "failed to load items"
 	}
 	for irows.Next() {
 		var itemID int
@@ -336,8 +345,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !frozen {
-			respondError(w, http.StatusConflict, "setelah di-export, produk, qty, harga, diskon, dan ongkir tidak bisa diubah: hanya data penerima, toko, dan alamat")
-			return
+			return http.StatusConflict, "setelah di-export, produk, qty, harga, diskon, dan ongkir tidak bisa diubah: hanya data penerima, toko, dan alamat"
 		}
 	}
 
@@ -348,17 +356,14 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		if it.ID != nil {
 			c, ok := cur[*it.ID]
 			if !ok {
-				respondError(w, http.StatusBadRequest, "item does not belong to this order")
-				return
+				return http.StatusBadRequest, "item does not belong to this order"
 			}
 			if it.VariantID != c.variantID {
-				respondError(w, http.StatusBadRequest, "produk sebuah baris tidak bisa diganti: hapus baris lalu tambahkan produk baru")
-				return
+				return http.StatusBadRequest, "produk sebuah baris tidak bisa diganti: hapus baris lalu tambahkan produk baru"
 			}
 			keep[*it.ID] = true
 		} else if channel == "live" && it.HostID == 0 {
-			respondError(w, http.StatusBadRequest, "each item requires host_id for a LIVE order")
-			return
+			return http.StatusBadRequest, "each item requires host_id for a LIVE order"
 		}
 	}
 
@@ -373,19 +378,16 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(extra) > 0 {
 		if msg, err := checkOversellLimitsTx(ctx, tx, extra); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to check stock")
-			return
+			return http.StatusInternalServerError, "failed to check stock"
 		} else if msg != "" {
-			respondError(w, http.StatusConflict, msg)
-			return
+			return http.StatusConflict, msg
 		}
 	}
 
 	for itemID := range cur {
 		if !keep[itemID] {
 			if _, err := tx.Exec(ctx, `DELETE FROM order_items WHERE id=$1`, itemID); err != nil {
-				respondError(w, http.StatusConflict, "baris item tidak bisa dihapus (sudah dipakai proses lain)")
-				return
+				return http.StatusConflict, "baris item tidak bisa dihapus (sudah dipakai proses lain)"
 			}
 		}
 	}
@@ -398,8 +400,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		if it.ID != nil {
 			c := cur[*it.ID]
 			if it.Qty < c.picked {
-				respondError(w, http.StatusConflict, "qty tidak boleh di bawah jumlah yang sudah di-pick")
-				return
+				return http.StatusConflict, "qty tidak boleh di bawah jumlah yang sudah di-pick"
 			}
 			price := c.price
 			if it.Price != nil {
@@ -407,23 +408,20 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 			}
 			subtotal += price * float64(it.Qty)
 			if _, err := tx.Exec(ctx, `UPDATE order_items SET qty=$2, price_at_order=$3, host_id=COALESCE($4, host_id) WHERE id=$1`, *it.ID, it.Qty, price, hostID); err != nil {
-				respondError(w, http.StatusInternalServerError, "failed to update item")
-				return
+				return http.StatusInternalServerError, "failed to update item"
 			}
 			continue
 		}
 		var price float64
 		if err := tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, it.VariantID).Scan(&price); err != nil {
-			respondError(w, http.StatusBadRequest, "variant not found")
-			return
+			return http.StatusBadRequest, "variant not found"
 		}
 		if it.Price != nil {
 			price = *it.Price
 		}
 		subtotal += price * float64(it.Qty)
 		if _, err := tx.Exec(ctx, `INSERT INTO order_items (order_id, variant_id, qty, price_at_order, host_id) VALUES ($1,$2,$3,$4,$5)`, id, it.VariantID, it.Qty, price, hostID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to add item")
-			return
+			return http.StatusInternalServerError, "failed to add item"
 		}
 	}
 
@@ -431,8 +429,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if batchProvider(ctx, tx, id) != "" && len(variantIDs) > 0 {
 		remaining, skus, err := allocatableStock(ctx, tx, variantIDs)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to check batch stock")
-			return
+			return http.StatusInternalServerError, "failed to check batch stock"
 		}
 		var short []string
 		for _, v := range variantIDs {
@@ -442,8 +439,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(short) > 0 {
 			sort.Strings(short)
-			respondError(w, http.StatusConflict, "stok fisik tidak cukup untuk batch yang sudah dibuat: "+strings.Join(short, ", "))
-			return
+			return http.StatusConflict, "stok fisik tidak cukup untuk batch yang sudah dibuat: " + strings.Join(short, ", ")
 		}
 	}
 
@@ -459,14 +455,12 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case inGroup && !feeHolder:
 		if req.ShippingFeeOverride != nil && *req.ShippingFeeOverride != curFee {
-			respondError(w, http.StatusConflict, "ongkir order gabungan ada di order pemegang ongkir; ubah dari order tersebut")
-			return
+			return http.StatusConflict, "ongkir order gabungan ada di order pemegang ongkir; ubah dari order tersebut"
 		}
 	case req.ShippingFeeOverride != nil && *req.ShippingFeeOverride != curFee:
 		def, derr := ComputeShippingFee(ctx, tx, req.PickupChainID, subtotal, false)
 		if derr != nil {
-			respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
-			return
+			return http.StatusInternalServerError, "failed to compute shipping fee"
 		}
 		fee = *req.ShippingFeeOverride
 		freeOverride = fee == 0 && def > 0
@@ -475,20 +469,17 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		// when only the items change; it is recomputed when the delivery method changes or the fee was automatic.
 		oldDefault, derr := ComputeShippingFee(ctx, tx, curChain, oldSubtotal, curOverride)
 		if derr != nil {
-			respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
-			return
+			return http.StatusInternalServerError, "failed to compute shipping fee"
 		}
 		if req.PickupChainID != curChain || curFee == oldDefault {
 			fee, err = ComputeShippingFee(ctx, tx, req.PickupChainID, subtotal, curOverride)
 			if err != nil {
-				respondError(w, http.StatusInternalServerError, "failed to compute shipping fee")
-				return
+				return http.StatusInternalServerError, "failed to compute shipping fee"
 			}
 		}
 	}
 	if subtotal-req.DiscountAmount+req.AdditionalAmount+fee > exportTotalMax {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("total pesanan melebihi batas platform pengiriman (maks. NT$%d)", exportTotalMax))
-		return
+		return http.StatusBadRequest, fmt.Sprintf("total pesanan melebihi batas platform pengiriman (maks. NT$%d)", exportTotalMax)
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -498,18 +489,12 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		WHERE id=$1`,
 		id, customerID, finalAddress, req.PickupChainID, req.PickupStoreName, req.PickupStoreCode,
 		req.DiscountAmount, req.AdditionalAmount, fee, freeOverride, req.Customer.Email); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to update order")
-		return
+		return http.StatusInternalServerError, "failed to update order"
 	}
 	action := "order_edited"
 	if afterShip {
 		action = "order_edited_after_shipped"
 	}
 	logActivity(ctx, tx, "order", id, action, &claims.UserID, fmt.Sprintf("status=%s items=%d subtotal=%.0f fee=%.0f", status, len(req.Items), subtotal, fee))
-	if err := tx.Commit(ctx); err != nil {
-		respondError(w, http.StatusInternalServerError, "db commit failed")
-		return
-	}
-	invalidateOrderCaches()
-	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	return 0, ""
 }
