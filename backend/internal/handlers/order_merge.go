@@ -45,16 +45,22 @@ func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) 
 		args = append(args, claims.UserID)
 	}
 
+	// An order already merged into a group stays a candidate (its whole group is offered), so a 3rd order of the
+	// same customer / store can still be added to an existing 2-order group. Groups with a member that can no longer
+	// be merged, or several different groups for one key, are left out (CreateGroup would refuse them anyway).
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT o.customer_id, c.name, c.phone, pc.name, COALESCE(o.pickup_store_code,''),
 		       array_agg(o.id ORDER BY o.created_at), array_agg(o.order_no ORDER BY o.created_at)
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		LEFT JOIN order_shipment_group_members m ON m.order_id = o.id
 		WHERE o.status IN ('pending','ready_to_ship')
-		  AND NOT EXISTS (SELECT 1 FROM order_shipment_group_members m WHERE m.order_id = o.id)`+roleFilter+`
+		  AND (m.group_id IS NULL OR NOT EXISTS (
+		        SELECT 1 FROM order_shipment_group_members m2 JOIN orders o2 ON o2.id = m2.order_id
+		        WHERE m2.group_id = m.group_id AND o2.status NOT IN ('pending','ready_to_ship')))`+roleFilter+`
 		GROUP BY o.customer_id, c.name, c.phone, pc.name, o.pickup_chain_id, COALESCE(o.pickup_store_code,'')
-		HAVING COUNT(*) > 1`, args...)
+		HAVING COUNT(*) > 1 AND COUNT(*) FILTER (WHERE m.group_id IS NULL) >= 1 AND COUNT(DISTINCT m.group_id) <= 1`, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to compute merge suggestions")
 		return
@@ -96,6 +102,49 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	defer tx.Rollback(ctx)
+
+	// Some of the orders may already form a shipment group: the new order(s) then join that group (the whole group
+	// is revalidated together). Orders from two different groups can't be combined: unmerge one first.
+	existingGroup := 0
+	memberOf := map[int]bool{}
+	if grows, gerr := tx.Query(ctx, `SELECT DISTINCT group_id FROM order_shipment_group_members WHERE order_id = ANY($1)`, req.OrderIDs); gerr == nil {
+		var gids []int
+		for grows.Next() {
+			var g int
+			if grows.Scan(&g) == nil {
+				gids = append(gids, g)
+			}
+		}
+		grows.Close()
+		if len(gids) > 1 {
+			respondError(w, http.StatusConflict, "order berasal dari dua grup gabungan yang berbeda: pisahkan salah satu grup dulu")
+			return
+		}
+		if len(gids) == 1 {
+			existingGroup = gids[0]
+			seen := map[int]bool{}
+			for _, id := range req.OrderIDs {
+				seen[id] = true
+			}
+			mrows, merr := tx.Query(ctx, `SELECT order_id FROM order_shipment_group_members WHERE group_id=$1`, existingGroup)
+			if merr == nil {
+				for mrows.Next() {
+					var oid int
+					if mrows.Scan(&oid) == nil {
+						memberOf[oid] = true
+						if !seen[oid] {
+							req.OrderIDs = append(req.OrderIDs, oid)
+						}
+					}
+				}
+				mrows.Close()
+			}
+			if len(memberOf) == len(req.OrderIDs) {
+				respondError(w, http.StatusBadRequest, "pilih minimal satu order yang belum tergabung")
+				return
+			}
+		}
+	}
 
 	// Orders already exported / in a batch can only be (re)merged by a user who may override the lock, and only when
 	// they all sit in the same batch (or none does): a merged shipment must never be split across batches.
@@ -171,8 +220,20 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	// just evaluated against the sum of every merged order's items. The fee-holder's pre-waiver
 	// values are preserved on the group row so DeleteGroup (unmerge) can restore them exactly.
 	feeHolder := orders[0]
+	alreadyWaived := false
+	if existingGroup != 0 {
+		var holderID int
+		var origFee *float64
+		tx.QueryRow(ctx, `SELECT shipping_fee_order_id, original_shipping_fee FROM order_shipment_groups WHERE id=$1`, existingGroup).Scan(&holderID, &origFee)
+		alreadyWaived = origFee != nil
+		for _, o := range orders {
+			if o.ID == holderID {
+				feeHolder = o
+			}
+		}
+	}
 	waiveFee := false
-	if feeHolder.ShippingFee > 0 {
+	if feeHolder.ShippingFee > 0 && !alreadyWaived {
 		var combinedSubtotal float64
 		tx.QueryRow(ctx, `
 			SELECT COALESCE(SUM(oi.qty * oi.price_at_order),0) FROM order_items oi WHERE oi.order_id = ANY($1)`,
@@ -194,7 +255,20 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var groupID int
-	if waiveFee {
+	if existingGroup != 0 {
+		groupID = existingGroup
+		if waiveFee {
+			if _, err := tx.Exec(ctx, `UPDATE order_shipment_groups SET original_shipping_fee=$2, original_free_shipping_override=$3 WHERE id=$1`,
+				groupID, feeHolder.ShippingFee, feeHolder.FreeShippingOverride); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to update shipment group")
+				return
+			}
+			if _, err := tx.Exec(ctx, `UPDATE orders SET shipping_fee=0, free_shipping_override=true WHERE id=$1`, feeHolder.ID); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to waive shipping fee")
+				return
+			}
+		}
+	} else if waiveFee {
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO order_shipment_groups (shipping_fee_order_id, created_by, original_shipping_fee, original_free_shipping_override)
 			VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -215,6 +289,9 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	for _, o := range orders {
+		if memberOf[o.ID] {
+			continue
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_shipment_group_members (group_id, order_id) VALUES ($1,$2)`, groupID, o.ID); err != nil {
 			respondError(w, http.StatusConflict, "order "+strconv.Itoa(o.ID)+" is already part of another shipment group")

@@ -10,35 +10,32 @@ import { currentMonth, fmtIDR, fmtRp } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
 
-function payslipText(row, month, t) {
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// Opens a simple printable payslip (save as PDF from the print dialog), same approach as the order invoice.
+function printPayslip(row, month, t) {
   const d = row.details
   const lines = [
-    `${row.nickname} — ${t('page_employee.salary_details')}`, month, '',
-    `${t('page_employee.base_salary')}: ${fmtIDR(d.base_salary)}`,
-    `${t('page_employee.work_days')}: ${d.work_days}`, `${t('page_employee.off_days')}: ${d.off_days}`,
-    `${t('page_employee.unpaid_days')}: ${d.unpaid_days}`, `${t('page_employee.leave_days')}: ${d.leave_days}`,
-    `${t('page_employee.unpaid_deduction')}: -${fmtIDR(d.unpaid_deduction)}`,
-    `${t('page_employee.attendance_bonus')}: ${fmtIDR(d.attendance_bonus)}`,
-    `${t('page_employee.qty_bonus')}: ${fmtIDR(d.qty_bonus)}`, `${t('page_employee.gmv_bonus')}: ${fmtIDR(d.gmv_bonus)}`,
-    `${t('page_employee.daily_bonus')}: ${fmtIDR(d.daily_bonus)}`, `Extra: ${fmtIDR(d.extra)}${d.extra_note ? ` (${d.extra_note})` : ''}`, '',
-    `${t('page_employee.final_salary')}: ${fmtRp(d.final_salary)}`,
-  ]
-  return lines.join('\n')
-}
-
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.left = '-9999px'
-    document.body.appendChild(ta)
-    ta.select()
-    try { document.execCommand('copy') } catch { /* nothing else to try */ }
-    document.body.removeChild(ta)
-  }
+    ['base_salary', fmtRp(d.base_salary)], ['work_days', d.work_days], ['off_days', d.off_days], ['unpaid_days', d.unpaid_days], ['leave_days', d.leave_days],
+    ['unpaid_deduction', `-${fmtRp(d.unpaid_deduction)}`], ['attendance_bonus', fmtRp(d.attendance_bonus)], ['qty_bonus', fmtRp(d.qty_bonus)],
+    ['gmv_bonus', fmtRp(d.gmv_bonus)], ['daily_bonus', fmtRp(d.daily_bonus)],
+  ].map(([k, v]) => [t(`page_employee.${k}`), v])
+  if (Number(d.extra)) lines.push([`Extra${d.extra_note ? ` (${d.extra_note})` : ''}`, fmtRp(d.extra)])
+  const rows = lines.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="r">${esc(v)}</td></tr>`).join('')
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t('page_employee.payslip_title'))} ${esc(row.nickname)} ${esc(month)}</title>
+<style>body{font-family:Arial,sans-serif;max-width:640px;margin:32px auto;color:#111;font-size:14px}h1{font-size:20px;margin:0 0 4px}
+.sub{color:#555;margin:0 0 20px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #ddd}.r{text-align:right}
+.total td{font-weight:bold;font-size:16px;border-top:2px solid #111;border-bottom:none;padding-top:10px}
+.sign{margin-top:64px;width:220px;margin-left:auto;text-align:center}.sign .line{margin-top:70px;border-top:1px solid #111;padding-top:4px}</style></head>
+<body><h1>${esc(t('page_employee.payslip_title'))}</h1><p class="sub">${esc(row.nickname)} · ${esc(month)}</p>
+<table>${rows}<tr class="total"><td>${esc(t('page_employee.final_salary'))}</td><td class="r">${esc(fmtRp(d.final_salary))}</td></tr></table>
+<div class="sign"><div>${esc(t('page_employee.payslip_signed'))}</div><div class="line">${esc(t('page_employee.payslip_management'))}</div></div>
+<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.open()
+  w.document.write(html)
+  w.document.close()
 }
 
 function Detail({ row, month, canEdit, onChanged }) {
@@ -47,7 +44,6 @@ function Detail({ row, month, canEdit, onChanged }) {
   const [extra, setExtra] = useState(String(d.extra || 0))
   const [note, setNote] = useState(d.extra_note || '')
   const [err, setErr] = useState('')
-  const [copied, setCopied] = useState(false)
   useEffect(() => { setExtra(String(d.extra || 0)); setNote(d.extra_note || '') }, [d.extra, d.extra_note])
   const lines = [
     ['base_salary', fmtIDR(d.base_salary)], ['work_days', d.work_days], ['off_days', d.off_days], ['unpaid_days', d.unpaid_days], ['leave_days', d.leave_days],
@@ -63,7 +59,7 @@ function Detail({ row, month, canEdit, onChanged }) {
     <div className="p-4 space-y-2 bg-[var(--table-header-bg)] text-[var(--text-primary)]">
       <div className="flex items-start justify-between gap-3">
         <div><h3 className="font-bold text-[var(--text-primary)]">{row.nickname} — {t('page_employee.salary_details')}</h3><p className="text-xs text-[var(--text-secondary)]">{month}{row.finalized ? ` · ${t('page_employee.finalized')}` : ''}</p></div>
-        <button type="button" onClick={async () => { await copyText(payslipText(row, month, t)); setCopied(true); setTimeout(() => setCopied(false), 1500) }} className="border border-gray-300 bg-[var(--table-card-bg)] text-[var(--text-primary)] text-sm font-semibold px-3 py-1.5 rounded-lg">{copied ? t('page_employee.copied') : t('page_employee.copy_payslip')}</button>
+        <button type="button" onClick={() => printPayslip(row, month, t)} className="border border-gray-300 bg-[var(--table-card-bg)] text-[var(--text-primary)] text-sm font-semibold px-3 py-1.5 rounded-lg">{t('page_employee.copy_payslip')}</button>
       </div>
       <dl className="divide-y divide-[var(--table-divider)] text-sm max-w-xl">
         {lines.map(([k, v]) => <div key={k} className="flex justify-between py-1.5"><dt className="text-[var(--text-secondary)]">{t(`page_employee.${k}`)}</dt><dd>{v}</dd></div>)}
