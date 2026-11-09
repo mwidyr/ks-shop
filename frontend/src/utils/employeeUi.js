@@ -46,3 +46,23 @@ export const statusStyle = (s) => ({
   backgroundColor: STATUS_COLORS[s?.bg_color]?.bg || '#e5e7eb',
   color: STATUS_COLORS[s?.text_color]?.fg || '#374151',
 })
+
+// Indonesian "terbilang" (amount in words) for the payslip: 12500000 -> "Dua Belas Juta Lima Ratus Ribu Rupiah".
+const SATUAN = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas']
+function terbilangInt(n) {
+  if (n < 12) return SATUAN[n]
+  if (n < 20) return `${terbilangInt(n - 10)} Belas`
+  if (n < 100) return `${terbilangInt(Math.floor(n / 10))} Puluh${n % 10 ? ` ${terbilangInt(n % 10)}` : ''}`
+  if (n < 200) return `Seratus${n > 100 ? ` ${terbilangInt(n - 100)}` : ''}`
+  if (n < 1000) return `${terbilangInt(Math.floor(n / 100))} Ratus${n % 100 ? ` ${terbilangInt(n % 100)}` : ''}`
+  if (n < 2000) return `Seribu${n > 1000 ? ` ${terbilangInt(n - 1000)}` : ''}`
+  if (n < 1e6) return `${terbilangInt(Math.floor(n / 1000))} Ribu${n % 1000 ? ` ${terbilangInt(n % 1000)}` : ''}`
+  if (n < 1e9) return `${terbilangInt(Math.floor(n / 1e6))} Juta${n % 1e6 ? ` ${terbilangInt(n % 1e6)}` : ''}`
+  if (n < 1e12) return `${terbilangInt(Math.floor(n / 1e9))} Miliar${n % 1e9 ? ` ${terbilangInt(n % 1e9)}` : ''}`
+  return String(n)
+}
+export function terbilang(amount) {
+  const n = Math.round(Number(amount) || 0)
+  if (n === 0) return 'Nol Rupiah'
+  return `${n < 0 ? 'Minus ' : ''}${terbilangInt(Math.abs(n))} Rupiah`
+}

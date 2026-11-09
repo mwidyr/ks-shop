@@ -6,31 +6,57 @@ import {
 import { useCanEdit } from '../context/AccessContext'
 import { cardClasses } from '../components/Table'
 import MonthSwitcher from '../components/MonthSwitcher'
-import { currentMonth, fmtIDR, fmtRp } from '../utils/employeeUi'
+import { currentMonth, fmtIDR, fmtRp, intlLocale, monthLabel, terbilang } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white'
 
 const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-// Opens a simple printable payslip (save as PDF from the print dialog), same approach as the order invoice.
-function printPayslip(row, month, t) {
+// Opens a printable payslip in the standard Indonesian "slip gaji" layout (save as PDF from the print dialog).
+function printPayslip(row, month, t, lang) {
   const d = row.details
-  const lines = [
-    ['base_salary', fmtRp(d.base_salary)], ['work_days', d.work_days], ['off_days', d.off_days], ['unpaid_days', d.unpaid_days], ['leave_days', d.leave_days],
-    ['unpaid_deduction', `-${fmtRp(d.unpaid_deduction)}`], ['attendance_bonus', fmtRp(d.attendance_bonus)], ['qty_bonus', fmtRp(d.qty_bonus)],
-    ['gmv_bonus', fmtRp(d.gmv_bonus)], ['daily_bonus', fmtRp(d.daily_bonus)],
-  ].map(([k, v]) => [t(`page_employee.${k}`), v])
-  if (Number(d.extra)) lines.push([`Extra${d.extra_note ? ` (${d.extra_note})` : ''}`, fmtRp(d.extra)])
-  const rows = lines.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="r">${esc(v)}</td></tr>`).join('')
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t('page_employee.payslip_title'))} ${esc(row.nickname)} ${esc(month)}</title>
-<style>body{font-family:Arial,sans-serif;max-width:640px;margin:32px auto;color:#111;font-size:14px}h1{font-size:20px;margin:0 0 4px}
-.sub{color:#555;margin:0 0 20px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #ddd}.r{text-align:right}
-.total td{font-weight:bold;font-size:16px;border-top:2px solid #111;border-bottom:none;padding-top:10px}
-.sign{margin-top:64px;width:220px;margin-left:auto;text-align:center}.sign .line{margin-top:70px;border-top:1px solid #111;padding-top:4px}</style></head>
-<body><h1>${esc(t('page_employee.payslip_title'))}</h1><p class="sub">${esc(row.nickname)} · ${esc(month)}</p>
-<table>${rows}<tr class="total"><td>${esc(t('page_employee.final_salary'))}</td><td class="r">${esc(fmtRp(d.final_salary))}</td></tr></table>
-<div class="sign"><div>${esc(t('page_employee.payslip_signed'))}</div><div class="line">${esc(t('page_employee.payslip_management'))}</div></div>
-<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`
+  const [y, m] = month.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const period = `1-${lastDay} ${monthLabel(month, lang).replace(/\s*\d{4}$/, '')} ${y}`
+  const now = new Date()
+  const loc = intlLocale(lang)
+  const longDate = now.toLocaleDateString(loc, { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })
+  const shortDate = now.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta' })
+  const items = [[t('page_employee.base_salary'), d.base_salary]]
+  if (Number(d.unpaid_deduction)) items.push([t('page_employee.unpaid_deduction'), -d.unpaid_deduction])
+  for (const [k, v] of [['attendance_bonus', d.attendance_bonus], ['qty_bonus', d.qty_bonus], ['gmv_bonus', d.gmv_bonus], ['daily_bonus', d.daily_bonus]]) {
+    if (Number(v)) items.push([t(`page_employee.${k}`), v])
+  }
+  if (Number(d.extra)) items.push([`Extra${d.extra_note ? ` (${d.extra_note})` : ''}`, d.extra])
+  const rows = items.map(([k, v], i) => `<tr><td class="n">${i + 1}</td><td>${esc(k)}</td><td class="r">${esc(fmtIDR(v))}</td></tr>`).join('')
+  const words = String(lang || '').startsWith('id') ? `<i>${esc(t('page_employee.payslip_in_words'))} : ${esc(terbilang(d.final_salary))}</i>` : ''
+  const title = `${t('page_employee.payslip_title')} ${row.full_name || row.nickname} ${month}`
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:13px;margin:0}
+.box{border:2px solid #000;max-width:720px;margin:0 auto}.head{height:110px;border-bottom:2px solid #000}.body{padding:14px 22px 26px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1.5px solid #000;padding-bottom:3px}
+.top h1{font-size:19px;margin:0 0 0 70px;letter-spacing:.3px}.meta td{padding:1px 0}.meta td:first-child{padding-right:30px}
+.info{display:flex;justify-content:space-between;margin:12px 0 14px}.info td{padding:1px 14px 1px 0}
+table.items{width:100%;border-collapse:collapse}table.items th{text-align:left;border-bottom:1.5px solid #000;padding:2px 4px}
+table.items td{padding:2px 4px}.n{width:30px}.r{text-align:right}table.items th.r{text-align:right}
+.sub td{border-top:1.5px solid #000;font-weight:bold}.foot{display:flex;justify-content:space-between;margin-top:10px;border-top:1.5px solid #000;padding-top:6px}
+.tot{font-weight:bold;white-space:nowrap}.tot u{margin-right:30px}.sign{display:flex;justify-content:space-between;margin-top:26px}
+.sign .l{padding-left:60px}.sign .rr{text-align:center;width:240px}.sign .line{margin-top:64px;border-top:1px solid #000;padding-top:3px}</style></head>
+<body><div class="box"><div class="head"></div><div class="body">
+<div class="top"><h1>${esc(t('page_employee.payslip_title').toUpperCase())}</h1>
+<table class="meta"><tr><td>${esc(t('page_employee.payslip_date'))}</td><td>: ${esc(shortDate)}</td></tr>
+<tr><td>${esc(t('page_employee.payslip_ref'))}</td><td>: SG/${esc(month.replace('-', ''))}/${esc(row.emp_code)}</td></tr>
+<tr><td>${esc(t('page_employee.payslip_period'))}</td><td>: ${esc(period)}</td></tr></table></div>
+<div class="info"><table><tr><td>${esc(t('page_employee.payslip_name'))}</td><td>: ${esc(row.full_name || row.nickname)}</td></tr>
+<tr><td>${esc(t('page_employee.payslip_position'))}</td><td>: ${esc(row.position || '-')}</td></tr></table>
+<table><tr><td>${esc(t('page_employee.payslip_emp_code'))}</td><td>: ${esc(row.emp_code)}</td></tr>
+<tr><td>${esc(t('page_employee.payslip_phone'))}</td><td>: ${esc(row.whatsapp || '-')}</td></tr></table></div>
+<table class="items"><tr><th class="n">${esc(t('page_employee.payslip_no'))}</th><th>${esc(t('page_employee.payslip_desc'))}</th><th class="r">${esc(t('page_employee.payslip_amount'))}</th></tr>${rows}
+<tr class="sub"><td></td><td></td><td class="r">${esc(fmtIDR(d.final_salary))}</td></tr></table>
+<div class="foot"><div>${words}</div><div class="tot"><u>${esc(t('page_employee.payslip_total'))}</u> ${esc(fmtIDR(d.final_salary))}</div></div>
+<div class="sign"><div class="l"><div>${esc(t('page_employee.payslip_receiver'))}</div></div>
+<div class="rr"><div>Jakarta, ${esc(longDate)}</div><div>${esc(t('page_employee.payslip_signed'))}</div><div class="line">${esc(t('page_employee.payslip_management'))}</div></div></div>
+</div></div><script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`
   const w = window.open('', '_blank')
   if (!w) return
   w.document.open()
@@ -39,7 +65,7 @@ function printPayslip(row, month, t) {
 }
 
 function Detail({ row, month, canEdit, onChanged }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const d = row.details
   const [extra, setExtra] = useState(String(d.extra || 0))
   const [note, setNote] = useState(d.extra_note || '')
@@ -59,7 +85,7 @@ function Detail({ row, month, canEdit, onChanged }) {
     <div className="p-4 space-y-2 bg-[var(--table-header-bg)] text-[var(--text-primary)]">
       <div className="flex items-start justify-between gap-3">
         <div><h3 className="font-bold text-[var(--text-primary)]">{row.nickname} — {t('page_employee.salary_details')}</h3><p className="text-xs text-[var(--text-secondary)]">{month}{row.finalized ? ` · ${t('page_employee.finalized')}` : ''}</p></div>
-        <button type="button" onClick={() => printPayslip(row, month, t)} className="border border-gray-300 bg-[var(--table-card-bg)] text-[var(--text-primary)] text-sm font-semibold px-3 py-1.5 rounded-lg">{t('page_employee.copy_payslip')}</button>
+        <button type="button" onClick={() => printPayslip(row, month, t, i18n.language)} className="border border-gray-300 bg-[var(--table-card-bg)] text-[var(--text-primary)] text-sm font-semibold px-3 py-1.5 rounded-lg">{t('page_employee.copy_payslip')}</button>
       </div>
       <dl className="divide-y divide-[var(--table-divider)] text-sm max-w-xl">
         {lines.map(([k, v]) => <div key={k} className="flex justify-between py-1.5"><dt className="text-[var(--text-secondary)]">{t(`page_employee.${k}`)}</dt><dd>{v}</dd></div>)}

@@ -168,6 +168,8 @@ type payrollEmp struct {
 	LocationID int
 	HostID     *int
 	HostName   *string
+	Position   string
+	Whatsapp   string
 }
 
 type payrollResult struct {
@@ -182,8 +184,8 @@ type payrollResult struct {
 // payrollEmployees: employees active in `month` (Full-time / Probationary, already joined) plus anyone who has a payroll record that month.
 func (h *EmployeeHandler) payrollEmployees(ctx context.Context, first, nextFirst string) ([]payrollEmp, error) {
 	rows, err := h.DB.Query(ctx, `
-		SELECT e.id, e.emp_code, e.nickname, e.full_name, l.name, l.id, e.host_id, ho.name
-		FROM employees e JOIN employee_locations l ON l.id = e.location_id LEFT JOIN hosts ho ON ho.id = e.host_id
+		SELECT e.id, e.emp_code, e.nickname, e.full_name, l.name, l.id, e.host_id, ho.name, COALESCE(po.name,''), COALESCE(e.whatsapp,'')
+		FROM employees e JOIN employee_locations l ON l.id = e.location_id LEFT JOIN hosts ho ON ho.id = e.host_id LEFT JOIN employee_positions po ON po.id = e.position_id
 		WHERE (e.join_date IS NULL OR e.join_date < $2::date)
 		  AND (e.status IN ('full_time','probationary') OR EXISTS (SELECT 1 FROM payroll_records pr WHERE pr.employee_id = e.id AND pr.month = $1::date))
 		ORDER BY l.is_default DESC, l.name, e.id`, first, nextFirst)
@@ -194,7 +196,7 @@ func (h *EmployeeHandler) payrollEmployees(ctx context.Context, first, nextFirst
 	var out []payrollEmp
 	for rows.Next() {
 		var e payrollEmp
-		if err := rows.Scan(&e.ID, &e.EmpCode, &e.Nickname, &e.FullName, &e.Location, &e.LocationID, &e.HostID, &e.HostName); err != nil {
+		if err := rows.Scan(&e.ID, &e.EmpCode, &e.Nickname, &e.FullName, &e.Location, &e.LocationID, &e.HostID, &e.HostName, &e.Position, &e.Whatsapp); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -370,6 +372,8 @@ type payrollRowView struct {
 	Nickname   string           `json:"nickname"`
 	FullName   string           `json:"full_name"`
 	Location   string           `json:"location"`
+	Position   string           `json:"position"`
+	Whatsapp   string           `json:"whatsapp"`
 	Paid       bool             `json:"paid"`
 	PaidAt     *string          `json:"paid_at"`
 	PaidBy     *string          `json:"paid_by"`
@@ -378,7 +382,7 @@ type payrollRowView struct {
 }
 
 func toPayrollRow(res *payrollResult) payrollRowView {
-	v := payrollRowView{EmployeeID: res.ID, EmpCode: res.EmpCode, Nickname: res.Nickname, FullName: res.FullName, Location: res.Location,
+	v := payrollRowView{EmployeeID: res.ID, EmpCode: res.EmpCode, Nickname: res.Nickname, FullName: res.FullName, Location: res.Location, Position: res.Position, Whatsapp: res.Whatsapp,
 		Paid: res.Paid, PaidBy: res.PaidByName, Finalized: res.Finalized, Details: res.payrollBreakdown}
 	if res.PaidAt != nil {
 		s := res.PaidAt.In(reportZone).Format(time.RFC3339)
