@@ -22,13 +22,13 @@ function printPayslip(row, month, t, lang) {
   const loc = intlLocale(lang)
   const longDate = now.toLocaleDateString(loc, { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })
   const shortDate = now.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta' })
-  const items = [[t('page_employee.base_salary'), d.base_salary]]
-  if (Number(d.unpaid_deduction)) items.push([t('page_employee.unpaid_deduction'), -d.unpaid_deduction])
-  for (const [k, v] of [['attendance_bonus', d.attendance_bonus], ['qty_bonus', d.qty_bonus], ['gmv_bonus', d.gmv_bonus], ['daily_bonus', d.daily_bonus]]) {
-    if (Number(v)) items.push([t(`page_employee.${k}`), v])
-  }
-  if (Number(d.extra)) items.push([`Extra${d.extra_note ? ` (${d.extra_note})` : ''}`, d.extra])
-  const rows = items.map(([k, v], i) => `<tr><td class="n">${i + 1}</td><td>${esc(k)}</td><td class="r">${esc(fmtIDR(v))}</td></tr>`).join('')
+  const items = [
+    ['base_salary', fmtIDR(d.base_salary)], ['work_days', d.work_days], ['off_days', d.off_days], ['unpaid_days', d.unpaid_days], ['leave_days', d.leave_days],
+    ['unpaid_deduction', `-${fmtIDR(d.unpaid_deduction)}`], ['attendance_bonus', fmtIDR(d.attendance_bonus)], ['qty_bonus', fmtIDR(d.qty_bonus)],
+    ['gmv_bonus', fmtIDR(d.gmv_bonus)], ['daily_bonus', fmtIDR(d.daily_bonus)],
+  ].map(([k, v]) => [t(`page_employee.${k}`), v])
+  if (Number(d.extra)) items.push([`Extra${d.extra_note ? ` (${d.extra_note})` : ''}`, fmtIDR(d.extra)])
+  const rows = items.map(([k, v], i) => `<tr><td class="n">${i + 1}</td><td>${esc(k)}</td><td class="r">${esc(v)}</td></tr>`).join('')
   const words = String(lang || '').startsWith('id') ? `<i>${esc(t('page_employee.payslip_in_words'))} : ${esc(terbilang(d.final_salary))}</i>` : ''
   const title = `${t('page_employee.payslip_title')} ${row.full_name || row.nickname} ${month}`
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
@@ -51,8 +51,7 @@ table.items td{padding:2px 4px}.n{width:30px}.r{text-align:right}table.items th.
 <tr><td>${esc(t('page_employee.payslip_position'))}</td><td>: ${esc(row.position || '-')}</td></tr></table>
 <table><tr><td>${esc(t('page_employee.payslip_emp_code'))}</td><td>: ${esc(row.emp_code)}</td></tr>
 <tr><td>${esc(t('page_employee.payslip_phone'))}</td><td>: ${esc(row.whatsapp || '-')}</td></tr></table></div>
-<table class="items"><tr><th class="n">${esc(t('page_employee.payslip_no'))}</th><th>${esc(t('page_employee.payslip_desc'))}</th><th class="r">${esc(t('page_employee.payslip_amount'))}</th></tr>${rows}
-<tr class="sub"><td></td><td></td><td class="r">${esc(fmtIDR(d.final_salary))}</td></tr></table>
+<table class="items"><tr><th class="n">${esc(t('page_employee.payslip_no'))}</th><th>${esc(t('page_employee.payslip_desc'))}</th><th class="r">${esc(t('page_employee.payslip_amount'))}</th></tr>${rows}</table>
 <div class="foot"><div>${words}</div><div class="tot"><u>${esc(t('page_employee.payslip_total'))}</u> ${esc(fmtIDR(d.final_salary))}</div></div>
 <div class="sign"><div class="l"><div>${esc(t('page_employee.payslip_receiver'))}</div></div>
 <div class="rr"><div>Jakarta, ${esc(longDate)}</div><div>${esc(t('page_employee.payslip_signed'))}</div><div class="line">${esc(t('page_employee.payslip_management'))}</div></div></div>
