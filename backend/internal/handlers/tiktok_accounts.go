@@ -31,8 +31,9 @@ func validTikTokStatus(s string) bool {
 	return false
 }
 
-// canSeeCredentials: passwords, 2FA codes and e-mail logins are only returned to the Super Admin and Management.
-func canSeeCredentials(role string) bool { return role == "super_user" || role == "management" }
+// canSeeCredentials: passwords, 2FA codes and e-mail logins are returned to every role that may open the TikTok
+// Accounts tab (the Permission Matrix decides who that is): ops adjust accounts in real time and must not be locked out.
+func canSeeCredentials(role string) bool { return role != "" }
 
 const defaultRoomsPerLocation = 5
 

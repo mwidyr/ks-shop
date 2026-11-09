@@ -106,15 +106,16 @@ func TestTikTokAndCekViewsAgainstDatabase(t *testing.T) {
 	if d["password"] != "pw1" {
 		t.Fatalf("management should see the password: %v", d)
 	}
+	// ops work on accounts in real time: every role that may open the tab sees and edits the login data
 	_, d = call("sales", "GET", "/tiktok/accounts/"+itoa(acc), nil)
-	if d["password"] != "" || d["can_see_credentials"] != false {
-		t.Fatalf("credentials must be hidden from sales: %v", d)
+	if d["password"] != "pw1" || d["can_see_credentials"] != true {
+		t.Fatalf("credentials must be visible to a role with access to the tab: %v", d)
 	}
-	if rec, _ = call("sales", "PUT", "/tiktok/accounts/"+itoa(acc), map[string]any{"tiktok_id": "t_acc_" + itoa(loc), "status": "BLOCKED", "password": "hacked"}); rec.Code != http.StatusOK {
+	if rec, _ = call("sales", "PUT", "/tiktok/accounts/"+itoa(acc), map[string]any{"tiktok_id": "t_acc_" + itoa(loc), "status": "BLOCKED", "password": "pw2"}); rec.Code != http.StatusOK {
 		t.Fatalf("update: %d %s", rec.Code, rec.Body)
 	}
-	if _, d = call("management", "GET", "/tiktok/accounts/"+itoa(acc), nil); d["password"] != "pw1" || d["status"] != "BLOCKED" {
-		t.Fatalf("a role without credential access must not overwrite them: %v", d)
+	if _, d = call("management", "GET", "/tiktok/accounts/"+itoa(acc), nil); d["password"] != "pw2" || d["status"] != "BLOCKED" {
+		t.Fatalf("a role with access must be able to update the credentials: %v", d)
 	}
 	call("management", "PUT", "/tiktok/accounts/"+itoa(acc), map[string]any{"tiktok_id": "t_acc_" + itoa(loc), "status": "LIVE", "device_id": dev, "room_id": room2, "location_id": loc})
 	if rec, _ = call("super_user", "POST", "/tiktok/accounts/"+itoa(acc)+"/notes", map[string]any{"body": "first note"}); rec.Code != http.StatusCreated {

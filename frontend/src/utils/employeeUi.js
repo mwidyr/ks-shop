@@ -21,6 +21,10 @@ export const fmtIDR = (n) => Math.round(Number(n) || 0).toLocaleString('en-US')
 export const fmtRp = (n) => `Rp ${fmtIDR(n)}`
 
 export const EMPLOYEE_STATUSES = [['full_time', 'Full-time'], ['probationary', 'Probationary'], ['resigned', 'Resigned'], ['fired', 'Fired']]
+// Soft translucent tint per employment status (rgba works on both the light and the dark theme).
+export const EMPLOYEE_STATUS_COLOR = { full_time: '16, 185, 129', probationary: '245, 158, 11', resigned: '100, 116, 139', fired: '220, 38, 38' }
+export const employeeRowStyle = (s) => (EMPLOYEE_STATUS_COLOR[s] ? { backgroundColor: `rgba(${EMPLOYEE_STATUS_COLOR[s]}, 0.10)` } : undefined)
+export const employeeDotStyle = (s) => ({ backgroundColor: `rgb(${EMPLOYEE_STATUS_COLOR[s] || '148, 163, 184'})` })
 export const statusLabel = (s) => EMPLOYEE_STATUSES.find(([k]) => k === s)?.[1] || s
 export const MBTI_TYPES = ['INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP', 'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 'ISTP', 'ISFP', 'ESTP', 'ESFP']
 

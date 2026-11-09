@@ -5,7 +5,7 @@ import { useCanEdit } from '../context/AccessContext'
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import { cardClasses } from '../components/Table'
 import DateInput from '../components/DateInput'
-import { EMPLOYEE_STATUSES, statusLabel } from '../utils/employeeUi'
+import { EMPLOYEE_STATUSES, employeeRowStyle, employeeDotStyle, statusLabel } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full'
 const emptyForm = {
@@ -315,12 +315,12 @@ export default function EmployeeList() {
           <tbody>
             {data.employees.map((e) => (
               <Fragment key={e.id}>
-                <tr onClick={() => setExpanded(expanded === e.id ? null : e.id)} className="cursor-pointer hover:bg-[var(--table-row-hover)] border-t border-[var(--table-divider)]">
+                <tr onClick={() => setExpanded(expanded === e.id ? null : e.id)} style={employeeRowStyle(e.status)} className="cursor-pointer hover:bg-[var(--table-row-hover)] border-t border-[var(--table-divider)]">
                   <td className="p-3"><p className="font-semibold text-[var(--text-primary)]">{e.full_name}</p><p className="text-[11px] text-[var(--text-secondary)]">{e.emp_code} · {e.nickname}</p></td>
                   <td className="p-3">{e.position}</td>
                   <td className="p-3"><span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold">{e.location}</span></td>
                   <td className="p-3 font-mono text-xs">{e.whatsapp || '—'}</td>
-                  <td className="p-3">{statusLabel(e.status)}</td>
+                  <td className="p-3"><span className="inline-block w-2 h-2 rounded-full mr-1.5" style={employeeDotStyle(e.status)} />{statusLabel(e.status)}</td>
                   <td className="p-3 whitespace-nowrap">{e.join_date || '—'}</td>
                   <td className="p-3 text-gray-400">{expanded === e.id ? '▴' : '▾'}</td>
                 </tr>
