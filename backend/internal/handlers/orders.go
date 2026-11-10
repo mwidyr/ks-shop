@@ -682,12 +682,20 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "customer name and phone are required for a new customer")
 			return
 		}
+		// The same person typed in again (same name and phone digits, not picked from the suggestion list) is the
+		// customer already on file, not a second record: duplicate rows kept their orders from being offered for merging.
 		var newID int
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO customers (name, phone, address, email) VALUES ($1,$2,$3,NULLIF($4,'')) RETURNING id`,
-			req.Customer.Name, req.Customer.Phone, req.Customer.Address, req.Customer.Email).Scan(&newID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to create customer")
-			return
+			SELECT id FROM customers
+			WHERE lower(regexp_replace(btrim(name), '\s+', ' ', 'g')) = lower(regexp_replace(btrim($1), '\s+', ' ', 'g'))
+			  AND regexp_replace(COALESCE(phone,''), '\D', '', 'g') = regexp_replace($2, '\D', '', 'g')
+			ORDER BY id LIMIT 1`, req.Customer.Name, req.Customer.Phone).Scan(&newID); err != nil {
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO customers (name, phone, address, email) VALUES ($1,$2,$3,NULLIF($4,'')) RETURNING id`,
+				req.Customer.Name, req.Customer.Phone, req.Customer.Address, req.Customer.Email).Scan(&newID); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to create customer")
+				return
+			}
 		}
 		customerID = &newID
 	}
