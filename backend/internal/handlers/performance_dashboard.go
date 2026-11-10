@@ -107,7 +107,8 @@ func validHostsCTE(r *http.Request) (sql string, args []interface{}) {
 }
 
 // allHostsCTE is validHostsCTE's Sales Channel Attribution (items 040-045) counterpart for
-// ?channel=all|website: every active host in the Location/Host filter, with NO
+// ?channel=all|website: every active host in the Location/Host filter PLUS any inactive host that has
+// sales in [from, to) (history must not change when a host is deactivated), with NO
 // live_data_recorded_at gate at all - "ALL/Website... should not depend on LIVE Data, Valid LIVE
 // Days, or LIVE sessions" per spec. Same "valid_hosts" CTE name/column shape as validHostsCTE so
 // every query below can reuse the exact same SELECT/JOIN template regardless of which one is picked.
@@ -117,7 +118,11 @@ func allHostsCTE(r *http.Request) (sql string, args []interface{}) {
 		SELECT h.id AS host_id, h.name AS host_name, h.location_id, hl.name AS location_name
 		FROM hosts h
 		JOIN host_locations hl ON hl.id = h.location_id
-		WHERE h.is_active = true` + where + `
+		WHERE (h.is_active = true
+		    OR EXISTS (SELECT 1 FROM order_items oi
+		               JOIN orders o ON o.id = oi.order_id
+		               WHERE oi.host_id = h.id AND o.status NOT IN ('cancelled','return')
+		                 AND o.created_at >= $1 AND o.created_at < $2))` + where + `
 	)`
 	return sql, args
 }
