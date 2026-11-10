@@ -24,10 +24,10 @@ type OrderMergeHandler struct {
 // rows), and a delivery by chain + (store code for 7-11 / FamilyMart, the normalised street address for POS /
 // courier). Dates play no part: orders of any age can be merged while they are still eligible.
 const (
-	mergeCustomerKeyTmpl = `lower(btrim({c}.name)) || '|' || regexp_replace(COALESCE({c}.phone,''), '\D', '', 'g')`
-	mergeDeliveryKeyTmpl = `{o}.pickup_chain_id::text || '|' || CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
-		THEN COALESCE({o}.pickup_store_code,'')
-		ELSE lower(regexp_replace(btrim(COALESCE({o}.shipping_address,'')), '\s+', ' ', 'g')) END`
+	mergeCustomerKeyTmpl = `lower(regexp_replace(btrim({c}.name), '\s+', ' ', 'g')) || '|' || regexp_replace(COALESCE({c}.phone,''), '\D', '', 'g')`
+	mergeDeliveryKeyTmpl = `CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
+		THEN {pc}.chain_type || '|' || btrim(COALESCE({o}.pickup_store_code,''))
+		ELSE {o}.pickup_chain_id::text || '|' || lower(regexp_replace(btrim(COALESCE({o}.shipping_address,'')), '\s+', ' ', 'g')) END`
 	// what staff see for a delivery: "7-ELEVEN #123456" / "POS - <address>"
 	mergeDeliveryLabelTmpl = `{pc}.name || CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
 		THEN ' #' || COALESCE({o}.pickup_store_code,'') ELSE ' - ' || COALESCE({o}.shipping_address,'') END`
