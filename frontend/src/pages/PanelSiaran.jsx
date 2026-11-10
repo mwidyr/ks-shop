@@ -4,6 +4,12 @@ import { Link } from 'react-router-dom'
 import { listLiveSessions, getLiveDataCurrentCode } from '../api/liveSessions'
 import SessionStatusPill from '../components/SessionStatusPill'
 import { useAccess } from '../context/AccessContext'
+import { jakartaDateTime, jakartaDateTimeParts } from '../utils/jakartaDate'
+import { listLocations } from '../api/hostLocations'
+import { listHosts } from '../api/hosts'
+import { listUploadHistory } from '../api/liveSessions'
+import Pager from '../components/Pager'
+import { cardClasses, tableClasses, theadRowClasses, tbodyClasses, rowClasses } from '../components/Table'
 
 function LiveDataCodeCard() {
   const { t } = useTranslation()
@@ -38,6 +44,77 @@ function LiveDataCodeCard() {
       >
         {t('page_panel_siaran.upload_live_data_button')}
       </a>
+    </div>
+  )
+}
+
+// Who has uploaded their LIVE data and when: Location first, then only that Location's Hosts.
+function UploadHistory() {
+  const { t } = useTranslation()
+  const [locations, setLocations] = useState([])
+  const [hosts, setHosts] = useState([])
+  const [locationId, setLocationId] = useState('')
+  const [hostId, setHostId] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState(null)
+  const SIZE = 25
+
+  useEffect(() => { listLocations().then(setLocations) }, [])
+  useEffect(() => { listHosts(false, locationId || undefined).then(setHosts) }, [locationId])
+  useEffect(() => {
+    setData(null)
+    listUploadHistory({ location_id: locationId, host_id: hostId, page, page_size: SIZE }).then(setData).catch(() => setData({ items: [], total: 0 }))
+  }, [locationId, hostId, page])
+
+  const select = 'border border-gray-300 rounded-lg px-3 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400'
+  return (
+    <div className={`${cardClasses} p-5 mt-4`}>
+      <h2 className="font-bold text-[var(--text-primary)] mb-3">{t('page_panel_siaran.upload_history_title')}</h2>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setHostId(''); setPage(1) }} className={select}>
+          <option value="">{t('page_performance_dashboard.all_locations')}</option>
+          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <select
+          value={hostId} onChange={(e) => { setHostId(e.target.value); setPage(1) }} disabled={!locationId}
+          title={!locationId ? t('page_order_create.select_location_first') : undefined} className={select}
+        >
+          <option value="">{t('page_product_analytics.all_hosts')}</option>
+          {hosts.filter((h) => String(h.location_id) === String(locationId)).map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+        </select>
+      </div>
+      {!data ? (
+        <p className="text-sm text-[var(--text-secondary)] py-6 text-center">{t('common.loading')}</p>
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-[var(--text-secondary)] py-6 text-center">{t('page_panel_siaran.upload_history_empty')}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className={tableClasses}>
+            <thead>
+              <tr className={theadRowClasses}>
+                <th className="p-3">{t('page_panel_siaran.upload_col_host')}</th>
+                <th className="p-3">{t('page_panel_siaran.upload_col_location')}</th>
+                <th className="p-3">{t('page_panel_siaran.upload_col_date')}</th>
+                <th className="p-3">{t('page_panel_siaran.upload_col_time')}</th>
+              </tr>
+            </thead>
+            <tbody className={tbodyClasses}>
+              {data.items.map((u) => {
+                const { date, time } = jakartaDateTimeParts(u.uploaded_at)
+                return (
+                  <tr key={u.session_id} className={rowClasses}>
+                    <td className="p-3 font-semibold text-[var(--text-primary)]">{u.host_name}</td>
+                    <td className="p-3 text-[var(--text-secondary)]">{u.location_name}</td>
+                    <td className="p-3 tnum text-[var(--text-secondary)]">{date}</td>
+                    <td className="p-3 tnum text-[var(--text-secondary)]">{time}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pager page={page} size={SIZE} total={data?.total || 0} onPage={setPage} />
     </div>
   )
 }
@@ -82,7 +159,7 @@ export default function PanelSiaran() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-lg font-bold text-gray-800">{current.label}</p>
-              <p className="text-xs text-gray-400 mb-2">{new Date(current.created_at).toLocaleString('id-ID')}</p>
+              <p className="text-xs text-gray-400 mb-2"><span className="tnum">{jakartaDateTime(current.created_at)}</span></p>
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <span>{t('page_panel_siaran.label_live_cart')} <span className="font-semibold">{current.cart_count}</span></span>
                 <span>{t('page_panel_siaran.label_orders')} <span className="font-semibold">{current.order_count}</span></span>
@@ -97,6 +174,8 @@ export default function PanelSiaran() {
           </div>
         </div>
       )}
+
+      <UploadHistory />
     </div>
   )
 }

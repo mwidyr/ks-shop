@@ -6,7 +6,7 @@ const qs = (params) => {
   return s ? `?${s}` : ''
 }
 
-export const getOverview = () => client.get('/shipping-workbench/overview').then((r) => r.data)
+export const getOverview = (params) => client.get(`/shipping-workbench/overview${qs(params)}`).then((r) => r.data)
 export const getIssues = (params) => client.get(`/shipping-workbench/issues${qs(params)}`).then((r) => r.data)
 export const resolveIssue = (id) => client.post(`/shipping-workbench/issues/${id}/resolve`).then((r) => r.data)
 export const getSettings = () => client.get('/shipping-workbench/settings').then((r) => r.data)

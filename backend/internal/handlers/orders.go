@@ -579,6 +579,24 @@ func resolvePickupAddress(ctx context.Context, db querier, chainID int, storeCod
 	return address, ""
 }
 
+// cleanDelivery makes a newly chosen delivery replace the old one completely: a non-convenience-store method
+// (POS / courier) carries no store name / code (a leftover of an earlier 7-11 / FamilyMart choice made orders
+// look like two methods at once and kept them from matching their siblings), and a convenience-store method
+// must not keep the previous method's street address (curAddress), which is rebuilt from the store instead.
+func cleanDelivery(ctx context.Context, db querier, chainID, curChain int, storeName, storeCode, address, curAddress string) (string, string, string) {
+	var chainType string
+	if err := db.QueryRow(ctx, `SELECT chain_type FROM pickup_chains WHERE id=$1`, chainID).Scan(&chainType); err != nil {
+		return storeName, storeCode, address
+	}
+	if chainType == "cvs_711" || chainType == "cvs_familymart" {
+		if chainID != curChain && address == curAddress {
+			address = ""
+		}
+		return storeName, storeCode, address
+	}
+	return "", "", address
+}
+
 // Create builds a manual order directly (no cart/checkout step): resolves/creates the
 // buyer, decrements available_stock -> order_stock per line item in one transaction.
 func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -654,6 +672,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if customerID != nil {
 		_ = tx.QueryRow(ctx, `SELECT name FROM customers WHERE id=$1`, *customerID).Scan(&exportName)
 	}
+	req.PickupStoreName, req.PickupStoreCode, _ = cleanDelivery(ctx, tx, req.PickupChainID, 0, req.PickupStoreName, req.PickupStoreCode, req.ShippingAddress, "\x00")
 	if msg := validateExportFields(ctx, tx, req.PickupChainID, exportName, req.ShippingAddress); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
 		return
@@ -817,19 +836,22 @@ type updateStatusRequest struct {
 	ConfirmStopped bool `json:"confirm_stopped"`
 }
 
-// findMergeableSiblings returns the order_nos of other orders belonging to the same customer,
-// pickup chain and store as orderID, that are still pending/ready_to_ship (i.e. still eligible
-// to merge - see order_merge.go's Suggestions/CreateGroup, which use this exact same
-// eligibility) and not already grouped together with orderID.
+// findMergeableSiblings returns the order_nos of other orders belonging to the same customer (name + phone)
+// and delivery (chain + store / address) as orderID, that are still New/pending (i.e. still eligible to
+// merge - see order_merge.go's Suggestions/CreateGroup, which use this exact same eligibility) and not
+// already grouped together with orderID.
 func (h *OrderHandler) findMergeableSiblings(ctx context.Context, tx pgx.Tx, orderID int) ([]string, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT o2.order_no
 		FROM orders o1
-		JOIN orders o2 ON o2.customer_id = o1.customer_id
-			AND o2.pickup_chain_id = o1.pickup_chain_id
-			AND COALESCE(o2.pickup_store_code,'') = COALESCE(o1.pickup_store_code,'')
-			AND o2.id <> o1.id
-		WHERE o1.id = $1 AND o2.status IN ('pending','ready_to_ship')
+		JOIN customers c1 ON c1.id = o1.customer_id
+		JOIN pickup_chains pc1 ON pc1.id = o1.pickup_chain_id
+		JOIN orders o2 ON o2.id <> o1.id
+		JOIN customers c2 ON c2.id = o2.customer_id
+		JOIN pickup_chains pc2 ON pc2.id = o2.pickup_chain_id
+		WHERE o1.id = $1 AND o2.status = 'pending'
+			AND `+mergeSQL(mergeCustomerKeyTmpl, "o2", "c2", "pc2")+` = `+mergeSQL(mergeCustomerKeyTmpl, "o1", "c1", "pc1")+`
+			AND `+mergeSQL(mergeDeliveryKeyTmpl, "o2", "c2", "pc2")+` = `+mergeSQL(mergeDeliveryKeyTmpl, "o1", "c1", "pc1")+`
 			AND NOT EXISTS (
 				SELECT 1 FROM order_shipment_group_members m1
 				JOIN order_shipment_group_members m2 ON m2.group_id = m1.group_id
@@ -1004,6 +1026,10 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	var prevChain int
+	var prevAddress string
+	_ = h.DB.QueryRow(ctx, `SELECT pickup_chain_id, COALESCE(shipping_address,'') FROM orders WHERE id=$1`, id).Scan(&prevChain, &prevAddress)
+	req.PickupStoreName, req.PickupStoreCode, req.ShippingAddress = cleanDelivery(ctx, h.DB, req.PickupChainID, prevChain, req.PickupStoreName, req.PickupStoreCode, req.ShippingAddress, prevAddress)
 	finalAddress, badRequest := resolvePickupAddress(ctx, h.DB, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
 	if badRequest != "" {
 		respondError(w, http.StatusBadRequest, badRequest)

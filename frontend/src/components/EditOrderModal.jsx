@@ -72,6 +72,8 @@ export default function EditOrderModal({ order, onClose, onDone, afterShip = fal
     if (!name.trim() || !phone.trim()) { setError(t('page_order_detail.edit_err_customer')); return }
     if (!chainId) { setError(t('page_order_create.block_error_pickup_method', { index: 1 })); return }
     if (!storeCodeValid) return
+    // changing the shipping method replaces the old delivery data completely: ask first
+    if (String(chainId) !== String(order.pickup_chain_id) && !window.confirm(t('page_order_detail.change_method_confirm'))) return
     if (items.length === 0 || items.some((it) => !(Number(it.qty) > 0))) { setError(t('page_order_detail.edit_err_items')); return }
     setSaving(true)
     try {

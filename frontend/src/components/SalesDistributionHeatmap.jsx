@@ -11,7 +11,7 @@ import { cardClasses, Metric } from './Table'
 // other data columns scroll together with the heatmap.
 const HEAD_H = 40
 const ROW_H = 40
-const GAP = 2
+const GAP = 1
 
 // Level 1 (lightest, 80% < P <= 100%) ... Level 5 (darkest, 0% < P <= 20%).
 const LEVEL_COLORS = ['#F8E8ED', '#EBC1CC', '#D7899F', '#BC4E70', '#9E1B46']
@@ -64,7 +64,7 @@ export default function SalesDistributionHeatmap({ filters, path, titleKey = 'pa
       default: return <span className="text-[var(--text-primary)] font-semibold">#{row.rank}</span>
     }
   }
-  const metricWidth = { live: 64, avgq: 64, avgg: 92, share: 72, rank: 56 }
+  const metricWidth = { live: 48, avgq: 56, avgg: 76, share: 60, rank: 44 }
 
   return (
     <div className={`${cardClasses} p-5`}>
@@ -80,20 +80,20 @@ export default function SalesDistributionHeatmap({ filters, path, titleKey = 'pa
           <table className="text-xs border-separate shrink-0" style={{ borderSpacing: GAP }}>
             <thead>
               <tr style={{ height: HEAD_H }}>
-                <th className={`${head} text-left px-2`} style={{ width: 96, minWidth: 96 }}>{t('page_host_analytics.heat_host')}</th>
-                <th className={`${head} text-left px-2`} style={{ width: 96, minWidth: 96 }}>{t('page_performance_dashboard.col_location')}</th>
+                <th className={`${head} text-left px-2`} style={{ width: 76, minWidth: 76 }}>{t('page_host_analytics.heat_host')}</th>
+                <th className={`${head} text-left px-2`} style={{ width: 76, minWidth: 76 }}>{t('page_performance_dashboard.col_location')}</th>
                 {metricHeads.map((m) => (
-                  <th key={m.key} className={`${head} text-right px-2 hidden md:table-cell`} style={{ width: metricWidth[m.key], minWidth: metricWidth[m.key] }}>{m.label}</th>
+                  <th key={m.key} className={`${head} text-right px-1.5 hidden md:table-cell`} style={{ width: metricWidth[m.key], minWidth: metricWidth[m.key] }}>{m.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row) => (
                 <tr key={`${row.host_id}-${row.location_id}`} style={{ height: ROW_H }}>
-                  <td className="px-2 font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden text-ellipsis" style={{ maxWidth: 96 }}>{row.host_name}</td>
-                  <td className="px-2 text-[var(--text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis" style={{ maxWidth: 96 }}>{row.location_name || '-'}</td>
+                  <td className="px-2 font-medium text-[var(--text-primary)] whitespace-nowrap overflow-hidden text-ellipsis" style={{ maxWidth: 76 }}>{row.host_name}</td>
+                  <td className="px-2 text-[var(--text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis" style={{ maxWidth: 76 }}>{row.location_name || '-'}</td>
                   {metricHeads.map((m) => (
-                    <td key={m.key} className="px-2 text-right whitespace-nowrap hidden md:table-cell tabular-nums">{metricCell(row, m.key)}</td>
+                    <td key={m.key} className="px-1.5 text-right whitespace-nowrap hidden md:table-cell tnum">{metricCell(row, m.key)}</td>
                   ))}
                 </tr>
               ))}
@@ -106,7 +106,7 @@ export default function SalesDistributionHeatmap({ filters, path, titleKey = 'pa
               <thead>
                 <tr style={{ height: HEAD_H }}>
                   {metricHeads.map((m) => (
-                    <th key={m.key} className={`${head} text-right px-2 md:hidden`} style={{ width: metricWidth[m.key], minWidth: metricWidth[m.key] }}>{m.label}</th>
+                    <th key={m.key} className={`${head} text-right px-1.5 md:hidden`} style={{ width: metricWidth[m.key], minWidth: metricWidth[m.key] }}>{m.label}</th>
                   ))}
                   {data.bucket_labels.map((l) => (
                     <th key={l} className={`${head} text-center`} style={{ width: 48, minWidth: 48 }}>{l}</th>
@@ -117,14 +117,14 @@ export default function SalesDistributionHeatmap({ filters, path, titleKey = 'pa
                 {data.rows.map((row, ri) => (
                   <tr key={`${row.host_id}-${row.location_id}`} style={{ height: ROW_H }}>
                     {metricHeads.map((m) => (
-                      <td key={m.key} className="px-2 text-right whitespace-nowrap md:hidden tabular-nums">{metricCell(row, m.key)}</td>
+                      <td key={m.key} className="px-1.5 text-right whitespace-nowrap md:hidden tnum">{metricCell(row, m.key)}</td>
                     ))}
                     {row.buckets.map((v, bi) => {
                       const lv = levels[ri][bi]
                       return (
                         <td
                           key={bi}
-                          className={`text-center rounded ${lv == null ? '' : 'font-semibold'}`}
+                          className={`text-center rounded tnum ${lv == null ? '' : 'font-semibold'}`}
                           style={lv == null ? undefined : { background: LEVEL_COLORS[lv], color: lv === 4 ? '#fff' : '#1f2937' }}
                         >
                           {v > 0 ? v : ''}

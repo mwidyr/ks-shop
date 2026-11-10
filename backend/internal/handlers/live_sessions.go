@@ -366,3 +366,58 @@ func (h *LiveSessionHandler) RemoveProduct(w http.ResponseWriter, r *http.Reques
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
+type uploadHistoryRow struct {
+	SessionID    int    `json:"session_id"`
+	HostID       *int   `json:"host_id"`
+	HostName     string `json:"host_name"`
+	LocationName string `json:"location_name"`
+	UploadedAt   string `json:"uploaded_at"`
+}
+
+// UploadHistory handles GET /live-sessions/upload-history: who submitted LIVE data and when (newest
+// first), optionally narrowed by ?location_id= and ?host_id=. The time is live_data_recorded_at, the
+// moment the data was saved; the client formats it in Jakarta time.
+func (h *LiveSessionHandler) UploadHistory(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	where := " WHERE ls.live_data_recorded_at IS NOT NULL"
+	args := []interface{}{}
+	if hostID := q.Get("host_id"); hostID != "" {
+		args = append(args, hostID)
+		where += " AND ls.host_id = $" + strconv.Itoa(len(args))
+	}
+	if locID := q.Get("location_id"); locID != "" {
+		args = append(args, locID)
+		where += " AND COALESCE(ls.location_id, h.location_id) = $" + strconv.Itoa(len(args))
+	}
+	from := ` FROM live_sessions ls
+		LEFT JOIN hosts h ON h.id = ls.host_id
+		LEFT JOIN host_locations hl ON hl.id = COALESCE(ls.location_id, h.location_id)`
+
+	pg := parsePage(r, 25, 100)
+	total := 0
+	if err := h.DB.QueryRow(r.Context(), `SELECT COUNT(*)`+from+where, args...).Scan(&total); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch upload history")
+		return
+	}
+	limit := pg.limitSQL(&args)
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT ls.id, ls.host_id, COALESCE(h.name,'-'), COALESCE(hl.name,'-'), ls.live_data_recorded_at`+from+where+`
+		ORDER BY ls.live_data_recorded_at DESC, ls.id DESC`+limit, args...)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch upload history")
+		return
+	}
+	defer rows.Close()
+	list := []uploadHistoryRow{}
+	for rows.Next() {
+		var u uploadHistoryRow
+		var at time.Time
+		if err := rows.Scan(&u.SessionID, &u.HostID, &u.HostName, &u.LocationName, &at); err != nil {
+			continue
+		}
+		u.UploadedAt = at.Format(time.RFC3339)
+		list = append(list, u)
+	}
+	respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+}

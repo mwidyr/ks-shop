@@ -51,6 +51,11 @@ export function getMergeSuggestions() {
   return client.get('/orders/merge-suggestions').then((res) => res.data)
 }
 
+// customers with 2+ New orders whose shipping differs (not mergeable yet, but related)
+export function getRelatedOrders() {
+  return client.get('/orders/related-orders').then((res) => res.data)
+}
+
 export function createMergeGroup(orderIds) {
   return client.post('/orders/merge-groups', { order_ids: orderIds }).then((res) => res.data)
 }

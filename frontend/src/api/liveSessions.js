@@ -59,3 +59,8 @@ export function deleteLiveSessionScreenshot(id, screenshotId) {
 export function getLiveDataCurrentCode() {
   return client.get('/live-data-upload/current-code').then((res) => res.data)
 }
+
+export function listUploadHistory(params) {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== '' && v != null))
+  return client.get(`/live-sessions/upload-history?${q.toString()}`).then((res) => res.data)
+}

@@ -371,6 +371,7 @@ func main() {
 			r.With(edit("promotions")).Delete("/promotions/{id}", promotionH.Delete)
 			r.With(edit("orders")).Post("/promotions/validate", promotionH.Validate)
 			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
+			r.With(view("orders")).Get("/orders/related-orders", orderMergeH.Related)
 			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)
 			r.With(edit("orders")).Delete("/orders/merge-groups/{id}", orderMergeH.DeleteGroup)
 			r.With(view("orders")).Get("/orders/merge-groups/{id}", orderMergeH.GetGroup)
@@ -569,6 +570,7 @@ func main() {
 
 			r.With(view("panel_siaran")).Get("/live-sessions", liveSessionH.List)
 			r.With(edit("panel_siaran")).Post("/live-sessions", liveSessionH.Create)
+			r.With(view("panel_siaran")).Get("/live-sessions/upload-history", liveSessionH.UploadHistory)
 			r.With(view("panel_siaran")).Get("/live-sessions/{id}", liveSessionH.Detail)
 			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}", liveSessionH.Update)
 			r.With(edit("panel_siaran")).Patch("/live-sessions/{id}/go-live", liveSessionH.GoLive)

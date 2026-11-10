@@ -172,7 +172,7 @@ export default function CustomComparison({ pageRange }) {
                   <SalesChannelFilter
                     channel={g.channel} onChannelChange={(c) => update(g.id, { channel: c })}
                     locationId={g.locationId} onLocationChange={(v) => update(g.id, { locationId: v, hostId: '' })} locations={locations}
-                    hostId={g.hostId} onHostChange={(v) => update(g.id, { hostId: v })} hosts={g.locationId ? hosts.filter((h) => String(h.location_id) === String(g.locationId)) : hosts}
+                    hostId={g.hostId} onHostChange={(v) => update(g.id, { hostId: v })} hosts={hosts} requireLocation
                     affiliateId={g.affiliateId} onAffiliateChange={(v) => update(g.id, { affiliateId: v })} affiliates={affiliates}
                   />
                   <div className="border-t border-[var(--table-divider)] pt-3">

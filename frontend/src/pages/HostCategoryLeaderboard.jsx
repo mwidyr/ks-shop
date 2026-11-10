@@ -16,13 +16,13 @@ function CategoryCard({ category }) {
       <div className="space-y-1.5">
         {category.hosts.map((h, i) => (
           <div key={i} className="flex items-center gap-3">
-            <span className={`text-xs font-bold w-5 shrink-0 ${i === 0 ? 'text-brand-600' : 'text-gray-400'}`}>{i + 1}</span>
+            <span className={`text-xs font-bold w-5 shrink-0 text-right tnum ${i === 0 ? 'text-brand-600' : 'text-gray-400'}`}>{i + 1}</span>
             <span className="text-sm text-gray-700 flex-1 truncate">{h.host_name}</span>
             <div className="flex items-center gap-2 w-28 shrink-0">
               <div className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
                 <div className="h-full bg-brand-500" style={{ width: `${top > 0 ? (h.qty / top) * 100 : 0}%` }} />
               </div>
-              <span className="text-xs font-semibold text-gray-600 w-8 text-right">{h.qty}</span>
+              <span className="text-xs font-semibold text-gray-600 w-10 text-right tnum">{h.qty}</span>
             </div>
           </div>
         ))}

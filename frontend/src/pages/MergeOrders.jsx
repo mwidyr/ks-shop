@@ -20,7 +20,7 @@ export default function MergeOrders() {
     getMergeSuggestions().then((data) => {
       setSuggestions(data)
       setSelectedByKey(Object.fromEntries(
-        data.map((s) => [`${s.customer_id}-${s.pickup_store_code}`, new Set(s.order_ids)])
+        data.map((s) => [s.key, new Set(s.order_ids)])
       ))
       setLoading(false)
     })
@@ -69,7 +69,7 @@ export default function MergeOrders() {
       ) : (
         <div className="space-y-3">
           {suggestions.map((s) => {
-            const key = `${s.customer_id}-${s.pickup_store_code}`
+            const key = s.key
             const done = doneKeys.has(key)
             const selected = selectedByKey[key] || new Set()
             const canMerge = selected.size >= 2

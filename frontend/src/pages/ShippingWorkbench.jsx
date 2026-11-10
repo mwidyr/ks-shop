@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -17,6 +18,7 @@ const FIGURES = [
   ['processing', 'fig_processing'],
   ['ready_to_ship', 'fig_ready_to_ship'],
   ['shipped', 'fig_shipped'],
+  ['completed', 'fig_completed'],
 ]
 
 function SettingsModal({ onClose }) {
@@ -114,13 +116,14 @@ export default function ShippingWorkbench() {
   const [batchLimit, setBatchLimit] = useState(5)
   const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [range, setRange] = useSharedRange()
 
   // Each part loads on its own: "Show more" only re-asks for the issues, not the overview and batches.
   const loadIssues = useCallback(() => getIssues({ limit: issueLimit }).then(setIssues), [issueLimit])
   const loadRest = useCallback(() => {
-    getOverview().then(setOverview)
+    getOverview({ date_from: range.from, date_to: range.to }).then(setOverview)
     listBatches({ filter: 'pending' }).then((res) => setBatches(res.batches))
-  }, [])
+  }, [range])
   const loadAll = useCallback(() => { loadRest(); loadIssues() }, [loadRest, loadIssues])
 
   useEffect(() => { loadRest() }, [loadRest])
@@ -144,6 +147,10 @@ export default function ShippingWorkbench() {
       </div>
 
       <GlobalSearch />
+
+      <div className="bg-white rounded-2xl shadow-sm p-4">
+        <PeriodPicker shared allowAllTime value={range} onChange={setRange} />
+      </div>
 
       <div className="grid md:grid-cols-3 gap-4">
         {PROVIDER_KEYS.map((key) => {

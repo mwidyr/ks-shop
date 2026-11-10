@@ -162,7 +162,7 @@ export default function HostPerformanceAnalytics() {
             </div>
             <h2 className="font-bold text-[var(--text-primary)] mb-2">{t('page_host_analytics.efficiency_title')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
-              <StatCard label="AVG Chats" value={fmtNum(summary.avg_chats)} />
+              <StatCard label="AVG Chats" value={fmtAvgCount(summary.avg_chats)} />
               <StatCard label="ORD CVR" value={fmtPct(summary.ord_cvr)} />
               <StatCard label={t('page_host_analytics.items_per_order')} value={fmtDec(summary.items_per_order)} />
               <StatCard label="AOV" value={fmtMoney(summary.aov)} />

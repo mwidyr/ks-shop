@@ -7,8 +7,8 @@ import {
   IconCart, IconMolecule, IconTrendUp, IconLink, IconChecklist, IconBook,
 } from './icons'
 
-// Sidebar structure per the client's "Sidebar Structure & Navigation Adjustments": two ungrouped
-// top items (Performance Dashboard, LIVE Data Portal - see TOP_ITEMS) followed by these sections.
+// Sidebar structure per the client's "Sidebar Structure & Navigation Adjustments": ungrouped
+// top items (Performance Dashboard, Cek Views, LIVE Data Portal - see TOP_ITEMS) followed by these sections.
 // Items that are not shipped yet stay listed here (marked `upcoming`) but are hidden by
 // VISIBLE_TAB_KEYS below.
 export const navGroups = [
@@ -21,6 +21,8 @@ export const navGroups = [
       { to: '/customers', key: 'customers', icon: IconUsers },
       { to: '/shipping', key: 'shipping', icon: IconTruck },
       { to: '/refunds', key: 'refunds', icon: IconWallet },
+      { to: '/tiktok/accounts', key: 'tiktok_accounts', icon: IconUser },
+      { to: '/tiktok/cek-views/settings', key: 'cek_views_settings', icon: IconSliders },
       { to: '/chat', key: 'chat', icon: IconChat, upcoming: true },
       { to: '/reviews', key: 'reviews', icon: IconStar, upcoming: true },
       { to: '/warehouses', key: 'warehouses', icon: IconWarehouse, upcoming: true },
@@ -82,13 +84,6 @@ export const navGroups = [
     ],
   },
   {
-    title: 'tiktok', icon: IconBroadcast, items: [
-      { to: '/tiktok/accounts', key: 'tiktok_accounts', icon: IconUser },
-      { to: '/tiktok/cek-views', key: 'cek_views', icon: IconTrendUp },
-      { to: '/tiktok/cek-views/settings', key: 'cek_views_settings', icon: IconSliders },
-    ],
-  },
-  {
     title: 'employee', icon: IconUsers, items: [
       { to: '/employee/list', key: 'employee_list', icon: IconUser },
       { to: '/employee/shift-schedule', key: 'shift_schedule', icon: IconChecklist },
@@ -136,10 +131,11 @@ export const navGroups = [
   },
 ]
 
-// The two items at the very top of the sidebar, without a section heading. The Performance
+// The items at the very top of the sidebar, without a section heading. The Performance
 // Dashboard replaces the old Dashboard page (/dashboard now redirects to it).
 export const TOP_ITEMS = [
   { to: '/analytics/performance-dashboard', key: 'performance_dashboard', icon: IconDashboard },
+  { to: '/tiktok/cek-views', key: 'cek_views', icon: IconTrendUp },
   { to: '/panel-siaran', key: 'panel_siaran', icon: IconBroadcast },
 ]
 

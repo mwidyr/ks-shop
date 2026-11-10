@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -22,6 +23,41 @@ type providerOverview struct {
 	Processing  int `json:"processing"`
 	ReadyToShip int `json:"ready_to_ship"`
 	Shipped     int `json:"shipped"`
+	// Completed: delivered orders of this provider's chain.
+	Completed int `json:"completed"`
+}
+
+// dateWindow is the optional creation-date filter of the overview (Jakarta calendar days, inclusive).
+type dateWindow struct{ from, to string }
+
+func (w dateWindow) active() bool { return w.from != "" || w.to != "" }
+
+// contains reports whether t falls inside the window (always true for an empty one).
+func (w dateWindow) contains(t time.Time) bool {
+	if !w.active() {
+		return true
+	}
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+	d := t.In(loc).Format("2006-01-02")
+	return (w.from == "" || d >= w.from) && (w.to == "" || d <= w.to)
+}
+
+// sql returns the AND-clause narrowing orders alias o to the window, numbering its args from n.
+func (w dateWindow) sql(n int) (string, []any) {
+	var clause string
+	var args []any
+	if w.from != "" {
+		args = append(args, w.from)
+		clause += fmt.Sprintf(" AND o.created_at >= ($%d::date)::timestamp AT TIME ZONE 'Asia/Jakarta'", n+len(args)-1)
+	}
+	if w.to != "" {
+		args = append(args, w.to)
+		clause += fmt.Sprintf(" AND o.created_at < ($%d::date + 1)::timestamp AT TIME ZONE 'Asia/Jakarta'", n+len(args)-1)
+	}
+	return clause, args
 }
 
 func countOrders(rows []eligibleRow, category string) int {
@@ -51,24 +87,36 @@ func invalidateOrderCaches() {
 }
 
 // loadOverview computes the five figures of one provider card.
-func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string) (providerOverview, error) {
+func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string, win dateWindow) (providerOverview, error) {
 	ov := providerOverview{Provider: p}
 	elig, err := computeEligible(r, h.DB, p, time.Now())
 	if err != nil {
 		return ov, err
 	}
-	ov.ReadyToExport = countOrders(elig.Rows, catReady)
-	ov.Insufficient = countOrders(elig.Rows, catInsufficient)
-	ov.Problem = countOrders(elig.Rows, catProblem)
-	ov.CreatedToday = elig.TodayExcluded
+	// Stock was allocated over every shipment (oldest first); the window only narrows what is counted.
+	var inWin []eligibleRow
+	for _, row := range elig.Rows {
+		if win.contains(row.earliestCreated) {
+			inWin = append(inWin, row)
+		}
+	}
+	ov.ReadyToExport = countOrders(inWin, catReady)
+	ov.Insufficient = countOrders(inWin, catInsufficient)
+	ov.Problem = countOrders(inWin, catProblem)
+	for _, c := range elig.todayCreated {
+		if win.contains(c.at) {
+			ov.CreatedToday += c.n
+		}
+	}
+	winSQL, winArgs := win.sql(2)
 	var pending int
 	if err = h.DB.QueryRow(r.Context(), `
 		SELECT COUNT(*) FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		WHERE o.status = 'pending' AND pc.chain_type = $1
-		  AND NOT EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)`, p).Scan(&pending); err != nil {
+		  AND NOT EXISTS (SELECT 1 FROM shipping_batch_orders sbo WHERE sbo.order_id = o.id)`+winSQL, append([]any{p}, winArgs...)...).Scan(&pending); err != nil {
 		return ov, err
 	}
-	for _, row := range elig.Rows {
+	for _, row := range inWin {
 		pending -= len(row.OrderIDs)
 	}
 	ov.Held = max(pending-ov.CreatedToday, 0)
@@ -79,14 +127,29 @@ func (h *ShippingWorkbenchHandler) loadOverview(r *http.Request, p string) (prov
 		FROM shipping_batch_orders sbo
 		JOIN shipping_batches b ON b.id = sbo.batch_id
 		JOIN orders o ON o.id = sbo.order_id
-		WHERE b.provider = $1`, p).Scan(&ov.Processing, &ov.ReadyToShip, &ov.Shipped)
+		WHERE b.provider = $1`+winSQL, append([]any{p}, winArgs...)...).Scan(&ov.Processing, &ov.ReadyToShip, &ov.Shipped)
+	if err != nil {
+		return ov, err
+	}
+	err = h.DB.QueryRow(r.Context(), `
+		SELECT COUNT(*) FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.status = 'delivered' AND pc.chain_type = $1`+winSQL, append([]any{p}, winArgs...)...).Scan(&ov.Completed)
 	return ov, err
 }
 
 // Overview handles GET /shipping-workbench/overview: the five figures per provider card. The three
 // providers are computed in parallel (they are independent) and the result is cached briefly.
 func (h *ShippingWorkbenchHandler) Overview(w http.ResponseWriter, r *http.Request) {
-	out, err := cache.Get("shipping:overview", overviewTTL, func() ([]providerOverview, error) {
+	win := dateWindow{from: r.URL.Query().Get("date_from"), to: r.URL.Query().Get("date_to")}
+	for _, d := range []string{win.from, win.to} {
+		if d != "" {
+			if _, err := time.Parse("2006-01-02", d); err != nil {
+				respondError(w, http.StatusBadRequest, "invalid date")
+				return
+			}
+		}
+	}
+	out, err := cache.Get("shipping:overview:"+win.from+":"+win.to, overviewTTL, func() ([]providerOverview, error) {
 		providers := []string{"cvs_711", "cvs_familymart", "courier"}
 		res := make([]providerOverview, len(providers))
 		errs := make([]error, len(providers))
@@ -95,7 +158,7 @@ func (h *ShippingWorkbenchHandler) Overview(w http.ResponseWriter, r *http.Reque
 			wg.Add(1)
 			go func(i int, p string) {
 				defer wg.Done()
-				res[i], errs[i] = h.loadOverview(r, p)
+				res[i], errs[i] = h.loadOverview(r, p, win)
 			}(i, p)
 		}
 		wg.Wait()

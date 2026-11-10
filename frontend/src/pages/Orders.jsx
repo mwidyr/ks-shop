@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listOrders, updateOrderStatus, getMergeSuggestions, createMergeGroup, getOrderStatusCounts } from '../api/orders'
+import { listOrders, updateOrderStatus, getMergeSuggestions, getRelatedOrders, createMergeGroup, getOrderStatusCounts } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
@@ -82,9 +82,13 @@ export default function Orders() {
   const [mergeSuggestions, setMergeSuggestions] = useState([])
   const [mergeAllBusy, setMergeAllBusy] = useState(false)
   const [mergeAllResult, setMergeAllResult] = useState('')
+  const [related, setRelated] = useState([])
+  const [relatedOpen, setRelatedOpen] = useState(false)
+  const [mergeSelBusy, setMergeSelBusy] = useState(false)
 
   function fetchMergeSuggestions() {
     getMergeSuggestions().then(setMergeSuggestions)
+    getRelatedOrders().then(setRelated).catch(() => setRelated([]))
   }
 
   useEffect(() => {
@@ -93,6 +97,24 @@ export default function Orders() {
     listLiveSessions().then(setLiveSessions)
     fetchMergeSuggestions()
   }, [])
+
+  // Manual merge of the ticked orders: the server checks status, customer and delivery and says what to correct.
+  async function handleMergeSelected() {
+    setMergeSelBusy(true)
+    setMergeAllResult('')
+    try {
+      await createMergeGroup([...selected])
+      setMergeAllResult(t('page_orders.merge_all_result_success', { count: 1 }))
+      setSelected(new Set())
+      fetchMergeSuggestions()
+      fetchOrders()
+      fetchStatusCounts()
+    } catch (err) {
+      setMergeAllResult(err.response?.data?.error || t('page_orders.merge_selected_failed'))
+    } finally {
+      setMergeSelBusy(false)
+    }
+  }
 
   async function handleMergeAll() {
     setMergeAllBusy(true)
@@ -240,6 +262,34 @@ export default function Orders() {
           </div>
         </div>
       )}
+      {canEdit && related.length > 0 && (
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-sky-800">
+              📞 <span className="font-semibold">{t('page_orders.related_title')}</span>{' '}
+              {t('page_orders.related_desc', { count: related.length })}
+            </p>
+            <button type="button" onClick={() => setRelatedOpen((o) => !o)} className="text-sm font-semibold px-4 py-1.5 rounded-lg border border-sky-300 text-sky-800 hover:bg-sky-100">
+              {relatedOpen ? t('common.close') : t('page_orders.related_view')}
+            </button>
+          </div>
+          {relatedOpen && (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-sky-700">{t('page_orders.related_hint')}</p>
+              {related.map((r) => (
+                <div key={`${r.customer_name}-${r.customer_phone}`} className="bg-white rounded-lg p-3 text-sm">
+                  <p className="font-semibold text-gray-800">{r.customer_name} · {r.customer_phone}</p>
+                  <ul className="mt-1 space-y-0.5 text-xs text-gray-600">
+                    {r.orders.map((o) => (
+                      <li key={o.order_id}><Link to={`/orders/${o.order_id}`} className="font-mono text-brand-700 hover:underline">{o.order_no}</Link> · {o.delivery}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {mergeAllResult && <p className="text-sm text-gray-600 mb-4">{mergeAllResult}</p>}
 
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 space-y-3">
@@ -319,6 +369,12 @@ export default function Orders() {
             {bulkBusy ? t('page_orders.applying') : t('shared.apply')}
           </button>
             </>
+          )}
+          {canEdit && selected.size >= 2 && (
+            <button onClick={handleMergeSelected} disabled={mergeSelBusy}
+              className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50">
+              {mergeSelBusy ? t('page_orders.merging') : t('page_orders.merge_selected', { count: selected.size })}
+            </button>
           )}
           <a
             href={`/orders/print/invoice?ids=${[...selected].join(',')}`}

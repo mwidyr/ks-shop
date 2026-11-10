@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +20,38 @@ type OrderMergeHandler struct {
 	DB *pgxpool.Pool
 }
 
+// Merge matching. A customer is identified by name + phone digits (the same person can sit on several customer
+// rows), and a delivery by chain + (store code for 7-11 / FamilyMart, the normalised street address for POS /
+// courier). Dates play no part: orders of any age can be merged while they are still eligible.
+const (
+	mergeCustomerKeyTmpl = `lower(btrim({c}.name)) || '|' || regexp_replace(COALESCE({c}.phone,''), '\D', '', 'g')`
+	mergeDeliveryKeyTmpl = `{o}.pickup_chain_id::text || '|' || CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
+		THEN COALESCE({o}.pickup_store_code,'')
+		ELSE lower(regexp_replace(btrim(COALESCE({o}.shipping_address,'')), '\s+', ' ', 'g')) END`
+	// what staff see for a delivery: "7-ELEVEN #123456" / "POS - <address>"
+	mergeDeliveryLabelTmpl = `{pc}.name || CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
+		THEN ' #' || COALESCE({o}.pickup_store_code,'') ELSE ' - ' || COALESCE({o}.shipping_address,'') END`
+)
+
+// mergeSQL fills a key template with the aliases of the order (o), customer (c) and pickup chain (pc) tables.
+func mergeSQL(tmpl, o, c, pc string) string {
+	return strings.NewReplacer("{o}", o, "{c}", c, "{pc}", pc).Replace(tmpl)
+}
+
+var (
+	mergeCustomerKeySQL   = mergeSQL(mergeCustomerKeyTmpl, "o", "c", "pc")
+	mergeDeliveryKeySQL   = mergeSQL(mergeDeliveryKeyTmpl, "o", "c", "pc")
+	mergeDeliveryLabelSQL = mergeSQL(mergeDeliveryLabelTmpl, "o", "c", "pc")
+)
+
+// canMergeProcessing: who may merge (or edit the shipping of) Processing orders on top of New ones: anyone who may
+// override the order lock, plus Management, SPV and Warehouse. Everybody else only handles New orders.
+func canMergeProcessing(ctx context.Context, q rowQuerier, role string, userID int) bool {
+	return role == "management" || role == "spv" || role == "warehouse" || canOverrideLock(ctx, q, role, userID)
+}
+
 type mergeSuggestion struct {
+	Key             string   `json:"key"`
 	CustomerID      int      `json:"customer_id"`
 	CustomerName    string   `json:"customer_name"`
 	CustomerPhone   string   `json:"customer_phone"`
@@ -45,21 +78,23 @@ func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) 
 		args = append(args, claims.UserID)
 	}
 
-	// An order already merged into a group stays a candidate (its whole group is offered), so a 3rd order of the
-	// same customer / store can still be added to an existing 2-order group. Groups with a member that can no longer
-	// be merged, or several different groups for one key, are left out (CreateGroup would refuse them anyway).
+	// Only New (pending) orders are suggested. An order already merged into a group stays a candidate (its whole group
+	// is offered), so a 3rd order of the same customer / delivery can still be added to an existing 2-order group.
+	// Groups with a member that is no longer pending, or several different groups for one key, are left out
+	// (CreateGroup would refuse them anyway).
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT o.customer_id, c.name, c.phone, pc.name, COALESCE(o.pickup_store_code,''),
+		SELECT `+mergeCustomerKeySQL+`, `+mergeDeliveryKeySQL+`, min(o.customer_id), min(c.name), min(c.phone), min(pc.name),
+		       COALESCE(min(o.pickup_store_code),''),
 		       array_agg(o.id ORDER BY o.created_at), array_agg(o.order_no ORDER BY o.created_at)
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_shipment_group_members m ON m.order_id = o.id
-		WHERE o.status IN ('pending','ready_to_ship')
+		WHERE o.status = 'pending'
 		  AND (m.group_id IS NULL OR NOT EXISTS (
 		        SELECT 1 FROM order_shipment_group_members m2 JOIN orders o2 ON o2.id = m2.order_id
-		        WHERE m2.group_id = m.group_id AND o2.status NOT IN ('pending','ready_to_ship')))`+roleFilter+`
-		GROUP BY o.customer_id, c.name, c.phone, pc.name, o.pickup_chain_id, COALESCE(o.pickup_store_code,'')
+		        WHERE m2.group_id = m.group_id AND o2.status <> 'pending'))`+roleFilter+`
+		GROUP BY 1, 2
 		HAVING COUNT(*) > 1 AND COUNT(*) FILTER (WHERE m.group_id IS NULL) >= 1 AND COUNT(DISTINCT m.group_id) <= 1`, args...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to compute merge suggestions")
@@ -70,11 +105,69 @@ func (h *OrderMergeHandler) Suggestions(w http.ResponseWriter, r *http.Request) 
 	list := []mergeSuggestion{}
 	for rows.Next() {
 		var s mergeSuggestion
-		if err := rows.Scan(&s.CustomerID, &s.CustomerName, &s.CustomerPhone, &s.PickupChainName,
+		var ckey, dkey string
+		if err := rows.Scan(&ckey, &dkey, &s.CustomerID, &s.CustomerName, &s.CustomerPhone, &s.PickupChainName,
 			&s.PickupStoreCode, &s.OrderIDs, &s.OrderNos); err != nil {
 			continue
 		}
+		s.Key = ckey + "#" + dkey
 		list = append(list, s)
+	}
+	respondJSON(w, http.StatusOK, list)
+}
+
+type relatedDelivery struct {
+	OrderID  int    `json:"order_id"`
+	OrderNo  string `json:"order_no"`
+	Delivery string `json:"delivery"`
+}
+
+type relatedOrders struct {
+	CustomerName  string            `json:"customer_name"`
+	CustomerPhone string            `json:"customer_phone"`
+	Orders        []relatedDelivery `json:"orders"`
+}
+
+// Related lists customers (name + phone) with 2 or more New orders that cannot be merged yet because their
+// shipping differs (another method, store or address): staff contact the customer, and once the shipping is
+// made equal the normal suggestion appears. Merged orders are left out - they are already one shipment.
+func (h *OrderMergeHandler) Related(w http.ResponseWriter, r *http.Request) {
+	claims := appmw.GetClaims(r)
+	roleFilter := ""
+	args := []interface{}{}
+	if claims.Role == "sales" {
+		roleFilter = " AND o.sales_id = $1"
+		args = append(args, claims.UserID)
+	}
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT min(c.name), min(c.phone),
+		       array_agg(o.id ORDER BY o.created_at), array_agg(o.order_no ORDER BY o.created_at),
+		       array_agg(`+mergeDeliveryLabelSQL+` ORDER BY o.created_at)
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.status = 'pending'
+		  AND NOT EXISTS (SELECT 1 FROM order_shipment_group_members m WHERE m.order_id = o.id)`+roleFilter+`
+		GROUP BY `+mergeCustomerKeySQL+`
+		HAVING COUNT(*) > 1 AND COUNT(DISTINCT `+mergeDeliveryKeySQL+`) > 1
+		ORDER BY max(o.created_at) DESC`, args...)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to compute related orders")
+		return
+	}
+	defer rows.Close()
+	list := []relatedOrders{}
+	for rows.Next() {
+		var ro relatedOrders
+		var ids []int
+		var nos, labels []string
+		if err := rows.Scan(&ro.CustomerName, &ro.CustomerPhone, &ids, &nos, &labels); err != nil {
+			continue
+		}
+		for i := range ids {
+			ro.Orders = append(ro.Orders, relatedDelivery{OrderID: ids[i], OrderNo: nos[i], Delivery: labels[i]})
+		}
+		list = append(list, ro)
 	}
 	respondJSON(w, http.StatusOK, list)
 }
@@ -150,7 +243,7 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 	// they all sit in the same batch (or none does): a merged shipment must never be split across batches.
 	lockedMerge := anyOrderBatchedOrLocked(ctx, tx, req.OrderIDs...)
 	if lockedMerge {
-		if !canOverrideLock(ctx, tx, claims.Role, claims.UserID) {
+		if !canMergeProcessing(ctx, tx, claims.Role, claims.UserID) {
 			respondError(w, http.StatusConflict, orderLockedForRoleMsg)
 			return
 		}
@@ -163,15 +256,17 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT o.id, o.customer_id, o.pickup_chain_id, COALESCE(o.pickup_store_code,''), o.status, o.shipping_fee, o.free_shipping_override,
-		       lower(btrim(c.name)) || '|' || regexp_replace(COALESCE(c.phone,''), '\D', '', 'g')
-		FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = ANY($1) ORDER BY o.created_at`, req.OrderIDs)
+		SELECT o.id, o.order_no, o.customer_id, o.pickup_chain_id, COALESCE(o.pickup_store_code,''), o.status, o.shipping_fee, o.free_shipping_override,
+		       `+mergeCustomerKeySQL+`, `+mergeDeliveryKeySQL+`, `+mergeDeliveryLabelSQL+`
+		FROM orders o JOIN customers c ON c.id = o.customer_id JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.id = ANY($1) ORDER BY o.created_at`, req.OrderIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "db error")
 		return
 	}
 	type ov struct {
 		ID                   int
+		OrderNo              string
 		CustomerID           int
 		PickupChainID        int
 		StoreCode            string
@@ -179,11 +274,13 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		ShippingFee          float64
 		FreeShippingOverride bool
 		CustomerKey          string // name + phone digits: the same person saved twice (e.g. after a phone correction)
+		DeliveryKey          string
+		DeliveryLabel        string
 	}
 	var orders []ov
 	for rows.Next() {
 		var o ov
-		if err := rows.Scan(&o.ID, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status, &o.ShippingFee, &o.FreeShippingOverride, &o.CustomerKey); err != nil {
+		if err := rows.Scan(&o.ID, &o.OrderNo, &o.CustomerID, &o.PickupChainID, &o.StoreCode, &o.Status, &o.ShippingFee, &o.FreeShippingOverride, &o.CustomerKey, &o.DeliveryKey, &o.DeliveryLabel); err != nil {
 			continue
 		}
 		orders = append(orders, o)
@@ -194,22 +291,26 @@ func (h *OrderMergeHandler) CreateGroup(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "one or more orders not found")
 		return
 	}
+	canProcessing := canMergeProcessing(ctx, tx, claims.Role, claims.UserID)
 	for _, o := range orders {
-		if lockedMerge && (o.Status == "processing" || o.Status == "shipped" || o.Status == "delivered") {
-			// re-merging orders that were unmerged after export (override users only)
-		} else if o.Status == "processing" {
-			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already being processed for shipping and can't be merged")
+		switch {
+		case o.Status == "pending":
+		case o.Status == "processing" && canProcessing:
+		case lockedMerge && canOverrideLock(ctx, tx, claims.Role, claims.UserID) && (o.Status == "shipped" || o.Status == "delivered"):
+			// re-merging orders that were unmerged after export: only users who may override the lock
+		case o.Status == "processing":
+			respondError(w, http.StatusForbidden, "order "+o.OrderNo+" sedang Processing: hanya Management / SPV / Warehouse yang boleh menggabungkannya")
 			return
-		} else if o.Status != "pending" && o.Status != "ready_to_ship" {
-			respondError(w, http.StatusBadRequest, "order "+strconv.Itoa(o.ID)+" is already shipped and can't be merged")
+		default:
+			respondError(w, http.StatusBadRequest, "order "+o.OrderNo+" sudah melewati tahap yang bisa digabung (status: "+o.Status+"): hanya order New dan Processing yang bisa digabung")
 			return
 		}
-		if o.CustomerID != orders[0].CustomerID && o.CustomerKey != orders[0].CustomerKey {
-			respondError(w, http.StatusBadRequest, "orders must belong to the same customer (after correcting a name / phone, tick \"update all orders of this customer\" in Edit Order so the orders keep the same customer record)")
+		if o.CustomerKey != orders[0].CustomerKey {
+			respondError(w, http.StatusBadRequest, "orders must belong to the same customer (same name and phone number)")
 			return
 		}
-		if o.PickupChainID != orders[0].PickupChainID || o.StoreCode != orders[0].StoreCode {
-			respondError(w, http.StatusBadRequest, "orders must use the same pickup chain and store")
+		if o.DeliveryKey != orders[0].DeliveryKey {
+			respondError(w, http.StatusBadRequest, "data pengiriman berbeda, samakan dulu sebelum digabung: "+orders[0].OrderNo+" ("+orders[0].DeliveryLabel+") vs "+o.OrderNo+" ("+o.DeliveryLabel+")")
 			return
 		}
 	}

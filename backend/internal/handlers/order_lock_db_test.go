@@ -125,7 +125,10 @@ func TestExportedOrderLockRules(t *testing.T) {
 		t.Fatalf("address %q status %q: want the new address and still shipped", addr, status)
 	}
 
-	// merged back (exported orders, same batch): only for the permitted user
+	// merged back (exported orders, same batch): only for the permitted user, and only with matching delivery data
+	code, body = call(wh, "warehouse", "POST", "/merge", map[string]any{"order_ids": ids})
+	expect("re-merge while the addresses differ", code, http.StatusBadRequest, body)
+	db.Exec(ctx, `UPDATE orders SET shipping_address='Jl Baru 2' WHERE id = ANY($1)`, ids)
 	code, body = call(cs, "cs", "POST", "/merge", map[string]any{"order_ids": ids})
 	expect("cs re-merges exported orders", code, http.StatusConflict, body)
 	code, body = call(wh, "warehouse", "POST", "/merge", map[string]any{"order_ids": ids})

@@ -56,6 +56,14 @@ type eligibleResult struct {
 	Rows []eligibleRow `json:"rows"`
 	// TodayExcluded counts orders left out only because they were created today (Taiwan time).
 	TodayExcluded int `json:"today_excluded"`
+	// todayCreated: the latest creation time and order count of each shipment counted in TodayExcluded
+	// (lets the overview narrow that figure to a date range).
+	todayCreated []createdCount
+}
+
+type createdCount struct {
+	at time.Time
+	n  int
 }
 
 // computeEligible lists the not-yet-batched shipments of a provider that were created before
@@ -78,6 +86,7 @@ func computeEligible(r *http.Request, db queryer, provider string, now time.Time
 	for _, row := range all {
 		if !createdBeforeToday(row.latestCreated, now) {
 			res.TodayExcluded += len(row.OrderIDs)
+			res.todayCreated = append(res.todayCreated, createdCount{row.latestCreated, len(row.OrderIDs)})
 			continue
 		}
 		rows = append(rows, row)

@@ -7,6 +7,7 @@ import { IconArrowRight } from '../components/icons'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses, Metric } from '../components/Table'
 import Pager from '../components/Pager'
 import { useAccess } from '../context/AccessContext'
+import { jakartaDateTime } from '../utils/jakartaDate'
 
 export default function LiveSessionHistory() {
   const { t } = useTranslation()
@@ -57,7 +58,7 @@ export default function LiveSessionHistory() {
                   <td className="p-3.5 text-right text-[var(--text-secondary)]">{s.cart_count}</td>
                   <td className="p-3.5 text-right"><Metric type="ord">{s.order_count}</Metric></td>
                   <td className="p-3.5 text-right text-[var(--text-secondary)]">{s.peak_viewers}</td>
-                  <td className="p-3.5 text-[var(--text-secondary)]">{new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                  <td className="p-3.5 text-[var(--text-secondary)]"><span className="tnum whitespace-nowrap">{jakartaDateTime(s.created_at)}</span></td>
                   <td className="p-3.5">
                     {!isHost && (
                       <Link to={`/panel-siaran/${s.id}`} className="text-brand-600 font-semibold text-xs hover:underline flex items-center gap-1">

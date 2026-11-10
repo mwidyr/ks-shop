@@ -263,7 +263,8 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 		}
 	}
 
-	// Delivery: same validation as Create Order / the pickup editor.
+	// Delivery: same validation as Create Order / the pickup editor. The new method replaces the old one completely.
+	req.PickupStoreName, req.PickupStoreCode, req.ShippingAddress = cleanDelivery(ctx, tx, req.PickupChainID, curChain, req.PickupStoreName, req.PickupStoreCode, req.ShippingAddress, curAddress)
 	finalAddress, bad := resolvePickupAddress(ctx, tx, req.PickupChainID, req.PickupStoreCode, req.PickupStoreName, req.ShippingAddress)
 	if bad != "" {
 		return http.StatusBadRequest, bad

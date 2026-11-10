@@ -281,6 +281,8 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
       return
     }
     if (!storeCodeValid) return
+    // changing the shipping method replaces the old delivery data completely: ask first
+    if (String(chainId) !== String(order.pickup_chain_id) && !window.confirm(t('page_order_detail.change_method_confirm'))) return
     setSaving(true)
     try {
       await updateOrderPickup(order.id, {
