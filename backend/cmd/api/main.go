@@ -227,6 +227,7 @@ func main() {
 		r.Post("/public/store/reviews", siteH.SubmitReview)
 		r.Post("/public/store/upload", siteH.LimitedUpload(uploadH.UploadImage))
 		r.Get("/public/store/sitemap.xml", siteH.Sitemap)
+		r.Get("/public/store/robots.txt", siteH.Robots)
 		r.Get("/public/store/content", siteH.ContentList)
 		r.Get("/public/store/content/{slug}", siteH.ContentGet)
 		r.Get("/public/store/search", siteH.Search)

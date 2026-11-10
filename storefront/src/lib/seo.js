@@ -8,13 +8,20 @@ function setMeta(name, content, attr = 'name') {
   el.setAttribute('content', content)
 }
 
+// Pre-launch switch (SITE_NOINDEX on the server): every page stays noindex, whatever the page itself asks for.
+let siteNoindex = false
+export function setSiteNoindex(on) {
+  siteNoindex = Boolean(on)
+  if (siteNoindex) setMeta('robots', 'noindex,nofollow')
+}
+
 // Per-page head: title, description, canonical, robots (noindex for search/cart/checkout/account),
 // and optional JSON-LD. The server also injects the same tags into the HTML for crawlers.
 export function useSeo({ title, description, canonical, noindex, jsonLd }) {
   useEffect(() => {
     document.title = title ? `${title} | ${SITE}` : SITE
     setMeta('description', description)
-    setMeta('robots', noindex ? 'noindex,nofollow' : '')
+    setMeta('robots', noindex || siteNoindex ? 'noindex,nofollow' : '')
     let link = document.head.querySelector('link[rel="canonical"]')
     if (canonical) {
       if (!link) { link = document.createElement('link'); link.rel = 'canonical'; document.head.appendChild(link) }

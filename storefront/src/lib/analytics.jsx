@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useStore } from './store'
+import { setSiteNoindex } from './seo'
 
 // Google Analytics 4 (#147). The measurement id comes from the server (GA4_MEASUREMENT_ID); without one nothing is
 // loaded. The site is a single-page app, so the automatic page_view is switched off and one is sent per route change
@@ -26,6 +27,7 @@ export default function Analytics() {
   const id = settings.ga_measurement_id
   const { pathname, search } = useLocation()
   useEffect(() => { loadGtag(id) }, [id])
+  useEffect(() => { setSiteNoindex(settings.site_noindex) }, [settings.site_noindex])
   useEffect(() => {
     if (!ID_RE.test(id || '') || typeof window.gtag !== 'function') return
     window.gtag('event', 'page_view', { page_path: pathname + search, page_location: window.location.href, page_title: document.title })

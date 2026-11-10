@@ -48,7 +48,7 @@ func (h *SiteHandler) SEO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	base := publicBaseURL(r)
-	m := seoMeta{Title: "ralulu", Description: seoDefaultDesc[lang], Canonical: base + path, Index: !extraParams}
+	m := seoMeta{Title: "ralulu", Description: seoDefaultDesc[lang], Canonical: base + path, Index: !extraParams && !siteNoIndex()}
 	ctx := r.Context()
 
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -268,6 +268,24 @@ func (m seoMeta) render(lang string) string {
 		}
 	}
 	return b.String()
+}
+
+// siteNoIndex: SITE_NOINDEX=true keeps the whole storefront out of search engines (pre-launch testing): every page
+// gets noindex, robots.txt disallows everything and the sitemap is empty. Switch it off at launch.
+func siteNoIndex() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_NOINDEX")))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+// Robots serves GET /public/store/robots.txt (the storefront nginx exposes it as /robots.txt).
+func (h *SiteHandler) Robots(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	if siteNoIndex() {
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
+		return
+	}
+	_, _ = fmt.Fprintf(w, "User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: %s/sitemap.xml\n", publicBaseURL(r))
 }
 
 func publicBaseURL(r *http.Request) string {

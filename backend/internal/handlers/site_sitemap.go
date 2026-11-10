@@ -21,6 +21,11 @@ func (h *SiteHandler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	base := publicBaseURL(r)
 	urls := []sitemapURL{}
+	if siteNoIndex() { // pre-launch: nothing to submit yet
+		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		_, _ = w.Write([]byte(xml.Header + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n</urlset>\n"))
+		return
+	}
 	add := func(path string, mod *time.Time) {
 		u := sitemapURL{Loc: base + path}
 		if mod != nil {

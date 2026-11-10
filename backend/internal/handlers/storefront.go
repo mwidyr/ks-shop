@@ -434,6 +434,7 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		}(),
 		"whatsapp_login":    waProvider() != "off",
 		"ga_measurement_id": gaMeasurementID(),
+		"site_noindex":      siteNoIndex(),
 		"social": map[string]string{
 			"youtube": site.setting(ctx, "social_youtube", ""), "instagram": site.setting(ctx, "social_instagram", ""),
 			"facebook": site.setting(ctx, "social_facebook", ""), "tiktok": site.setting(ctx, "social_tiktok", ""),
