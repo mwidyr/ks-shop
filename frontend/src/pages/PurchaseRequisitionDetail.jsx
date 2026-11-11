@@ -556,14 +556,15 @@ export default function PurchaseRequisitionDetail() {
   const totalAmount = detail.suppliers.reduce((sum, g) => sum + g.items.reduce((s, it) => s + liveQty(g, it) * liveCost(g, it), 0)
     + adjustmentTotal(liveAdj[g.id] || g), 0)
 
-  // Warehouse (WMS) stock-in template: one row per SKU of this requisition, date blank, unit 件.
+  // Warehouse (WMS) stock-in template: one row per SKU of this requisition, with its creation date-time and number, unit 件.
   const totalSkus = detail.suppliers.reduce((n, g) => n + g.items.length, 0)
   async function exportStockInExcel() {
     try {
-      const [XLSX, { WMS_STOCK_IN_SHEET, stockInSheetData }] = await Promise.all([import('xlsx'), import('../utils/requisitionExcel')])
+      const [XLSX, { WMS_STOCK_IN_SHEET, WMS_DATE_FORMAT, stockInSheetData }] = await Promise.all([import('xlsx'), import('../utils/requisitionExcel')])
       const data = stockInSheetData(detail)
-      const ws = XLSX.utils.aoa_to_sheet(data)
-      ws['!cols'] = data[0].map(() => ({ wch: 12 }))
+      const ws = XLSX.utils.aoa_to_sheet(data, { cellDates: true })
+      data.forEach((row, i) => { const c = ws[XLSX.utils.encode_cell({ r: i, c: 0 })]; if (i > 0 && c && c.t === 'd') c.z = WMS_DATE_FORMAT })
+      ws['!cols'] = data[0].map((_, i) => ({ wch: i === 0 ? 16 : 12 }))
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, WMS_STOCK_IN_SHEET)
       XLSX.writeFile(wb, `進倉單匯入_${detail.requisition_no}.xlsx`)
