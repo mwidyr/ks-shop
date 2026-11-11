@@ -25,7 +25,7 @@ export function MemberProvider({ children }) {
       const local = readProfile()
       const sp = m.profile || {}
       if (!local.name && !local.height && !local.stores.length && !local.addresses.length) {
-        writeProfile({ ...local, name: m.name || '', phone: m.phone ? `0${String(m.phone).replace(/^886/, '')}` : '', email: m.email || '', birthday: m.birthday || '', height: sp.height || '', weight: sp.weight || '', stores: sp.stores || [], addresses: sp.addresses || [] })
+        writeProfile({ ...local, name: m.name || '', phone: sp.phone || (m.phone ? `0${String(m.phone).replace(/^886/, '')}` : ''), email: sp.email || m.email || '', birthday: m.birthday || '', height: sp.height || '', weight: sp.weight || '', stores: sp.stores || [], addresses: sp.addresses || [] })
       }
       return m
     } catch (e) {

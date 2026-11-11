@@ -145,7 +145,7 @@ func nonNilMap(m map[string]string) map[string]string {
 
 // ---------------------------------------------------------------- site settings (WhatsApp, CS, socials, free shipping)
 
-var siteSettingKeys = []string{"whatsapp_number", "line_id", "cs_hours", "cs_hours_note", "social_youtube", "social_instagram", "social_facebook", "social_tiktok", "free_shipping_active", "free_shipping_start", "free_shipping_end"}
+var siteSettingKeys = []string{"whatsapp_number", "line_id", "cs_hours", "cs_hours_note", "social_youtube", "social_instagram", "social_facebook", "social_tiktok", "social_youtube_off", "social_instagram_off", "social_facebook_off", "social_tiktok_off", "free_shipping_active", "free_shipping_start", "free_shipping_end"}
 
 // GetSettings serves GET /admin/site-settings.
 func (h *SiteAdminHandler) GetSettings(w http.ResponseWriter, r *http.Request) {

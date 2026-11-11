@@ -38,7 +38,11 @@ export default function WebsiteSettingsCard() {
         <div><label className="text-sm font-medium text-gray-700">{s('hours')}</label><input value={f.cs_hours || ''} onChange={(e) => set('cs_hours', e.target.value)} className={inputCls} /></div>
         <div><label className="text-sm font-medium text-gray-700">{s('hours_note')}</label><input value={f.cs_hours_note || ''} onChange={(e) => set('cs_hours_note', e.target.value)} className={inputCls} /></div>
         {[['social_youtube', 'yt'], ['social_instagram', 'ig'], ['social_facebook', 'fb'], ['social_tiktok', 'tt']].map(([k, l]) => (
-          <div key={k}><label className="text-sm font-medium text-gray-700">{s(l)}</label><input value={f[k] || ''} onChange={(e) => set(k, e.target.value)} className={inputCls} placeholder="https://" /></div>
+          <div key={k}>
+            <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-700">{s(l)}</label>
+              <label className="flex items-center gap-1 text-xs text-gray-600"><input type="checkbox" checked={f[`${k}_off`] !== 'true'} onChange={(e) => set(`${k}_off`, e.target.checked ? 'false' : 'true')} />{s('social_show')}</label></div>
+            <input value={f[k] || ''} onChange={(e) => set(k, e.target.value)} className={`${inputCls} ${f[`${k}_off`] === 'true' ? 'opacity-50' : ''}`} placeholder="https://" />
+          </div>
         ))}
       </div>
       <div className="space-y-2 pt-1">

@@ -16,10 +16,14 @@ const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems:
 const tag = { padding: '2px 6px', borderRadius: 4, background: 'var(--color-success-bg)', color: 'var(--color-success)', fontSize: 11, fontWeight: 700 }
 const xBtn = { flex: 'none', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', padding: 0, color: 'var(--color-text-3)' }
 const X = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+const digits = (v) => String(v || '').replace(/\D/g, '')
+// 0912345678 and +886912345678 are the same number
+const canonPhone = (v) => { const d = digits(v); return d.startsWith('0') ? `886${d.slice(1)}` : d }
 const mmdd = (iso) => (iso ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}` : '')
 
 // A read-only looking row that turns into an input when tapped.
 function EditRow({ label, value, shown, onSave, type = 'text', inputMode, children }) {
+  const { t } = useTranslation()
   const [on, setOn] = useState(false)
   const [v, setV] = useState(value)
   useEffect(() => setV(value), [value])
@@ -31,7 +35,7 @@ function EditRow({ label, value, shown, onSave, type = 'text', inputMode, childr
         <input autoFocus type={type} inputMode={inputMode} aria-label={label} value={v} onChange={(e) => setV(e.target.value)} onBlur={done} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
           style={{ ...inputStyle(false), height: 36, width: 190, textAlign: 'right', padding: '0 10px' }} />
       ) : (
-        <span role="button" tabIndex={0} onClick={() => setOn(true)} onKeyDown={(e) => { if (e.key === 'Enter') setOn(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'text' }}>{shown ?? value}{children}</span>
+        <span role="button" tabIndex={0} onClick={() => setOn(true)} onKeyDown={(e) => { if (e.key === 'Enter') setOn(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'text', minHeight: 36 }}>{shown || value || <span style={{ color: 'var(--color-text-3)', fontWeight: 400 }}>—</span>}{children}<span style={{ ...linkBtn, marginLeft: 4 }}>{t('profile.edit')}</span></span>
       )}
     </div>
   )
@@ -47,8 +51,10 @@ export default function Profile() {
   const [saved, setSaved] = useState(false)
   useSeo({ title: t('profile.title'), noindex: true })
   const name = signedIn ? (me.name ?? profile.name) : profile.name
-  const phone = signedIn ? (me.phone ? `+${me.phone}` : profile.phone) : profile.phone
-  const email = signedIn ? (me.email || profile.email) : profile.email
+  // the contact phone / email a member typed here wins over the login ones (the login method itself stays the verified one)
+  const phone = signedIn ? (profile.phone || (me.phone ? `+${me.phone}` : '')) : profile.phone
+  const email = signedIn ? (profile.email || me.email || '') : profile.email
+  const phoneVerified = signedIn && me.phone && (!profile.phone || canonPhone(profile.phone) === canonPhone(me.phone))
   const birthday = (signedIn && me.birthday) || profile.birthday
 
   const commit = async (patch) => {
@@ -67,11 +73,12 @@ export default function Profile() {
     <div style={{ paddingBottom: 130 }}>
       <PageHeader title={t('profile.title')} to="/member" />
       {!signedIn && <p style={{ margin: '12px 16px 0', fontSize: 12, color: 'var(--color-text-2)' }}>{t('profile.guest_note')}</p>}
+      {signedIn && <p style={{ margin: '12px 16px 0', fontSize: 12, color: 'var(--color-text-2)' }}>{t('profile.contact_note')}</p>}
       <section style={card}>
         <div style={head}><h2 style={h2}>{t('profile.basic')}</h2></div>
         <div>
           <EditRow label={t('profile.name')} value={name || ''} onSave={(v) => commit({ name: v })} />
-          <EditRow label={t('profile.phone')} value={phone || ''} inputMode="tel" onSave={(v) => commit({ phone: v })}>{signedIn && me.phone && <span style={tag}>{t('mc.verified')}</span>}</EditRow>
+          <EditRow label={t('profile.phone')} value={phone || ''} inputMode="tel" onSave={(v) => commit({ phone: v })}>{phoneVerified && <span style={tag}>{t('mc.verified')}</span>}</EditRow>
           <EditRow label={t('profile.email')} value={email || ''} inputMode="email" onSave={(v) => commit({ email: v })} />
           <EditRow label={t('profile.birthday')} value={birthday || ''} type="date" shown={`${mmdd(birthday)}${birthday ? '・' : ''}${t('mc.birthday_note')}`} onSave={(v) => commit({ birthday: v })} />
         </div>

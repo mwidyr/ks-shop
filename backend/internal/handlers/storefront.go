@@ -441,10 +441,15 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		"whatsapp_login":    waProvider() != "off",
 		"ga_measurement_id": gaMeasurementID(),
 		"site_noindex":      siteNoIndex(),
-		"social": map[string]string{
-			"youtube": site.setting(ctx, "social_youtube", ""), "instagram": site.setting(ctx, "social_instagram", ""),
-			"facebook": site.setting(ctx, "social_facebook", ""), "tiktok": site.setting(ctx, "social_tiktok", ""),
-		},
+		"social": func() map[string]string { // a platform switched off in the admin is left out, so it is hidden everywhere (footer + Follow Ralulu Live)
+			out := map[string]string{}
+			for _, p := range []string{"youtube", "instagram", "facebook", "tiktok"} {
+				if site.setting(ctx, "social_"+p+"_off", "") != "true" {
+					out[p] = site.setting(ctx, "social_"+p, "")
+				}
+			}
+			return out
+		}(),
 	})
 }
 

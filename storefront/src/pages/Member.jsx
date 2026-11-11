@@ -59,7 +59,7 @@ export default function Member() {
     }).catch(() => {})
   }, [i18n.language]) // eslint-disable-line react-hooks/exhaustive-deps
   const social = settings.social || {}
-  const links = [[IconYoutube, 'YouTube', social.youtube], [IconInstagram, 'Instagram', social.instagram], [IconFacebook, 'Facebook', social.facebook], [IconTiktok, 'TikTok', social.tiktok]]
+  const links = [[IconYoutube, 'YouTube', social.youtube], [IconInstagram, 'Instagram', social.instagram], [IconFacebook, 'Facebook', social.facebook], [IconTiktok, 'TikTok', social.tiktok]].filter(([, label]) => !settings.social || label.toLowerCase() in settings.social)
   const name = signedIn ? (me.name || me.phone || me.email) : (profile.name || t('member.guest'))
   const counts = signedIn ? me.counts : { orders: listLocalOrders().length, coupons: listClaimed().filter((c) => !c.usedAt && !(c.end_date && new Date(c.end_date) < new Date())).length, favorites: favCount }
   const reward = settings.rewards?.referral_reward ?? 50

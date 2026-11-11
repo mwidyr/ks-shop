@@ -1,7 +1,7 @@
 export default {
   id: {
     profile: {
-      title: 'Profil', basic: 'Data dasar', name: 'Nama', phone: 'Mobile', email: 'Email', birthday: 'Ulang tahun', save: 'Simpan', saved: 'Tersimpan di perangkat ini',
+      title: 'Profil', edit: 'Ubah', contact_note: 'Nama, telepon, dan email di sini dipakai untuk mengisi checkout. Nomor login WhatsApp tidak berubah.', basic: 'Data dasar', name: 'Nama', phone: 'Mobile', email: 'Email', birthday: 'Ulang tahun', save: 'Simpan', saved: 'Tersimpan di perangkat ini',
       body: 'Data ukuran', body_hint: 'Dipakai untuk saran ukuran di halaman produk (tidak dikirim ke mana pun).', height: 'Tinggi (cm)', weight: 'Berat (kg)',
       stores: 'Toko favorit', stores_empty: 'Toko yang kamu pakai saat checkout otomatis tersimpan di sini.', store_default: '（Default）', make_default: 'Jadikan default', remove: 'Hapus', store_no: 'No. toko {{code}}',
       addresses: 'Alamat pengiriman', add: '＋ Tambah', addr_name: 'Penerima', addr_phone: 'Telepon', addr_text: 'Alamat di Taiwan', addr_empty: 'Belum ada alamat tersimpan.',
@@ -22,7 +22,7 @@ export default {
   },
   en: {
     profile: {
-      title: 'Profile', basic: 'Basics', name: 'Name', phone: 'Mobile', email: 'Email', birthday: 'Birthday', save: 'Save', saved: 'Saved on this device',
+      title: 'Profile', edit: 'Edit', contact_note: 'Your name, phone and email here prefill checkout. Your verified login number does not change.', basic: 'Basics', name: 'Name', phone: 'Mobile', email: 'Email', birthday: 'Birthday', save: 'Save', saved: 'Saved on this device',
       body: 'Size data', body_hint: 'Used for size suggestions on product pages (never sent anywhere).', height: 'Height (cm)', weight: 'Weight (kg)',
       stores: 'Favourite stores', stores_empty: 'Stores you use at checkout are saved here automatically.', store_default: '(Default)', make_default: 'Make default', remove: 'Remove', store_no: 'Store {{code}}',
       addresses: 'Delivery addresses', add: '＋ Add', addr_name: 'Recipient', addr_phone: 'Phone', addr_text: 'Address in Taiwan', addr_empty: 'No saved addresses yet.',
@@ -43,7 +43,7 @@ export default {
   },
   zh: {
     profile: {
-      title: '個人資料', basic: '基本資料', name: '姓名', phone: '手機', email: 'Email', birthday: '生日', save: '儲存', saved: '已儲存在這台裝置',
+      title: '個人資料', edit: '編輯', contact_note: '這裡的姓名、手機與 Email 會自動帶入結帳資料，登入用的已驗證號碼不會改變。', basic: '基本資料', name: '姓名', phone: '手機', email: 'Email', birthday: '生日', save: '儲存', saved: '已儲存在這台裝置',
       body: '尺寸資料', body_hint: '用於商品頁的尺寸建議（不會傳送到任何地方）。', height: '身高 (cm)', weight: '體重 (kg)',
       stores: '常用門市', stores_empty: '結帳時使用過的門市會自動儲存在這裡。', store_default: '（預設）', make_default: '設為預設', remove: '刪除', store_no: '店號 {{code}}',
       addresses: '配送地址', add: '＋ 新增', addr_name: '收件人', addr_phone: '電話', addr_text: '台灣地址', addr_empty: '尚未儲存地址。',

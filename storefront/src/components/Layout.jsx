@@ -110,10 +110,8 @@ export function Footer() {
         <Link to="/info/returns" style={a}>{t('footer.returns')}</Link>
       </nav>
       <div style={{ display: 'flex', gap: 8 }}>
-        {social(t('footer.youtube'), settings.social?.youtube)}
-        {social(t('footer.instagram'), settings.social?.instagram)}
-        {social(t('footer.facebook'), settings.social?.facebook)}
-        {social(t('footer.tiktok'), settings.social?.tiktok)}
+        {[['youtube', 'footer.youtube'], ['instagram', 'footer.instagram'], ['facebook', 'footer.facebook'], ['tiktok', 'footer.tiktok']]
+          .filter(([k]) => !settings.social || k in settings.social).map(([k, label]) => social(t(label), settings.social?.[k]))}
       </div>
       <span data-testid="footer-company" style={{ fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.7 }}>
         © Ralulu<br />{COMPANY_NAME_ZH}｜統一編號：{COMPANY_TAX_ID}
