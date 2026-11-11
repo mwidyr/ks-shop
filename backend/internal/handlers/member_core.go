@@ -175,6 +175,15 @@ func (h *MemberHandler) loginOrCreate(ctx context.Context, phone, email, refCode
 			code, st.WelcomeVoucherAmount, st.WelcomeVoucherMinOrder, st.WelcomeVoucherDays, id)
 		tx.Exec(ctx, `INSERT INTO member_coupons (member_id, promotion_id) SELECT $1, id FROM promotions WHERE code=$2 ON CONFLICT DO NOTHING`, id, code)
 	}
+	// invited friend: a voucher usable on the very first order (amount / minimum order / validity are admin settings)
+	if referrer != nil && st.ReferralFriendAmount > 0 {
+		code := fmt.Sprintf("REF-%d", id)
+		tx.Exec(ctx, `
+			INSERT INTO promotions (code, type, value, min_order_amount, end_date, usage_limit, per_customer_limit, is_active, member_id)
+			VALUES ($1,'fixed_amount',$2,$3, now() + make_interval(days => $4), 1, 1, true, $5) ON CONFLICT (code) DO NOTHING`,
+			code, st.ReferralFriendAmount, st.ReferralFriendMinOrder, st.ReferralFriendDays, id)
+		tx.Exec(ctx, `INSERT INTO member_coupons (member_id, promotion_id) SELECT $1, id FROM promotions WHERE code=$2 ON CONFLICT DO NOTHING`, id, code)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, false, err
 	}

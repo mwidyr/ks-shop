@@ -63,6 +63,8 @@ export default function Member() {
   const name = signedIn ? (me.name || me.phone || me.email) : (profile.name || t('member.guest'))
   const counts = signedIn ? me.counts : { orders: listLocalOrders().length, coupons: listClaimed().filter((c) => !c.usedAt && !(c.end_date && new Date(c.end_date) < new Date())).length, favorites: favCount }
   const reward = settings.rewards?.referral_reward ?? 50
+  const friend = settings.rewards?.referral_friend_amount ?? reward
+  const friendMin = settings.rewards?.referral_friend_min_order ?? 0
   const shareText = me ? t('referral.share_text', { code: me.referral_code }) : ''
   const shareUrl = me ? `${window.location.origin}/login?ref=${me.referral_code}` : ''
   async function share() {
@@ -124,7 +126,7 @@ export default function Member() {
         <section id="invite" style={{ margin: '14px 16px 0', padding: '14px 16px', borderRadius: 16, background: 'var(--color-coupon-bg)', border: '1px solid var(--color-secondary)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 15, fontWeight: 700 }}>{t('referral.title', { amount: money(reward) })}</span>
-            <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('referral.text')}</span>
+            <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('referral.text', { friend: money(friend), min: friendMin > 0 ? t('referral.min_order', { amount: money(friendMin) }) : '' })}</span>
           </span>
           <button type="button" onClick={share} style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--color-text)', color: '#FFFFFF', fontSize: 13, fontWeight: 700, border: 'none' }}>{copied ? t('referral.copied') : t('referral.share')}</button>
         </section>

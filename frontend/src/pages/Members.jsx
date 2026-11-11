@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { adjustMember, getMember, getRewardSettings, listMembers, saveRewardSettings, setMemberActive } from '../api/website'
+import { adjustMember, getMember, getRewardSettings, listMembers, saveRewardSettings, setMemberActive, setMemberReferralBlocked } from '../api/website'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
 import Pager from '../components/Pager'
 
-const REWARD_FIELDS = ['welcome_balance', 'welcome_voucher_amount', 'welcome_voucher_min_order', 'welcome_voucher_days', 'referral_reward', 'points_per_100', 'point_value', 'birthday_discount_pct', 'refund_credit_bonus_pct']
+const REWARD_FIELDS = ['welcome_balance', 'welcome_voucher_amount', 'welcome_voucher_min_order', 'welcome_voucher_days', 'referral_reward', 'referral_friend_amount', 'referral_friend_min_order', 'referral_friend_days', 'referral_reward_limit', 'points_per_100', 'point_value', 'birthday_discount_pct', 'refund_credit_bonus_pct']
 
 export default function Members() {
   const { t } = useTranslation()
@@ -86,7 +86,12 @@ export default function Members() {
                 ))}
               </ul>
             </div>
-            <button type="button" onClick={async () => { await setMemberActive(sel, !detail.is_active); open(sel); load() }} className={btnGhost}>{detail.is_active ? m('deactivate') : m('activate')}</button>
+            {detail.referral_held > 0 && <p className="text-xs text-amber-700">{m('referral_held', { n: detail.referral_held })}</p>}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={async () => { await setMemberActive(sel, !detail.is_active); open(sel); load() }} className={btnGhost}>{detail.is_active ? m('deactivate') : m('activate')}</button>
+              <button type="button" onClick={async () => { await setMemberReferralBlocked(sel, !detail.referral_blocked); open(sel) }} className={btnGhost}>{detail.referral_blocked ? m('referral_unblock') : m('referral_block')}</button>
+            </div>
+            {detail.referral_blocked && <p className="text-xs text-red-700">{m('referral_blocked_note')}</p>}
           </div>
         )}
       </div>

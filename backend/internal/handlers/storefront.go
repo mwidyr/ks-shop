@@ -436,7 +436,7 @@ func (h *StorefrontHandler) Settings(w http.ResponseWriter, r *http.Request) {
 		"cs_hours_note":            site.setting(ctx, "cs_hours_note", ""),
 		"rewards": func() map[string]interface{} {
 			st := (&MemberHandler{}).rewardSettings(ctx, h.DB)
-			return map[string]interface{}{"welcome_balance": st.WelcomeBalance, "referral_reward": st.ReferralReward, "point_value": st.PointValue, "refund_credit_bonus_pct": st.RefundCreditBonusPct}
+			return map[string]interface{}{"welcome_balance": st.WelcomeBalance, "referral_reward": st.ReferralReward, "referral_friend_amount": st.ReferralFriendAmount, "referral_friend_min_order": st.ReferralFriendMinOrder, "referral_friend_days": st.ReferralFriendDays, "point_value": st.PointValue, "refund_credit_bonus_pct": st.RefundCreditBonusPct}
 		}(),
 		"whatsapp_login":    waProvider() != "off",
 		"ga_measurement_id": gaMeasurementID(),

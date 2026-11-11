@@ -167,3 +167,27 @@ func TestNewReferralCode(t *testing.T) {
 		t.Errorf("codes collide too much: %d unique of 200", len(seen))
 	}
 }
+
+func TestReferralAction(t *testing.T) {
+	st := RewardSettings{ReferralReward: 50, ReferralFriendMinOrder: 500}
+	cases := []struct {
+		name                          string
+		paid                          float64
+		blocked, hasPurchase, limited bool
+		want                          string
+	}{
+		{"pays when A has a purchase", 800, false, true, false, "pay"},
+		{"holds when A has no purchase yet", 800, false, false, false, "hold"},
+		{"order below the minimum does not qualify", 300, false, true, false, "skip"},
+		{"blocked pair gets nothing", 800, true, true, false, "skip"},
+		{"limit reached gets nothing, even held", 800, false, false, true, "skip"},
+	}
+	for _, c := range cases {
+		if got := referralAction(st, c.paid, c.blocked, c.hasPurchase, c.limited); got != c.want {
+			t.Errorf("%s: got %s, want %s", c.name, got, c.want)
+		}
+	}
+	if referralAction(RewardSettings{}, 800, false, true, false) != "skip" {
+		t.Error("a zero reward never pays or holds")
+	}
+}

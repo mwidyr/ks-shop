@@ -174,7 +174,7 @@ export default function Home() {
   const mods = Object.fromEntries((data?.modules || []).map((m) => [m.key, m]))
   const heroImage = mods.new_in?.data?.[0]?.image || mods.best_sellers?.data?.[0]?.image
   const banners = data?.banners || []
-  const announcements = data?.announcements || []
+  const announcements = data?.announcements?.messages?.length ? data.announcements : null
   const order = (data?.modules || []).map((m) => m.key)
 
   const sections = {
@@ -242,7 +242,7 @@ export default function Home() {
             <IconSearch size={20} />{t('search.placeholder')}
           </Link>
           {/* Header > Search > Announcement bar > Banner > modules; staff messages rotate, else the fixed info chips */}
-          {announcements.length > 0 ? <AnnouncementBar messages={announcements} /> : (
+          {announcements ? <div style={{ margin: '10px 16px 0' }}><AnnouncementBar bar={announcements} /></div> : (
           <div className="no-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 16px 0' }}>
             {[t('strip.cs'), threshold > 0 ? t('strip.free_ship', { amount: money(threshold) }) : null, t('strip.pickup')].filter(Boolean).map((s) => (
               <span key={s} style={{ flex: 'none', padding: '6px 10px', borderRadius: 14, background: 'var(--color-bg-soft)', fontSize: 12, fontWeight: 500, color: 'var(--color-text)' }}>{s}</span>
@@ -252,7 +252,7 @@ export default function Home() {
         </>
       )}
 
-      {desktop && announcements.length > 0 && <div style={{ padding: '16px 24px 0' }}><AnnouncementBar messages={announcements} /></div>}
+      {desktop && announcements && <div style={{ padding: '16px 24px 0' }}><AnnouncementBar bar={announcements} /></div>}
       {desktop ? (
         <section style={{ display: 'grid', gridTemplateColumns: mods.live ? '1.4fr 1fr' : '1fr', gap: 24, padding: '32px 40px 0' }}>
           {banners.length ? <BannerCarousel banners={banners} desktop /> : <Hero image={heroImage} desktop />}

@@ -84,8 +84,10 @@ func (h *MemberAdminHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var referredBy, referrals int
-	var active bool
-	h.DB.QueryRow(r.Context(), `SELECT COALESCE(referred_by,0), is_active FROM members WHERE id=$1`, id).Scan(&referredBy, &active)
+	var active, blocked bool
+	var held int
+	h.DB.QueryRow(r.Context(), `SELECT COALESCE(referred_by,0), is_active, referral_blocked FROM members WHERE id=$1`, id).Scan(&referredBy, &active, &blocked)
+	h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM referral_pending WHERE referrer_id=$1`, id).Scan(&held)
 	h.DB.QueryRow(r.Context(), `SELECT COUNT(*) FROM members WHERE referred_by=$1`, id).Scan(&referrals)
 	rows, _ := h.DB.Query(r.Context(), `SELECT kind, amount, reason, COALESCE(note,''), created_at FROM member_ledger WHERE member_id=$1 ORDER BY created_at DESC, id DESC LIMIT 100`, id)
 	type e struct {
@@ -105,7 +107,7 @@ func (h *MemberAdminHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 		rows.Close()
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{"member": view, "is_active": active, "referred_by": referredBy, "referrals": referrals, "ledger": ledger})
+	respondJSON(w, http.StatusOK, map[string]interface{}{"member": view, "is_active": active, "referred_by": referredBy, "referrals": referrals, "referral_blocked": blocked, "referral_held": held, "ledger": ledger})
 }
 
 // Adjust serves POST /admin/members/{id}/adjust {kind, amount, note}: manual wallet correction (note required, logged).
@@ -143,14 +145,22 @@ func (h *MemberAdminHandler) Adjust(w http.ResponseWriter, r *http.Request) {
 func (h *MemberAdminHandler) SetActive(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	var req struct {
-		Active bool `json:"is_active"`
+		Active          *bool `json:"is_active"`
+		ReferralBlocked *bool `json:"referral_blocked"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	h.DB.Exec(r.Context(), `UPDATE members SET is_active=$2 WHERE id=$1`, id, req.Active)
-	respondJSON(w, http.StatusOK, map[string]bool{"is_active": req.Active})
+	if req.Active != nil {
+		h.DB.Exec(r.Context(), `UPDATE members SET is_active=$2 WHERE id=$1`, id, *req.Active)
+	}
+	if req.ReferralBlocked != nil {
+		h.DB.Exec(r.Context(), `UPDATE members SET referral_blocked=$2 WHERE id=$1`, id, *req.ReferralBlocked)
+	}
+	var active, blocked bool
+	h.DB.QueryRow(r.Context(), `SELECT is_active, referral_blocked FROM members WHERE id=$1`, id).Scan(&active, &blocked)
+	respondJSON(w, http.StatusOK, map[string]bool{"is_active": active, "referral_blocked": blocked})
 }
 
 // GetRewards serves GET /admin/reward-settings.
@@ -166,7 +176,7 @@ func (h *MemberAdminHandler) SaveRewards(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	switch {
-	case s.WelcomeBalance < 0 || s.WelcomeVoucherAmount < 0 || s.WelcomeVoucherMinOrder < 0 || s.ReferralReward < 0 || s.PointsPer100 < 0:
+	case s.WelcomeBalance < 0 || s.WelcomeVoucherAmount < 0 || s.WelcomeVoucherMinOrder < 0 || s.ReferralReward < 0 || s.ReferralFriendAmount < 0 || s.ReferralFriendMinOrder < 0 || s.PointsPer100 < 0:
 		respondError(w, http.StatusBadRequest, "nilai tidak boleh negatif")
 		return
 	case s.PointValue <= 0 || s.PointValue > 100:
@@ -175,14 +185,22 @@ func (h *MemberAdminHandler) SaveRewards(w http.ResponseWriter, r *http.Request)
 	case s.BirthdayDiscountPct < 0 || s.BirthdayDiscountPct > 100 || s.RefundCreditBonusPct < 0 || s.RefundCreditBonusPct > 100:
 		respondError(w, http.StatusBadRequest, "persentase harus 0-100")
 		return
+	case s.ReferralFriendDays < 1 || s.ReferralFriendDays > 365:
+		respondError(w, http.StatusBadRequest, "masa berlaku voucher teman 1-365 hari")
+		return
+	case s.ReferralRewardLimit < 0:
+		respondError(w, http.StatusBadRequest, "batas reward tidak boleh negatif")
+		return
 	case s.WelcomeVoucherDays < 1 || s.WelcomeVoucherDays > 365:
 		respondError(w, http.StatusBadRequest, "masa berlaku voucher 1-365 hari")
 		return
 	}
 	if _, err := h.DB.Exec(r.Context(), `
 		UPDATE reward_settings SET welcome_balance=$1, welcome_voucher_amount=$2, welcome_voucher_min_order=$3, welcome_voucher_days=$4, referral_reward=$5,
-		       points_per_100=$6, point_value=$7, birthday_discount_pct=$8, refund_credit_bonus_pct=$9, updated_at=now() WHERE id=1`,
-		s.WelcomeBalance, s.WelcomeVoucherAmount, s.WelcomeVoucherMinOrder, s.WelcomeVoucherDays, s.ReferralReward, s.PointsPer100, s.PointValue, s.BirthdayDiscountPct, s.RefundCreditBonusPct); err != nil {
+		       points_per_100=$6, point_value=$7, birthday_discount_pct=$8, refund_credit_bonus_pct=$9,
+		       referral_friend_amount=$10, referral_friend_min_order=$11, referral_friend_days=$12, referral_reward_limit=$13, updated_at=now() WHERE id=1`,
+		s.WelcomeBalance, s.WelcomeVoucherAmount, s.WelcomeVoucherMinOrder, s.WelcomeVoucherDays, s.ReferralReward, s.PointsPer100, s.PointValue, s.BirthdayDiscountPct, s.RefundCreditBonusPct,
+		s.ReferralFriendAmount, s.ReferralFriendMinOrder, s.ReferralFriendDays, s.ReferralRewardLimit); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save")
 		return
 	}
