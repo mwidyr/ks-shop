@@ -32,16 +32,19 @@ type liveLocationDTO struct {
 }
 
 type liveHostDTO struct {
-	ID         int     `json:"id"`
-	Name       string  `json:"name"`
-	LocationID int     `json:"location_id"`
-	Location   string  `json:"location"`
-	Shift      string  `json:"shift"`
-	LiveURL    string  `json:"live_url"`
-	Status     string  `json:"status"` // live | scheduled | offline
-	Manual     bool    `json:"manual"` // LIVE because of a manual Start LIVE (window_end = its automatic end)
-	WindowEnd  *string `json:"window_end,omitempty"`
-	NextAt     *string `json:"next_at,omitempty"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	LocationID int    `json:"location_id"`
+	Location   string `json:"location"`
+	Shift      string `json:"shift"`
+	LiveURL    string `json:"live_url"`
+	// The TikTok account CEK VIEWS reports this host's views for (Live Assignment); nil = none assigned yet.
+	TikTokAccountID *int    `json:"tiktok_account_id"`
+	TikTokID        string  `json:"tiktok_id,omitempty"`
+	Status          string  `json:"status"` // live | scheduled | offline
+	Manual          bool    `json:"manual"` // LIVE because of a manual Start LIVE (window_end = its automatic end)
+	WindowEnd       *string `json:"window_end,omitempty"`
+	NextAt          *string `json:"next_at,omitempty"`
 }
 
 // validLiveLink: empty (no link yet) or an http(s) address without spaces or quotes.
@@ -131,12 +134,14 @@ func (h *SiteAdminHandler) LiveSettings(w http.ResponseWriter, r *http.Request) 
 	hosts := []liveHostDTO{}
 	var ids []int32
 	if rows, err := h.DB.Query(ctx, `
-		SELECT h.id, h.name, h.location_id, l.name, COALESCE(h.shift,''), COALESCE(h.live_url,'')
+		SELECT h.id, h.name, h.location_id, l.name, COALESCE(h.shift,''), COALESCE(h.live_url,''), ta.id, COALESCE(ta.tiktok_id,'')
 		FROM hosts h JOIN host_locations l ON l.id = h.location_id
+		LEFT JOIN cek_views_assignments ca ON ca.host_id = h.id
+		LEFT JOIN tiktok_accounts ta ON ta.id = ca.tiktok_account_id
 		WHERE h.is_active ORDER BY l.name, (CASE h.shift WHEN 'morning' THEN 0 WHEN 'middle' THEN 1 WHEN 'evening' THEN 2 ELSE 3 END), h.name`); err == nil {
 		for rows.Next() {
 			var x liveHostDTO
-			if rows.Scan(&x.ID, &x.Name, &x.LocationID, &x.Location, &x.Shift, &x.LiveURL) == nil {
+			if rows.Scan(&x.ID, &x.Name, &x.LocationID, &x.Location, &x.Shift, &x.LiveURL, &x.TikTokAccountID, &x.TikTokID) == nil {
 				x.Status = "offline"
 				hosts = append(hosts, x)
 				ids = append(ids, int32(x.ID))

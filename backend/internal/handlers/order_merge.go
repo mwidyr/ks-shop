@@ -20,14 +20,21 @@ type OrderMergeHandler struct {
 	DB *pgxpool.Pool
 }
 
+// mergeAddressNormSQL turns {o}.shipping_address into a comparison form: Unicode-normalised (full-width digits /
+// letters become plain ones), every kind of whitespace and invisible character removed (ordinary, no-break and
+// ideographic spaces, zero-width characters, BOM - they sneak in when an address is pasted) and the 臺/台 variants
+// equal. Two orders that read the same on screen therefore always get the same key.
+const mergeAddressNormSQL = `lower(replace(regexp_replace(normalize(COALESCE({o}.shipping_address,''), NFKC),
+		'[\s\u00a0\u3000\u200b-\u200d\u2060\ufeff]+', '', 'g'), '臺', '台'))`
+
 // Merge matching. A customer is identified by name + phone digits (the same person can sit on several customer
 // rows), and a delivery by chain + (store code for 7-11 / FamilyMart, the normalised street address for POS /
 // courier). Dates play no part: orders of any age can be merged while they are still eligible.
 const (
-	mergeCustomerKeyTmpl = `lower(regexp_replace(btrim({c}.name), '\s+', ' ', 'g')) || '|' || regexp_replace(COALESCE({c}.phone,''), '\D', '', 'g')`
+	mergeCustomerKeyTmpl = `lower(regexp_replace(normalize(btrim({c}.name), NFKC), '[\s\u00a0\u3000\u200b-\u200d\u2060\ufeff]+', ' ', 'g')) || '|' || regexp_replace(COALESCE({c}.phone,''), '\D', '', 'g')`
 	mergeDeliveryKeyTmpl = `CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
 		THEN {pc}.chain_type || '|' || btrim(COALESCE({o}.pickup_store_code,''))
-		ELSE {o}.pickup_chain_id::text || '|' || lower(regexp_replace(btrim(COALESCE({o}.shipping_address,'')), '\s+', ' ', 'g')) END`
+		ELSE {o}.pickup_chain_id::text || '|' || ` + mergeAddressNormSQL + ` END`
 	// what staff see for a delivery: "7-ELEVEN #123456" / "POS - <address>"
 	mergeDeliveryLabelTmpl = `{pc}.name || CASE WHEN {pc}.chain_type IN ('cvs_711','cvs_familymart')
 		THEN ' #' || COALESCE({o}.pickup_store_code,'') ELSE ' - ' || COALESCE({o}.shipping_address,'') END`

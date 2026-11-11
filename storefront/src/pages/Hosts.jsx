@@ -27,13 +27,15 @@ export default function Hosts() {
 
   const hosts = useMemo(() => {
     const text = q.trim().toLowerCase()
-    return (all || []).filter((h) => (filter === 'all' || h.live_status === 'live') && (!text || h.name.toLowerCase().includes(text) || (h.alias || []).some((a) => a.toLowerCase().includes(text))))
+    return (all || []).filter((h) => (filter !== 'live' || h.live_status === 'live') && (!text || h.name.toLowerCase().includes(text) || (h.alias || []).some((a) => a.toLowerCase().includes(text))))
   }, [all, q, filter])
   const liveCount = (all || []).filter((h) => h.live_status === 'live').length
   // typo help: hosts whose name shares most letters with the query
   const near = (all || []).filter((h) => q.trim() && [...q.trim().toLowerCase()].filter((c) => h.name.toLowerCase().includes(c)).length >= Math.ceil(q.trim().length * 0.6)).slice(0, 3)
 
-  const sameDay = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString()
+  // "today" follows the schedule's own clock (Taiwan time), not the visitor's device
+  const twDay = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' })
+  const sameDay = (iso) => iso && twDay(iso) === twDay(Date.now())
   const todayCount = (all || []).filter((h) => h.live_status === 'live' || sameDay(h.next_live_at)).length
   const pill = (on) => ({ flex: 'none', minHeight: 34, padding: '0 14px', borderRadius: 17, fontSize: 13, display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'content-box', ...(on ? { background: 'var(--color-text)', color: '#FFFFFF', fontWeight: 700, border: 'none' } : { background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }) })
   const shown = hosts.filter((h) => filter === 'today' ? (h.live_status === 'live' || sameDay(h.next_live_at)) : true)
@@ -53,8 +55,8 @@ export default function Hosts() {
 
       {!all && !error && <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={240} r={16} />)}</div>}
       {error && <ErrorState title={t('hosts.load_fail')} text={t('hosts.load_fail_text')} onRetry={load} retryLabel={t('common.reload')} />}
-      {all && hosts.length === 0 && (
-        <EmptyState title={t('hosts.none_title', { q })} text={t('hosts.none_text')} action={
+      {all && shown.length === 0 && (
+        <EmptyState title={!q.trim() && filter !== 'all' ? t('live.none') : t('hosts.none_title', { q })} text={!q.trim() && filter !== 'all' ? t('live.none_text') : t('hosts.none_text')} action={
           <>
             {near.length > 0 && <span style={{ fontSize: 14 }}>{t('hosts.mean')} {near.map((h) => <Link key={h.id} to={`/hosts/${h.slug}`} style={{ marginLeft: 8, fontWeight: 700 }}>{h.name}</Link>)}</span>}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

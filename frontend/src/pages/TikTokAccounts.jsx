@@ -27,6 +27,7 @@ function AccountsTab({ structure }) {
   const [locationId, setLocationId] = useState('')
   const [roomId, setRoomId] = useState('')
   const [deviceId, setDeviceId] = useState('')
+  const [sort, setSort] = useState('status') // status (default, server order) | name | room
   const [data, setData] = useState({ counts: {}, accounts: [] })
   const debouncedQ = useDebouncedValue(q, SEARCH_DEBOUNCE_MS)
 
@@ -37,7 +38,14 @@ function AccountsTab({ structure }) {
 
   const rooms = useMemo(() => structure.filter((l) => !locationId || String(l.id) === locationId).flatMap((l) => l.rooms), [structure, locationId])
   const devices = useMemo(() => rooms.filter((r) => !roomId || String(r.id) === roomId).flatMap((r) => r.devices), [rooms, roomId])
-  const reset = () => { setStatus(''); setQ(''); setLocationId(''); setRoomId(''); setDeviceId('') }
+  const reset = () => { setStatus(''); setQ(''); setLocationId(''); setRoomId(''); setDeviceId(''); setSort('status') }
+  // natural order: "Room 2" before "Room 10", ROOM001 before ROOM002
+  const accounts = useMemo(() => {
+    const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' })
+    if (sort === 'name') return [...data.accounts].sort((a, b) => cmp(a.tiktok_id, b.tiktok_id))
+    if (sort === 'room') return [...data.accounts].sort((a, b) => cmp(a.location_name, b.location_name) || cmp(a.room_name, b.room_name) || cmp(a.tiktok_id, b.tiktok_id))
+    return data.accounts
+  }, [data.accounts, sort])
 
   return (
     <div className="space-y-4">
@@ -74,7 +82,16 @@ function AccountsTab({ structure }) {
             {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
-        <div className="text-right"><button type="button" onClick={reset} className="text-xs font-semibold text-gray-500 hover:underline">{t('page_tiktok.reset_filters')}</button></div>
+        <div className="flex items-center justify-between gap-2">
+          <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">{t('page_tiktok.sort_label')}
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className={inputCls + ' !w-auto'}>
+              <option value="status">{t('page_tiktok.sort_status')}</option>
+              <option value="name">{t('page_tiktok.sort_name')}</option>
+              <option value="room">{t('page_tiktok.sort_room')}</option>
+            </select>
+          </label>
+          <button type="button" onClick={reset} className="text-xs font-semibold text-gray-500 hover:underline">{t('page_tiktok.reset_filters')}</button>
+        </div>
       </div>
 
       <div className={`${cardClasses} overflow-x-auto`}>
@@ -86,7 +103,7 @@ function AccountsTab({ structure }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--table-divider)]">
-            {data.accounts.map((a) => (
+            {accounts.map((a) => (
               <tr key={a.id} onClick={() => navigate(`/tiktok/accounts/${a.id}`)} className="cursor-pointer hover:bg-[var(--table-row-hover)]">
                 <td className="p-3 font-semibold text-[var(--text-primary)]">@{a.tiktok_id}</td>
                 <td className="p-3"><StatusBadge status={a.status} /></td>

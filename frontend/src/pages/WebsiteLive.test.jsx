@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 
 const api = vi.hoisted(() => ({
   getLiveSettings: vi.fn(), saveLiveShift: vi.fn(() => Promise.resolve({})), saveLiveLocation: vi.fn(() => Promise.resolve({})),
@@ -28,7 +29,7 @@ const settings = {
 
 async function mount() {
   const el = document.createElement('div'); document.body.appendChild(el)
-  await act(async () => { createRoot(el).render(<WebsiteLive />) })
+  await act(async () => { createRoot(el).render(<MemoryRouter><WebsiteLive /></MemoryRouter>) })
   await act(async () => { await Promise.resolve() })
   return el
 }

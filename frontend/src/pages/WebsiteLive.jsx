@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { endLive, getLiveSettings, startLive, saveLiveLocation, saveLiveShift, saveLiveUrl } from '../api/website'
 import Toast, { useToast } from '../components/Toast'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
@@ -141,12 +142,13 @@ function Hosts({ hosts, l, t, onChanged, onError }) {
       <div>
         <h2 className="font-bold text-gray-800">{l('hosts_title')}</h2>
         <p className="text-sm text-gray-500">{l('hosts_hint')}</p>
+        <Link to="/tiktok/cek-views/settings" className="inline-block mt-1 text-sm font-semibold text-brand-600 hover:underline">{l('cek_settings_link')} ›</Link>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500">
-              <th className="py-2 pr-3">{l('col_host')}</th><th className="pr-3">{l('col_location')}</th><th className="pr-3">{l('col_shift')}</th>
+              <th className="py-2 pr-3">{l('col_host')}</th><th className="pr-3">{l('col_location')}</th><th className="pr-3">{l('col_shift')}</th><th className="pr-3">{l('col_tiktok')}</th>
               <th className="pr-3 min-w-[320px]">{l('col_url')}</th><th>{l('col_status')}</th>
             </tr>
           </thead>
@@ -183,6 +185,11 @@ function HostRow({ h, l, t, onChanged, onError }) {
       <td className="py-2 pr-3 font-medium text-gray-800">{h.name}</td>
       <td className="pr-3 text-gray-600">{h.location}</td>
       <td className="pr-3 text-gray-600">{h.shift ? t(`page_hosts.${SHIFT_LABEL[h.shift]}`) : <span className="text-amber-600">{l('no_shift')}</span>}</td>
+      <td className="pr-3 whitespace-nowrap">
+        {h.tiktok_account_id
+          ? <Link to={`/tiktok/accounts/${h.tiktok_account_id}`} className="font-semibold text-brand-600 hover:underline" title={l('tiktok_open')}>@{h.tiktok_id} ›</Link>
+          : <Link to="/tiktok/cek-views/settings" className="text-amber-600 hover:underline">{l('tiktok_none')}</Link>}
+      </td>
       <td className="pr-3">
         <div className="flex gap-2">
           <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={saveUrl} placeholder="https://www.tiktok.com/@…/live" className={inputCls} aria-label={l('col_url')} />
