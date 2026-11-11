@@ -60,6 +60,11 @@ const sellableSQL = `(sb.available_stock + sb.incoming_stock - COALESCE((
 	SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
 	WHERE oi.variant_id = pv.id AND o.status IN ` + orderedStatusesSQL + `), 0))`
 
+// hasSellableSQL is true for a product (alias p) with at least one active variant that can still be sold.
+// Sold-out products are hidden from every storefront listing (the shop shows no stock status at all).
+const hasSellableSQL = `EXISTS (SELECT 1 FROM product_variants pv JOIN stock_buckets sb ON sb.variant_id = pv.id
+	WHERE pv.product_id = p.id AND pv.is_active AND ` + sellableSQL + ` > 0)`
+
 // ---- catalog ----
 
 type storeProduct struct {
@@ -112,7 +117,8 @@ type storeVariant struct {
 func (h *StorefrontHandler) Products(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	where := ` WHERE p.is_active AND p.deleted_at IS NULL
-		AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)`
+		AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+		AND ` + hasSellableSQL + ``
 	args := []interface{}{}
 	add := func(v interface{}) string { args = append(args, v); return "$" + strconv.Itoa(len(args)) }
 

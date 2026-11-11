@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getProduct, img, onImgError, requestRestock, sized } from '../lib/api'
+import { getProduct, img, onImgError, sized } from '../lib/api'
 import { useCart } from '../lib/cart'
 import { useFavorites } from '../lib/favorites'
 import { discountPct, money, shortDate } from '../lib/format'
@@ -10,7 +10,6 @@ import { useStore } from '../lib/store'
 import { productText } from '../lib/wa'
 import { useCs } from '../lib/cs'
 import { HostCard } from '../components/HostCard'
-import RestockSheet from '../components/RestockSheet'
 import { useProfile, suggestSize } from '../lib/profile'
 import { getReviews } from '../lib/api'
 import Stars from '../components/Stars'
@@ -40,7 +39,7 @@ function LookRow({ card, product, state, setState }) {
       <img src={sized(img(card.image), 160)} alt={card.name} loading="lazy" onError={onImgError} style={{ width: 52, height: 68, borderRadius: 8, objectFit: 'cover' }} />
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <Link to={`/p/${card.id}`} style={{ fontSize: 13, color: 'var(--color-text)', textDecoration: 'none' }}>{card.name}</Link>
-        {variants.length === 0 ? <span style={{ fontSize: 12, color: 'var(--color-disabled)' }}>{t('common.sold_out')}</span> : (
+        {variants.length > 0 && (
           <span style={{ position: 'relative', alignSelf: 'flex-start' }}>
             <select aria-label={t('product.look_choose')} value={state.variantId || ''} onChange={(e) => setState({ ...state, variantId: Number(e.target.value) || null, on: Number(e.target.value) ? true : state.on })}
               style={{ minHeight: 32, padding: '0 26px 0 10px', borderRadius: 8, border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)', fontSize: 12, color: 'var(--color-text)', appearance: 'none' }}>
@@ -73,7 +72,6 @@ export default function Product() {
   const [tried, setTried] = useState(false)
   const [sizeSheet, setSizeSheet] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
-  const [restockOpen, setRestockOpen] = useState(false)
   const [looks, setLooks] = useState({}) // productId -> { product, on, variantId }
   const [reviews, setReviews] = useState(null)
   const { profile } = useProfile()
@@ -158,7 +156,6 @@ export default function Product() {
         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {p.live_code && <span style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--color-live)', color: '#FFFFFF', fontSize: 11, fontWeight: 700 }}>{t('product.live_code_badge', { code: p.live_code })}</span>}
           {host && <Link to={`/hosts/${host.slug}`} style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--color-bg-soft)', color: 'var(--color-text)', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>{t('product.recommended_by', { name: host.name })}</Link>}
-          {totalStock > 0 && totalStock <= 5 && <span style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--color-bg-soft)', color: 'var(--color-text)', fontSize: 11 }}>{t('product.stock_low', { n: totalStock })}</span>}
         </span>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, lineHeight: 1.4 }}>{p.name}</h1>
         {/* price left, share right; when a long price leaves no room the button drops to its own line (never squeezed or wrapped) */}
@@ -325,8 +322,7 @@ export default function Product() {
             {info}
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
               <button type="button" onClick={() => openCs(askText)} style={{ ...asBtn, ...{ ...btnOutline, borderRadius: 12, padding: '0 22px' } }}><IconChat size={18} />{t('product.ask_cs_bar')}</button>
-              {totalStock > 0 ? <button type="button" onClick={addToCart} style={{ ...btnPrimary, flex: 1, borderRadius: 12 }}>{t('common.add_to_cart')}</button>
-                : <button type="button" onClick={() => setRestockOpen(true)} style={{ ...btnPrimary, flex: 1, borderRadius: 12 }}>{t('product.restock')}</button>}
+              {totalStock > 0 && <button type="button" onClick={addToCart} style={{ ...btnPrimary, flex: 1, borderRadius: 12 }}>{t('common.add_to_cart')}</button>}
               <button type="button" aria-pressed={fav} aria-label={t('product.favorite')} onClick={() => toggle({ id: p.id, price: p.price, name: p.name, image: gallery[0] })} style={{ width: 48, height: 48, borderRadius: 12, border: '1.5px solid var(--color-border-strong)', background: 'var(--color-surface)', color: fav ? 'var(--color-live)' : 'var(--color-text)' }}><IconHeart filled={fav} /></button>
             </div>
           </div>
@@ -337,9 +333,7 @@ export default function Product() {
           {info}
           <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 76, padding: '12px 16px', boxSizing: 'border-box', background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', display: 'flex', gap: 10, zIndex: 35, maxWidth: 560, margin: '0 auto' }}>
             <button type="button" onClick={() => openCs(askText)} style={{ ...asBtn, ...{ flex: 'none', width: 104, borderRadius: 12, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}><IconChat size={18} />{t('product.ask_cs_bar')}</button>
-            {totalStock > 0
-              ? <button type="button" onClick={addToCart} style={{ flex: 1, borderRadius: 12, background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none', fontSize: 15, fontWeight: 700 }}>{t('common.add_to_cart')}</button>
-              : <button type="button" onClick={() => setRestockOpen(true)} style={{ flex: 1, borderRadius: 12, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontSize: 15, fontWeight: 700 }}>{t('product.restock')}</button>}
+            {totalStock > 0 && <button type="button" onClick={addToCart} style={{ flex: 1, borderRadius: 12, background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none', fontSize: 15, fontWeight: 700 }}>{t('common.add_to_cart')}</button>}
           </div>
         </>
       )}
@@ -393,7 +387,6 @@ export default function Product() {
           </>
         )}
       </Sheet>
-      <RestockSheet open={restockOpen} onClose={() => setRestockOpen(false)} productId={p.id} variantId={chosen?.id} />
         </div>
   )
 }

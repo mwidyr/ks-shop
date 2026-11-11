@@ -36,7 +36,7 @@ func (h *SiteHandler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	for _, p := range []string{"/", "/categories", "/hosts", "/style", "/live", "/service"} {
 		add(p, nil)
 	}
-	for _, id := range h.idList(ctx, `SELECT id FROM products WHERE is_active AND deleted_at IS NULL ORDER BY id DESC LIMIT 5000`) {
+	for _, id := range h.idList(ctx, `SELECT p.id FROM products p WHERE p.is_active AND p.deleted_at IS NULL AND `+hasSellableSQL+` ORDER BY p.id DESC LIMIT 5000`) {
 		add("/p/"+strconv.Itoa(id), nil)
 	}
 	if rows, err := h.DB.Query(ctx, `SELECT DISTINCT category FROM products WHERE is_active AND deleted_at IS NULL AND COALESCE(category,'') <> ''`); err == nil {

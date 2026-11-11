@@ -123,6 +123,7 @@ func (h *SiteHandler) cards(ctx context.Context, r *http.Request, ids []int) []s
 		FROM products p
 		WHERE p.id = ANY($1) AND p.is_active AND p.deleted_at IS NULL
 		  AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+		  AND `+hasSellableSQL+`
 		ORDER BY array_position($1, p.id)`, ids32)
 	if err != nil {
 		return out

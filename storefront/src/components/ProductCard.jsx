@@ -5,8 +5,6 @@ import { discountPct, money } from '../lib/format'
 import { useFavorites } from '../lib/favorites'
 import { IconHeart, IconPlus } from './Icons'
 import { useQuickAdd } from './QuickAdd'
-import RestockSheet from './RestockSheet'
-import { useState } from 'react'
 
 export const productPath = (p) => `/p/${p.id}`
 
@@ -19,10 +17,8 @@ export function ProductCard({ p, badgeKind, badgeText, eager, dropFrom = 0, show
   const quick = useQuickAdd()
   const pct = discountPct(p.price, p.compare_at)
   const fav = has(p.id)
-  const [restock, setRestock] = useState(false)
-  const low = p.in_stock && p.stock_left > 0 && p.stock_left <= 3
   const dropped = dropFrom > p.price
-  const kind = badgeKind || (dropped ? 'drop' : p.is_live ? 'live' : p.is_new ? 'new' : low ? 'low' : '')
+  const kind = badgeKind || (dropped ? 'drop' : p.is_live ? 'live' : p.is_new ? 'new' : '')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 14, overflow: 'hidden', background: 'var(--color-bg-soft)' }}>
@@ -32,9 +28,7 @@ export function ProductCard({ p, badgeKind, badgeText, eager, dropFrom = 0, show
         {kind === 'live' && <span style={badge('var(--color-live)')}>{p.live_code ? t('product.live_code_badge', { code: p.live_code }) : t('product.live_product')}</span>}
         {kind === 'worn' && <span style={badge('var(--color-text)')}>{badgeText}</span>}
         {kind === 'drop' && <span style={badge('var(--color-live)')}>{t('wish.drop_badge')}</span>}
-        {kind === 'low' && <span style={badge('var(--color-text)')}>{t('common.low_stock', { n: p.stock_left })}</span>}
         {kind === 'new' && <span style={badge('var(--color-text)')}>{t('common.new')}</span>}
-        {!p.in_stock && <span style={{ ...badge('rgba(30,30,35,0.78)'), left: 'auto', right: 8, top: 44 }}>{t('common.sold_out')}</span>}
         <button type="button" aria-label={t('product.favorite')} aria-pressed={fav} onClick={() => toggle({ id: p.id, price: p.price, name: p.name, image: p.image })}
           style={{ position: 'absolute', top: 6, right: 6, width: 34, height: 34, borderRadius: 17, border: 'none', background: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: fav ? 'var(--color-live)' : 'var(--color-text)' }}>
           <IconHeart filled={fav} strokeWidth={fav ? 2 : 1.8} />
@@ -53,12 +47,6 @@ export function ProductCard({ p, badgeKind, badgeText, eager, dropFrom = 0, show
           ? <><span style={{ fontSize: 12, color: 'var(--color-disabled)', textDecoration: 'line-through' }}>{money(dropFrom)}</span><span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-live)' }}>{t('wish.dropped', { amount: money(dropFrom - p.price) })}</span></>
           : pct > 0 && <><span style={{ fontSize: 12, color: 'var(--color-disabled)', textDecoration: 'line-through' }}>{money(p.compare_at)}</span>{showPct && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-live)' }}>-{pct}%</span>}</>}
       </div>
-      {!p.in_stock && (
-        <>
-          <button type="button" onClick={() => setRestock(true)} style={{ alignSelf: 'flex-start', minHeight: 32, padding: '0 12px', borderRadius: 16, border: '1.5px solid var(--color-text)', background: 'transparent', color: 'var(--color-text)', fontSize: 12, fontWeight: 700 }}>{t('restock_inline.notify')}</button>
-          <RestockSheet open={restock} onClose={() => setRestock(false)} productId={p.id} />
-        </>
-      )}
     </div>
   )
 }
