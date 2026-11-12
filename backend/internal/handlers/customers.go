@@ -34,6 +34,7 @@ type customerView struct {
 	LastPickupChainID   *int    `json:"last_pickup_chain_id"`
 	LastPickupStoreName *string `json:"last_pickup_store_name"`
 	LastPickupStoreCode *string `json:"last_pickup_store_code"`
+	LastShippingAddress string  `json:"last_shipping_address"`
 	IsBlacklisted       bool    `json:"is_blacklisted"`
 }
 
@@ -42,13 +43,19 @@ type customerView struct {
 // flow can auto-fill it when an existing customer is picked instead of asking again. Also
 // surfaces blacklist status so CS can be warned before an order is even created, not just after.
 const customerSearchColumns = `
-	SELECT c.id, c.name, c.phone, COALESCE(c.address,''), COALESCE(c.email,''), lo.pickup_chain_id, lo.pickup_store_name, lo.pickup_store_code,
+	SELECT c.id, c.name, c.phone, COALESCE(c.address,''), COALESCE(c.email,''), lo.pickup_chain_id, lo.pickup_store_name, lo.pickup_store_code, COALESCE(la.shipping_address,''),
 	       EXISTS(SELECT 1 FROM customer_labels cl WHERE cl.customer_id = c.id AND cl.label = 'blacklist')
 	FROM customers c
 	LEFT JOIN LATERAL (
 		SELECT pickup_chain_id, pickup_store_name, pickup_store_code
 		FROM orders WHERE customer_id = c.id ORDER BY created_at DESC LIMIT 1
-	) lo ON true`
+	) lo ON true
+	LEFT JOIN LATERAL (
+		SELECT o.shipping_address
+		FROM orders o JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
+		WHERE o.customer_id = c.id AND pc.chain_type = 'courier' AND COALESCE(o.shipping_address,'') <> ''
+		ORDER BY o.created_at DESC LIMIT 1
+	) la ON true`
 
 // Search finds customers by name or phone (used by Sales during checkout attribution).
 func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +83,7 @@ func (h *CustomerHandler) Search(w http.ResponseWriter, r *http.Request) {
 	list := []customerView{}
 	for rows.Next() {
 		var c customerView
-		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address, &c.Email, &c.LastPickupChainID, &c.LastPickupStoreName, &c.LastPickupStoreCode, &c.IsBlacklisted)
+		rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Address, &c.Email, &c.LastPickupChainID, &c.LastPickupStoreName, &c.LastPickupStoreCode, &c.LastShippingAddress, &c.IsBlacklisted)
 		list = append(list, c)
 	}
 	respondJSON(w, http.StatusOK, list)

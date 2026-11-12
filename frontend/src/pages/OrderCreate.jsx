@@ -91,6 +91,8 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
       onUpdate('pickupStoreCode', customer.last_pickup_store_code || '')
       onUpdate('shippingFeeDirty', false)
     }
+    // repeat order to home address: refill the last POS address (only when nothing is typed yet)
+    if (customer?.last_shipping_address && !order.shippingAddress) onUpdate('shippingAddress', customer.last_shipping_address)
   }
 
   function handleAddItems(newItems) {
@@ -207,7 +209,10 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
             <button
               key={c.id}
               type="button"
-              onClick={() => { onUpdate('pickupChainId', String(c.id)); onUpdate('shippingFeeDirty', false) }}
+              onClick={() => {
+                onUpdate('pickupChainId', String(c.id)); onUpdate('shippingFeeDirty', false)
+                if (c.chain_type === 'courier' && !order.shippingAddress && order.customer?.last_shipping_address) onUpdate('shippingAddress', order.customer.last_shipping_address)
+              }}
               className={`text-sm font-semibold px-4 py-2 rounded-lg border ${
                 String(order.pickupChainId) === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
               }`}
