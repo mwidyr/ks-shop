@@ -2536,7 +2536,7 @@
       "live_moved_link": "Pengaturan LIVE Global",
       "remove_image": "Hapus gambar",
       "outfit_cover": "Foto host (bagian atas Outfit)",
-      "outfit_cover_hint": "Landscape 3:2 (misalnya 1500 × 1000 px). Ditampilkan di bagian atas outfit ini; bentuk lain dipotong menjadi 3:2. Kosong = gambar produk pertama."
+      "outfit_cover_hint": "Potret 2:3 (misalnya 1000 × 1500 px). Ditampilkan di bagian atas outfit ini; bentuk lain dipotong menjadi 2:3. Kosong = gambar produk pertama."
     },
     "content": {
       "ed": {

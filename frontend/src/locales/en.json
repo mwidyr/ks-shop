@@ -2536,7 +2536,7 @@
       "live_moved_link": "Global LIVE Settings",
       "remove_image": "Remove image",
       "outfit_cover": "Host photo (top of the Outfit)",
-      "outfit_cover_hint": "Landscape 3:2 (for example 1500 × 1000 px). It is shown at the top of this outfit; a different shape is cropped to 3:2. Empty = the first item's picture."
+      "outfit_cover_hint": "Portrait 2:3 (for example 1000 × 1500 px). It is shown at the top of this outfit; a different shape is cropped to 2:3. Empty = the first item's picture."
     },
     "content": {
       "ed": {
