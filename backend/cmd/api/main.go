@@ -323,6 +323,8 @@ func main() {
 			r.With(view("products")).Get("/products/{id}", productH.Detail)
 			r.With(view("inventory")).Get("/inventory", productH.Inventory)
 			r.With(edit("inventory")).Patch("/variants/{variantId}/stock", productH.UpdateVariantStock)
+			r.With(edit("inventory")).Post("/inventory/3pl-import/preview", productH.TPLPreview)
+			r.With(edit("inventory")).Post("/inventory/3pl-import/apply", productH.TPLApply)
 			r.With(view("inventory")).Get("/inventory/history", productH.StockHistory)
 			r.With(view("inventory")).Get("/inventory/value", productH.InventoryValue)
 			r.With(edit("products")).Post("/products", productH.Create)

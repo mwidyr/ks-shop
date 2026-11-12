@@ -34,6 +34,14 @@ export function updateVariantStock(variantId, payload) {
   return client.patch(`/variants/${variantId}/stock`, payload).then((res) => res.data)
 }
 
+// 3PL stock sync: preview compares the file with Actual stock (no change), apply overwrites the ticked rows.
+export function previewTplImport(lines) {
+  return client.post('/inventory/3pl-import/preview', { lines }).then((res) => res.data)
+}
+export function applyTplImport(lines) {
+  return client.post('/inventory/3pl-import/apply', { lines }).then((res) => res.data)
+}
+
 export function getProduct(id) {
   return client.get(`/products/${id}`).then((res) => res.data)
 }

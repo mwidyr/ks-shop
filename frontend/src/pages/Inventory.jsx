@@ -8,6 +8,7 @@ import { resolveUrl } from '../utils/image'
 import { IconChevronDown } from '../components/icons'
 import { useMasterData } from '../context/MasterDataContext'
 import { useCanEdit } from '../context/AccessContext'
+import TplImportModal from '../components/TplImportModal'
 import { useDebouncedValue, useMediaQuery, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 
 // Shared grid template so the summary row's Total/Available/Incoming/Ordered numbers line up
@@ -324,6 +325,8 @@ export default function Inventory() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const requestId = useRef(0)
+  const canEditStock = useCanEdit()
+  const [tplOpen, setTplOpen] = useState(false)
 
   // One page (30 products) at a time, searched on the server. The old page stays on screen, dimmed,
   // while the next one loads, and only the newest request may write its result.
@@ -362,6 +365,13 @@ export default function Inventory() {
         <BigStatCard compact title={t('page_inventory.low_stock_badge')} value={lowStockCount} iconBg="bg-yellow-50" iconColor="text-yellow-600" icon="⚠️" />
         <BigStatCard compact title={t('page_inventory.oversell_variants')} value={oversellCount} iconBg="bg-red-50" iconColor="text-red-600" icon="🔴" />
       </div>
+
+      {canEditStock && (
+        <div className="flex justify-end mb-3">
+          <button type="button" onClick={() => setTplOpen(true)} className="text-sm font-medium px-4 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">{t('page_inventory.tpl_button')}</button>
+        </div>
+      )}
+      {tplOpen && <TplImportModal onClose={() => setTplOpen(false)} onApplied={reload} />}
 
       <div className="flex gap-2 mb-4">
         {[['current', t('page_inventory.tab_current')], ['history', t('page_inventory.tab_history')]].map(([key, label]) => (
