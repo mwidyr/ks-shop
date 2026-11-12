@@ -42,6 +42,7 @@ type liveHostDTO struct {
 	TikTokAccountID *int    `json:"tiktok_account_id"`
 	TikTokID        string  `json:"tiktok_id,omitempty"`
 	Status          string  `json:"status"` // live | scheduled | offline
+	Off             bool    `json:"off"`    // ticked OFF in CEK VIEWS Settings: never shown as LIVE
 	Manual          bool    `json:"manual"` // LIVE because of a manual Start LIVE (window_end = its automatic end)
 	WindowEnd       *string `json:"window_end,omitempty"`
 	NextAt          *string `json:"next_at,omitempty"`
@@ -158,6 +159,7 @@ func (h *SiteAdminHandler) LiveSettings(w http.ResponseWriter, r *http.Request) 
 		}
 		st := x.stateAt(now)
 		hosts[i].Status = st.Status
+		hosts[i].Off = x.Off
 		hosts[i].Manual = st.Manual
 		if st.Window != nil {
 			s := st.Window.End.Format(time.RFC3339)
@@ -326,55 +328,4 @@ func (h *SiteAdminHandler) StartLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"status": "live", "manual": true, "until": until.Format(time.RFC3339)})
-}
-
-// EndLive serves POST /admin/live/hosts/{id}/end: the host stops being LIVE now. A manual session is closed, and the
-// scheduled window that is running (if any) is marked ended too, so the same shift never switches the host back to
-// LIVE by itself; the next scheduled window starts as usual. The operational live_sessions are not touched.
-func (h *SiteAdminHandler) EndLive(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(chi.URLParam(r, "id"))
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	ctx := r.Context()
-	x := loadHostLive(ctx, h.DB, []int32{int32(id)})[id]
-	if x == nil {
-		respondError(w, http.StatusNotFound, "host not found")
-		return
-	}
-	now := time.Now()
-	st := x.stateAt(now)
-	if st.Status != "live" {
-		respondError(w, http.StatusConflict, "host is not LIVE right now")
-		return
-	}
-	var uid *int
-	if c := getClaimsSafe(r); c != nil {
-		uid = &c.UserID
-	}
-	tx, err := h.DB.Begin(ctx)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	defer tx.Rollback(ctx)
-	if st.Manual {
-		if _, err := tx.Exec(ctx, `UPDATE host_live_manual SET ended_at=now(), ended_by=$2 WHERE host_id=$1 AND ended_at IS NULL`, id, uid); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to end LIVE")
-			return
-		}
-	}
-	if w0, ok := x.Rule.current(now); ok && len(x.Rule.Ranges) > 0 {
-		if _, err := tx.Exec(ctx, `INSERT INTO host_live_ends (host_id, window_start) VALUES ($1,$2) ON CONFLICT DO NOTHING`, id, w0.Start); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to end LIVE")
-			return
-		}
-	}
-	logActivity(ctx, tx, "host", id, "live_ended", uid, "manual")
-	if err := tx.Commit(ctx); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to end LIVE")
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]string{"status": "ended"})
 }

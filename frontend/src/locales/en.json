@@ -2534,7 +2534,9 @@
       "live_moved_title": "Display order",
       "live_moved": "LIVE links, schedules and status are managed in",
       "live_moved_link": "Global LIVE Settings",
-      "remove_image": "Remove image"
+      "remove_image": "Remove image",
+      "outfit_cover": "Host photo (top of the Outfit)",
+      "outfit_cover_hint": "Landscape 3:2 (for example 1500 × 1000 px). It is shown at the top of this outfit; a different shape is cropped to 3:2. Empty = the first item's picture."
     },
     "content": {
       "ed": {
@@ -2899,9 +2901,6 @@
       "col_url": "LIVE URL",
       "col_status": "Status",
       "no_shift": "No shift",
-      "end_live": "End LIVE",
-      "end_confirm": "End the current LIVE of {{name}}? The next scheduled session starts as usual.",
-      "ended": "LIVE ended for this session",
       "url_saved": "LIVE link saved",
       "status_live": "LIVE",
       "status_scheduled": "Starts soon",
@@ -2912,7 +2911,10 @@
       "start_confirm": "Start LIVE for {{name}} now? The host shows as LIVE immediately and stays LIVE until you press End LIVE (or after 12 hours). The host's schedule does not change.",
       "started": "LIVE started",
       "manual": "Manual",
-      "manual_hint": "Started manually; ends with End LIVE or automatically after 12 hours"
+      "manual_hint": "Started manually; ends with End LIVE or automatically after 12 hours",
+      "url_auto_hint": "Follows the TikTok account set in CEK VIEWS Settings",
+      "off_badge": "OFF",
+      "off_hint": "Ticked OFF in CEK VIEWS Settings, so the website does not show this host as LIVE"
     },
     "banners": {
       "title": "Homepage banners",

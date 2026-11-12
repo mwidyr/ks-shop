@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 const api = vi.hoisted(() => ({
   getLiveSettings: vi.fn(), saveLiveShift: vi.fn(() => Promise.resolve({})), saveLiveLocation: vi.fn(() => Promise.resolve({})),
-  saveLiveUrl: vi.fn(() => Promise.resolve({})), endLive: vi.fn(() => Promise.resolve({})), startLive: vi.fn(() => Promise.resolve({})),
+  saveLiveUrl: vi.fn(() => Promise.resolve({})), startLive: vi.fn(() => Promise.resolve({})),
 }))
 vi.mock('../api/website', () => api)
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k, o) => (o?.name ? `${k}:${o.name}` : k) }) }))
@@ -68,18 +68,15 @@ describe('WebsiteLive', () => {
     expect(api.saveLiveLocation).toHaveBeenCalledWith(1, { work_days: [0, 1, 2, 3, 4, 5, 6], days_off: [{ date: '2026-12-25', note: 'Christmas' }] })
   })
 
-  it('saves a changed LIVE URL on blur and only enables End LIVE for a host that is live', async () => {
+  it('saves a changed LIVE URL on blur; a host with a TikTok account has a read-only auto link', async () => {
     const el = await mount()
     const rows = [...el.querySelectorAll('tbody tr')]
     const rara = rows.find((r) => r.textContent.includes('Rara')); const lala = rows.find((r) => r.textContent.includes('Lala'))
-    expect(buttons(rara, 'end_live')[0].disabled).toBe(false)
-    expect(buttons(lala, 'end_live')[0].disabled).toBe(true)
+    expect(buttons(rara, 'end_live')).toHaveLength(0)
     const input = lala.querySelector('input')
     await setValue(input, 'https://www.tiktok.com/@lala/live')
     await act(async () => { input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })
     expect(api.saveLiveUrl).toHaveBeenCalledWith(11, 'https://www.tiktok.com/@lala/live')
-    await act(async () => { buttons(rara, 'end_live')[0].click() })
-    expect(api.endLive).toHaveBeenCalledWith(10)
   })
 
   it('Start LIVE works any time for a host that is not LIVE (also without a shift) and is off while LIVE', async () => {

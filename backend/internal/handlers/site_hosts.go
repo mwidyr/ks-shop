@@ -117,11 +117,13 @@ type siteOutfitItem struct {
 }
 
 type siteOutfit struct {
-	ID    int              `json:"id"`
-	Title string           `json:"title"`
-	Tag   string           `json:"tag,omitempty"`
-	Items []siteOutfitItem `json:"items"`
-	Total float64          `json:"total"`
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+	Tag   string `json:"tag,omitempty"`
+	// CoverURL: the host photo (3:2) at the top of the outfit; empty = the first item's picture is used.
+	CoverURL string           `json:"cover_url,omitempty"`
+	Items    []siteOutfitItem `json:"items"`
+	Total    float64          `json:"total"`
 }
 
 // wornIDs are the host's worn products: manual rows of the given kinds, else (for "worn") the
@@ -213,10 +215,10 @@ func (h *SiteHandler) Host(w http.ResponseWriter, r *http.Request) {
 	}
 
 	outfits := []siteOutfit{}
-	if orows, err := h.DB.Query(ctx, `SELECT id, title, COALESCE(tag,'') FROM host_outfits WHERE host_id=$1 ORDER BY sort_order, id`, id); err == nil {
+	if orows, err := h.DB.Query(ctx, `SELECT id, title, COALESCE(tag,''), COALESCE(cover_url,'') FROM host_outfits WHERE host_id=$1 ORDER BY sort_order, id`, id); err == nil {
 		for orows.Next() {
 			var o siteOutfit
-			if orows.Scan(&o.ID, &o.Title, &o.Tag) == nil {
+			if orows.Scan(&o.ID, &o.Title, &o.Tag, &o.CoverURL) == nil {
 				o.Items = []siteOutfitItem{}
 				outfits = append(outfits, o)
 			}

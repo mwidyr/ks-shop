@@ -2534,7 +2534,9 @@
       "live_moved_title": "Urutan tampil",
       "live_moved": "Link LIVE, jadwal, dan status diatur di",
       "live_moved_link": "Pengaturan LIVE Global",
-      "remove_image": "Hapus gambar"
+      "remove_image": "Hapus gambar",
+      "outfit_cover": "Foto host (bagian atas Outfit)",
+      "outfit_cover_hint": "Landscape 3:2 (misalnya 1500 × 1000 px). Ditampilkan di bagian atas outfit ini; bentuk lain dipotong menjadi 3:2. Kosong = gambar produk pertama."
     },
     "content": {
       "ed": {
@@ -2899,9 +2901,6 @@
       "col_url": "URL LIVE",
       "col_status": "Status",
       "no_shift": "Belum ada shift",
-      "end_live": "End LIVE",
-      "end_confirm": "Akhiri LIVE {{name}} yang sedang berjalan? Sesi terjadwal berikutnya tetap mulai seperti biasa.",
-      "ended": "LIVE sesi ini diakhiri",
       "url_saved": "Link LIVE tersimpan",
       "status_live": "LIVE",
       "status_scheduled": "Segera mulai",
@@ -2912,7 +2911,10 @@
       "start_confirm": "Mulai LIVE {{name}} sekarang? Host langsung tampil LIVE sampai End LIVE ditekan (atau otomatis berakhir setelah 12 jam). Jadwal host tidak berubah.",
       "started": "LIVE dimulai",
       "manual": "Manual",
-      "manual_hint": "Dimulai manual; berakhir dengan End LIVE atau otomatis setelah 12 jam"
+      "manual_hint": "Dimulai manual; berakhir dengan End LIVE atau otomatis setelah 12 jam",
+      "url_auto_hint": "Mengikuti akun TikTok di CEK VIEWS Settings",
+      "off_badge": "OFF",
+      "off_hint": "Dicentang OFF di CEK VIEWS Settings, jadi website tidak menampilkan host ini sedang LIVE"
     },
     "banners": {
       "title": "Banner beranda",

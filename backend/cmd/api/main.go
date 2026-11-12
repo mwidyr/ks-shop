@@ -273,7 +273,6 @@ func main() {
 			r.With(edit("website_live")).Put("/admin/live/locations/{id}", siteAdminH.SaveLiveLocation)
 			r.With(edit("website_live")).Put("/admin/live/hosts/{id}/url", siteAdminH.SaveLiveURL)
 			r.With(edit("website_live")).Post("/admin/live/hosts/{id}/start", siteAdminH.StartLive)
-			r.With(edit("website_live")).Post("/admin/live/hosts/{id}/end", siteAdminH.EndLive)
 			r.With(view("website_content")).Get("/admin/content", siteAdminH.ContentList)
 			r.With(view("website_content")).Get("/admin/content/slug-check", siteAdminH.ContentSlugCheck)
 			r.With(view("website_content")).Get("/admin/content/tags", siteAdminH.ContentTags)

@@ -34,17 +34,38 @@ const TEXT = {
 }
 const tx = () => TEXT[getLang()] || TEXT.id
 
+// WhatsApp Web / Desktop and LINE for PC show emoji sent through a link as "�", so on a computer the message goes
+// out without them (phones render them fine and keep them). Pictographs, flags, keycaps and the joiners / variation
+// selectors that belong to them are removed, then the leftover double spaces and blank edges are tidied.
+const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{25A0}-\u{27BF}\u{2900}-\u{297F}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu
+export const isMobileDevice = () => typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent || '')
+export function stripEmoji(text) {
+  return String(text ?? '').replace(EMOJI, '').split('\n').map((l) => l.replace(/ {2,}/g, ' ').trim()).join('\n').replace(/^\n+|\n+$/g, '')
+}
+const forDevice = (text) => (isMobileDevice() ? text : stripEmoji(text))
+
+// A wa.me link built by the server (store settings text): clean its message the same way on a computer.
+export function cleanWaUrl(url) {
+  if (!url || isMobileDevice()) return url
+  try {
+    const u = new URL(url)
+    const text = u.searchParams.get('text')
+    if (text === null) return url
+    return `${u.origin}${u.pathname}?text=${encodeURIComponent(stripEmoji(text))}`
+  } catch { return url }
+}
+
 // https://wa.me/<number>?text=<message>
 export function waUrl(number, text) {
   if (!number) return ''
-  return `https://wa.me/${number}?text=${encodeURIComponent(text || '')}`
+  return `https://wa.me/${number}?text=${encodeURIComponent(forDevice(text || ''))}`
 }
 
 // https://line.me/R/oaMessage/%40<id>/?<url-encoded message>; "@" must be %40 and spaces %20.
 export function lineUrl(lineId, text) {
   const id = String(lineId || '').trim()
   if (!id) return ''
-  return `https://line.me/R/oaMessage/${encodeURIComponent(id.startsWith('@') ? id : `@${id}`)}/?${encodeURIComponent(text || '')}`
+  return `https://line.me/R/oaMessage/${encodeURIComponent(id.startsWith('@') ? id : `@${id}`)}/?${encodeURIComponent(forDevice(text || ''))}`
 }
 
 // General question: CS / header / menu / home / host / error buttons.

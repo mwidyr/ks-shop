@@ -184,7 +184,7 @@ export default function Host() {
           <div style={{ padding: `0 ${px}px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
             {outfits.map((o) => (
               <div key={o.id} style={{ borderRadius: 18, background: 'var(--color-surface)', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
-                <img src={sized(img(o.cover_url || o.items[0]?.image), 800)} alt={o.title} loading="lazy" onError={onImgError} style={{ width: '100%', height: 300, objectFit: 'cover', objectPosition: 'center 25%' }} />
+                <img src={sized(img(o.cover_url || o.items[0]?.image), 800)} alt={o.title} loading="lazy" onError={onImgError} style={{ width: '100%', aspectRatio: '3 / 2', height: 'auto', display: 'block', objectFit: 'cover', objectPosition: 'center 25%', background: 'var(--color-bg-soft)' }} />
                 <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <b style={{ fontSize: 15 }}>{o.title}</b>
                   {o.items.map((it) => (

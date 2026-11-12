@@ -6,7 +6,7 @@ import Stars from '../components/Stars'
 import { money, orderTab, shortDateTime } from '../lib/format'
 import { listLocalOrders } from '../lib/localOrders'
 import { useSeo } from '../lib/seo'
-import { orderQuestionText } from '../lib/wa'
+import { cleanWaUrl, orderQuestionText } from '../lib/wa'
 import { normPhone } from '../lib/phone'
 import { useCs } from '../lib/cs'
 import { IconHeadset, IconWhatsApp } from '../components/Icons'
@@ -120,7 +120,7 @@ export default function OrderDetail() {
         <button type="button" onClick={askCs} style={{ ...asBtn, ...{ height: 52, borderRadius: 14, background: 'var(--color-text)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 15, fontWeight: 700, textDecoration: 'none' } }}>
           <IconHeadset size={18} />{t('order.ask_cs')}
         </button>
-        {wa?.url && <a href={wa.url} target="_blank" rel="noreferrer" style={btnWhatsApp}><IconWhatsApp size={18} />{t('order.send_wa')}</a>}
+        {wa?.url && <a href={cleanWaUrl(wa.url)} target="_blank" rel="noreferrer" style={btnWhatsApp}><IconWhatsApp size={18} />{t('order.send_wa')}</a>}
         {o.status === 'delivered' && <Link to={`/orders/${o.order_no}/return`} style={btnOutline}>{t('orders.return_btn')}</Link>}
       </div>
       <Sheet open={Boolean(rv)} onClose={() => setRv(null)} title={rv ? t('reviews.for', { name: rv.item.name }) : ''}

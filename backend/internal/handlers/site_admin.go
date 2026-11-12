@@ -334,6 +334,7 @@ type hostRelations struct {
 	Outfits []struct {
 		Title      string `json:"title"`
 		Tag        string `json:"tag"`
+		CoverURL   string `json:"cover_url"`
 		VariantIDs []int  `json:"variant_ids"`
 	} `json:"outfits"`
 	Coupons []struct {
@@ -383,15 +384,15 @@ func (h *SiteAdminHandler) Host(w http.ResponseWriter, r *http.Request) {
 		}
 		rows.Close()
 	}
-	if orows, err := h.DB.Query(r.Context(), `SELECT id, title, COALESCE(tag,'') FROM host_outfits WHERE host_id=$1 ORDER BY sort_order, id`, id); err == nil {
+	if orows, err := h.DB.Query(r.Context(), `SELECT id, title, COALESCE(tag,''), COALESCE(cover_url,'') FROM host_outfits WHERE host_id=$1 ORDER BY sort_order, id`, id); err == nil {
 		type oid struct {
-			id         int
-			title, tag string
+			id                int
+			title, tag, cover string
 		}
 		var os []oid
 		for orows.Next() {
 			var o oid
-			if orows.Scan(&o.id, &o.title, &o.tag) == nil {
+			if orows.Scan(&o.id, &o.title, &o.tag, &o.cover) == nil {
 				os = append(os, o)
 			}
 		}
@@ -401,8 +402,9 @@ func (h *SiteAdminHandler) Host(w http.ResponseWriter, r *http.Request) {
 			rel.Outfits = append(rel.Outfits, struct {
 				Title      string `json:"title"`
 				Tag        string `json:"tag"`
+				CoverURL   string `json:"cover_url"`
 				VariantIDs []int  `json:"variant_ids"`
-			}{o.title, o.tag, ids})
+			}{o.title, o.tag, o.cover, ids})
 		}
 	}
 	if rows, err := h.DB.Query(r.Context(), `SELECT hc.promotion_id, COALESCE(p.code,''), COALESCE(hc.title,''), COALESCE(hc.subtitle,'') FROM host_coupons hc JOIN promotions p ON p.id = hc.promotion_id WHERE hc.host_id=$1 ORDER BY hc.sort_order`, id); err == nil {
@@ -535,7 +537,7 @@ func replaceHostRelations(ctx context.Context, tx pgx.Tx, id int, rel *hostRelat
 			continue
 		}
 		var oid int
-		if err := tx.QueryRow(ctx, `INSERT INTO host_outfits (host_id, title, tag, sort_order) VALUES ($1,$2,NULLIF($3,''),$4) RETURNING id`, id, o.Title, o.Tag, i).Scan(&oid); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO host_outfits (host_id, title, tag, cover_url, sort_order) VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),$5) RETURNING id`, id, o.Title, o.Tag, strings.TrimSpace(o.CoverURL), i).Scan(&oid); err != nil {
 			return err
 		}
 		for j, v := range o.VariantIDs {

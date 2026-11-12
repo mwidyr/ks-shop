@@ -86,10 +86,9 @@ export const setMemberReferralBlocked = (id, referral_blocked) => patch(`/admin/
 export const getRewardSettings = () => get('/admin/reward-settings')
 export const saveRewardSettings = (body) => put('/admin/reward-settings', body)
 
-// Global LIVE Settings (shift hours, location working days, host LIVE links, End LIVE)
+// Global LIVE Settings (shift hours, location working days, host LIVE links)
 export const getLiveSettings = () => get('/admin/live/settings')
 export const saveLiveShift = (shift, ranges) => put(`/admin/live/shifts/${shift}`, { ranges })
 export const saveLiveLocation = (id, body) => put(`/admin/live/locations/${id}`, body)
 export const saveLiveUrl = (id, live_url) => put(`/admin/live/hosts/${id}/url`, { live_url })
 export const startLive = (id) => post(`/admin/live/hosts/${id}/start`, {})
-export const endLive = (id) => post(`/admin/live/hosts/${id}/end`, {})

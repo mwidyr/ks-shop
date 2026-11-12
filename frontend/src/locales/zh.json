@@ -2534,7 +2534,9 @@
       "live_moved_title": "顯示順序",
       "live_moved": "直播連結、時段與狀態請在以下頁面管理：",
       "live_moved_link": "全域直播設定",
-      "remove_image": "移除圖片"
+      "remove_image": "移除圖片",
+      "outfit_cover": "主持人照片（穿搭頂部）",
+      "outfit_cover_hint": "橫式 3:2（例如 1500 × 1000 px）。顯示在此穿搭的最上方；其他比例會裁切成 3:2。留空則使用第一件商品的圖片。"
     },
     "content": {
       "ed": {
@@ -2899,9 +2901,6 @@
       "col_url": "直播連結",
       "col_status": "狀態",
       "no_shift": "未設定班別",
-      "end_live": "結束直播",
-      "end_confirm": "要結束 {{name}} 目前的直播嗎？下一場排定的直播仍會照常開始。",
-      "ended": "已結束本場直播",
       "url_saved": "直播連結已儲存",
       "status_live": "直播中",
       "status_scheduled": "即將開始",
@@ -2912,7 +2911,10 @@
       "start_confirm": "現在開始 {{name}} 的直播？主播會立即顯示為直播中，直到按下結束直播（或 12 小時後自動結束）。主播排程不會改變。",
       "started": "已開始直播",
       "manual": "手動",
-      "manual_hint": "手動開始；按結束直播或 12 小時後自動結束"
+      "manual_hint": "手動開始；按結束直播或 12 小時後自動結束",
+      "url_auto_hint": "依 CEK VIEWS 設定的 TikTok 帳號自動產生",
+      "off_badge": "OFF",
+      "off_hint": "已在 CEK VIEWS 設定中勾選 OFF，網站不會顯示此主持人正在直播"
     },
     "banners": {
       "title": "首頁橫幅",

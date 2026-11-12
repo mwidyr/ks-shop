@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { endLive, getLiveSettings, startLive, saveLiveLocation, saveLiveShift, saveLiveUrl } from '../api/website'
+import { getLiveSettings, startLive, saveLiveLocation, saveLiveShift, saveLiveUrl } from '../api/website'
 import Toast, { useToast } from '../components/Toast'
 import { btnCls, btnGhost, cardCls, inputCls } from '../components/website/Pickers'
 import { formatTaipei, rangesValid } from '../utils/liveTime'
@@ -164,9 +164,11 @@ function Hosts({ hosts, l, t, onChanged, onError }) {
 function HostRow({ h, l, t, onChanged, onError }) {
   const [url, setUrl] = useState(h.live_url)
   const [busy, setBusy] = useState(false)
+  // the link follows the TikTok account assigned in CEK VIEWS Settings, so it is not typed by hand
+  const auto = Boolean(h.tiktok_account_id)
   useEffect(() => { setUrl(h.live_url) }, [h.live_url])
   async function saveUrl() {
-    if (url.trim() === (h.live_url || '')) return
+    if (auto || url.trim() === (h.live_url || '')) return
     setBusy(true); onError('')
     try { await saveLiveUrl(h.id, url.trim()); onChanged(l('url_saved')) } catch (e) { onError(e.response?.data?.error || l('save_failed')) } finally { setBusy(false) }
   }
@@ -174,11 +176,6 @@ function HostRow({ h, l, t, onChanged, onError }) {
     if (!window.confirm(l('start_confirm', { name: h.name }))) return
     setBusy(true); onError('')
     try { await startLive(h.id); onChanged(l('started')) } catch (e) { onError(e.response?.data?.error || l('save_failed')); onChanged('') } finally { setBusy(false) }
-  }
-  async function end() {
-    if (!window.confirm(l('end_confirm', { name: h.name }))) return
-    setBusy(true); onError('')
-    try { await endLive(h.id); onChanged(l('ended')) } catch (e) { onError(e.response?.data?.error || l('save_failed')); onChanged('') } finally { setBusy(false) }
   }
   return (
     <tr>
@@ -192,13 +189,13 @@ function HostRow({ h, l, t, onChanged, onError }) {
       </td>
       <td className="pr-3">
         <div className="flex gap-2">
-          <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={saveUrl} placeholder="https://www.tiktok.com/@…/live" className={inputCls} aria-label={l('col_url')} />
+          <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={saveUrl} placeholder="https://www.tiktok.com/@…/live" className={`${inputCls} ${auto ? 'bg-gray-50 text-gray-500' : ''}`} aria-label={l('col_url')} readOnly={auto} title={auto ? l('url_auto_hint') : undefined} />
           <button type="button" disabled={busy || h.status === 'live'} onClick={start} className={`${btnGhost} whitespace-nowrap ${h.status !== 'live' ? 'border-green-400 text-green-700' : ''}`}>{l('start_live')}</button>
-          <button type="button" disabled={busy || h.status !== 'live'} onClick={end} className={`${btnGhost} whitespace-nowrap ${h.status === 'live' ? 'border-red-300 text-red-700' : ''}`}>{l('end_live')}</button>
         </div>
       </td>
       <td>
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLS[h.status] || STATUS_CLS.offline}`}>{l(`status_${h.status}`)}</span>
+        {h.off && <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold bg-gray-200 text-gray-700" title={l('off_hint')}>{l('off_badge')}</span>}
         {h.status === 'live' && h.manual && <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold bg-gray-800 text-white" title={l('manual_hint')}>{l('manual')}</span>}
         {h.status !== 'live' && h.next_at && <p className="text-xs text-gray-400 mt-0.5">{l('next')}: {formatTaipei(h.next_at)}</p>}
         {h.status === 'live' && h.window_end && <p className="text-xs text-gray-400 mt-0.5">{l('until')}: {formatTaipei(h.window_end)}</p>}

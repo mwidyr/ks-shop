@@ -16,11 +16,17 @@ type hostLive struct {
 	Ended      map[int64]bool
 	// ManualUntil: end of the running manual "Start LIVE" session, nil when there is none.
 	ManualUntil *time.Time
+	// Off: the host is ticked OFF in CEK VIEWS Settings, so the website never shows them as LIVE.
+	Off bool
 }
 
 // stateAt is the host's status now: the schedule, an ended window and a manual session combined.
 func (x *hostLive) stateAt(now time.Time) liveState {
-	return liveStateManual(now, x.Rule, x.Ended, x.ManualUntil)
+	st := liveStateManual(now, x.Rule, x.Ended, x.ManualUntil)
+	if x.Off && st.Status == "live" {
+		st.Status, st.Manual, st.Window = "offline", false, nil
+	}
+	return st
 }
 
 // loadShiftRanges reads the default hours of every shift.
@@ -53,10 +59,10 @@ func loadHostLive(ctx context.Context, db queryer, hostIDs []int32) map[int]*hos
 	shifts := loadShiftRanges(ctx, db)
 	var locIDs []int32
 	seenLoc := map[int]bool{}
-	if rows, err := db.Query(ctx, `SELECT id, COALESCE(shift,''), location_id, COALESCE(live_url,'') FROM hosts WHERE id = ANY($1)`, hostIDs); err == nil {
+	if rows, err := db.Query(ctx, `SELECT h.id, COALESCE(h.shift,''), h.location_id, COALESCE(h.live_url,''), COALESCE(ca.is_off,false) FROM hosts h LEFT JOIN cek_views_assignments ca ON ca.host_id = h.id WHERE h.id = ANY($1)`, hostIDs); err == nil {
 		for rows.Next() {
 			x := &hostLive{Ended: map[int64]bool{}}
-			if rows.Scan(&x.HostID, &x.Shift, &x.LocationID, &x.URL) != nil {
+			if rows.Scan(&x.HostID, &x.Shift, &x.LocationID, &x.URL, &x.Off) != nil {
 				continue
 			}
 			x.Rule = liveRule{Ranges: shifts[x.Shift], DaysOff: map[string]bool{}}

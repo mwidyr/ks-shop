@@ -428,6 +428,8 @@ func (h *TikTokHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "account not found")
 		return
 	}
+	// a renamed account changes the LIVE link of the host(s) assigned to it
+	syncHostLiveURLs(r.Context(), h.DB)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

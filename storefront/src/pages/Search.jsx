@@ -59,7 +59,6 @@ export default function Search() {
         </label>
       </div>
 
-      {state === 'idle' && <p style={{ padding: 24, fontSize: 14, color: 'var(--color-text-2)', lineHeight: 1.7 }}>{t('search.hint')}</p>}
       {state === 'loading' && <div style={{ paddingTop: 16 }}><ProductGridSkeleton n={4} /></div>}
       {state === 'error' && <ErrorState title={t('search.error')} onRetry={() => setQ((x) => x + ' ')} />}
       {none && <EmptyState title={t('search.none_title', { q: text })} text={t('search.none_text')} action={<Link to="/service" style={{ color: 'var(--color-primary-strong)', fontWeight: 700 }}>{t('common.ask_cs')}</Link>} />}

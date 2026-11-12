@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	appmw "ordermgmt/internal/middleware"
@@ -93,6 +94,20 @@ func (h *CekViewsHandler) Assignments(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"hosts": hosts, "accounts": accounts})
 }
 
+// syncHostLiveURLs makes every assigned Host's LIVE link follow the TikTok account CEK VIEWS Settings gives them:
+// https://www.tiktok.com/@<username>/live. Run after an assignment is saved or an account is renamed, so the link
+// in Global LIVE Settings and on the website never has to be updated by hand. Hosts without an account keep their link.
+func syncHostLiveURLs(ctx context.Context, db interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}) error {
+	_, err := db.Exec(ctx, `
+		UPDATE hosts h SET live_url = 'https://www.tiktok.com/@' || ltrim(ta.tiktok_id, '@') || '/live', live_url_expires_at = NULL
+		FROM cek_views_assignments ca JOIN tiktok_accounts ta ON ta.id = ca.tiktok_account_id
+		WHERE ca.host_id = h.id AND btrim(ta.tiktok_id) <> ''
+		  AND h.live_url IS DISTINCT FROM 'https://www.tiktok.com/@' || ltrim(ta.tiktok_id, '@') || '/live'`)
+	return err
+}
+
 // SaveAssignments stores the account and OFF flag of every listed Host in one transaction.
 func (h *CekViewsHandler) SaveAssignments(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -121,6 +136,10 @@ func (h *CekViewsHandler) SaveAssignments(w http.ResponseWriter, r *http.Request
 			respondError(w, http.StatusBadRequest, "failed to save (unknown host or TikTok account?)")
 			return
 		}
+	}
+	if err := syncHostLiveURLs(ctx, tx); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update LIVE links")
+		return
 	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")

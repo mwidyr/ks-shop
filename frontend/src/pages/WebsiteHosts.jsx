@@ -88,7 +88,7 @@ export default function WebsiteHosts() {
         profile: { ...p, height_cm: p.height_cm === '' ? null : p.height_cm, weight_kg: p.weight_kg === '' ? null : p.weight_kg },
         relations: {
           products: rel.products.map((x) => ({ product_id: x.product_id, kind: x.kind, wear_size: x.wear_size || '' })),
-          outfits: rel.outfits.map((o) => ({ title: o.title, tag: o.tag || '', variant_ids: o.variant_ids })),
+          outfits: rel.outfits.map((o) => ({ title: o.title, tag: o.tag || '', cover_url: o.cover_url || '', variant_ids: o.variant_ids })),
           coupons: rel.coupons.map((c) => ({ promotion_id: c.promotion_id, title: c.title || '', subtitle: c.subtitle || '' })),
         },
       }
@@ -178,6 +178,8 @@ export default function WebsiteHosts() {
                   <input value={o.tag || ''} onChange={(e) => upd('outfits', i, { tag: e.target.value })} placeholder={h('outfit_tag')} className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-40" />
                   <button type="button" onClick={() => del('outfits', i)} className={btnGhost}>{t('page_website.common.remove')}</button>
                 </div>
+                <ImageField label={h('outfit_cover')} value={o.cover_url} onChange={(v) => upd('outfits', i, { cover_url: v })} />
+                <p className="text-xs text-gray-500 -mt-1">{h('outfit_cover_hint')}</p>
                 <ul className="text-sm space-y-1">
                   {o.variant_ids.map((vid, j) => (
                     <li key={vid} className="flex items-center gap-2"><span className="flex-1 truncate">{variantLabelById(products, vid)}</span><button type="button" onClick={() => upd('outfits', i, { variant_ids: o.variant_ids.filter((_, k) => k !== j) })} className={btnGhost}>×</button></li>
@@ -186,7 +188,7 @@ export default function WebsiteHosts() {
                 <VariantPicker onPick={(v) => upd('outfits', i, { variant_ids: [...o.variant_ids, v.id] })} />
               </div>
             ))}
-            <button type="button" onClick={() => setRel((cur) => ({ ...cur, outfits: [...cur.outfits, { title: '', tag: '', variant_ids: [] }] }))} className={btnGhost}>{h('add_outfit')}</button>
+            <button type="button" onClick={() => setRel((cur) => ({ ...cur, outfits: [...cur.outfits, { title: '', tag: '', cover_url: '', variant_ids: [] }] }))} className={btnGhost}>{h('add_outfit')}</button>
           </Fold>
 
           <Fold title={h('coupons')}>

@@ -197,3 +197,25 @@ func TestManualLiveWithoutAnySchedule(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 }
+
+// A host ticked OFF in CEK VIEWS is never shown as LIVE, scheduled or manual; unticked it is LIVE again.
+func TestHostLiveOffInCekViews(t *testing.T) {
+	x := &hostLive{Rule: ruleOf(t, morning), Ended: map[int64]bool{}}
+	now := tw("2026-10-23 08:00")
+	if x.stateAt(now).Status != "live" {
+		t.Fatalf("scheduled window should be live: %+v", x.stateAt(now))
+	}
+	x.Off = true
+	if st := x.stateAt(now); st.Status == "live" || st.Manual || st.Window != nil {
+		t.Fatalf("OFF host must not be live: %+v", st)
+	}
+	until := now.Add(time.Hour)
+	x.ManualUntil = &until
+	if x.stateAt(now).Status == "live" {
+		t.Fatal("OFF also beats a manual Start LIVE")
+	}
+	x.Off = false
+	if x.stateAt(now).Status != "live" {
+		t.Fatal("back to LIVE once OFF is cleared")
+	}
+}
