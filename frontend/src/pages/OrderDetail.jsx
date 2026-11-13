@@ -14,6 +14,7 @@ import { uploadImageFile } from '../utils/image'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { copyToClipboard } from '../utils/clipboard'
 import CopyPhone from '../components/CopyPhone'
+import EditPromotionsModal from '../components/EditPromotionsModal'
 import EditOrderModal from '../components/EditOrderModal'
 import EditGroupModal from '../components/EditGroupModal'
 import { useAuth } from '../context/AuthContext'
@@ -406,6 +407,7 @@ export default function OrderDetail() {
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [pickupModalOpen, setPickupModalOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [promoOpen, setPromoOpen] = useState(false)
   const [groupEditOpen, setGroupEditOpen] = useState(false)
   const [pickupChains, setPickupChains] = useState([])
 
@@ -536,7 +538,7 @@ export default function OrderDetail() {
       '', '',
       t('page_order_detail.copy_products_header'),
       ...items.map((it) => t('page_order_detail.copy_item_line', {
-        sku: it.product_sku, name: it.product_name, color: it.color, size: it.size, qty: it.qty,
+        sku: it.product_sku, name: it.is_gift ? `${it.product_name} (${t('page_order_detail.gift_label')})` : it.product_name, color: it.color, size: it.size, qty: it.qty,
         price: fmtNT(it.price), subtotal: fmtNT(it.price * it.qty),
       })),
       '', '',
@@ -680,7 +682,7 @@ export default function OrderDetail() {
               <div key={item.id} className="p-3">
                 <OrderLineItem
                   sku={item.product_sku}
-                  productName={item.product_name}
+                  productName={item.is_gift ? `${item.product_name} · ${t('page_order_detail.gift_label')}` : item.product_name}
                   imageUrl={item.image_url}
                   color={item.color}
                   size={item.size}
@@ -710,6 +712,27 @@ export default function OrderDetail() {
               <div className="flex items-center justify-between text-red-600">
                 <span>{t('page_order_detail.promotion_discount_label')} {order.promotion_code && <span className="font-mono text-[10px] text-gray-400">({order.promotion_code})</span>}</span>
                 <span>-{formatCurrency(order.promotion_discount_amount)}</span>
+              </div>
+            )}
+            {((order.promotions || []).length > 0 || (order.status === 'pending' && !locked)) && (
+              <div className="rounded-lg bg-gray-50 border border-gray-100 p-2 my-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-600">{t('page_order_detail.promotions_title')}</span>
+                  {order.status === 'pending' && !locked && !order.shipment_group_id && (
+                    <button onClick={() => setPromoOpen(true)} className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-white">{t('page_order_detail.promo_edit_button')}</button>
+                  )}
+                </div>
+                {(order.promotions || []).map((p) => (
+                  <div key={p.promotion_id} className="flex items-start justify-between gap-2 text-xs text-gray-600 mt-1">
+                    <span>
+                      {p.label}
+                      {p.audience === 'cs_only' && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t('page_order_detail.promo_cs_badge')}</span>}
+                      {p.reason && <span className="ml-1.5 text-gray-400">{t(`shared.promo_panel.reason_${p.reason}`)}{p.applied_by ? ` · ${p.applied_by}` : ''}</span>}
+                    </span>
+                    <span>{p.discount > 0 ? formatCurrency(p.discount) : ''}</span>
+                  </div>
+                ))}
+                {(order.promotions || []).length === 0 && <p className="text-xs text-gray-400 mt-1">{t('page_order_detail.promo_none')}</p>}
               </div>
             )}
             {order.additional_amount > 0 && (
@@ -946,6 +969,7 @@ export default function OrderDetail() {
         <NotesModal order={order} onClose={() => setNotesModalOpen(false)} onDone={() => { setNotesModalOpen(false); load() }} />
       )}
       {groupEditOpen && <EditGroupModal groupId={order.shipment_group_id} onClose={() => setGroupEditOpen(false)} onDone={() => { setGroupEditOpen(false); load() }} />}
+      {promoOpen && <EditPromotionsModal order={order} onClose={() => setPromoOpen(false)} onDone={() => { setPromoOpen(false); load() }} />}
       {editOpen && <EditOrderModal order={order} afterShip={locked || order.status !== 'pending'} onClose={() => setEditOpen(false)} onDone={() => { setEditOpen(false); load() }} />}
       {pickupModalOpen && (
         <PickupMethodModal

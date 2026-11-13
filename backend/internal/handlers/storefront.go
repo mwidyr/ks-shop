@@ -366,7 +366,8 @@ func (h *StorefrontHandler) Promotions(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT p.code, p.type, p.value, p.min_order_amount, p.end_date
 		FROM promotions p
-		WHERE p.is_active AND p.code IS NOT NULL
+		WHERE p.is_active AND p.code IS NOT NULL AND p.member_id IS NULL AND p.audience = 'public'
+		  AND p.type IN ('fixed_amount','percentage','free_shipping')
 		  AND (p.start_date IS NULL OR p.start_date <= now()) AND (p.end_date IS NULL OR p.end_date >= now())
 		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id) < p.usage_limit)
 		ORDER BY p.id DESC`)
@@ -476,11 +477,16 @@ type storeQuote struct {
 	ShippingFee    float64 `json:"shipping_fee"`
 	Total          float64 `json:"total"`
 	PromotionError string  `json:"promotion_error,omitempty"`
+	// Promotions applied to the cart (coupon, Add-on, Combo, Buy A Get B ...) and the free gifts they add.
+	Promotions    []appliedPromo `json:"promotions,omitempty"`
+	Gifts         []promoGift    `json:"gifts,omitempty"`
+	PromotionNote string         `json:"promotion_note,omitempty"`
 	// Wallet (signed-in members): what balance / points this order would use, and the amount still to pay.
 	Wallet      *WalletUse `json:"wallet,omitempty"`
 	PayableNow  float64    `json:"payable_now"`
 	promotionID *int
 	customerID  *int
+	outcome     promoOutcome
 }
 
 type storeDB interface {
@@ -517,20 +523,36 @@ func priceCart(ctx context.Context, db storeDB, req storeQuoteRequest, strict bo
 		}
 	}
 
-	freeShip := false
-	if code := strings.ToUpper(strings.TrimSpace(req.PromotionCode)); code != "" {
-		res, msg := resolvePromotionByCode(ctx, db, code, q.customerID, q.Subtotal, req.memberID)
-		if msg != "" {
-			if strict {
-				return q, msg
-			}
-			q.PromotionError = msg
-		} else {
-			q.promotionID = &res.id
-			q.Discount = res.discountAmount
-			freeShip = res.freeShipping
-		}
+	// every promotion is decided by the one promotion engine (coupon code, automatic Add-on / Combo / Buy A Get B ...)
+	baseFee := 0.0
+	if req.PickupChainID > 0 {
+		baseFee, _ = ComputeShippingFee(ctx, db, req.PickupChainID, q.Subtotal, false)
 	}
+	items := make([]promoItem, len(req.Items))
+	for i, it := range req.Items {
+		items[i] = promoItem{it.VariantID, it.Qty}
+	}
+	out, _, _, promoMsg, perr := resolvePromotions(ctx, db, items, promoSelection{Code: req.PromotionCode}, q.customerID, req.memberID, baseFee)
+	if perr != nil {
+		return q, "produk tidak tersedia"
+	}
+	if promoMsg != "" {
+		if strict {
+			return q, promoMsg
+		}
+		q.PromotionError = promoMsg
+	}
+	q.outcome = out
+	q.Discount = out.Discount
+	q.Promotions, q.Gifts = out.Applied, out.Gifts
+	if len(out.Notes) > 0 {
+		q.PromotionNote = out.Notes[0]
+	}
+	if len(out.Applied) > 0 {
+		id := out.Applied[0].PromotionID
+		q.promotionID = &id
+	}
+	freeShip := out.FreeShipping
 
 	if req.PickupChainID > 0 {
 		fee, err := ComputeShippingFee(ctx, db, req.PickupChainID, q.Subtotal, freeShip)
@@ -766,12 +788,10 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 			mh.ledgerAdd(ctx, tx, req.memberID, "points", -float64(used.Points), "order_spend", fmt.Sprintf("spend-pts:%d", orderID), orderNo, &orderID)
 		}
 	}
-	if quote.promotionID != nil {
-		if _, err := tx.Exec(ctx, `INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied) VALUES ($1,$2,$3,$4)`,
-			*quote.promotionID, orderID, customerID, quote.Discount); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to record promotion")
-			return
-		}
+	// usage records of every applied promotion + the free gifts (order items at price 0)
+	if _, err := recordPromotions(ctx, tx, orderID, &customerID, quote.outcome, nil, ""); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to record promotion")
+		return
 	}
 	if err := tx.Commit(ctx); err != nil {
 		respondError(w, http.StatusInternalServerError, "db commit failed")

@@ -1,8 +1,7 @@
 package handlers
 
 import (
-	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,25 +18,29 @@ type PromotionHandler struct {
 }
 
 type promotionView struct {
-	ID               int     `json:"id"`
-	Code             *string `json:"code"`
-	Type             string  `json:"type"`
-	Value            float64 `json:"value"`
-	MinOrderAmount   float64 `json:"min_order_amount"`
-	StartDate        *string `json:"start_date"`
-	EndDate          *string `json:"end_date"`
-	UsageLimit       *int    `json:"usage_limit"`
-	PerCustomerLimit *int    `json:"per_customer_limit"`
-	Combinable       bool    `json:"combinable"`
-	IsActive         bool    `json:"is_active"`
-	UsageCount       int     `json:"usage_count"`
-	CreatedAt        string  `json:"created_at"`
+	ID               int             `json:"id"`
+	Code             *string         `json:"code"`
+	Name             string          `json:"name"`
+	Type             string          `json:"type"`
+	Value            float64         `json:"value"`
+	MinOrderAmount   float64         `json:"min_order_amount"`
+	StartDate        *string         `json:"start_date"`
+	EndDate          *string         `json:"end_date"`
+	UsageLimit       *int            `json:"usage_limit"`
+	PerCustomerLimit *int            `json:"per_customer_limit"`
+	Combinable       bool            `json:"combinable"`
+	IsActive         bool            `json:"is_active"`
+	Audience         string          `json:"audience"`
+	AutoApply        bool            `json:"auto_apply"`
+	Config           json.RawMessage `json:"config"`
+	UsageCount       int             `json:"usage_count"`
+	CreatedAt        string          `json:"created_at"`
 }
 
 func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
-		SELECT p.id, p.code, p.type, p.value, p.min_order_amount, p.start_date, p.end_date,
-		       p.usage_limit, p.per_customer_limit, p.combinable, p.is_active, p.created_at,
+		SELECT p.id, p.code, COALESCE(p.name,''), p.type, p.value, p.min_order_amount, p.start_date, p.end_date,
+		       p.usage_limit, p.per_customer_limit, p.combinable, p.is_active, p.audience, p.auto_apply, p.config::text, p.created_at,
 		       COUNT(pr.id)
 		FROM promotions p
 		LEFT JOIN promotion_redemptions pr ON pr.promotion_id = p.id
@@ -53,13 +56,14 @@ func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 	list := []promotionView{}
 	for rows.Next() {
 		var p promotionView
-		var start, end, createdAt *time.Time
-		var createdAtVal time.Time
-		if err := rows.Scan(&p.ID, &p.Code, &p.Type, &p.Value, &p.MinOrderAmount, &start, &end,
-			&p.UsageLimit, &p.PerCustomerLimit, &p.Combinable, &p.IsActive, &createdAtVal, &p.UsageCount); err != nil {
+		var start, end *time.Time
+		var createdAt time.Time
+		var cfg string
+		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Type, &p.Value, &p.MinOrderAmount, &start, &end,
+			&p.UsageLimit, &p.PerCustomerLimit, &p.Combinable, &p.IsActive, &p.Audience, &p.AutoApply, &cfg, &createdAt, &p.UsageCount); err != nil {
 			continue
 		}
-		createdAt = &createdAtVal
+		p.Config = json.RawMessage(cfg)
 		p.CreatedAt = createdAt.Format(time.RFC3339)
 		if start != nil {
 			v := start.Format(time.RFC3339)
@@ -75,26 +79,115 @@ func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type promotionRequest struct {
-	Code             *string `json:"code"`
-	Type             string  `json:"type"`
-	Value            float64 `json:"value"`
-	MinOrderAmount   float64 `json:"min_order_amount"`
-	StartDate        *string `json:"start_date"`
-	EndDate          *string `json:"end_date"`
-	UsageLimit       *int    `json:"usage_limit"`
-	PerCustomerLimit *int    `json:"per_customer_limit"`
-	Combinable       bool    `json:"combinable"`
-	IsActive         *bool   `json:"is_active"`
+	Code             *string         `json:"code"`
+	Name             string          `json:"name"`
+	Type             string          `json:"type"`
+	Value            float64         `json:"value"`
+	MinOrderAmount   float64         `json:"min_order_amount"`
+	StartDate        *string         `json:"start_date"`
+	EndDate          *string         `json:"end_date"`
+	UsageLimit       *int            `json:"usage_limit"`
+	PerCustomerLimit *int            `json:"per_customer_limit"`
+	Combinable       bool            `json:"combinable"`
+	IsActive         *bool           `json:"is_active"`
+	Audience         string          `json:"audience"`
+	AutoApply        bool            `json:"auto_apply"`
+	Config           json.RawMessage `json:"config"`
 }
 
-var validPromotionTypes = map[string]bool{"fixed_amount": true, "percentage": true, "free_shipping": true}
+var validPromotionTypes = map[string]bool{"fixed_amount": true, "percentage": true, "free_shipping": true, "buy_a_get_b": true, "addon": true, "combo": true}
+
+func validMatcher(m promoMatcher) bool {
+	n := 0
+	for _, id := range m.ProductIDs {
+		if id <= 0 {
+			return false
+		}
+		n++
+	}
+	for _, c := range m.Colors {
+		if strings.TrimSpace(c) == "" {
+			return false
+		}
+		n++
+	}
+	for _, s := range m.SKUs {
+		if tplKey(s) == "" {
+			return false
+		}
+		n++
+	}
+	return n > 0
+}
+
+// validatePromoConfig checks the rules of a product promotion; "" = fine.
+func validatePromoConfig(typ string, c promoConfig) string {
+	switch typ {
+	case "buy_a_get_b":
+		if !validMatcher(c.Trigger) {
+			return "choose the products, colors or SKUs of A"
+		}
+		if len(c.Gifts) == 0 {
+			return "choose at least one gift product B"
+		}
+		for _, g := range c.Gifts {
+			if g.VariantID <= 0 {
+				return "invalid gift product"
+			}
+		}
+		if c.TriggerQty < 0 || c.GiftQty < 0 || c.MaxSets < 0 {
+			return "quantities cannot be negative"
+		}
+	case "addon":
+		if !validMatcher(c.Trigger) || !validMatcher(c.Addon) {
+			return "choose the products, colors or SKUs of A and B"
+		}
+		if c.AddonPrice < 0 {
+			return "add-on price cannot be negative"
+		}
+		if c.TriggerQty < 0 || c.MaxQty < 0 {
+			return "quantities cannot be negative"
+		}
+	case "combo":
+		if !validMatcher(c.Pool) {
+			return "choose the products, colors or SKUs of the combo"
+		}
+		if c.RequiredQty < 2 {
+			return "a combo needs a quantity of at least 2"
+		}
+		if c.ComboPrice <= 0 {
+			return "combo price must be a positive amount"
+		}
+		if c.MaxSets < 0 {
+			return "max sets cannot be negative"
+		}
+	}
+	return ""
+}
 
 func validatePromotionRequest(req promotionRequest) string {
 	if !validPromotionTypes[req.Type] {
-		return "type must be fixed_amount, percentage or free_shipping"
+		return "unknown promotion type"
 	}
-	if req.Code == nil || strings.TrimSpace(*req.Code) == "" {
+	if req.Audience != "public" && req.Audience != "cs_only" {
+		return "audience must be public or cs_only"
+	}
+	product := req.Type == "buy_a_get_b" || req.Type == "addon" || req.Type == "combo"
+	hasCode := req.Code != nil && strings.TrimSpace(*req.Code) != ""
+	if !product && !hasCode && req.Audience == "public" {
 		return "code is required"
+	}
+	if (product || req.Audience == "cs_only") && strings.TrimSpace(req.Name) == "" {
+		return "name is required"
+	}
+	if len(req.Name) > 120 {
+		return "name is too long"
+	}
+	if product && req.Audience == "public" && !req.AutoApply {
+		return "a public product promotion must be automatic (no code to enter)"
+	}
+	if req.AutoApply && !product {
+		return "only product promotions can be automatic"
 	}
 	if req.Type == "percentage" && (req.Value <= 0 || req.Value > 100) {
 		return "percentage value must be between 0 and 100"
@@ -111,7 +204,33 @@ func validatePromotionRequest(req promotionRequest) string {
 	if req.PerCustomerLimit != nil && *req.PerCustomerLimit <= 0 {
 		return "per_customer_limit must be positive when set"
 	}
+	if product {
+		var c promoConfig
+		if len(req.Config) == 0 || json.Unmarshal(req.Config, &c) != nil {
+			return "invalid promotion rules"
+		}
+		return validatePromoConfig(req.Type, c)
+	}
 	return ""
+}
+
+// promoConfigJSON is what is stored: the rules of a product promotion, {} for a coupon.
+func promoConfigJSON(req promotionRequest) string {
+	if req.Type == "buy_a_get_b" || req.Type == "addon" || req.Type == "combo" {
+		var c promoConfig
+		_ = json.Unmarshal(req.Config, &c)
+		b, _ := json.Marshal(c)
+		return string(b)
+	}
+	return "{}"
+}
+
+func normalizedCode(req promotionRequest) *string {
+	if req.Code == nil || strings.TrimSpace(*req.Code) == "" {
+		return nil
+	}
+	c := strings.ToUpper(strings.TrimSpace(*req.Code))
+	return &c
 }
 
 func (h *PromotionHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -120,18 +239,23 @@ func (h *PromotionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.Audience == "" {
+		req.Audience = "public"
+	}
 	if msg := validatePromotionRequest(req); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
-	code := strings.ToUpper(strings.TrimSpace(*req.Code))
+	code := normalizedCode(req)
 	ctx := r.Context()
 
-	var exists bool
-	h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM promotions WHERE code=$1)`, code).Scan(&exists)
-	if exists {
-		respondError(w, http.StatusBadRequest, "this code is already in use")
-		return
+	if code != nil {
+		var exists bool
+		h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM promotions WHERE code=$1)`, *code).Scan(&exists)
+		if exists {
+			respondError(w, http.StatusBadRequest, "this code is already in use")
+			return
+		}
 	}
 
 	isActive := true
@@ -142,10 +266,10 @@ func (h *PromotionHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id int
 	if err := h.DB.QueryRow(ctx, `
-		INSERT INTO promotions (code, type, value, min_order_amount, start_date, end_date, usage_limit, per_customer_limit, combinable, is_active, created_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-		code, req.Type, req.Value, req.MinOrderAmount, req.StartDate, req.EndDate,
-		req.UsageLimit, req.PerCustomerLimit, req.Combinable, isActive, claims.UserID).Scan(&id); err != nil {
+		INSERT INTO promotions (code, name, type, value, min_order_amount, start_date, end_date, usage_limit, per_customer_limit, combinable, is_active, created_by, audience, auto_apply, config)
+		VALUES ($1,NULLIF($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb) RETURNING id`,
+		code, strings.TrimSpace(req.Name), req.Type, req.Value, req.MinOrderAmount, req.StartDate, req.EndDate,
+		req.UsageLimit, req.PerCustomerLimit, req.Combinable, isActive, claims.UserID, req.Audience, req.AutoApply, promoConfigJSON(req)).Scan(&id); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create promotion")
 		return
 	}
@@ -163,18 +287,23 @@ func (h *PromotionHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.Audience == "" {
+		req.Audience = "public"
+	}
 	if msg := validatePromotionRequest(req); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
-	code := strings.ToUpper(strings.TrimSpace(*req.Code))
+	code := normalizedCode(req)
 	ctx := r.Context()
 
-	var exists bool
-	h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM promotions WHERE code=$1 AND id!=$2)`, code, id).Scan(&exists)
-	if exists {
-		respondError(w, http.StatusBadRequest, "this code is already in use")
-		return
+	if code != nil {
+		var exists bool
+		h.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM promotions WHERE code=$1 AND id!=$2)`, *code, id).Scan(&exists)
+		if exists {
+			respondError(w, http.StatusBadRequest, "this code is already in use")
+			return
+		}
 	}
 
 	isActive := true
@@ -183,11 +312,11 @@ func (h *PromotionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct, err := h.DB.Exec(ctx, `
-		UPDATE promotions SET code=$1, type=$2, value=$3, min_order_amount=$4, start_date=$5, end_date=$6,
-		       usage_limit=$7, per_customer_limit=$8, combinable=$9, is_active=$10
-		WHERE id=$11`,
-		code, req.Type, req.Value, req.MinOrderAmount, req.StartDate, req.EndDate,
-		req.UsageLimit, req.PerCustomerLimit, req.Combinable, isActive, id)
+		UPDATE promotions SET code=$1, name=NULLIF($2,''), type=$3, value=$4, min_order_amount=$5, start_date=$6, end_date=$7,
+		       usage_limit=$8, per_customer_limit=$9, combinable=$10, is_active=$11, audience=$12, auto_apply=$13, config=$14::jsonb
+		WHERE id=$15`,
+		code, strings.TrimSpace(req.Name), req.Type, req.Value, req.MinOrderAmount, req.StartDate, req.EndDate,
+		req.UsageLimit, req.PerCustomerLimit, req.Combinable, isActive, req.Audience, req.AutoApply, promoConfigJSON(req), id)
 	if err != nil || ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "promotion not found")
 		return
@@ -211,104 +340,145 @@ func (h *PromotionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-type validatePromotionRequestBody struct {
-	Code       string  `json:"code"`
-	CustomerID *int    `json:"customer_id"`
-	Subtotal   float64 `json:"subtotal"`
+// ---- preview + list for the order pages ----
+
+type promoPreviewRequest struct {
+	Items []struct {
+		VariantID int `json:"variant_id"`
+		Qty       int `json:"qty"`
+	} `json:"items"`
+	CustomerID    *int           `json:"customer_id"`
+	Code          string         `json:"code"`
+	PromotionIDs  []int          `json:"promotion_ids"`
+	ExcludedIDs   []int          `json:"excluded_ids"`
+	GiftChoices   map[string]int `json:"gift_choices"`
+	PickupChainID int            `json:"pickup_chain_id"`
+	OrderID       int            `json:"order_id"` // preview for an existing order: its saved items and prices are used
 }
 
-// Validate is a read-only preview used by OrderCreate.jsx as the staff types/confirms a coupon
-// code - it runs the exact same eligibility rules as resolvePromotionByCode but never writes a
-// redemption, so repeated validation calls while a staff member edits the cart don't consume
-// usage_limit or per_customer_limit.
+func (r promoPreviewRequest) selection() (promoSelection, []promoItem) {
+	items := make([]promoItem, 0, len(r.Items))
+	for _, it := range r.Items {
+		if it.Qty > 0 {
+			items = append(items, promoItem{it.VariantID, it.Qty})
+		}
+	}
+	return promoSelection{Code: r.Code, PickedIDs: r.PromotionIDs, ExcludedIDs: r.ExcludedIDs, GiftChoice: giftChoices(r.GiftChoices), Staff: true}, items
+}
+
+// giftChoices turns the JSON object {"<promotion id>": <variant id>} into a map.
+func giftChoices(in map[string]int) map[int]int {
+	out := map[int]int{}
+	for k, v := range in {
+		if id, err := strconv.Atoi(k); err == nil {
+			out[id] = v
+		}
+	}
+	return out
+}
+
+// Validate is the read-only preview CS sees on the order pages: the same engine as order creation, but nothing is
+// written, so repeated previews never consume a usage limit.
 func (h *PromotionHandler) Validate(w http.ResponseWriter, r *http.Request) {
-	var req validatePromotionRequestBody
-	if err := decodeJSON(r, &req); err != nil || strings.TrimSpace(req.Code) == "" {
-		respondError(w, http.StatusBadRequest, "code is required")
+	var req promoPreviewRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	result, errMsg := resolvePromotionByCode(r.Context(), h.DB, strings.ToUpper(strings.TrimSpace(req.Code)), req.CustomerID, req.Subtotal, 0)
-	if errMsg != "" {
-		respondError(w, http.StatusBadRequest, errMsg)
+	sel, items := req.selection()
+	ctx := r.Context()
+	if req.OrderID > 0 {
+		items, sel.LinePrice = nil, map[int]float64{}
+		var cust *int
+		var chain int
+		if h.DB.QueryRow(ctx, `SELECT customer_id, pickup_chain_id FROM orders WHERE id=$1`, req.OrderID).Scan(&cust, &chain) != nil {
+			respondError(w, http.StatusNotFound, "order not found")
+			return
+		}
+		req.CustomerID, req.PickupChainID = cust, chain
+		if rows, err := h.DB.Query(ctx, `SELECT variant_id, qty, price_at_order FROM order_items WHERE order_id=$1 AND NOT is_gift`, req.OrderID); err == nil {
+			for rows.Next() {
+				var it promoItem
+				var price float64
+				if rows.Scan(&it.VariantID, &it.Qty, &price) == nil {
+					items = append(items, it)
+					if _, ok := sel.LinePrice[it.VariantID]; !ok {
+						sel.LinePrice[it.VariantID] = price
+					}
+				}
+			}
+			rows.Close()
+		}
+	}
+	if len(items) == 0 {
+		respondJSON(w, http.StatusOK, map[string]interface{}{"applied": []appliedPromo{}, "gifts": []promoGift{}, "discount": 0, "free_shipping": false})
 		return
+	}
+	fee := 0.0
+	if req.PickupChainID > 0 {
+		lines, sub, err := loadPromoLines(ctx, h.DB, items, sel.LinePrice)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "variant not found")
+			return
+		}
+		_ = lines
+		fee, _ = ComputeShippingFee(ctx, h.DB, req.PickupChainID, sub, false)
+	}
+	out, _, subtotal, errMsg, err := resolvePromotions(ctx, h.DB, items, sel, req.CustomerID, 0, fee)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "variant not found")
+		return
+	}
+	if out.Applied == nil {
+		out.Applied = []appliedPromo{}
+	}
+	if out.Gifts == nil {
+		out.Gifts = []promoGift{}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"promotion_id":    result.id,
-		"type":            result.ptype,
-		"discount_amount": result.discountAmount,
-		"free_shipping":   result.freeShipping,
+		"applied": out.Applied, "gifts": out.Gifts, "discount": out.Discount, "free_shipping": out.FreeShipping,
+		"notes": out.Notes, "error": errMsg, "subtotal": subtotal,
 	})
 }
 
-type promotionResolution struct {
-	id             int
-	ptype          string
-	discountAmount float64
-	freeShipping   bool
+type availablePromo struct {
+	ID         int          `json:"id"`
+	Code       string       `json:"code,omitempty"`
+	Name       string       `json:"name"`
+	Type       string       `json:"type"`
+	Value      float64      `json:"value"`
+	Min        float64      `json:"min_order_amount"`
+	Audience   string       `json:"audience"`
+	AutoApply  bool         `json:"auto_apply"`
+	Combinable bool         `json:"combinable"`
+	Gifts      []giftOption `json:"gifts,omitempty"`
 }
 
-// resolvePromotionByCode validates a coupon code against the current subtotal/customer and
-// returns the discount to apply. db can be either *pgxpool.Pool (the read-only Validate preview)
-// or an in-progress pgx.Tx (order creation, see orders.go Create) - both satisfy querier. The
-// leading SELECT uses FOR UPDATE so that two concurrent orders redeeming the last unit of a
-// usage_limit-capped code inside a real transaction serialize instead of racing past the count
-// check together; it is a harmless no-op lock when called outside a transaction (the preview path).
-func resolvePromotionByCode(ctx context.Context, db querier, code string, customerID *int, subtotal float64, memberID int) (promotionResolution, string) {
-	var res promotionResolution
-	var value, minOrder float64
-	var usageLimit, perCustomerLimit *int
-	var startDate, endDate *time.Time
-	var isActive bool
-	var boundMember *int
-	err := db.QueryRow(ctx, `
-		SELECT id, type, value, min_order_amount, start_date, end_date, usage_limit, per_customer_limit, is_active, member_id
-		FROM promotions WHERE code = $1 FOR UPDATE`, code).
-		Scan(&res.id, &res.ptype, &value, &minOrder, &startDate, &endDate, &usageLimit, &perCustomerLimit, &isActive, &boundMember)
-	if err != nil {
-		return promotionResolution{}, "promotion code not found"
-	}
-	// member-bound coupons (welcome voucher, birthday) only work for their own account
-	if boundMember != nil && *boundMember != memberID {
-		return promotionResolution{}, "promotion code not found"
-	}
-	if !isActive {
-		return promotionResolution{}, "this promotion is not active"
-	}
-	now := time.Now()
-	if startDate != nil && now.Before(*startDate) {
-		return promotionResolution{}, "this promotion is not active yet"
-	}
-	if endDate != nil && now.After(*endDate) {
-		return promotionResolution{}, "this promotion has expired"
-	}
-	if subtotal < minOrder {
-		return promotionResolution{}, fmt.Sprintf("order subtotal must be at least %.2f to use this code", minOrder)
-	}
-	if usageLimit != nil {
-		var count int
-		db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1`, res.id).Scan(&count)
-		if count >= *usageLimit {
-			return promotionResolution{}, "this promotion has reached its usage limit"
-		}
-	}
-	if perCustomerLimit != nil && customerID != nil {
-		var count int
-		db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1 AND customer_id=$2`, res.id, *customerID).Scan(&count)
-		if count >= *perCustomerLimit {
-			return promotionResolution{}, "this customer has already used this promotion the maximum number of times"
-		}
-	}
+type giftOption struct {
+	VariantID int    `json:"variant_id"`
+	Name      string `json:"name"`
+}
 
-	switch res.ptype {
-	case "fixed_amount":
-		res.discountAmount = value
-		if res.discountAmount > subtotal {
-			res.discountAmount = subtotal
-		}
-	case "percentage":
-		res.discountAmount = subtotal * value / 100
-	case "free_shipping":
-		res.freeShipping = true
+// Available lists what CS can pick on an order page: every promotion that is active, inside its dates and not used up.
+func (h *PromotionHandler) Available(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	defs, err := loadPromoDefs(ctx, h.DB, `p.is_active AND p.member_id IS NULL
+		AND (p.start_date IS NULL OR p.start_date <= now()) AND (p.end_date IS NULL OR p.end_date >= now())
+		AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id) < p.usage_limit)`)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch promotions")
+		return
 	}
-	return res, ""
+	meta := loadGiftMeta(ctx, h.DB, defs)
+	out := []availablePromo{}
+	for _, p := range defs {
+		a := availablePromo{ID: p.ID, Code: p.Code, Name: p.label(), Type: p.Type, Value: p.Value, Min: p.MinOrder, Audience: p.Audience, AutoApply: p.AutoApply, Combinable: p.Combinable}
+		for _, g := range p.Config.Gifts {
+			if m, ok := meta[g.VariantID]; ok {
+				a.Gifts = append(a.Gifts, giftOption{g.VariantID, m.Name})
+			}
+		}
+		out = append(out, a)
+	}
+	respondJSON(w, http.StatusOK, out)
 }

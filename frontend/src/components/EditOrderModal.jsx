@@ -28,7 +28,7 @@ export default function EditOrderModal({ order, onClose, onDone, afterShip = fal
   const [storeName, setStoreName] = useState(order.pickup_store_name || '')
   const [storeCode, setStoreCode] = useState(order.pickup_store_code || '')
   const [address, setAddress] = useState(order.shipping_address || '')
-  const [items, setItems] = useState(() => order.items.map((it) => ({
+  const [items, setItems] = useState(() => order.items.filter((it) => !it.is_gift).map((it) => ({
     id: it.id, variantId: it.variant_id, label: `${it.product_sku || it.sku} · ${it.product_name} (${translateColor(it.color)}/${it.size})`,
     qty: it.qty, price: it.price, hostId: it.host_id || '', isNew: false,
   })))

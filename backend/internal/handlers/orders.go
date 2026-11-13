@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -253,6 +254,19 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
 }
 
+// orderPromoView is one promotion applied to an order (the usage record), with who applied it by hand and why.
+type orderPromoView struct {
+	PromotionID int     `json:"promotion_id"`
+	Label       string  `json:"label"`
+	Code        string  `json:"code,omitempty"`
+	Type        string  `json:"type"`
+	Audience    string  `json:"audience"`
+	AutoApply   bool    `json:"auto_apply"`
+	Discount    float64 `json:"discount"`
+	Reason      string  `json:"reason,omitempty"`
+	AppliedBy   string  `json:"applied_by,omitempty"`
+}
+
 type orderItemView struct {
 	ID              int     `json:"id"`
 	VariantID       int     `json:"variant_id"`
@@ -270,6 +284,8 @@ type orderItemView struct {
 	AvailableToPick int     `json:"available_to_pick"` // Available = Actual + Incoming - Ordered (can be negative = oversold)
 	PhysicalStock   int     `json:"physical_stock"`    // Actual stock (stock_buckets.available_stock), for staff reference
 	IsOversell      bool    `json:"is_oversell"`
+	IsGift          bool    `json:"is_gift"` // a free gift from a promotion (price 0)
+	GiftPromotionID *int    `json:"gift_promotion_id"`
 }
 
 // groupItemView is an orderItemView plus the source order's number, used only for the combined
@@ -307,6 +323,7 @@ type orderDetailView struct {
 	DiscountAmount           float64           `json:"discount_amount"`
 	PromotionCode            *string           `json:"promotion_code"`
 	PromotionDiscountAmount  float64           `json:"promotion_discount_amount"`
+	Promotions               []orderPromoView  `json:"promotions"`
 	AdditionalAmount         float64           `json:"additional_amount"`
 	Total                    float64           `json:"total"`
 	InternalNotes            string            `json:"internal_notes"`
@@ -388,7 +405,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT oi.id, oi.variant_id, `+productNameSQL(r, "p")+`,
 		       COALESCE((SELECT pi.url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order LIMIT 1), ''),
 		       pv.color, pv.size, pv.sku, COALESCE(p.sku,''), oi.qty, oi.picked_qty, oi.price_at_order, oi.host_id, COALESCE(h.name,'-'),
-		       sb.available_stock + sb.incoming_stock - `+orderedForVariantSQL("pv.id")+`, sb.available_stock
+		       sb.available_stock + sb.incoming_stock - `+orderedForVariantSQL("pv.id")+`, sb.available_stock, oi.is_gift, oi.promotion_id
 		FROM order_items oi
 		JOIN product_variants pv ON pv.id = oi.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -401,11 +418,24 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var it orderItemView
 			rows.Scan(&it.ID, &it.VariantID, &it.ProductName, &it.ImageURL, &it.Color, &it.Size, &it.SKU, &it.ProductSKU, &it.Qty, &it.PickedQty,
-				&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock)
+				&it.Price, &it.HostID, &it.HostName, &it.AvailableToPick, &it.PhysicalStock, &it.IsGift, &it.GiftPromotionID)
 			it.IsOversell = it.AvailableToPick < 0
 			o.Subtotal += it.Price * float64(it.Qty)
 			o.Items = append(o.Items, it)
 		}
+	}
+	o.Promotions = []orderPromoView{}
+	if prows, err := h.DB.Query(ctx, `
+		SELECT p.id, COALESCE(NULLIF(p.name,''), p.code, ''), COALESCE(p.code,''), p.type, p.audience, p.auto_apply, pr.discount_applied, COALESCE(pr.reason,''), COALESCE(u.name,'')
+		FROM promotion_redemptions pr JOIN promotions p ON p.id = pr.promotion_id LEFT JOIN users u ON u.id = pr.applied_by
+		WHERE pr.order_id=$1 ORDER BY pr.id`, id); err == nil {
+		for prows.Next() {
+			var pv orderPromoView
+			if prows.Scan(&pv.PromotionID, &pv.Label, &pv.Code, &pv.Type, &pv.Audience, &pv.AutoApply, &pv.Discount, &pv.Reason, &pv.AppliedBy) == nil {
+				o.Promotions = append(o.Promotions, pv)
+			}
+		}
+		prows.Close()
 	}
 	var groupID, feeOrderID *int
 	if err := h.DB.QueryRow(ctx, `
@@ -536,6 +566,10 @@ type createOrderRequest struct {
 	Items                []createOrderItem   `json:"items"`
 	DiscountAmount       float64             `json:"discount_amount"`
 	PromotionCode        string              `json:"promotion_code"`
+	PromotionIDs         []int               `json:"promotion_ids"`          // promotions CS picked from the list
+	ExcludedPromotionIDs []int               `json:"excluded_promotion_ids"` // automatic promotions CS removed
+	GiftChoices          map[string]int      `json:"gift_choices"`           // promotion id -> chosen gift variant
+	PromotionReason      string              `json:"promotion_reason"`       // private_offer | after_sales | compensation
 	AdditionalAmount     float64             `json:"additional_amount"`
 	KeepDate             *string             `json:"keep_date"`
 	KeepDateType         string              `json:"keep_date_type"`
@@ -766,22 +800,36 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// A coupon code is resolved against the real, server-computed subtotal (never a client-sent
-	// value) and locked (FOR UPDATE, see resolvePromotionByCode) inside this same transaction, so
-	// two orders racing to redeem the last unit of a usage_limit-capped code can't both succeed.
+	// Every promotion (typed code, the ones CS picked, automatic Add-on / Combo / Buy A Get B) is decided by the one
+	// promotion engine against the real, server-computed cart, inside this transaction: promotions with a usage limit
+	// are locked, so two orders racing for the last unit cannot both succeed.
 	var promotionID *int
 	var promotionDiscountAmount float64
 	var promoFreeShipping bool
-	if strings.TrimSpace(req.PromotionCode) != "" {
-		result, errMsg := resolvePromotionByCode(ctx, tx, strings.ToUpper(strings.TrimSpace(req.PromotionCode)), customerID, subtotal, 0)
-		if errMsg != "" {
-			respondError(w, http.StatusBadRequest, errMsg)
-			return
-		}
-		promotionID = &result.id
-		promotionDiscountAmount = result.discountAmount
-		promoFreeShipping = result.freeShipping
+	var promoOut promoOutcome
+	baseFee, _ := ComputeShippingFee(ctx, tx, req.PickupChainID, subtotal, false)
+	pitems := make([]promoItem, len(req.Items))
+	for i, it := range req.Items {
+		pitems[i] = promoItem{it.VariantID, it.Qty}
 	}
+	promoOut, _, _, promoMsg, perr := resolvePromotions(ctx, tx, pitems, promoSelection{
+		Code: req.PromotionCode, PickedIDs: req.PromotionIDs, ExcludedIDs: req.ExcludedPromotionIDs,
+		GiftChoice: giftChoices(req.GiftChoices), Staff: true,
+	}, customerID, 0, baseFee)
+	if perr != nil {
+		respondError(w, http.StatusBadRequest, "variant not found")
+		return
+	}
+	if promoMsg != "" {
+		respondError(w, http.StatusBadRequest, promoMsg)
+		return
+	}
+	if msg := csReasonProblem(promoOut, req.PromotionReason); msg != "" {
+		respondError(w, http.StatusBadRequest, msg)
+		return
+	}
+	promotionDiscountAmount = promoOut.Discount
+	promoFreeShipping = promoOut.FreeShipping
 
 	shippingFee := 0.0
 	freeShippingOverride := req.FreeShippingOverride
@@ -813,13 +861,28 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to save shipping fee")
 		return
 	}
-	if promotionID != nil {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied)
-			VALUES ($1,$2,$3,$4)`, *promotionID, orderID, *customerID, promotionDiscountAmount); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to record promotion redemption")
-			return
-		}
+	var promoUser *int
+	if claims != nil {
+		promoUser = &claims.UserID
+	}
+	first, err := recordPromotions(ctx, tx, orderID, customerID, promoOut, promoUser, req.PromotionReason)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to record promotion redemption")
+		return
+	}
+	promotionID = first
+	// what CS chose is kept on the order, so Edit Order later decides the promotions again the same way
+	gifts, _ := json.Marshal(req.GiftChoices)
+	if req.GiftChoices == nil {
+		gifts = []byte("{}")
+	}
+	excluded := req.ExcludedPromotionIDs
+	if excluded == nil {
+		excluded = []int{}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE orders SET promotion_id=$1, promotion_excluded=$3, promotion_gifts=$4::jsonb WHERE id=$2`, promotionID, orderID, excluded, string(gifts)); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save promotion")
+		return
 	}
 
 	if err := tx.Commit(ctx); err != nil {

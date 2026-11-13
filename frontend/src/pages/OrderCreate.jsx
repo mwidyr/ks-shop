@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createOrder } from '../api/orders'
-import { validatePromotion } from '../api/promotions'
+import OrderPromotionsPanel, { emptyPromotionState, promotionPayload } from '../components/OrderPromotionsPanel'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLocations } from '../api/hostLocations'
@@ -31,9 +31,8 @@ const emptyOrder = () => ({
   shippingFeeDirty: false,
   discountAmount: '',
   additionalAmount: '',
-  promotionCode: '',
+  promotion: emptyPromotionState(),
   promotionResult: null,
-  promotionError: '',
   keepDate: '',
   keepDateType: 'shipping',
   internalNotes: '',
@@ -111,39 +110,23 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
     onUpdate('items', order.items.map((it) => (it.variantId === variantId ? { ...it, [field]: value } : it)))
   }
 
-  const [couponApplying, setCouponApplying] = useState(false)
-
-  async function applyCoupon() {
-    const code = order.promotionCode.trim()
-    if (!code) return
-    setCouponApplying(true)
-    try {
-      const res = await validatePromotion(code, order.customer?.id || null, subtotal)
-      onUpdate('promotionResult', res)
-      onUpdate('promotionError', '')
-      if (res.free_shipping) {
-        onUpdate('shippingFee', 0)
-        onUpdate('shippingFeeDirty', true)
-      }
-    } catch (err) {
-      onUpdate('promotionResult', null)
-      onUpdate('promotionError', err.response?.data?.error || t('page_order_create.coupon_invalid'))
-    } finally {
-      setCouponApplying(false)
-    }
-  }
-
-  function removeCoupon() {
-    if (order.promotionResult?.free_shipping) {
+  // A free-shipping promotion sets the fee to 0; when it goes away the normal fee comes back.
+  const wasFreeShip = useRef(false)
+  useEffect(() => {
+    const free = Boolean(order.promotionResult?.free_shipping)
+    if (free && !wasFreeShip.current) {
+      onUpdate('shippingFee', 0)
+      onUpdate('shippingFeeDirty', true)
+    } else if (!free && wasFreeShip.current) {
       onUpdate('shippingFeeDirty', false)
       onUpdate('shippingFee', defaultShippingFee(selectedChain, shippingSettings, subtotal))
     }
-    onUpdate('promotionCode', '')
-    onUpdate('promotionResult', null)
-    onUpdate('promotionError', '')
-  }
+    wasFreeShip.current = free
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.promotionResult?.free_shipping])
+  const promoItems = useMemo(() => order.items.map((it) => ({ variant_id: it.variantId, qty: it.qty })), [order.items])
 
-  const promotionDiscount = order.promotionResult?.discount_amount || 0
+  const promotionDiscount = order.promotionResult?.discount || 0
   const total = Math.max(0, subtotal - (Number(order.discountAmount) || 0) - promotionDiscount + (Number(order.additionalAmount) || 0) + (Number(order.shippingFee) || 0))
 
   return (
@@ -263,35 +246,14 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
         </div>
       ))}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('page_order_create.coupon_code_label')}</label>
-        {order.promotionResult ? (
-          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-            <div>
-              <p className="text-sm font-semibold text-green-700 font-mono">{order.promotionCode.trim().toUpperCase()}</p>
-              <p className="text-xs text-green-600">
-                {order.promotionResult.free_shipping ? t('page_order_create.coupon_applied_free_shipping') : t('page_order_create.coupon_applied_discount', { amount: formatCurrency(order.promotionResult.discount_amount) })}
-              </p>
-            </div>
-            <button type="button" onClick={removeCoupon} className="text-xs font-semibold text-red-600 hover:underline">{t('page_order_create.coupon_remove')}</button>
-          </div>
-        ) : (
-          <div>
-            <div className="flex gap-2">
-              <input
-                value={order.promotionCode}
-                onChange={(e) => onUpdate('promotionCode', e.target.value)}
-                placeholder={t('page_order_create.coupon_code_placeholder')}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase"
-              />
-              <button type="button" onClick={applyCoupon} disabled={couponApplying || !order.promotionCode.trim()} className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-lg">
-                {couponApplying ? t('page_order_create.coupon_applying') : t('page_order_create.coupon_apply_button')}
-              </button>
-            </div>
-            {order.promotionError && <p className="text-xs text-red-600 mt-1">{order.promotionError}</p>}
-          </div>
-        )}
-      </div>
+      <OrderPromotionsPanel
+        items={promoItems}
+        customerId={order.customer?.id || null}
+        pickupChainId={order.pickupChainId}
+        state={order.promotion}
+        onChange={(v) => onUpdate('promotion', v)}
+        onPreview={(res) => onUpdate('promotionResult', res)}
+      />
 
       <div>
         <button type="button" onClick={() => setShowAdvanced((v) => !v)} className="text-xs text-gray-500 hover:underline">
@@ -453,6 +415,7 @@ export default function OrderCreate() {
     if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
     if (isCvs === 'courier' && addressTooLong(order.shippingAddress)) return t('page_order_create.block_error_address_long', { index: 1 })
     if (order.items.length === 0) return t('page_order_create.block_error_no_products', { index: 1 })
+    if ((order.promotionResult?.applied || []).some((a) => a.cs_only) && !order.promotion.reason) return t('page_order_create.block_error_promo_reason', { index: 1 })
     if (carrierTotal(order) > EXPORT_TOTAL_MAX) return t('page_order_create.block_error_total_max', { index: 1, max: EXPORT_TOTAL_MAX.toLocaleString() })
     return ''
   }
@@ -478,7 +441,7 @@ export default function OrderCreate() {
         sales_channel: order.salesChannel,
         affiliate_id: order.salesChannel === 'website' && order.affiliateId ? Number(order.affiliateId) : null,
         discount_amount: Number(order.discountAmount) || 0,
-        promotion_code: order.promotionResult ? order.promotionCode.trim() : '',
+        ...promotionPayload(order.promotion),
         additional_amount: Number(order.additionalAmount) || 0,
         keep_date: order.keepDate || null,
         keep_date_type: order.keepDateType || 'shipping',

@@ -11,7 +11,8 @@ import (
 // HeatmapHandler powers Heatmap (item #007, phase 3 of 3): a 30-minute-interval view of when
 // each host generates sales. Unlike Performance Dashboard/Host Analytics, this is driven purely
 // by real orders (Order Management), not "valid LIVE Session" status - every Active host
-// assigned to the selected Location is shown, even with zero sales in the period, per spec.
+// assigned to the selected Location is shown, even with zero sales in the period, per spec, and so is an
+// inactive host that has orders in the period (same as Dashboard).
 //
 // Slots: 48 fixed 30-minute intervals covering the full 24 hours, 00:00 through 23:30 (each
 // slot's start time), per sheet item #057 (original spec only covered 06:00-23:00; expanded to
@@ -52,10 +53,10 @@ type heatmapSummary struct {
 	GMV float64 `json:"gmv"`
 }
 
-// activeHostsFilter builds "AND h.is_active = true [AND h.location_id = $N]", the host set every
-// Heatmap endpoint uses (active hosts in the location, regardless of LIVE Data status).
-func activeHostsFilter(r *http.Request, startArg int) (whereSQL string, args []interface{}) {
-	whereSQL = " AND h.is_active = true"
+// heatmapLocationFilter builds "[AND h.location_id = $N]". The aggregate queries are already limited to real orders
+// (or sessions) inside the selected Period, so a host that has been deactivated is included simply by having data in
+// it - the same rule as Dashboard ("history must not change when a host is deactivated").
+func heatmapLocationFilter(r *http.Request, startArg int) (whereSQL string, args []interface{}) {
 	if locID := r.URL.Query().Get("location_id"); locID != "" {
 		if id, err := strconv.Atoi(locID); err == nil {
 			args = append(args, id)
@@ -65,10 +66,18 @@ func activeHostsFilter(r *http.Request, startArg int) (whereSQL string, args []i
 	return whereSQL, args
 }
 
-// Summary returns Total QTY/ORD/GMV across active hosts in the selected Location and Period.
+// heatmapHostRowsFilter is the host set the Grid lists as rows: every active host of the Location (even with zero
+// sales, per spec) PLUS any inactive host that has orders in the Period ($1 = from, $2 = to), like Dashboard.
+const heatmapHostRowsFilter = ` AND (h.is_active = true
+	OR EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+	           WHERE oi.host_id = h.id AND o.status NOT IN ('cancelled','return')
+	             AND o.created_at >= $1 AND o.created_at < $2))`
+
+// Summary returns Total QTY/ORD/GMV across the hosts in the selected Location and Period (inactive hosts with orders
+// in the Period included).
 func (h *HeatmapHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
-	hostsWhere, hostArgs := activeHostsFilter(r, 3)
+	hostsWhere, hostArgs := heatmapLocationFilter(r, 3)
 	query := `
 		SELECT COALESCE(SUM(oi.qty),0), COUNT(DISTINCT oi.order_id), COALESCE(SUM(oi.qty*oi.price_at_order),0)
 		FROM order_items oi
@@ -112,20 +121,21 @@ const slotIndexExpr = `
 	EXTRACT(HOUR FROM (o.created_at AT TIME ZONE 'Asia/Jakarta')) * 2
 	+ FLOOR(EXTRACT(MINUTE FROM (o.created_at AT TIME ZONE 'Asia/Jakarta')) / 30)`
 
-// Grid returns every active host in the Location (even with zero sales), grouped by Shift
+// Grid returns every active host in the Location (even with zero sales) and every inactive host with orders in the
+// Period, grouped by Shift
 // (Morning -> Middle -> Evening -> unassigned), each with its 35 half-hour QTY buckets, plus the
 // ALL row (total across hosts per slot), the Monthly AVG row (per-slot baseline), and the 8
 // Time Block totals.
 func (h *HeatmapHandler) Grid(w http.ResponseWriter, r *http.Request) {
 	from, to := resolveRange(r)
-	hostsWhere, hostArgs := activeHostsFilter(r, 3)
+	hostsWhere, hostArgs := heatmapLocationFilter(r, 3)
 
 	hostRows, err := h.DB.Query(r.Context(), `
 		SELECT h.id, h.name, h.shift
 		FROM hosts h
-		WHERE 1=1`+hostsWhere+`
+		WHERE 1=1`+heatmapHostRowsFilter+hostsWhere+`
 		ORDER BY CASE h.shift WHEN 'morning' THEN 0 WHEN 'middle' THEN 1 WHEN 'evening' THEN 2 ELSE 3 END, h.name`,
-		hostArgs...)
+		append([]interface{}{from, to}, hostArgs...)...)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch hosts")
 		return

@@ -422,6 +422,9 @@ function CheckoutForm() {
   const addrOk = s.address.trim().length >= 6
   const f = freeShip(subtotal)
   const shipping = quote ? quote.shipping_fee : 0
+  // automatic product promotions (Add-on, Combo, Buy A Get B) are listed on their own lines; the coupon row keeps the rest
+  const autoPromos = (quote?.promotions || []).filter((p) => ['addon', 'combo', 'buy_a_get_b'].includes(p.type))
+  const couponDiscount = Math.max(0, (quote?.discount || 0) - autoPromos.reduce((sum, p) => sum + p.discount, 0))
   const total = quote ? (quote.payable_now ?? quote.total) : subtotal
   const logisticsDown = !(chainId('cvs_711') > 0 || chainId('cvs_familymart') > 0 || courier)
   const needStore = cvs && !s.store
@@ -681,8 +684,14 @@ function CheckoutForm() {
         <section style={section}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15 }}><span>{t('co.subtotal')}</span><span>{money(subtotal)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15 }}><span>{t('co.shipping')}</span>{quote && shipping === 0 ? <b style={{ color: 'var(--color-success)' }}>{t('co.shipping_free')}</b> : <span>{quote ? money(shipping) : '—'}</span>}</div>
-          {quote?.discount > 0 ? (
-            <button type="button" onClick={() => setCouponOpen(true)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}><span>{couponRow?.host ? t('co.coupon_live') : t('co.coupon')}</span><span style={{ color: 'var(--color-live)' }}>− {money(quote.discount)}</span></button>
+          {autoPromos.map((p) => (
+            <div key={p.promotion_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15 }}><span>{p.label}</span><span style={{ color: 'var(--color-live)' }}>{p.discount > 0 ? `− ${money(p.discount)}` : t('co.promo_gift')}</span></div>
+          ))}
+          {(quote?.gifts || []).map((g) => (
+            <div key={`${g.promotion_id}-${g.variant_id}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15 }}><span>{t('co.gift_line', { name: g.name, qty: g.qty })}</span><b style={{ color: 'var(--color-success)' }}>{t('co.gift_free')}</b></div>
+          ))}
+          {couponDiscount > 0 ? (
+            <button type="button" onClick={() => setCouponOpen(true)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}><span>{couponRow?.host ? t('co.coupon_live') : t('co.coupon')}</span><span style={{ color: 'var(--color-live)' }}>− {money(couponDiscount)}</span></button>
           ) : (
             <button type="button" onClick={() => setCouponOpen(true)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', color: 'var(--color-text-2)', cursor: 'pointer' }}><span>{t('co.coupon')}</span><span style={linkSm}>{t('co.use_coupon')}</span></button>
           )}
@@ -695,6 +704,7 @@ function CheckoutForm() {
             </div>
           )}
         </section>
+        {quote?.promotion_note === 'code_not_used' && <span style={{ display: 'block', margin: '8px 16px 0', fontSize: 12, color: 'var(--color-warning)' }}>{t('co.code_not_used')}</span>}
         {quote?.promotion_error && <span role="alert" style={{ display: 'block', margin: '8px 16px 0', fontSize: 12, color: 'var(--color-error)' }}>{quote.promotion_error}</span>}
         {quoteError && <span role="alert" style={{ display: 'block', margin: '8px 16px 0', fontSize: 12, color: 'var(--color-error)' }}>{quoteError}</span>}
         <p style={{ margin: '12px 16px 0', fontSize: 12, color: 'var(--color-text-2)', lineHeight: 1.6 }}>{t('co.agree')} <Link to="/info/terms">{t('co.terms')}</Link> {t('co.and')} <Link to="/info/returns">{t('co.return_policy')}</Link>。</p>
