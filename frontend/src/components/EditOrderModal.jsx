@@ -7,6 +7,8 @@ import { describeError } from '../utils/errorText'
 import { formatCurrency } from '../utils/format'
 import { useStoreCodeCheck } from '../utils/useStoreCodeCheck'
 import { useMasterData } from '../context/MasterDataContext'
+import { useAuth } from '../context/AuthContext'
+import { canChangeMethodInBatch, isBatchRemovalPrompt } from '../utils/batchMethodChange'
 import ProductPickerModal from './ProductPickerModal'
 import { IconClose, IconTrash } from './icons'
 
@@ -18,6 +20,10 @@ const label = 'block text-sm font-medium text-gray-700 mb-1'
 export default function EditOrderModal({ order, onClose, onDone, afterShip = false, batchEdit = false }) {
   const { t } = useTranslation()
   const { translateColor } = useMasterData()
+  const { user } = useAuth()
+  // an order in a shipping batch: authorized staff may change the method (it leaves the batch after a confirmation)
+  const methodChangeable = canChangeMethodInBatch(user?.role, order)
+  const inBatch = Boolean(order.batch_no)
   const [pickupChains, setPickupChains] = useState([])
   const [hosts, setHosts] = useState([])
   const [name, setName] = useState(order.customer_name || '')
@@ -73,26 +79,33 @@ export default function EditOrderModal({ order, onClose, onDone, afterShip = fal
     if (!chainId) { setError(t('page_order_create.block_error_pickup_method', { index: 1 })); return }
     if (!storeCodeValid) return
     // changing the shipping method replaces the old delivery data completely: ask first
-    if (String(chainId) !== String(order.pickup_chain_id) && !window.confirm(t('page_order_detail.change_method_confirm'))) return
+    if (String(chainId) !== String(order.pickup_chain_id) && !inBatch && !window.confirm(t('page_order_detail.change_method_confirm'))) return
     if (items.length === 0 || items.some((it) => !(Number(it.qty) > 0))) { setError(t('page_order_detail.edit_err_items')); return }
     setSaving(true)
+    const payload = {
+      customer: { name, phone, email, apply_to_all: applyAll },
+      pickup_chain_id: Number(chainId),
+      pickup_store_name: storeName,
+      pickup_store_code: storeCode,
+      shipping_address: isCvs ? '' : address,
+      items: items.map((it) => ({
+        ...(it.id ? { id: it.id } : {}), variant_id: it.variantId, qty: Number(it.qty), price: Number(it.price) || 0, host_id: Number(it.hostId) || 0,
+      })),
+      discount_amount: Number(discount) || 0,
+      additional_amount: Number(additional) || 0,
+      ...(Number(fee) !== Number(order.shipping_fee || 0) ? { shipping_fee_override: Number(fee) || 0 } : {}),
+    }
     try {
-      await updateOrder(order.id, {
-        customer: { name, phone, email, apply_to_all: applyAll },
-        pickup_chain_id: Number(chainId),
-        pickup_store_name: storeName,
-        pickup_store_code: storeCode,
-        shipping_address: isCvs ? '' : address,
-        items: items.map((it) => ({
-          ...(it.id ? { id: it.id } : {}), variant_id: it.variantId, qty: Number(it.qty), price: Number(it.price) || 0, host_id: Number(it.hostId) || 0,
-        })),
-        discount_amount: Number(discount) || 0,
-        additional_amount: Number(additional) || 0,
-        ...(Number(fee) !== Number(order.shipping_fee || 0) ? { shipping_fee_override: Number(fee) || 0 } : {}),
-      })
+      try {
+        await updateOrder(order.id, payload)
+      } catch (err) {
+        // the server asks first when the new method takes the order out of its shipping batch
+        if (!isBatchRemovalPrompt(err) || !window.confirm(t('page_order_detail.batch_removal_confirm'))) throw err
+        await updateOrder(order.id, { ...payload, confirm_remove_from_batch: true })
+      }
       onDone()
     } catch (err) {
-      setError(describeError(err, t('page_order_detail.edit_failed')))
+      if (!isBatchRemovalPrompt(err)) setError(describeError(err, t('page_order_detail.edit_failed')))
     } finally {
       setSaving(false)
     }
@@ -129,12 +142,13 @@ export default function EditOrderModal({ order, onClose, onDone, afterShip = fal
             <h3 className="text-sm font-bold text-gray-700">{t('page_order_detail.edit_delivery_section')}</h3>
             <div className="flex flex-wrap gap-2">
               {pickupChains.map((c) => (
-                <button key={c.id} type="button" disabled={grouped || afterShip} onClick={() => setChainId(String(c.id))}
+                <button key={c.id} type="button" disabled={grouped || (afterShip && !methodChangeable)} onClick={() => setChainId(String(c.id))}
                   className={`text-sm font-semibold px-4 py-2 rounded-lg border disabled:opacity-50 ${chainId === String(c.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
                   {c.name}
                 </button>
               ))}
             </div>
+            {inBatch && !methodChangeable && !grouped && <p className="text-xs text-gray-500">{t(order.batch_create_result === 'created' || order.platform_order_no || order.tracking_number ? 'page_order_detail.method_locked_created' : 'page_order_detail.method_locked_role')}</p>}
             {selectedChain && (isCvs ? (
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>

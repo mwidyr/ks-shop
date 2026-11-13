@@ -816,7 +816,10 @@
     "promo_edit_save": "儲存",
     "promo_edit_failed": "儲存優惠失敗",
     "promo_cs_badge": "僅限客服",
-    "promo_none": "沒有適用的優惠。"
+    "promo_none": "沒有適用的優惠。",
+    "batch_removal_confirm": "變更配送方式會將此訂單從目前的批次中移出。要繼續嗎？",
+    "method_locked_created": "此訂單已在 7-11／全家平台建立，無法再變更配送方式。請先在平台上取消。",
+    "method_locked_role": "只有 Management、SPV、Warehouse 與 Super Admin 可以變更批次內訂單的配送方式。"
   },
   "page_order_print": {
     "additional_fee_label": "額外費用",
@@ -3385,7 +3388,8 @@
     "bulk_done": "已完成 {{completed}} 筆，略過 {{skipped}} 筆（已不是「已出貨」）。",
     "bulk_shipped_on": "出貨日期",
     "bulk_days": "出貨後天數",
-    "bulk_days_value": "{{count}} 天"
+    "bulk_days_value": "{{count}} 天",
+    "issue_import_order_cancelled": "訂單已取消"
   },
   "keep_date": {
     "type_label": "日期類型",

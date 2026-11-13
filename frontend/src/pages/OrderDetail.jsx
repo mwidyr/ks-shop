@@ -18,6 +18,7 @@ import EditPromotionsModal from '../components/EditPromotionsModal'
 import EditOrderModal from '../components/EditOrderModal'
 import EditGroupModal from '../components/EditGroupModal'
 import { useAuth } from '../context/AuthContext'
+import { isBatchRemovalPrompt } from '../utils/batchMethodChange'
 import { useAccess } from '../context/AccessContext'
 import StatusPill, { statusLabels } from '../components/StatusPill'
 import OrderLineItem from '../components/OrderLineItem'
@@ -283,19 +284,26 @@ function PickupMethodModal({ order, pickupChains, onClose, onDone }) {
     }
     if (!storeCodeValid) return
     // changing the shipping method replaces the old delivery data completely: ask first
-    if (String(chainId) !== String(order.pickup_chain_id) && !window.confirm(t('page_order_detail.change_method_confirm'))) return
+    if (String(chainId) !== String(order.pickup_chain_id) && !order.batch_no && !window.confirm(t('page_order_detail.change_method_confirm'))) return
     setSaving(true)
+    const payload = {
+      pickup_chain_id: Number(chainId),
+      pickup_store_name: storeName,
+      pickup_store_code: storeCode,
+      shipping_address: isCvs ? '' : address,
+      ...(feeDirty ? { shipping_fee_override: Number(fee) || 0 } : {}),
+    }
     try {
-      await updateOrderPickup(order.id, {
-        pickup_chain_id: Number(chainId),
-        pickup_store_name: storeName,
-        pickup_store_code: storeCode,
-        shipping_address: isCvs ? '' : address,
-        ...(feeDirty ? { shipping_fee_override: Number(fee) || 0 } : {}),
-      })
+      try {
+        await updateOrderPickup(order.id, payload)
+      } catch (err) {
+        // the server asks first when the new method takes the order out of its shipping batch
+        if (!isBatchRemovalPrompt(err) || !window.confirm(t('page_order_detail.batch_removal_confirm'))) throw err
+        await updateOrderPickup(order.id, { ...payload, confirm_remove_from_batch: true })
+      }
       onDone()
     } catch (err) {
-      setError(describeError(err, t('page_order_detail.update_status_failed_error')))
+      if (!isBatchRemovalPrompt(err)) setError(describeError(err, t('page_order_detail.update_status_failed_error')))
     } finally {
       setSaving(false)
     }

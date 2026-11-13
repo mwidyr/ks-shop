@@ -51,6 +51,8 @@ type editOrderRequest struct {
 	DiscountAmount      float64         `json:"discount_amount"`
 	AdditionalAmount    float64         `json:"additional_amount"`
 	ShippingFeeOverride *float64        `json:"shipping_fee_override"`
+	// ConfirmRemoveFromBatch: staff confirmed that changing the shipping method takes the order out of its batch.
+	ConfirmRemoveFromBatch bool `json:"confirm_remove_from_batch"`
 }
 
 // canEditBatchOrder: the lock override (users.can_edit_shipped_orders / super admin), or Management / SPV / Warehouse
@@ -68,17 +70,88 @@ func canEditBatchOrder(ctx context.Context, q rowQuerier, role string, userID, o
 	return inBatch
 }
 
-// releaseFailedFromBatch takes an order whose platform creation failed out of its batch: the batch row goes
-// (the removal is kept in shipping_batch_removals), the order returns to Pending / un-exported with its reserved
-// FIFO cost given back. Merged siblings travel with it so the group is never split across batches.
+// Changing the shipping method of an order that sits in a shipping batch takes it out of the batch (it returns to
+// Pending and is processed again with the new method). Only for the roles that may use "Remove from batch", only while
+// the order does not exist on the platform yet (no platform number / shipping number / "created" result) - otherwise
+// a duplicate parcel would stay on 7-11 / FamilyMart - and only after the staff confirmed.
+const batchRemovalConfirmMsg = "Changing the shipping method will remove this order from the current batch. Do you want to continue?"
+
+// confirmBatchRemovalCode is the `code` of the 409 asking the client to confirm, see respondEditError.
+const confirmBatchRemovalCode = "confirm_batch_removal"
+
+func canRemoveFromBatchRole(role string) bool {
+	return role == "management" || role == "spv" || role == "warehouse" || role == "super_user"
+}
+
+// respondEditError writes a refusal; the "please confirm" one carries a code so the form can show its popup and resend.
+func respondEditError(w http.ResponseWriter, code int, msg string) {
+	if msg == batchRemovalConfirmMsg {
+		respondJSON(w, code, map[string]string{"error": msg, "code": confirmBatchRemovalCode})
+		return
+	}
+	respondError(w, code, msg)
+}
+
+// methodChangeFromBatch handles the order's batch when its delivery provider is about to change. removed = the order
+// was taken out of its batch (carry on as a Pending order); (false, 0, "") = nothing to do here (not in a batch, same
+// provider, or a role that may not do it: the usual rules answer); a message with its HTTP status is a refusal.
+func methodChangeFromBatch(ctx context.Context, tx pgx.Tx, role string, userID, orderID, newChainID int, confirm bool) (removed bool, code int, msg string) {
+	provider := batchProvider(ctx, tx, orderID)
+	if provider == "" || !canRemoveFromBatchRole(role) {
+		return false, 0, ""
+	}
+	var newType string
+	if err := tx.QueryRow(ctx, `SELECT chain_type FROM pickup_chains WHERE id=$1`, newChainID).Scan(&newType); err != nil || newType == provider {
+		return false, 0, ""
+	}
+	var status, platformNo, trackingNo, result string
+	if err := tx.QueryRow(ctx, `
+		SELECT o.status, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''), COALESCE(sbo.create_result,'')
+		FROM orders o JOIN shipping_batch_orders sbo ON sbo.order_id = o.id WHERE o.id=$1 FOR UPDATE OF o`, orderID).
+		Scan(&status, &platformNo, &trackingNo, &result); err != nil {
+		return false, 0, ""
+	}
+	if platformNo != "" || trackingNo != "" || result == "created" {
+		return false, http.StatusConflict, "order ini sudah dibuat di platform (7-11 / FamilyMart), jadi metode pengiriman tidak bisa diganti. Batalkan dulu pesanannya di sisi platform, lalu hubungi Admin"
+	}
+	if status != "pending" && status != "processing" {
+		return false, http.StatusConflict, "metode pengiriman hanya bisa diganti selama order belum Ready to Ship (status saat ini: " + status + ")"
+	}
+	if !confirm {
+		return false, http.StatusConflict, batchRemovalConfirmMsg
+	}
+	uid := userID
+	refusal, err := releaseFromBatch(ctx, tx, orderID, &uid, "shipping method changed", false)
+	if err != nil {
+		return false, http.StatusInternalServerError, "failed to remove the order from its batch"
+	}
+	if refusal != "" {
+		return false, http.StatusConflict, refusal
+	}
+	return true, 0, ""
+}
+
+// releaseFailedFromBatch takes an order whose platform creation failed out of its batch (see releaseFromBatch).
 func releaseFailedFromBatch(ctx context.Context, tx pgx.Tx, orderID int, userID *int) (string, error) {
+	return releaseFromBatch(ctx, tx, orderID, userID, "failed order edited", true)
+}
+
+// releaseFromBatch takes an order out of its batch: the batch row goes (the removal is kept in
+// shipping_batch_removals), the order returns to Pending / un-exported with its reserved FIFO cost given back.
+// Merged siblings travel with it so the group is never split across batches. onlyFailed: the order must be a failed
+// one (the Remove-from-batch action); otherwise any order of a batch that was not created on the platform yet.
+// A non-empty message is a refusal (nothing changed).
+func releaseFromBatch(ctx context.Context, tx pgx.Tx, orderID int, userID *int, reason string, onlyFailed bool) (string, error) {
 	var batchID int
 	var batchNo, lastErr string
 	if err := tx.QueryRow(ctx, `
 		SELECT b.id, b.batch_no, COALESCE(sbo.last_error,'') FROM shipping_batch_orders sbo
 		JOIN shipping_batches b ON b.id = sbo.batch_id
-		WHERE sbo.order_id=$1 AND sbo.create_result='failed'`, orderID).Scan(&batchID, &batchNo, &lastErr); err != nil {
-		return "order ini bukan order gagal di sebuah batch", nil
+		WHERE sbo.order_id=$1 AND ($2 = false OR sbo.create_result='failed')`, orderID, onlyFailed).Scan(&batchID, &batchNo, &lastErr); err != nil {
+		if onlyFailed {
+			return "order ini bukan order gagal di sebuah batch", nil
+		}
+		return "order ini tidak ada di sebuah batch", nil
 	}
 	ids := []int{orderID}
 	grows, err := tx.Query(ctx, `
@@ -111,7 +184,7 @@ func releaseFailedFromBatch(ctx context.Context, tx pgx.Tx, orderID int, userID 
 				return "", err
 			}
 			if _, err := tx.Exec(ctx, `INSERT INTO order_status_log (order_id, status_from, status_to, changed_by, reason)
-				VALUES ($1,'processing','pending',$2,$3)`, oid, userID, "removed from batch "+batchNo+" (failed order edited)"); err != nil {
+				VALUES ($1,'processing','pending',$2,$3)`, oid, userID, "removed from batch "+batchNo+" ("+reason+")"); err != nil {
 				return "", err
 			}
 		}
@@ -125,7 +198,7 @@ func releaseFailedFromBatch(ctx context.Context, tx pgx.Tx, orderID int, userID 
 		if _, err := tx.Exec(ctx, `UPDATE orders SET exported_at=NULL, platform_order_no=NULL, tracking_number=NULL, updated_at=now() WHERE id=$1`, oid); err != nil {
 			return "", err
 		}
-		logActivity(ctx, tx, "order", oid, "removed_from_batch", userID, batchNo)
+		logActivity(ctx, tx, "order", oid, "removed_from_batch", userID, batchNo+" - "+reason)
 	}
 	return "", nil
 }
@@ -208,7 +281,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 	if code, msg := editOrderTx(ctx, tx, claims.Role, claims.UserID, id, req, false); code != 0 {
-		respondError(w, code, msg)
+		respondEditError(w, code, msg)
 		return
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -244,6 +317,17 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 	// (users.can_edit_shipped_orders, or super admin). Such an edit only touches the recipient and delivery data:
 	// items, amounts, fee and the delivery provider stay as exported, so stock, FIFO cost and the COD amount at
 	// the 3PL stay consistent, and the status does not move.
+	// A shipping-method change on an order in a batch: authorized staff confirm, the order leaves the batch and is
+	// then edited like any Pending order (see methodChangeFromBatch).
+	if req.PickupChainID != curChain && !inGroup {
+		removed, code, msg := methodChangeFromBatch(ctx, tx, role, userID, id, req.PickupChainID, req.ConfirmRemoveFromBatch)
+		if msg != "" {
+			return code, msg
+		}
+		if removed {
+			exported, status = false, "pending"
+		}
+	}
 	afterShip := false
 	if exported || status != "pending" {
 		if !canEditBatchOrder(ctx, tx, claims.Role, claims.UserID, id) {

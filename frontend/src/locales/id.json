@@ -816,7 +816,10 @@
     "promo_edit_save": "Simpan",
     "promo_edit_failed": "Gagal menyimpan promo",
     "promo_cs_badge": "Khusus CS",
-    "promo_none": "Tidak ada promo yang berlaku."
+    "promo_none": "Tidak ada promo yang berlaku.",
+    "batch_removal_confirm": "Mengganti metode pengiriman akan mengeluarkan order ini dari batch saat ini. Lanjutkan?",
+    "method_locked_created": "Order ini sudah dibuat di platform 7-11 / FamilyMart, jadi metode pengirimannya tidak bisa diganti lagi. Batalkan dulu di platform.",
+    "method_locked_role": "Hanya Management, SPV, Warehouse, dan Super Admin yang bisa mengganti metode pengiriman order yang ada di batch."
   },
   "page_order_print": {
     "additional_fee_label": "Biaya Tambahan",
@@ -3385,7 +3388,8 @@
     "bulk_done": "{{completed}} pesanan diselesaikan, {{skipped}} dilewati (sudah bukan Shipped).",
     "bulk_shipped_on": "Tanggal kirim",
     "bulk_days": "Hari sejak kirim",
-    "bulk_days_value": "{{count}} hr"
+    "bulk_days_value": "{{count}} hr",
+    "issue_import_order_cancelled": "Pesanan sudah dibatalkan"
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

@@ -816,7 +816,10 @@
     "promo_edit_save": "Save",
     "promo_edit_failed": "Failed to save promotions",
     "promo_cs_badge": "CS only",
-    "promo_none": "No promotion applied."
+    "promo_none": "No promotion applied.",
+    "batch_removal_confirm": "Changing the shipping method will remove this order from the current batch. Do you want to continue?",
+    "method_locked_created": "This order was already created on the 7-11 / FamilyMart platform, so its shipping method can no longer be changed. Cancel it on the platform first.",
+    "method_locked_role": "Only Management, SPV, Warehouse and Super Admin can change the shipping method of an order in a batch."
   },
   "page_order_print": {
     "additional_fee_label": "Additional Fee",
@@ -3385,7 +3388,8 @@
     "bulk_done": "{{completed}} order(s) completed, {{skipped}} skipped (no longer Shipped).",
     "bulk_shipped_on": "Shipped on",
     "bulk_days": "Days since shipment",
-    "bulk_days_value": "{{count}} d"
+    "bulk_days_value": "{{count}} d",
+    "issue_import_order_cancelled": "Order was cancelled"
   },
   "keep_date": {
     "type_label": "Date type",

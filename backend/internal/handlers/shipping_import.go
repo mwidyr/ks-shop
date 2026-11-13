@@ -229,7 +229,19 @@ func (a *importApplier) record(rec importRecord) error {
 		a.issue(rec, "unmatched", 0, nil)
 		return nil
 	}
-	ids := a.members[m.Unit[0].unitKey()]
+	// A cancelled member of a merged shipment never travels with it: it is not in the batch and must not stop the rest
+	// of the shipment from being updated (it used to reject the whole row as "not in batch").
+	var ids []int
+	for _, id := range a.members[m.Unit[0].unitKey()] {
+		if a.state[id].Status != "cancelled" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		a.sum.Unmatched++
+		a.issue(rec, "order_cancelled", m.Unit[0].ID, nil)
+		return nil
+	}
 	first := a.state[ids[0]]
 	for _, id := range ids {
 		c := a.state[id]

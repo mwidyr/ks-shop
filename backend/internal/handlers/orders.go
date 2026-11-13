@@ -307,6 +307,10 @@ type orderDetailView struct {
 	StatusLocked    bool   `json:"status_locked"`
 	PlatformOrderNo string `json:"platform_order_no"`
 	TrackingNumber  string `json:"tracking_number"`
+	// BatchNo / BatchCreateResult: the shipping batch the order sits in ("" = none) and its platform result
+	// (created | failed | ""), so the edit forms know whether the shipping method can still be changed.
+	BatchNo           string `json:"batch_no"`
+	BatchCreateResult string `json:"batch_create_result"`
 	// ReturnReceived: the warehouse already booked the returned goods back into stock.
 	ReturnReceived           bool              `json:"return_received"`
 	CustomerName             string            `json:"customer_name"`
@@ -539,6 +543,9 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT o.exported_at IS NOT NULL, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''),
 		       EXISTS(SELECT 1 FROM stock_movements sm WHERE sm.order_id = o.id AND sm.event_type IN ('return_restocked','return_broken'))
 		FROM orders o WHERE o.id=$1`, id).Scan(&o.StatusLocked, &o.PlatformOrderNo, &o.TrackingNumber, &o.ReturnReceived)
+	h.DB.QueryRow(ctx, `
+		SELECT b.batch_no, COALESCE(sbo.create_result,'') FROM shipping_batch_orders sbo JOIN shipping_batches b ON b.id = sbo.batch_id
+		WHERE sbo.order_id=$1`, id).Scan(&o.BatchNo, &o.BatchCreateResult)
 	respondJSON(w, http.StatusOK, o)
 }
 
@@ -1078,6 +1085,8 @@ type updatePickupRequest struct {
 	PickupStoreCode     string   `json:"pickup_store_code"`
 	ShippingAddress     string   `json:"shipping_address"`
 	ShippingFeeOverride *float64 `json:"shipping_fee_override"`
+	// ConfirmRemoveFromBatch: staff confirmed that changing the shipping method takes the order out of its batch.
+	ConfirmRemoveFromBatch bool `json:"confirm_remove_from_batch"`
 }
 
 // UpdatePickup lets staff change an existing order's pickup method/store/address after
@@ -1093,10 +1102,39 @@ func (h *OrderHandler) UpdatePickup(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "pickup_chain_id is required")
 		return
 	}
+	ctx := r.Context()
+	// Another shipping provider for an order in a batch: authorized staff confirm, the order leaves its batch and is then
+	// changed like a Pending order (see methodChangeFromBatch). Committed first so the usual lock checks below see it.
+	if claims := appmw.GetClaims(r); claims != nil {
+		var prev int
+		var group bool
+		if h.DB.QueryRow(ctx, `SELECT pickup_chain_id, EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id) FROM orders o WHERE o.id=$1`, id).Scan(&prev, &group) == nil && prev != req.PickupChainID && !group {
+			tx, err := h.DB.Begin(ctx)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "db error")
+				return
+			}
+			removed, code, msg := methodChangeFromBatch(ctx, tx, claims.Role, claims.UserID, id, req.PickupChainID, req.ConfirmRemoveFromBatch)
+			if msg != "" {
+				tx.Rollback(ctx)
+				respondEditError(w, code, msg)
+				return
+			}
+			if removed {
+				if err := tx.Commit(ctx); err != nil {
+					respondError(w, http.StatusInternalServerError, "db commit failed")
+					return
+				}
+				invalidateShippingCache()
+				invalidateOrderCaches()
+			} else {
+				tx.Rollback(ctx)
+			}
+		}
+	}
 	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
-	ctx := r.Context()
 	var prevChain int
 	var prevAddress string
 	_ = h.DB.QueryRow(ctx, `SELECT pickup_chain_id, COALESCE(shipping_address,'') FROM orders WHERE id=$1`, id).Scan(&prevChain, &prevAddress)
