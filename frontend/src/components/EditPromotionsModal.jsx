@@ -10,36 +10,39 @@ import { IconClose } from './icons'
 export default function EditPromotionsModal({ order, onClose, onDone }) {
   const { t } = useTranslation()
   const [state, setState] = useState(null)
-  const [preview, setPreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    availablePromotions().then((available) => {
+    availablePromotions(order.sales_channel).then((available) => {
       const applied = order.promotions || []
       const appliedIds = new Set(applied.map((p) => p.promotion_id))
       const gifts = {}
       for (const it of order.items || []) if (it.is_gift && it.gift_promotion_id) gifts[it.gift_promotion_id] = it.variant_id
+      // a code typed when the order was made stays a code (valid on LIVE too); only the rest are picks from the list
+      const typed = order.promotion_typed_code || ''
+      const picks = applied.filter((p) => !p.auto_apply && !(typed && p.code === typed))
       setState({
         ...emptyPromotionState(),
-        promotionIds: applied.filter((p) => !p.auto_apply).map((p) => p.promotion_id),
+        code: typed,
+        promotionIds: picks.map((p) => p.promotion_id),
         excludedIds: available.filter((a) => a.auto_apply && !appliedIds.has(a.id)).map((a) => a.id),
         giftChoices: gifts,
-        reason: applied.map((p) => p.reason).find(Boolean) || '',
+        purposeId: String(picks.map((p) => p.purpose_id).find(Boolean) || ''),
       })
     }).catch(() => setState(emptyPromotionState()))
   }, [order])
 
-  const needsReason = (preview?.applied || []).some((a) => a.cs_only)
+  const needsPurpose = state ? state.promotionIds.length > 0 : false
 
   async function save() {
     setError('')
-    if (needsReason && !state.reason) { setError(t('shared.promo_panel.reason_placeholder')); return }
+    if (needsPurpose && !state.purposeId) { setError(t('shared.promo_panel.purpose_placeholder')); return }
     setSaving(true)
     try {
       await updateOrderPromotions(order.id, {
         code: state.code, promotion_ids: state.promotionIds, excluded_promotion_ids: state.excludedIds,
-        gift_choices: state.giftChoices, reason: state.reason,
+        gift_choices: state.giftChoices, purpose_id: Number(state.purposeId) || 0,
       })
       onDone()
     } catch (e) {
@@ -55,7 +58,7 @@ export default function EditPromotionsModal({ order, onClose, onDone }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><IconClose /></button>
         </div>
         <p className="text-xs text-gray-500 mb-3">{t('page_order_detail.promo_edit_hint')}</p>
-        {state && <OrderPromotionsPanel orderId={order.id} state={state} onChange={setState} onPreview={setPreview} />}
+        {state && <OrderPromotionsPanel orderId={order.id} salesChannel={order.sales_channel} state={state} onChange={setState} />}
         {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
         <div className="flex justify-end gap-2 mt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm">{t('common.cancel')}</button>

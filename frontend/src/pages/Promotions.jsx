@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listPromotions, createPromotion, updatePromotion, deletePromotion } from '../api/promotions'
 import { formatCurrency } from '../utils/format'
+import PromotionPurposesPanel from '../components/PromotionPurposesPanel'
+import PromotionUsageHistory from '../components/PromotionUsageHistory'
 import PromotionRules, { PRODUCT_TYPES, configFromPromotion, configToPayload, emptyConfig } from '../components/PromotionRules'
 
 const emptyForm = {
@@ -40,7 +42,7 @@ function toForm(p) {
   }
 }
 
-export default function Promotions() {
+function PromotionList() {
   const { t } = useTranslation()
   const [promotions, setPromotions] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -229,6 +231,34 @@ export default function Promotions() {
           </form>
         )}
       </div>
+    </div>
+  )
+}
+
+// Promotion Management: the promotions, the Purpose Settings (what CS picks as the reason of a promotion) and the Usage History.
+const TABS = ['promotions', 'purposes', 'usage']
+
+export default function Promotions() {
+  const { t } = useTranslation()
+  const [tab, setTab] = useState('promotions')
+  return (
+    <div>
+      <div className="px-4 sm:px-6 pt-6 flex flex-wrap gap-2" role="tablist">
+        {TABS.map((k) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={`text-sm font-medium px-4 py-1.5 rounded-full border ${tab === k ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+          >
+            {t(`page_promotions.tab_${k}`)}
+          </button>
+        ))}
+      </div>
+      {tab === 'promotions' && <PromotionList />}
+      {tab === 'purposes' && <div className="px-4 sm:px-6 py-6"><PromotionPurposesPanel /></div>}
+      {tab === 'usage' && <div className="px-4 sm:px-6 py-6"><PromotionUsageHistory /></div>}
     </div>
   )
 }

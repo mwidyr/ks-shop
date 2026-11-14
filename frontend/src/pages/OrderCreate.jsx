@@ -250,6 +250,7 @@ function OrderForm({ order, hosts, locations, pickupChains, affiliates, shipping
         items={promoItems}
         customerId={order.customer?.id || null}
         pickupChainId={order.pickupChainId}
+        salesChannel={order.salesChannel}
         state={order.promotion}
         onChange={(v) => onUpdate('promotion', v)}
         onPreview={(res) => onUpdate('promotionResult', res)}
@@ -415,7 +416,7 @@ export default function OrderCreate() {
     if (!cvs && !order.shippingAddress) return t('page_order_create.block_error_address', { index: 1 })
     if (isCvs === 'courier' && addressTooLong(order.shippingAddress)) return t('page_order_create.block_error_address_long', { index: 1 })
     if (order.items.length === 0) return t('page_order_create.block_error_no_products', { index: 1 })
-    if ((order.promotionResult?.applied || []).some((a) => a.cs_only) && !order.promotion.reason) return t('page_order_create.block_error_promo_reason', { index: 1 })
+    if (order.promotion.promotionIds.length > 0 && !order.promotion.purposeId) return t('page_order_create.block_error_promo_reason', { index: 1 })
     if (carrierTotal(order) > EXPORT_TOTAL_MAX) return t('page_order_create.block_error_total_max', { index: 1, max: EXPORT_TOTAL_MAX.toLocaleString() })
     return ''
   }

@@ -17,8 +17,28 @@ export function deletePromotion(id) {
 }
 
 // Promotions CS can pick on an order page (active, inside their dates, not used up).
-export function availablePromotions() {
-  return client.get('/promotions/available').then((res) => res.data)
+// channel: 'live' (CS-only promotions) | 'website' (website + CS-only promotions)
+export function availablePromotions(channel) {
+  return client.get('/promotions/available', { params: { channel: channel || 'live' } }).then((res) => res.data)
+}
+
+// Promotion Purposes (Promotion Management > Purpose Settings); activeOnly = the order forms
+export function listPromotionPurposes(activeOnly = false) {
+  return client.get('/promotion-purposes', { params: activeOnly ? { active: 1 } : {} }).then((res) => res.data)
+}
+export function createPromotionPurpose(name) {
+  return client.post('/promotion-purposes', { name }).then((res) => res.data)
+}
+export function updatePromotionPurpose(id, payload) {
+  return client.patch(`/promotion-purposes/${id}`, payload).then((res) => res.data)
+}
+export function reorderPromotionPurposes(ids) {
+  return client.put('/promotion-purposes/order', { ids }).then((res) => res.data)
+}
+
+// Promotion Management > Usage History: { summary, rows, total, page, page_size }
+export function getPromotionUsage(params) {
+  return client.get('/promotions/usage', { params }).then((res) => res.data)
 }
 
 // Read-only preview of every promotion on a cart (or on an existing order via order_id): nothing is saved or consumed.

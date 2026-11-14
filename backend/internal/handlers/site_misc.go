@@ -133,7 +133,7 @@ func (h *SiteHandler) ClaimCoupon(w http.ResponseWriter, r *http.Request) {
 	var used int
 	err := h.DB.QueryRow(r.Context(), `
 		SELECT p.code, p.type, p.value, p.min_order_amount, p.end_date, p.start_date, p.is_active, p.usage_limit,
-		       (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id),
+		       (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id AND rd.cancelled_at IS NULL),
 		       COALESCE((SELECT hc.title FROM host_coupons hc WHERE hc.promotion_id = p.id LIMIT 1), ''),
 		       COALESCE((SELECT h.name FROM host_coupons hc JOIN hosts h ON h.id = hc.host_id WHERE hc.promotion_id = p.id LIMIT 1), '')
 		FROM promotions p WHERE p.code = $1 AND p.audience = 'public'`, code).

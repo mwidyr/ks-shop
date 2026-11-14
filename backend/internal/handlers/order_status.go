@@ -39,9 +39,10 @@ func applyStatusChange(ctx context.Context, tx pgx.Tx, orderID int, from, to str
 	}
 	switch to {
 	case "cancelled":
-		// Free the promotion's usage/per-customer count back up - a cancelled order shouldn't
-		// permanently consume a limited coupon's redemption slot.
-		tx.Exec(ctx, `DELETE FROM promotion_redemptions WHERE order_id=$1`, orderID)
+		// Free the promotion's usage/per-customer count back up - a cancelled order shouldn't permanently consume a
+		// limited coupon's redemption slot. The record stays as history (Usage History), marked cancelled, and every
+		// count of used promotions ignores it.
+		tx.Exec(ctx, `UPDATE promotion_redemptions SET cancelled_at = now() WHERE order_id=$1 AND cancelled_at IS NULL`, orderID)
 		OrderCancelledRefund(ctx, tx, orderID) // give back wallet balance / points the order used
 	case "delivered":
 		OrderDeliveredReward(ctx, tx, orderID) // points for the member + referral reward on a first order

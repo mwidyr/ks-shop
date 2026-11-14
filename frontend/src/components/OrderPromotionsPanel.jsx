@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { availablePromotions, previewPromotions } from '../api/promotions'
+import { availablePromotions, listPromotionPurposes, previewPromotions } from '../api/promotions'
 import { formatCurrency } from '../utils/format'
 
-const REASONS = ['private_offer', 'after_sales', 'compensation']
-
-export const emptyPromotionState = () => ({ code: '', promotionIds: [], excludedIds: [], giftChoices: {}, reason: '' })
+export const emptyPromotionState = () => ({ code: '', promotionIds: [], excludedIds: [], giftChoices: {}, purposeId: '' })
 
 // What the order request carries for a promotion state.
 export function promotionPayload(state) {
@@ -14,16 +12,19 @@ export function promotionPayload(state) {
     promotion_ids: state.promotionIds,
     excluded_promotion_ids: state.excludedIds,
     gift_choices: state.giftChoices,
-    promotion_reason: state.reason || '',
+    promotion_purpose_id: Number(state.purposeId) || 0,
   }
 }
 
 // Coupon code + CS-only / existing promotions + automatic ones, with a live preview from the server (the same engine
-// that creates the order). items: [{variant_id, qty}] or orderId for an existing order.
-export default function OrderPromotionsPanel({ items, orderId, customerId, pickupChainId, state, onChange, onPreview }) {
+// that creates the order). items: [{variant_id, qty}] or orderId for an existing order. salesChannel decides what CS can
+// pick: LIVE = CS-only promotions, Website = website + CS-only promotions (a typed code works on both).
+export default function OrderPromotionsPanel({ items, orderId, customerId, pickupChainId, salesChannel = 'live', state, onChange, onPreview }) {
   const { t } = useTranslation()
   const pt = (k, o) => t(`shared.promo_panel.${k}`, o)
   const [available, setAvailable] = useState([])
+  const [availableFor, setAvailableFor] = useState('')
+  const [purposes, setPurposes] = useState([])
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [codeInput, setCodeInput] = useState('')
@@ -33,18 +34,32 @@ export default function OrderPromotionsPanel({ items, orderId, customerId, picku
   const onPreviewRef = useRef(onPreview)
   onPreviewRef.current = onPreview
 
-  useEffect(() => { availablePromotions().then(setAvailable).catch(() => {}) }, [])
+  useEffect(() => { listPromotionPurposes(true).then(setPurposes).catch(() => {}) }, [])
+  useEffect(() => {
+    let live = true
+    availablePromotions(salesChannel).then((list) => { if (live) { setAvailable(list); setAvailableFor(salesChannel) } }).catch(() => {})
+    return () => { live = false }
+  }, [salesChannel])
+  // a promotion that is no longer allowed for this Sales Channel (e.g. a website promotion after switching to LIVE) is dropped
+  useEffect(() => {
+    if (availableFor !== salesChannel) return
+    const ok = new Set(available.map((a) => a.id))
+    const kept = state.promotionIds.filter((id) => ok.has(id))
+    if (kept.length !== state.promotionIds.length) onChange({ ...state, promotionIds: kept })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [available, availableFor, salesChannel])
 
   const body = useMemo(() => ({
     items: (items || []).map((i) => ({ variant_id: i.variant_id, qty: i.qty })),
     order_id: orderId || 0,
     customer_id: customerId || null,
     pickup_chain_id: Number(pickupChainId) || 0,
+    sales_channel: salesChannel,
     code: state.code,
     promotion_ids: state.promotionIds,
     excluded_ids: state.excludedIds,
     gift_choices: state.giftChoices,
-  }), [items, orderId, customerId, pickupChainId, state])
+  }), [items, orderId, customerId, pickupChainId, salesChannel, state])
 
   useEffect(() => {
     const id = ++seq.current
@@ -63,7 +78,8 @@ export default function OrderPromotionsPanel({ items, orderId, customerId, picku
   const pickable = available.filter((a) => !a.auto_apply && !state.promotionIds.includes(a.id))
   const autoApplied = (preview?.applied || []).filter((a) => byId[a.promotion_id]?.auto_apply)
   const excludedAutos = state.excludedIds.map((id) => byId[id]).filter(Boolean)
-  const needsReason = (preview?.applied || []).some((a) => a.cs_only) || state.promotionIds.some((id) => byId[id]?.audience === 'cs_only')
+  // every promotion CS picks from the list needs a purpose (typed codes and automatic promotions are General Promotion)
+  const needsPurpose = state.promotionIds.length > 0
 
   async function applyCode() {
     const code = codeInput.trim().toUpperCase()
@@ -101,7 +117,7 @@ export default function OrderPromotionsPanel({ items, orderId, customerId, picku
         <div className="flex gap-2">
           <select value={pick} onChange={(e) => setPick(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="">{pt('pick_placeholder')}</option>
-            {pickable.map((a) => <option key={a.id} value={a.id}>{label(a)}{a.audience === 'cs_only' ? ` · ${pt('cs_only')}` : ''}</option>)}
+            {pickable.map((a) => <option key={a.id} value={a.id}>{label(a)}{a.audience === 'cs_only' ? ` · ${pt('cs_only')}` : ` · ${pt('website_promo')}`}</option>)}
           </select>
           <button type="button" disabled={!pick} onClick={() => { onChange({ ...state, promotionIds: [...state.promotionIds, Number(pick)] }); setPick('') }} className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-lg">{pt('add')}</button>
         </div>
@@ -157,12 +173,12 @@ export default function OrderPromotionsPanel({ items, orderId, customerId, picku
         </div>
       )}
 
-      {needsReason && (
+      {needsPurpose && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{pt('reason_label')}</label>
-          <select value={state.reason} onChange={(e) => onChange({ ...state, reason: e.target.value })} className={`w-full border rounded-lg px-3 py-2 text-sm bg-white ${state.reason ? 'border-gray-300' : 'border-amber-400'}`}>
-            <option value="">{pt('reason_placeholder')}</option>
-            {REASONS.map((r) => <option key={r} value={r}>{pt(`reason_${r}`)}</option>)}
+          <label className="block text-sm font-medium text-gray-700 mb-1">{pt('purpose_label')}</label>
+          <select value={state.purposeId} onChange={(e) => onChange({ ...state, purposeId: e.target.value })} className={`w-full border rounded-lg px-3 py-2 text-sm bg-white ${state.purposeId ? 'border-gray-300' : 'border-amber-400'}`}>
+            <option value="">{pt('purpose_placeholder')}</option>
+            {purposes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
       )}

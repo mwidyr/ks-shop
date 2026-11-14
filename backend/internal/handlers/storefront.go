@@ -369,7 +369,7 @@ func (h *StorefrontHandler) Promotions(w http.ResponseWriter, r *http.Request) {
 		WHERE p.is_active AND p.code IS NOT NULL AND p.member_id IS NULL AND p.audience = 'public'
 		  AND p.type IN ('fixed_amount','percentage','free_shipping')
 		  AND (p.start_date IS NULL OR p.start_date <= now()) AND (p.end_date IS NULL OR p.end_date >= now())
-		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id) < p.usage_limit)
+		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id AND rd.cancelled_at IS NULL) < p.usage_limit)
 		ORDER BY p.id DESC`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch promotions")
@@ -532,7 +532,7 @@ func priceCart(ctx context.Context, db storeDB, req storeQuoteRequest, strict bo
 	for i, it := range req.Items {
 		items[i] = promoItem{it.VariantID, it.Qty}
 	}
-	out, _, _, promoMsg, perr := resolvePromotions(ctx, db, items, promoSelection{Code: req.PromotionCode}, q.customerID, req.memberID, baseFee)
+	out, _, _, promoMsg, perr := resolvePromotions(ctx, db, items, promoSelection{Code: req.PromotionCode, Channel: "website"}, q.customerID, req.memberID, baseFee)
 	if perr != nil {
 		return q, "produk tidak tersedia"
 	}
@@ -788,8 +788,11 @@ func (h *StorefrontHandler) CreateOrder(w http.ResponseWriter, r *http.Request) 
 			mh.ledgerAdd(ctx, tx, req.memberID, "points", -float64(used.Points), "order_spend", fmt.Sprintf("spend-pts:%d", orderID), orderNo, &orderID)
 		}
 	}
+	if code := strings.ToUpper(strings.TrimSpace(req.PromotionCode)); code != "" && quote.PromotionError == "" {
+		_, _ = tx.Exec(ctx, `UPDATE orders SET promotion_typed_code=$2 WHERE id=$1`, orderID, code)
+	}
 	// usage records of every applied promotion + the free gifts (order items at price 0)
-	if _, err := recordPromotions(ctx, tx, orderID, &customerID, quote.outcome, nil, ""); err != nil {
+	if _, err := recordPromotions(ctx, tx, orderID, &customerID, quote.outcome, nil, 0, nil); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to record promotion")
 		return
 	}

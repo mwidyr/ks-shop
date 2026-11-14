@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -18,16 +19,16 @@ type orderPromotionsRequest struct {
 	PromotionIDs         []int          `json:"promotion_ids"`
 	ExcludedPromotionIDs []int          `json:"excluded_promotion_ids"`
 	GiftChoices          map[string]int `json:"gift_choices"`
-	Reason               string         `json:"reason"`
+	PurposeID            int            `json:"purpose_id"`
 }
 
 // orderPromoSel is what decides the promotions of an existing order.
 type orderPromoSel struct {
-	Code     string
-	Picked   []int
-	Excluded []int
-	Gift     map[string]int
-	Reason   string
+	Code      string
+	Picked    []int
+	Excluded  []int
+	Gift      map[string]int
+	PurposeID int
 	// Lenient: a promotion that can no longer be used (expired, used up, minimum not met) is simply dropped instead of
 	// failing the whole save. Used when the order's items change, so an old promotion never blocks an edit.
 	Lenient bool
@@ -41,9 +42,10 @@ func applyOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, sel order
 	var memberID *int
 	var chainID int
 	var inGroup bool
+	var channel string
 	if err := tx.QueryRow(ctx, `
-		SELECT o.customer_id, o.member_id, o.pickup_chain_id, EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id)
-		FROM orders o WHERE o.id=$1`, orderID).Scan(&customerID, &memberID, &chainID, &inGroup); err != nil {
+		SELECT o.customer_id, o.member_id, o.pickup_chain_id, o.sales_channel, EXISTS (SELECT 1 FROM order_shipment_group_members gm WHERE gm.order_id = o.id)
+		FROM orders o WHERE o.id=$1`, orderID).Scan(&customerID, &memberID, &chainID, &channel, &inGroup); err != nil {
 		return promoOutcome{}, http.StatusNotFound, "order not found"
 	}
 	var prevFree bool
@@ -83,7 +85,7 @@ func applyOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, sel order
 		var perr error
 		out, _, _, msg, perr = resolvePromotions(ctx, tx, items, promoSelection{
 			Code: sel.Code, PickedIDs: sel.Picked, ExcludedIDs: sel.Excluded,
-			GiftChoice: giftChoices(sel.Gift), Staff: true, LinePrice: prices,
+			GiftChoice: giftChoices(sel.Gift), Staff: true, Channel: channel, LinePrice: prices,
 		}, customerID, ptrInt(memberID), baseFee)
 		if perr != nil {
 			return promoOutcome{}, http.StatusBadRequest, "variant not found"
@@ -92,14 +94,18 @@ func applyOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, sel order
 			return promoOutcome{}, http.StatusBadRequest, msg
 		}
 	}
-	if msg := csReasonProblem(out, sel.Reason); msg != "" && !sel.Lenient {
+	picked := pickedSet(sel.Picked)
+	if msg := purposeProblem(ctx, tx, out, picked, sel.PurposeID); msg != "" && !sel.Lenient {
 		return promoOutcome{}, http.StatusBadRequest, msg
 	}
-	reason := sel.Reason
-	if !promotionReasons[reason] {
-		reason = ""
+	purposeID := sel.PurposeID
+	if sel.Lenient && purposeID > 0 {
+		var active bool
+		if tx.QueryRow(ctx, `SELECT is_active FROM promotion_purposes WHERE id=$1`, purposeID).Scan(&active) != nil {
+			purposeID = 0
+		}
 	}
-	first, err := recordPromotions(ctx, tx, orderID, customerID, out, userID, reason)
+	first, err := recordPromotions(ctx, tx, orderID, customerID, out, userID, purposeID, picked)
 	if err != nil {
 		return promoOutcome{}, http.StatusInternalServerError, "failed to record promotion"
 	}
@@ -111,8 +117,8 @@ func applyOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, sel order
 	if excluded == nil {
 		excluded = []int{}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE orders SET promotion_id=$2, promotion_discount_amount=$3, promotion_excluded=$4, promotion_gifts=$5::jsonb, updated_at=now() WHERE id=$1`,
-		orderID, first, out.Discount, excluded, string(gifts)); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE orders SET promotion_id=$2, promotion_discount_amount=$3, promotion_excluded=$4, promotion_gifts=$5::jsonb, promotion_typed_code=NULLIF($6,''), updated_at=now() WHERE id=$1`,
+		orderID, first, out.Discount, excluded, string(gifts), strings.ToUpper(strings.TrimSpace(sel.Code))); err != nil {
 		return promoOutcome{}, http.StatusInternalServerError, "failed to save promotions"
 	}
 	// shipping: a free-shipping promotion waives it; removing one restores the normal fee (an order merged into a
@@ -129,7 +135,7 @@ func applyOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, sel order
 			return promoOutcome{}, http.StatusInternalServerError, "failed to update shipping fee"
 		}
 	}
-	logActivity(ctx, tx, "order", orderID, "promotions_updated", userID, fmt.Sprintf("applied=%d discount=%.2f gifts=%d reason=%s", len(out.Applied), out.Discount, len(out.Gifts), reason))
+	logActivity(ctx, tx, "order", orderID, "promotions_updated", userID, fmt.Sprintf("applied=%d discount=%.2f gifts=%d purpose=%d", len(out.Applied), out.Discount, len(out.Gifts), purposeID))
 	return out, 0, ""
 }
 
@@ -142,19 +148,27 @@ func recomputeOrderPromotions(ctx context.Context, tx pgx.Tx, orderID int, userI
 		return http.StatusInternalServerError, "failed to read order promotions"
 	}
 	_ = json.Unmarshal([]byte(gifts), &sel.Gift)
+	var typed string
+	_ = tx.QueryRow(ctx, `SELECT COALESCE(promotion_typed_code,'') FROM orders WHERE id=$1`, orderID).Scan(&typed)
+	sel.Code = typed
+	var typedID int
+	if typed != "" {
+		_ = tx.QueryRow(ctx, `SELECT id FROM promotions WHERE code=$1`, typed).Scan(&typedID)
+	}
 	rows, err := tx.Query(ctx, `
-		SELECT pr.promotion_id, COALESCE(pr.reason,'') FROM promotion_redemptions pr JOIN promotions p ON p.id = pr.promotion_id
+		SELECT pr.promotion_id, COALESCE(pr.purpose_id,0) FROM promotion_redemptions pr JOIN promotions p ON p.id = pr.promotion_id
 		WHERE pr.order_id=$1 AND NOT p.auto_apply ORDER BY pr.id`, orderID)
 	if err != nil {
 		return http.StatusInternalServerError, "failed to read order promotions"
 	}
 	for rows.Next() {
-		var id int
-		var reason string
-		if rows.Scan(&id, &reason) == nil {
-			sel.Picked = append(sel.Picked, id)
-			if sel.Reason == "" {
-				sel.Reason = reason
+		var id, purpose int
+		if rows.Scan(&id, &purpose) == nil {
+			if id != typedID {
+				sel.Picked = append(sel.Picked, id)
+			}
+			if sel.PurposeID == 0 && purpose != 0 {
+				sel.PurposeID = purpose
 			}
 		}
 	}
@@ -199,7 +213,7 @@ func (h *OrderHandler) UpdatePromotions(w http.ResponseWriter, r *http.Request) 
 		userID = &claims.UserID
 	}
 	out, code, msg := applyOrderPromotions(ctx, tx, id, orderPromoSel{
-		Code: req.Code, Picked: req.PromotionIDs, Excluded: req.ExcludedPromotionIDs, Gift: req.GiftChoices, Reason: req.Reason,
+		Code: req.Code, Picked: req.PromotionIDs, Excluded: req.ExcludedPromotionIDs, Gift: req.GiftChoices, PurposeID: req.PurposeID,
 	}, userID)
 	if msg != "" {
 		respondError(w, code, msg)

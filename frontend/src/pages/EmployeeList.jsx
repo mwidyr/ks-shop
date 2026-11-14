@@ -5,6 +5,7 @@ import { useCanEdit } from '../context/AccessContext'
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../utils/hooks'
 import { cardClasses } from '../components/Table'
 import DateInput from '../components/DateInput'
+import { jakartaIsoDate } from '../utils/jakartaDate'
 import { EMPLOYEE_STATUSES, employeeRowStyle, employeeDotStyle, statusLabel } from '../utils/employeeUi'
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-full'
@@ -101,7 +102,7 @@ function EmployeeForm({ employee, meta, onClose, onSaved }) {
               <Field label={t('page_employee.full_name')} required><input value={form.full_name} onChange={set('full_name')} required className={inputCls} /></Field>
               <Field label={t('page_employee.nickname')} required><input value={form.nickname} onChange={set('nickname')} required className={inputCls} /></Field>
               <Field label="MBTI"><input value={form.mbti} onChange={set('mbti')} maxLength={10} placeholder="ENTJ-A" className={inputCls} /></Field>
-              <Field label={t('page_employee.birthday')}><DateInput value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} className={inputCls} /></Field>
+              <Field label={t('page_employee.birthday')}><DateInput value={form.birthday} onChange={(v) => setForm((f) => ({ ...f, birthday: v }))} defaultView={`${Number(jakartaIsoDate().slice(0, 4)) - 30}-01`} className={inputCls} /></Field>
               {sensitive && <Field label={t('page_employee.nik')}><input value={form.nik} onChange={set('nik')} inputMode="numeric" className={inputCls} /></Field>}
               {sensitive && <Field label={t('page_employee.address')}><input value={form.address} onChange={set('address')} className={inputCls} /></Field>}
             </Section>

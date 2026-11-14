@@ -74,7 +74,7 @@ func (h *MemberHandler) memberView(ctx context.Context, id int) map[string]inter
 	h.DB.QueryRow(ctx, `
 		SELECT COUNT(*) FROM member_coupons mc JOIN promotions p ON p.id = mc.promotion_id
 		WHERE mc.member_id=$1 AND p.is_active AND (p.end_date IS NULL OR p.end_date >= now())
-		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id=p.id) < p.usage_limit)`, id).Scan(&coupons)
+		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id=p.id AND rd.cancelled_at IS NULL) < p.usage_limit)`, id).Scan(&coupons)
 	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM member_favorites WHERE member_id=$1`, id).Scan(&favs)
 	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE member_id=$1 OR ($2::int IS NOT NULL AND customer_id=$2)`, id, m.CustomerID).Scan(&orders)
 	out := map[string]interface{}{
@@ -196,7 +196,7 @@ func (h *MemberHandler) Coupons(w http.ResponseWriter, r *http.Request) {
 	h.ensureBirthdayCoupon(r.Context(), h.DB, h.mustMember(r, id))
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT p.code, p.type, p.value, p.min_order_amount, p.end_date, p.start_date, p.is_active,
-		       EXISTS (SELECT 1 FROM promotion_redemptions rd JOIN orders o ON o.id = rd.order_id WHERE rd.promotion_id = p.id AND o.member_id = $1),
+		       EXISTS (SELECT 1 FROM promotion_redemptions rd JOIN orders o ON o.id = rd.order_id WHERE rd.promotion_id = p.id AND rd.cancelled_at IS NULL AND o.member_id = $1),
 		       COALESCE((SELECT hc.title FROM host_coupons hc WHERE hc.promotion_id = p.id LIMIT 1), ''),
 		       COALESCE((SELECT h.name FROM host_coupons hc JOIN hosts h ON h.id = hc.host_id WHERE hc.promotion_id = p.id LIMIT 1), ''),
 		       p.member_id IS NOT NULL

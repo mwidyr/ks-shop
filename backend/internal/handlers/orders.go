@@ -263,7 +263,8 @@ type orderPromoView struct {
 	Audience    string  `json:"audience"`
 	AutoApply   bool    `json:"auto_apply"`
 	Discount    float64 `json:"discount"`
-	Reason      string  `json:"reason,omitempty"`
+	Purpose     string  `json:"purpose,omitempty"` // the purpose name as it was when the promotion was applied
+	PurposeID   int     `json:"purpose_id,omitempty"`
 	AppliedBy   string  `json:"applied_by,omitempty"`
 }
 
@@ -309,8 +310,11 @@ type orderDetailView struct {
 	TrackingNumber  string `json:"tracking_number"`
 	// BatchNo / BatchCreateResult: the shipping batch the order sits in ("" = none) and its platform result
 	// (created | failed | ""), so the edit forms know whether the shipping method can still be changed.
-	BatchNo           string `json:"batch_no"`
-	BatchCreateResult string `json:"batch_create_result"`
+	BatchNo string `json:"batch_no"`
+	// SalesChannel (live | website) decides which promotions CS can pick; PromotionTypedCode is the promo code that was typed.
+	SalesChannel       string `json:"sales_channel"`
+	PromotionTypedCode string `json:"promotion_typed_code"`
+	BatchCreateResult  string `json:"batch_create_result"`
 	// ReturnReceived: the warehouse already booked the returned goods back into stock.
 	ReturnReceived           bool              `json:"return_received"`
 	CustomerName             string            `json:"customer_name"`
@@ -430,12 +434,12 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 	o.Promotions = []orderPromoView{}
 	if prows, err := h.DB.Query(ctx, `
-		SELECT p.id, COALESCE(NULLIF(p.name,''), p.code, ''), COALESCE(p.code,''), p.type, p.audience, p.auto_apply, pr.discount_applied, COALESCE(pr.reason,''), COALESCE(u.name,'')
+		SELECT p.id, COALESCE(NULLIF(p.name,''), p.code, ''), COALESCE(p.code,''), p.type, p.audience, p.auto_apply, pr.discount_applied, COALESCE(pr.purpose_name,''), COALESCE(pr.purpose_id,0), COALESCE(u.name,'')
 		FROM promotion_redemptions pr JOIN promotions p ON p.id = pr.promotion_id LEFT JOIN users u ON u.id = pr.applied_by
 		WHERE pr.order_id=$1 ORDER BY pr.id`, id); err == nil {
 		for prows.Next() {
 			var pv orderPromoView
-			if prows.Scan(&pv.PromotionID, &pv.Label, &pv.Code, &pv.Type, &pv.Audience, &pv.AutoApply, &pv.Discount, &pv.Reason, &pv.AppliedBy) == nil {
+			if prows.Scan(&pv.PromotionID, &pv.Label, &pv.Code, &pv.Type, &pv.Audience, &pv.AutoApply, &pv.Discount, &pv.Purpose, &pv.PurposeID, &pv.AppliedBy) == nil {
 				o.Promotions = append(o.Promotions, pv)
 			}
 		}
@@ -543,6 +547,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		SELECT o.exported_at IS NOT NULL, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''),
 		       EXISTS(SELECT 1 FROM stock_movements sm WHERE sm.order_id = o.id AND sm.event_type IN ('return_restocked','return_broken'))
 		FROM orders o WHERE o.id=$1`, id).Scan(&o.StatusLocked, &o.PlatformOrderNo, &o.TrackingNumber, &o.ReturnReceived)
+	h.DB.QueryRow(ctx, `SELECT sales_channel, COALESCE(promotion_typed_code,'') FROM orders WHERE id=$1`, id).Scan(&o.SalesChannel, &o.PromotionTypedCode)
 	h.DB.QueryRow(ctx, `
 		SELECT b.batch_no, COALESCE(sbo.create_result,'') FROM shipping_batch_orders sbo JOIN shipping_batches b ON b.id = sbo.batch_id
 		WHERE sbo.order_id=$1`, id).Scan(&o.BatchNo, &o.BatchCreateResult)
@@ -576,7 +581,7 @@ type createOrderRequest struct {
 	PromotionIDs         []int               `json:"promotion_ids"`          // promotions CS picked from the list
 	ExcludedPromotionIDs []int               `json:"excluded_promotion_ids"` // automatic promotions CS removed
 	GiftChoices          map[string]int      `json:"gift_choices"`           // promotion id -> chosen gift variant
-	PromotionReason      string              `json:"promotion_reason"`       // private_offer | after_sales | compensation
+	PromotionPurposeID   int                 `json:"promotion_purpose_id"`   // why CS applied the promotion (Promotion Purposes)
 	AdditionalAmount     float64             `json:"additional_amount"`
 	KeepDate             *string             `json:"keep_date"`
 	KeepDateType         string              `json:"keep_date_type"`
@@ -821,7 +826,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	promoOut, _, _, promoMsg, perr := resolvePromotions(ctx, tx, pitems, promoSelection{
 		Code: req.PromotionCode, PickedIDs: req.PromotionIDs, ExcludedIDs: req.ExcludedPromotionIDs,
-		GiftChoice: giftChoices(req.GiftChoices), Staff: true,
+		GiftChoice: giftChoices(req.GiftChoices), Staff: true, Channel: req.SalesChannel,
 	}, customerID, 0, baseFee)
 	if perr != nil {
 		respondError(w, http.StatusBadRequest, "variant not found")
@@ -831,7 +836,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, promoMsg)
 		return
 	}
-	if msg := csReasonProblem(promoOut, req.PromotionReason); msg != "" {
+	if msg := purposeProblem(ctx, tx, promoOut, pickedSet(req.PromotionIDs), req.PromotionPurposeID); msg != "" {
 		respondError(w, http.StatusBadRequest, msg)
 		return
 	}
@@ -872,7 +877,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if claims != nil {
 		promoUser = &claims.UserID
 	}
-	first, err := recordPromotions(ctx, tx, orderID, customerID, promoOut, promoUser, req.PromotionReason)
+	first, err := recordPromotions(ctx, tx, orderID, customerID, promoOut, promoUser, req.PromotionPurposeID, pickedSet(req.PromotionIDs))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to record promotion redemption")
 		return
@@ -887,7 +892,7 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if excluded == nil {
 		excluded = []int{}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE orders SET promotion_id=$1, promotion_excluded=$3, promotion_gifts=$4::jsonb WHERE id=$2`, promotionID, orderID, excluded, string(gifts)); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE orders SET promotion_id=$1, promotion_excluded=$3, promotion_gifts=$4::jsonb, promotion_typed_code=NULLIF($5,'') WHERE id=$2`, promotionID, orderID, excluded, string(gifts), strings.ToUpper(strings.TrimSpace(req.PromotionCode))); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save promotion")
 		return
 	}

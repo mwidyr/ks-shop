@@ -28,7 +28,10 @@ type promoSelection struct {
 	ExcludedIDs []int       // automatic promotions CS removed from this order (staff only)
 	GiftChoice  map[int]int // promotion id -> chosen gift variant (staff only)
 	Staff       bool
-	LinePrice   map[int]float64 // Edit Order: the prices saved on the order, so a later price change cannot alter its promotions
+	// Channel is the order's Sales Channel. Automatic promotions are Website promotions, and CS can only pick CS-only
+	// promotions for a LIVE order (a typed code is valid on both, with its own conditions).
+	Channel   string
+	LinePrice map[int]float64 // Edit Order: the prices saved on the order, so a later price change cannot alter its promotions
 }
 
 func loadPromoDefs(ctx context.Context, db storeDB, where string, args ...any) ([]promoDef, error) {
@@ -121,14 +124,14 @@ func promoUsable(ctx context.Context, db storeDB, p promoDef, customerID *int, m
 		var lock int
 		_ = db.QueryRow(ctx, `SELECT id FROM promotions WHERE id=$1 FOR UPDATE`, p.ID).Scan(&lock)
 		var count int
-		_ = db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1`, p.ID).Scan(&count)
+		_ = db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1 AND cancelled_at IS NULL`, p.ID).Scan(&count)
 		if count >= *p.UsageLimit {
 			return "this promotion has reached its usage limit"
 		}
 	}
 	if p.PerCustomer != nil && customerID != nil {
 		var count int
-		_ = db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1 AND customer_id=$2`, p.ID, *customerID).Scan(&count)
+		_ = db.QueryRow(ctx, `SELECT COUNT(*) FROM promotion_redemptions WHERE promotion_id=$1 AND customer_id=$2 AND cancelled_at IS NULL`, p.ID, *customerID).Scan(&count)
 		if count >= *p.PerCustomer {
 			return "this customer has already used this promotion the maximum number of times"
 		}
@@ -195,16 +198,25 @@ func resolvePromotions(ctx context.Context, db storeDB, items []promoItem, sel p
 			return promoOutcome{}, nil, 0, "", err
 		}
 		for _, p := range defs {
+			if sel.Channel != "website" && p.Audience != "cs_only" {
+				if firstErr == "" {
+					firstErr = "this promotion is only available for Website orders: on a LIVE order CS can pick CS-only promotions, or type a promo code"
+				}
+				continue
+			}
 			add(p, true)
 		}
 	}
-	auto, err := loadPromoDefs(ctx, db, `p.auto_apply AND p.is_active AND p.audience = 'public' AND p.member_id IS NULL AND p.type IN ('buy_a_get_b','addon','combo')`)
-	if err != nil {
-		return promoOutcome{}, nil, 0, "", err
-	}
-	for _, p := range auto {
-		if !excluded[p.ID] {
-			add(p, false)
+	// automatic promotions are Website promotions
+	if sel.Channel == "website" {
+		auto, err := loadPromoDefs(ctx, db, `p.auto_apply AND p.is_active AND p.audience = 'public' AND p.member_id IS NULL AND p.type IN ('buy_a_get_b','addon','combo')`)
+		if err != nil {
+			return promoOutcome{}, nil, 0, "", err
+		}
+		for _, p := range auto {
+			if !excluded[p.ID] {
+				add(p, false)
+			}
 		}
 	}
 	in := promoInput{Lines: lines, Subtotal: subtotal, ShippingFee: shippingFee, GiftChoice: sel.GiftChoice, CodePromoID: codePromo}
@@ -227,23 +239,27 @@ type execDB interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-// recordPromotions saves what was applied: one redemption per promotion (usage record) and the free gifts as order
-// items at price 0. Returns the id to keep in orders.promotion_id (the first applied one, or nil).
-func recordPromotions(ctx context.Context, db execDB, orderID int, customerID *int, out promoOutcome, userID *int, reason string) (*int, error) {
+// recordPromotions saves what was applied: one redemption per promotion (usage record, with the purpose name copied so
+// renaming a purpose later never changes history) and the free gifts as order items at price 0. A promotion CS picked
+// carries the chosen purpose; automatic promotions and typed codes are recorded as the system purpose ("General
+// Promotion"). Returns the id to keep in orders.promotion_id (the first applied one, or nil).
+func recordPromotions(ctx context.Context, db execDB, orderID int, customerID *int, out promoOutcome, userID *int, purposeID int, picked map[int]bool) (*int, error) {
 	var first *int
-	var reasonArg interface{}
-	if reason != "" {
-		reasonArg = reason
-	}
 	for _, a := range out.Applied {
 		if first == nil {
 			id := a.PromotionID
 			first = &id
 		}
+		var purpose interface{}
+		if picked[a.PromotionID] && purposeID > 0 {
+			purpose = purposeID
+		}
 		if _, err := db.Exec(ctx, `
-			INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied, applied_by, reason)
-			VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (promotion_id, order_id) DO NOTHING`,
-			a.PromotionID, orderID, customerID, a.Discount+a.GiftValue, userID, reasonArg); err != nil {
+			INSERT INTO promotion_redemptions (promotion_id, order_id, customer_id, discount_applied, applied_by, purpose_id, purpose_name)
+			SELECT $1,$2,$3,$4,$5, pp.id, pp.name FROM promotion_purposes pp
+			WHERE pp.id = COALESCE($6::int, (SELECT id FROM promotion_purposes WHERE is_system LIMIT 1))
+			ON CONFLICT (promotion_id, order_id) DO NOTHING`,
+			a.PromotionID, orderID, customerID, a.Discount+a.GiftValue, userID, purpose); err != nil {
 			return nil, err
 		}
 	}
@@ -257,18 +273,30 @@ func recordPromotions(ctx context.Context, db execDB, orderID int, customerID *i
 	return first, nil
 }
 
-// promotionReasons are the reasons CS can give when applying a CS-only promotion.
-var promotionReasons = map[string]bool{"": true, "private_offer": true, "after_sales": true, "compensation": true}
-
-// csReasonProblem: a CS-only promotion must say why it was used.
-func csReasonProblem(out promoOutcome, reason string) string {
-	if !promotionReasons[reason] {
-		return "alasan promo tidak valid"
+// pickedSet is the set of promotion ids CS picked from the list.
+func pickedSet(ids []int) map[int]bool {
+	m := map[int]bool{}
+	for _, id := range ids {
+		m[id] = true
 	}
+	return m
+}
+
+// purposeProblem: a promotion CS picked from the list must say why (an active Promotion Purpose); "" = fine.
+func purposeProblem(ctx context.Context, db storeDB, out promoOutcome, picked map[int]bool, purposeID int) string {
+	needs := false
 	for _, a := range out.Applied {
-		if a.CSOnly && reason == "" {
-			return "alasan promo wajib dipilih untuk promo khusus CS"
-		}
+		needs = needs || picked[a.PromotionID]
+	}
+	if !needs && purposeID == 0 {
+		return ""
+	}
+	if purposeID <= 0 {
+		return "alasan (purpose) promo wajib dipilih untuk promo yang dipilih CS"
+	}
+	var active bool
+	if err := db.QueryRow(ctx, `SELECT is_active FROM promotion_purposes WHERE id=$1`, purposeID).Scan(&active); err != nil || !active {
+		return "purpose promo tidak valid atau sudah dinonaktifkan"
 	}
 	return ""
 }

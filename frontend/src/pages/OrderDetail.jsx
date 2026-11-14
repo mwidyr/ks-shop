@@ -735,7 +735,7 @@ export default function OrderDetail() {
                     <span>
                       {p.label}
                       {p.audience === 'cs_only' && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t('page_order_detail.promo_cs_badge')}</span>}
-                      {p.reason && <span className="ml-1.5 text-gray-400">{t(`shared.promo_panel.reason_${p.reason}`)}{p.applied_by ? ` · ${p.applied_by}` : ''}</span>}
+                      {p.purpose && <span className="ml-1.5 text-gray-400">{p.purpose}{p.applied_by ? ` · ${p.applied_by}` : ''}</span>}
                     </span>
                     <span>{p.discount > 0 ? formatCurrency(p.discount) : ''}</span>
                   </div>

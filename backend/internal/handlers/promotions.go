@@ -43,7 +43,7 @@ func (h *PromotionHandler) List(w http.ResponseWriter, r *http.Request) {
 		       p.usage_limit, p.per_customer_limit, p.combinable, p.is_active, p.audience, p.auto_apply, p.config::text, p.created_at,
 		       COUNT(pr.id)
 		FROM promotions p
-		LEFT JOIN promotion_redemptions pr ON pr.promotion_id = p.id
+		LEFT JOIN promotion_redemptions pr ON pr.promotion_id = p.id AND pr.cancelled_at IS NULL
 		WHERE p.member_id IS NULL
 		GROUP BY p.id
 		ORDER BY p.created_at DESC`)
@@ -354,6 +354,7 @@ type promoPreviewRequest struct {
 	GiftChoices   map[string]int `json:"gift_choices"`
 	PickupChainID int            `json:"pickup_chain_id"`
 	OrderID       int            `json:"order_id"` // preview for an existing order: its saved items and prices are used
+	SalesChannel  string         `json:"sales_channel"`
 }
 
 func (r promoPreviewRequest) selection() (promoSelection, []promoItem) {
@@ -363,7 +364,7 @@ func (r promoPreviewRequest) selection() (promoSelection, []promoItem) {
 			items = append(items, promoItem{it.VariantID, it.Qty})
 		}
 	}
-	return promoSelection{Code: r.Code, PickedIDs: r.PromotionIDs, ExcludedIDs: r.ExcludedIDs, GiftChoice: giftChoices(r.GiftChoices), Staff: true}, items
+	return promoSelection{Code: r.Code, PickedIDs: r.PromotionIDs, ExcludedIDs: r.ExcludedIDs, GiftChoice: giftChoices(r.GiftChoices), Staff: true, Channel: r.SalesChannel}, items
 }
 
 // giftChoices turns the JSON object {"<promotion id>": <variant id>} into a map.
@@ -391,7 +392,7 @@ func (h *PromotionHandler) Validate(w http.ResponseWriter, r *http.Request) {
 		items, sel.LinePrice = nil, map[int]float64{}
 		var cust *int
 		var chain int
-		if h.DB.QueryRow(ctx, `SELECT customer_id, pickup_chain_id FROM orders WHERE id=$1`, req.OrderID).Scan(&cust, &chain) != nil {
+		if h.DB.QueryRow(ctx, `SELECT customer_id, pickup_chain_id, sales_channel FROM orders WHERE id=$1`, req.OrderID).Scan(&cust, &chain, &sel.Channel) != nil {
 			respondError(w, http.StatusNotFound, "order not found")
 			return
 		}
@@ -460,11 +461,16 @@ type giftOption struct {
 }
 
 // Available lists what CS can pick on an order page: every promotion that is active, inside its dates and not used up.
+// ?channel=live (anything but website): CS-only promotions only; Website: website promotions and CS-only ones.
 func (h *PromotionHandler) Available(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	defs, err := loadPromoDefs(ctx, h.DB, `p.is_active AND p.member_id IS NULL
+	audience := ""
+	if r.URL.Query().Get("channel") != "website" {
+		audience = " AND p.audience = 'cs_only'"
+	}
+	defs, err := loadPromoDefs(ctx, h.DB, `p.is_active AND p.member_id IS NULL`+audience+`
 		AND (p.start_date IS NULL OR p.start_date <= now()) AND (p.end_date IS NULL OR p.end_date >= now())
-		AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id) < p.usage_limit)`)
+		AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id = p.id AND rd.cancelled_at IS NULL) < p.usage_limit)`)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch promotions")
 		return

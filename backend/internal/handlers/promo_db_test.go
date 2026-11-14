@@ -28,7 +28,9 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var pa, pb, pg, va, vb, vg, cust, chain int
+	var pa, pb, pg, va, vb, vg, cust, chain, systemPurpose, compPurpose int
+	must(db.QueryRow(ctx, `SELECT id FROM promotion_purposes WHERE is_system LIMIT 1`).Scan(&systemPurpose))
+	must(db.QueryRow(ctx, `SELECT id FROM promotion_purposes WHERE name='Customer Compensation' LIMIT 1`).Scan(&compPurpose))
 	must(db.QueryRow(ctx, `INSERT INTO products (name) VALUES ('T-Promo A') RETURNING id`).Scan(&pa))
 	must(db.QueryRow(ctx, `INSERT INTO products (name) VALUES ('T-Promo B') RETURNING id`).Scan(&pb))
 	must(db.QueryRow(ctx, `INSERT INTO products (name) VALUES ('T-Promo Gift') RETURNING id`).Scan(&pg))
@@ -42,21 +44,23 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 	must(db.QueryRow(ctx, `SELECT id FROM pickup_chains WHERE chain_type='courier' LIMIT 1`).Scan(&chain))
 
 	cfg := func(c promoConfig) string { b, _ := json.Marshal(c); return string(b) }
-	var addonID, giftID, fixedID int
+	var addonID, giftID, fixedID, pubID int
 	must(db.QueryRow(ctx, `INSERT INTO promotions (name, type, auto_apply, combinable, config) VALUES ($1,'addon',true,true,$2::jsonb) RETURNING id`,
 		"T add-on "+sfx, cfg(promoConfig{Trigger: promoMatcher{ProductIDs: []int{pa}}, Addon: promoMatcher{ProductIDs: []int{pb}}, AddonPrice: 100})).Scan(&addonID))
 	must(db.QueryRow(ctx, `INSERT INTO promotions (name, type, audience, combinable, config) VALUES ($1,'buy_a_get_b','cs_only',true,$2::jsonb) RETURNING id`,
 		"T cs gift "+sfx, cfg(promoConfig{Trigger: promoMatcher{ProductIDs: []int{pa}}, Gifts: []promoGiftOpt{{vg}}, MaxSets: 1})).Scan(&giftID))
 	must(db.QueryRow(ctx, `INSERT INTO promotions (name, code, type, value, audience, combinable) VALUES ($1,$2,'fixed_amount',50,'cs_only',true) RETURNING id`,
 		"T cs fixed "+sfx, "T-CS-"+sfx).Scan(&fixedID))
+	must(db.QueryRow(ctx, `INSERT INTO promotions (name, code, type, value, audience, combinable) VALUES ($1,$2,'fixed_amount',30,'public',true) RETURNING id`,
+		"T public "+sfx, "T-PUB-"+sfx).Scan(&pubID))
 	var orderID int
 	t.Cleanup(func() {
-		db.Exec(ctx, `DELETE FROM promotion_redemptions WHERE promotion_id = ANY($1)`, []int{addonID, giftID, fixedID})
+		db.Exec(ctx, `DELETE FROM promotion_redemptions WHERE promotion_id = ANY($1)`, []int{addonID, giftID, fixedID, pubID})
 		if orderID > 0 {
 			db.Exec(ctx, `DELETE FROM order_items WHERE order_id=$1`, orderID)
 			db.Exec(ctx, `DELETE FROM orders WHERE id=$1`, orderID)
 		}
-		db.Exec(ctx, `DELETE FROM promotions WHERE id = ANY($1)`, []int{addonID, giftID, fixedID})
+		db.Exec(ctx, `DELETE FROM promotions WHERE id = ANY($1)`, []int{addonID, giftID, fixedID, pubID})
 		db.Exec(ctx, `DELETE FROM product_variants WHERE id = ANY($1)`, []int{va, vb, vg})
 		db.Exec(ctx, `DELETE FROM products WHERE id = ANY($1)`, []int{pa, pb, pg})
 		db.Exec(ctx, `DELETE FROM customers WHERE id=$1`, cust)
@@ -65,12 +69,12 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 	// two A: one unlocks the add-on, the other is left for the gift (a unit feeds only one product promotion)
 	items := []promoItem{{va, 2}, {vb, 1}}
 	// a customer: only the automatic add-on applies; CS-only promotions are invisible even by code
-	out, _, sub, msg, err := resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID, giftID}}, &cust, 0, 60)
+	out, _, sub, msg, err := resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID, giftID}, Channel: "website"}, &cust, 0, 60)
 	must(err)
 	if msg != "" || sub != 1300 || len(out.Applied) != 1 || out.Applied[0].PromotionID != addonID || out.Discount != 200 {
 		t.Fatalf("customer view: msg=%q sub=%v %+v", msg, sub, out)
 	}
-	if _, _, _, msg, _ := resolvePromotions(ctx, db, items, promoSelection{Code: "T-CS-" + sfx}, &cust, 0, 60); msg == "" {
+	if _, _, _, msg, _ := resolvePromotions(ctx, db, items, promoSelection{Code: "T-CS-" + sfx, Channel: "website"}, &cust, 0, 60); msg == "" {
 		t.Fatal("a customer must not be able to use a CS-only code")
 	}
 	// the website checkout (priceCart) uses the same engine: the automatic add-on is in the quote, a CS-only code is refused
@@ -86,23 +90,46 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 		t.Fatal("strict checkout must refuse a CS-only code")
 	}
 	// CS: picks the fixed discount and the gift
-	out, _, _, msg, err = resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID, giftID}, Staff: true}, &cust, 0, 60)
+	out, _, _, msg, err = resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID, giftID}, Staff: true, Channel: "website"}, &cust, 0, 60)
 	must(err)
 	if msg != "" || len(out.Applied) != 3 || out.Discount != 250 || len(out.Gifts) != 1 || out.Gifts[0].VariantID != vg {
 		t.Fatalf("staff view: msg=%q %+v", msg, out)
 	}
-	if csReasonProblem(out, "") == "" || csReasonProblem(out, "after_sales") != "" || csReasonProblem(out, "bogus") == "" {
-		t.Fatal("a CS-only promotion needs a valid reason")
+	picked := pickedSet([]int{fixedID, giftID})
+	if purposeProblem(ctx, db, out, picked, 0) == "" || purposeProblem(ctx, db, out, picked, systemPurpose) != "" || purposeProblem(ctx, db, out, picked, 999999) == "" {
+		t.Fatal("a promotion CS picked needs a valid, active purpose")
 	}
 	// CS removes the automatic add-on
-	out, _, _, _, _ = resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID}, ExcludedIDs: []int{addonID}, Staff: true}, &cust, 0, 60)
+	out, _, _, _, _ = resolvePromotions(ctx, db, items, promoSelection{PickedIDs: []int{fixedID}, ExcludedIDs: []int{addonID}, Staff: true, Channel: "website"}, &cust, 0, 60)
 	if len(out.Applied) != 1 || out.Discount != 50 {
 		t.Fatalf("excluded auto promotion: %+v", out)
 	}
 
+	// LIVE order: no automatic promotions; CS can pick CS-only promotions but not website ones; a typed public code works
+	live := func(sel promoSelection) (promoOutcome, string) {
+		o, _, _, m, e := resolvePromotions(ctx, db, items, sel, &cust, 0, 60)
+		must(e)
+		return o, m
+	}
+	if o, m := live(promoSelection{Staff: true, Channel: "live"}); m != "" || len(o.Applied) != 0 {
+		t.Fatalf("a LIVE order gets no automatic promotion: %q %+v", m, o)
+	}
+	if o, m := live(promoSelection{Staff: true, Channel: "live", PickedIDs: []int{fixedID}}); m != "" || len(o.Applied) != 1 || o.Discount != 50 {
+		t.Fatalf("CS-only promotion on a LIVE order: %q %+v", m, o)
+	}
+	if _, m := live(promoSelection{Staff: true, Channel: "live", PickedIDs: []int{pubID}}); m == "" {
+		t.Fatal("a website promotion cannot be picked from the list on a LIVE order")
+	}
+	if o, m := live(promoSelection{Staff: true, Channel: "live", Code: "T-PUB-" + sfx}); m != "" || len(o.Applied) != 1 || o.Discount != 30 {
+		t.Fatalf("a typed public code works on a LIVE order: %q %+v", m, o)
+	}
+	if o, m := live(promoSelection{Staff: true, Channel: "website", PickedIDs: []int{pubID}}); m != "" || len(o.Applied) != 2 {
+		t.Fatalf("a website promotion can be picked on a Website order (plus the automatic add-on): %q %+v", m, o)
+	}
+
 	// an order that exists, then CS changes its promotions
 	must(db.QueryRow(ctx, `INSERT INTO orders (order_no, customer_id, pickup_chain_id, status, shipping_address, sales_channel, shipping_fee)
-		VALUES ($1,$2,$3,'pending','x','normal',60) RETURNING id`, "T-PROMO-"+sfx, cust, chain).Scan(&orderID))
+		VALUES ($1,$2,$3,'pending','x','website',60) RETURNING id`, "T-PROMO-"+sfx, cust, chain).Scan(&orderID))
 	db.Exec(ctx, `INSERT INTO order_items (order_id, variant_id, qty, price_at_order) VALUES ($1,$2,2,500),($1,$3,1,300)`, orderID, va, vb)
 
 	h := &OrderHandler{DB: db}
@@ -121,13 +148,20 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 	count := func(q string) (n int) { db.QueryRow(ctx, q, orderID).Scan(&n); return }
 
 	if rec, _ := put(map[string]any{"promotion_ids": []int{fixedID, giftID}}); rec.Code != http.StatusBadRequest {
-		t.Fatalf("missing reason must be refused: %d %s", rec.Code, rec.Body)
+		t.Fatalf("missing purpose must be refused: %d %s", rec.Code, rec.Body)
 	}
-	if rec, o := put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "reason": "compensation"}); rec.Code != http.StatusOK || o["discount"].(float64) != 250 {
+	if rec, o := put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "purpose_id": compPurpose}); rec.Code != http.StatusOK || o["discount"].(float64) != 250 {
 		t.Fatalf("apply: %d %s", rec.Code, rec.Body)
 	}
 	if n := count(`SELECT COUNT(*) FROM promotion_redemptions WHERE order_id=$1`); n != 3 {
 		t.Fatalf("3 usage records, got %d", n)
+	}
+	// the purpose is saved with each record: the chosen one for what CS picked, "General Promotion" for the automatic add-on
+	if n := count(`SELECT COUNT(*) FROM promotion_redemptions WHERE order_id=$1 AND purpose_name='Customer Compensation'`); n != 2 {
+		t.Fatalf("2 picked promotions carry the chosen purpose, got %d", n)
+	}
+	if n := count(`SELECT COUNT(*) FROM promotion_redemptions WHERE order_id=$1 AND purpose_name='General Promotion'`); n != 1 {
+		t.Fatalf("the automatic promotion is a General Promotion, got %d", n)
 	}
 	if n := count(`SELECT COUNT(*) FROM order_items WHERE order_id=$1 AND is_gift AND price_at_order=0`); n != 1 {
 		t.Fatalf("one free gift item, got %d", n)
@@ -167,8 +201,8 @@ func TestPromotionEngineAgainstDatabase(t *testing.T) {
 		t.Fatalf("add-on + fixed discount remain, got %d", n)
 	}
 	// removing everything restores the order
-	put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "reason": "compensation"})
-	put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "reason": "compensation"})
+	put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "purpose_id": compPurpose})
+	put(map[string]any{"promotion_ids": []int{fixedID, giftID}, "purpose_id": compPurpose})
 	if n := count(`SELECT COUNT(*) FROM order_items WHERE order_id=$1`); n != 2 {
 		t.Fatalf("1 A left: the add-on takes it, no gift, and nothing is duplicated by applying twice; got %d items", n)
 	}
