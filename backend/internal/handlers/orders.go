@@ -352,6 +352,15 @@ type orderDetailView struct {
 	ShipmentGroupTotal       float64           `json:"shipment_group_total"`
 	ShipmentGroupShippingFee float64           `json:"shipment_group_shipping_fee"`
 	StatusHistory            []statusLogView   `json:"status_history"`
+	// HistoryEvents: edits of the order (who changed what), shown with the status changes as "Riwayat Order".
+	HistoryEvents []orderEventView `json:"history_events"`
+}
+
+type orderEventView struct {
+	Action    string `json:"action"`
+	Actor     string `json:"actor"`
+	Detail    string `json:"detail"`
+	CreatedAt string `json:"created_at"`
 }
 
 type statusLogView struct {
@@ -539,6 +548,20 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			var s statusLogView
 			logRows.Scan(&s.StatusFrom, &s.StatusTo, &s.ChangedBy, &s.Reason, &s.CreatedAt)
 			o.StatusHistory = append(o.StatusHistory, s)
+		}
+	}
+
+	o.HistoryEvents = []orderEventView{}
+	if evRows, err := h.DB.Query(ctx, `
+		SELECT a.action, COALESCE(u.name,'system'), COALESCE(a.detail,''), a.created_at::text
+		FROM activity_log a LEFT JOIN users u ON u.id = a.changed_by
+		WHERE a.entity_type='order' AND a.entity_id=$1 AND a.action = ANY($2) ORDER BY a.created_at, a.id`, id, orderHistoryActions); err == nil {
+		defer evRows.Close()
+		for evRows.Next() {
+			var e orderEventView
+			if evRows.Scan(&e.Action, &e.Actor, &e.Detail, &e.CreatedAt) == nil {
+				o.HistoryEvents = append(o.HistoryEvents, e)
+			}
 		}
 	}
 
@@ -1071,6 +1094,9 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	if rejectIfLockedFor(w, r, h.DB, id) {
 		return
 	}
+	var oldNote string
+	var oldUrgent bool
+	_ = h.DB.QueryRow(r.Context(), `SELECT COALESCE(internal_notes,''), is_urgent FROM orders WHERE id=$1`, id).Scan(&oldNote, &oldUrgent)
 	ct, err := h.DB.Exec(r.Context(), `UPDATE orders SET internal_notes=$1, is_urgent=$2, notes_deadline=$3 WHERE id=$4`,
 		req.InternalNotes, req.IsUrgent, req.NotesDeadline, id)
 	if err != nil {
@@ -1080,6 +1106,20 @@ func (h *OrderHandler) UpdateNotes(w http.ResponseWriter, r *http.Request) {
 	if ct.RowsAffected() == 0 {
 		respondError(w, http.StatusNotFound, "order not found")
 		return
+	}
+	var noteChanges []string
+	if oldNote != req.InternalNotes {
+		noteChanges = append(noteChanges, changeLine("Catatan internal", oldNote, req.InternalNotes))
+	}
+	if oldUrgent != req.IsUrgent {
+		noteChanges = append(noteChanges, changeLine("Urgent", fmt.Sprint(oldUrgent), fmt.Sprint(req.IsUrgent)))
+	}
+	if len(noteChanges) > 0 {
+		var uid *int
+		if c := appmw.GetClaims(r); c != nil {
+			uid = &c.UserID
+		}
+		logActivity(r.Context(), h.DB, "order", id, "notes_updated", uid, joinChanges(noteChanges))
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -488,6 +488,12 @@ export default function OrderDetail() {
 
   if (!order) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">{t('common.loading')}</div>
 
+  // Riwayat Order: status changes and edits (who changed what) in one timeline, oldest first.
+  const orderTimeline = [
+    ...(order.status_history || []).map((h) => ({ ...h, kind: 'status' })),
+    ...(order.history_events || []).map((h) => ({ ...h, kind: 'edit' })),
+  ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+
   // Exported to logistics (status Processing): details are frozen for everyone; only warehouse and
   // super_user can still move the status.
   const locked = Boolean(order.locked)
@@ -923,14 +929,24 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-4 max-h-[28rem] overflow-y-auto">
             <p className="text-sm font-semibold text-gray-700 mb-3">{t('page_order_detail.status_history_label')}</p>
             <div className="space-y-3">
-              {order.status_history.map((h, i) => (
+              {orderTimeline.map((h, i) => (
                 <div key={i} className="flex gap-3 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-brand-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-gray-700">
-                      <span className="font-medium">{t(`status.${h.status_from}`, statusLabels[h.status_from] || h.status_from)}</span> → <span className="font-semibold">{t(`status.${h.status_to}`, statusLabels[h.status_to] || h.status_to)}</span>
-                      <span className="text-gray-400"> {t('page_order_detail.changed_by_label', { name: h.changed_by })}</span>
-                    </p>
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${h.kind === 'edit' ? 'bg-amber-500' : 'bg-brand-500'}`} />
+                  <div className="min-w-0">
+                    {h.kind === 'status' ? (
+                      <p className="text-gray-700">
+                        <span className="font-medium">{t(`status.${h.status_from}`, statusLabels[h.status_from] || h.status_from)}</span> → <span className="font-semibold">{t(`status.${h.status_to}`, statusLabels[h.status_to] || h.status_to)}</span>
+                        <span className="text-gray-400"> {t('page_order_detail.changed_by_label', { name: h.changed_by })}</span>
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-gray-700">
+                          <span className="font-semibold">{t(`page_audit_log.action_${h.action}`, h.action)}</span>
+                          <span className="text-gray-400"> {t('page_order_detail.changed_by_label', { name: h.actor })}</span>
+                        </p>
+                        {h.detail && <p className="text-xs text-gray-600 whitespace-pre-line break-words">{h.detail}</p>}
+                      </>
+                    )}
                     {h.reason && <p className="text-xs text-gray-500">{t('page_order_detail.reason_label', { reason: h.reason })}</p>}
                     <p className="text-[11px] text-gray-400">{new Date(h.created_at).toLocaleString('id-ID')}</p>
                   </div>

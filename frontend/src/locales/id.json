@@ -167,7 +167,15 @@
     "prev": "Sebelumnya",
     "entity_product": "Produk",
     "action_product_created": "Produk dibuat",
-    "action_product_updated": "Produk diubah"
+    "action_product_updated": "Produk diubah",
+    "action_order_edited": "Order diedit",
+    "action_order_edited_after_shipped": "Order diedit (setelah export)",
+    "action_removed_from_batch": "Dikeluarkan dari batch",
+    "action_attachment_deleted": "Lampiran dihapus",
+    "action_pickup_updated": "Pengiriman diubah",
+    "action_notes_updated": "Catatan internal diubah",
+    "action_promotions_updated": "Promosi diubah",
+    "action_return_received": "Retur diterima"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -749,7 +757,7 @@
     "start_picking_action": "Mulai Picking",
     "start_picking_anyway": "Tetap Mulai Picking",
     "start_picking_no_items_error": "Pilih dan ambil setidaknya satu produk sebelum memulai picking",
-    "status_history_label": "Riwayat Status",
+    "status_history_label": "Riwayat Order",
     "subtotal_label": "Subtotal",
     "todo_in_transit": "Dalam pengiriman ke titik pengambilan",
     "todo_label": "To-Do",

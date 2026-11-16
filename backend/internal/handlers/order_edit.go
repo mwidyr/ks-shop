@@ -297,6 +297,7 @@ func (h *OrderHandler) Edit(w http.ResponseWriter, r *http.Request) {
 // editor, which owns the shared delivery data, so changing the customer / store / address of a member is allowed.
 func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, req editOrderRequest, viaGroup bool) (int, string) {
 	claims := &editClaims{Role: role, UserID: userID}
+	var changes []string // one human-readable line per edited field, written to the order history / Log Audit
 	var status, channel string
 	var customerID, curChain int
 	var exported, curOverride, inGroup, feeHolder bool
@@ -354,6 +355,15 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 		return http.StatusBadRequest, bad
 	}
 	pickupChanged := req.PickupChainID != curChain || req.PickupStoreCode != curStore || finalAddress != curAddress
+	if req.PickupChainID != curChain {
+		changes = append(changes, changeLine("Metode pengiriman", chainLabel(ctx, tx, curChain), chainLabel(ctx, tx, req.PickupChainID)))
+	}
+	if req.PickupStoreCode != curStore {
+		changes = append(changes, changeLine("Kode toko", curStore, req.PickupStoreCode))
+	}
+	if finalAddress != curAddress {
+		changes = append(changes, changeLine("Alamat", curAddress, finalAddress))
+	}
 	if pickupChanged {
 		if inGroup && !viaGroup {
 			return http.StatusConflict, "order ini digabung dengan order lain (satu pengiriman): pisahkan penggabungan dulu sebelum mengganti metode / toko / alamat"
@@ -371,6 +381,12 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 	// customer record (the other orders keep their data, which may already be at the carrier).
 	var curName, curPhone string
 	_ = tx.QueryRow(ctx, `SELECT name, phone FROM customers WHERE id=$1`, customerID).Scan(&curName, &curPhone)
+	if curName != req.Customer.Name {
+		changes = append(changes, changeLine("Nama penerima", curName, req.Customer.Name))
+	}
+	if curPhone != req.Customer.Phone {
+		changes = append(changes, changeLine("Telepon", curPhone, req.Customer.Phone))
+	}
 	if curName != req.Customer.Name || curPhone != req.Customer.Phone {
 		if inGroup && !viaGroup {
 			return http.StatusConflict, "order ini digabung dengan order lain: pisahkan penggabungan dulu sebelum mengganti pelanggan"
@@ -469,6 +485,42 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 		}
 	}
 
+	{
+		var removed []int
+		for itemID := range cur {
+			if !keep[itemID] {
+				removed = append(removed, itemID)
+			}
+		}
+		sort.Ints(removed)
+		for _, itemID := range removed {
+			c := cur[itemID]
+			changes = append(changes, fmt.Sprintf("Produk dihapus: %s ×%d @ %s", variantLabel(ctx, tx, c.variantID), c.qty, rupiahText(c.price)))
+		}
+		for _, it := range req.Items {
+			if it.ID == nil {
+				price := 0.0
+				if it.Price != nil {
+					price = *it.Price
+				} else {
+					_ = tx.QueryRow(ctx, `SELECT price FROM product_variants WHERE id=$1`, it.VariantID).Scan(&price)
+				}
+				changes = append(changes, fmt.Sprintf("Produk ditambah: %s ×%d @ %s", variantLabel(ctx, tx, it.VariantID), it.Qty, rupiahText(price)))
+				continue
+			}
+			c := cur[*it.ID]
+			label := variantLabel(ctx, tx, c.variantID)
+			if it.Qty != c.qty {
+				changes = append(changes, changeLine("Qty "+label, fmt.Sprint(c.qty), fmt.Sprint(it.Qty)))
+			}
+			if it.Price != nil && *it.Price != c.price {
+				changes = append(changes, changeLine("Harga "+label, rupiahText(c.price), rupiahText(*it.Price)))
+			}
+			if it.HostID != 0 && it.HostID != c.hostID {
+				changes = append(changes, changeLine("Host "+label, hostLabel(ctx, tx, c.hostID), hostLabel(ctx, tx, it.HostID)))
+			}
+		}
+	}
 	for itemID := range cur {
 		if !keep[itemID] {
 			if _, err := tx.Exec(ctx, `DELETE FROM order_items WHERE id=$1`, itemID); err != nil {
@@ -591,6 +643,18 @@ func editOrderTx(ctx context.Context, tx pgx.Tx, role string, userID, id int, re
 	if afterShip {
 		action = "order_edited_after_shipped"
 	}
-	logActivity(ctx, tx, "order", id, action, &claims.UserID, fmt.Sprintf("status=%s items=%d subtotal=%.0f fee=%.0f", status, len(req.Items), subtotal, fee))
+	if req.DiscountAmount != curDiscount {
+		changes = append(changes, changeLine("Diskon", rupiahText(curDiscount), rupiahText(req.DiscountAmount)))
+	}
+	if req.AdditionalAmount != curAdditional {
+		changes = append(changes, changeLine("Biaya tambahan", rupiahText(curAdditional), rupiahText(req.AdditionalAmount)))
+	}
+	if fee != curFee {
+		changes = append(changes, changeLine("Ongkir", rupiahText(curFee), rupiahText(fee)))
+	}
+	if len(changes) == 0 {
+		changes = append(changes, "Disimpan tanpa perubahan data")
+	}
+	logActivity(ctx, tx, "order", id, action, &claims.UserID, joinChanges(changes))
 	return 0, ""
 }

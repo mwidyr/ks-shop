@@ -167,7 +167,15 @@
     "prev": "上一頁",
     "entity_product": "產品",
     "action_product_created": "產品已建立",
-    "action_product_updated": "產品已修改"
+    "action_product_updated": "產品已修改",
+    "action_order_edited": "訂單已編輯",
+    "action_order_edited_after_shipped": "訂單已編輯（匯出後）",
+    "action_removed_from_batch": "已移出批次",
+    "action_attachment_deleted": "附件已刪除",
+    "action_pickup_updated": "配送已更新",
+    "action_notes_updated": "內部備註已更新",
+    "action_promotions_updated": "促銷已更新",
+    "action_return_received": "已收到退貨"
   },
   "page_campaigns": {
     "campaign_flash_sale": "9.9 限時搶購",
@@ -749,7 +757,7 @@
     "start_picking_action": "開始揀貨",
     "start_picking_anyway": "仍要開始揀貨",
     "start_picking_no_items_error": "開始揀貨前，請至少揀取一項商品",
-    "status_history_label": "狀態歷程",
+    "status_history_label": "訂單歷程",
     "subtotal_label": "小計",
     "todo_in_transit": "運送至取貨點中",
     "todo_label": "待辦事項",

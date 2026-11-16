@@ -19,6 +19,14 @@ export default function AuditLog() {
     active_changed: t('page_audit_log.action_active_changed'),
     product_created: t('page_audit_log.action_product_created'),
     product_updated: t('page_audit_log.action_product_updated'),
+    order_edited: t('page_audit_log.action_order_edited'),
+    order_edited_after_shipped: t('page_audit_log.action_order_edited_after_shipped'),
+    removed_from_batch: t('page_audit_log.action_removed_from_batch'),
+    attachment_deleted: t('page_audit_log.action_attachment_deleted'),
+    pickup_updated: t('page_audit_log.action_pickup_updated'),
+    notes_updated: t('page_audit_log.action_notes_updated'),
+    promotions_updated: t('page_audit_log.action_promotions_updated'),
+    return_received: t('page_audit_log.action_return_received'),
   }
 
   function actionLabel(action) {
@@ -70,7 +78,7 @@ export default function AuditLog() {
                 <td className="p-3.5 font-medium text-[var(--text-primary)]">{e.actor_name}</td>
                 <td className="p-3.5 font-mono text-xs text-[var(--text-secondary)]">{entityLabels[e.entity_type] || e.entity_type} #{e.entity_id}</td>
                 <td className="p-3.5 text-[var(--text-primary)]">{actionLabel(e.action)}</td>
-                <td className="p-3.5 text-[var(--text-secondary)]">{e.detail}</td>
+                <td className="p-3.5 text-[var(--text-secondary)] whitespace-pre-line">{e.detail}</td>
               </tr>
             ))}
           </tbody>

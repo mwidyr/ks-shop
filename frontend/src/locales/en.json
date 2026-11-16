@@ -167,7 +167,15 @@
     "prev": "Previous",
     "entity_product": "Product",
     "action_product_created": "Product created",
-    "action_product_updated": "Product updated"
+    "action_product_updated": "Product updated",
+    "action_order_edited": "Order edited",
+    "action_order_edited_after_shipped": "Order edited (after export)",
+    "action_removed_from_batch": "Removed from batch",
+    "action_attachment_deleted": "Attachment deleted",
+    "action_pickup_updated": "Delivery updated",
+    "action_notes_updated": "Internal note updated",
+    "action_promotions_updated": "Promotions updated",
+    "action_return_received": "Return received"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -749,7 +757,7 @@
     "start_picking_action": "Start Picking",
     "start_picking_anyway": "Start Picking Anyway",
     "start_picking_no_items_error": "Pick at least one product before starting picking",
-    "status_history_label": "Status History",
+    "status_history_label": "Order History",
     "subtotal_label": "Subtotal",
     "todo_in_transit": "In transit to pickup point",
     "todo_label": "To-Do",
