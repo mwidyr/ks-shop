@@ -207,6 +207,7 @@ func main() {
 		// Website accounts: email OTP, WhatsApp OTP (the member sends the code), inbound WhatsApp webhook.
 		r.Post("/public/member/email/request", memberH.EmailRequest)
 		r.Post("/public/member/email/verify", memberH.EmailVerify)
+		r.Post("/public/member/login", memberH.Login)
 		r.Post("/public/member/wa/start", memberH.WAStart)
 		r.Get("/public/member/wa/status/{id}", memberH.WAStatus)
 		r.Get("/webhooks/whatsapp", memberH.WebhookVerify)
@@ -215,6 +216,7 @@ func main() {
 			r.Use(memberH.MemberAuth)
 			r.Get("/me", memberH.Me)
 			r.Patch("/profile", memberH.UpdateProfile)
+			r.Post("/password", memberH.ChangePassword)
 			r.Get("/favorites", memberH.Favorites)
 			r.Put("/favorites/{id}", memberH.SetFavorite)
 			r.Get("/coupons", memberH.Coupons)
@@ -381,6 +383,7 @@ func main() {
 			r.With(edit("promotions")).Post("/promotion-purposes", promotionH.CreatePurpose)
 			r.With(edit("promotions")).Put("/promotion-purposes/order", promotionH.ReorderPurposes)
 			r.With(edit("promotions")).Patch("/promotion-purposes/{id}", promotionH.UpdatePurpose)
+			r.With(viewAny("orders", "shipping_workbench")).Get("/orders/insufficient-stock", shippingWBH.InsufficientStock)
 			r.With(view("orders")).Get("/orders/merge-suggestions", orderMergeH.Suggestions)
 			r.With(view("orders")).Get("/orders/related-orders", orderMergeH.Related)
 			r.With(edit("orders")).Post("/orders/merge-groups", orderMergeH.CreateGroup)

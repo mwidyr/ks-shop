@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { clearProfile, useProfile } from '../lib/profile'
-import { patchProfile } from '../lib/api'
+import { changeMemberPassword, patchProfile } from '../lib/api'
+import { passwordError } from '../lib/password'
 import { useMember } from '../lib/member'
 import { useSeo } from '../lib/seo'
 import { btnDark, btnOutline, btnPrimary, Field, inputStyle, PageHeader } from '../components/ui'
@@ -38,6 +39,42 @@ function EditRow({ label, value, shown, onSave, type = 'text', inputMode, childr
         <span role="button" tabIndex={0} onClick={() => setOn(true)} onKeyDown={(e) => { if (e.key === 'Enter') setOn(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'text', minHeight: 36 }}>{shown || value || <span style={{ color: 'var(--color-text-3)', fontWeight: 400 }}>—</span>}{children}<span style={{ ...linkBtn, marginLeft: 4 }}>{t('profile.edit')}</span></span>
       )}
     </div>
+  )
+}
+
+// Set / change the email password. A member who already has one must give the current password.
+function PasswordCard({ hasPassword, onDone }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [cur, setCur] = useState('')
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  async function save() {
+    const pe = passwordError(pw)
+    if (pe) { setErr(t(pe === 'long' ? 'login.password_long' : 'login.password_short')); return }
+    setBusy(true); setErr('')
+    try {
+      await changeMemberPassword(cur, pw)
+      setOpen(false); setCur(''); setPw(''); setDone(true); onDone()
+    } catch (e) { setErr(e.status === 403 ? t('mc.pw_wrong') : e.message) } finally { setBusy(false) }
+  }
+  return (
+    <section style={card}>
+      <div style={head}><h2 style={h2}>{t('mc.pw_title')}</h2>{!open && <button type="button" onClick={() => { setOpen(true); setDone(false) }} style={linkBtn}>{hasPassword ? t('mc.pw_change') : t('mc.pw_set')}</button>}</div>
+      <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{t('mc.pw_note')}</span>
+      {!open && <div style={rowStyle}><span style={{ color: 'var(--color-text-2)' }}>{t('mc.pw_title')}</span><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>{hasPassword ? <>••••••••<span style={tag}>{t('mc.pw_is_set')}</span></> : t('mc.pw_not_set')}</span></div>}
+      {done && !open && <span role="status" style={{ fontSize: 13, color: 'var(--color-success)' }}>✓ {t('mc.pw_saved')}</span>}
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {hasPassword && <input type="password" autoComplete="current-password" aria-label={t('mc.pw_current')} placeholder={t('mc.pw_current')} value={cur} onChange={(e) => { setCur(e.target.value); setErr('') }} style={inputStyle(false)} />}
+          <input type="password" autoComplete="new-password" aria-label={t('mc.pw_new')} placeholder={`${t('mc.pw_new')} · ${t('login.password_ph')}`} value={pw} onChange={(e) => { setPw(e.target.value); setErr('') }} style={inputStyle(false)} />
+          {err && <span role="alert" style={{ fontSize: 13, color: 'var(--color-error)' }}>✕ {err}</span>}
+          <div style={{ display: 'flex', gap: 8 }}><button type="button" disabled={busy} onClick={save} style={{ ...btnDark, flex: 1 }}>{t('mc.pw_save')}</button><button type="button" onClick={() => { setOpen(false); setErr(''); setCur(''); setPw('') }} style={{ ...btnOutline, flex: 1 }}>{t('mc.pw_cancel')}</button></div>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -92,6 +129,7 @@ export default function Profile() {
           </div>
         </section>
       )}
+      {signedIn && me.email && <PasswordCard hasPassword={Boolean(me.has_password)} onDone={refresh} />}
       <section style={card}>
         <div style={head}><h2 style={h2}>{t('profile.stores')}</h2><Link to="/checkout" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)' }}>{t('profile.add_store')}</Link></div>
         {profile.stores.map((s, i) => (

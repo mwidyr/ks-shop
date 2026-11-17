@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { memberEmailRequest, memberEmailVerify, memberWaStart, memberWaStatus, sized, img, onImgError } from '../lib/api'
+import { memberEmailRequest, memberEmailVerify, memberLogin, memberWaStart, memberWaStatus, sized, img, onImgError } from '../lib/api'
 import { money } from '../lib/format'
 import { useMember } from '../lib/member'
+import { passwordError } from '../lib/password'
 import { useSeo } from '../lib/seo'
 import { useStore } from '../lib/store'
 import { IconClose, IconChevDown, IconSpinner, IconWhatsApp } from '../components/Icons'
@@ -36,6 +37,9 @@ export default function Login() {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [mode, setMode] = useState('password') // login tab, email: 'password' (default) | 'code' (forgot / first time)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [sentTo, setSentTo] = useState('')
@@ -79,11 +83,21 @@ export default function Login() {
     setErr(''); setBusy(true)
     try { const r = await memberEmailRequest(email.trim(), ref); setSentTo(email.trim()); setCool(r.cooldown || 30) } catch (e) { setErr(e.message || t('common.error_generic')) } finally { setBusy(false) }
   }
+  // the code (register, or "forgot password") always comes with the password the account will use from now on
   async function verifyEmail() {
     if (!/^\d{6}$/.test(code.trim())) { setErr(t('login.code_err')); return }
+    const pe = passwordError(password)
+    if (pe) { setErr(t(pe === 'long' ? 'login.password_long' : 'login.password_short')); return }
     setErr(''); setBusy(true)
-    try { finish(await memberEmailVerify(email.trim(), code.trim())) } catch (e) { setErr(e.status === 401 ? t('login.wrong_code') : e.message) } finally { setBusy(false) }
+    try { finish(await memberEmailVerify(email.trim(), code.trim(), password)) } catch (e) { setErr(e.status === 401 ? t('login.wrong_code') : e.message) } finally { setBusy(false) }
   }
+  async function passwordLogin() {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim()) || !password) { setErr(t('login.pw_empty')); return }
+    setErr(''); setBusy(true)
+    try { finish(await memberLogin(email.trim(), password)) } catch (e) { setErr(e.status === 401 ? t('login.wrong_login') : e.message || t('common.error_generic')) } finally { setBusy(false) }
+  }
+  const usesCode = method === 'email' && (tab === 'register' || mode === 'code')
+  const switchTab = (k) => { setTab(k); setMode('password'); setErr(''); setPassword('') }
 
   const welcomeAmount = money(settings.rewards?.welcome_balance ?? 100)
   const welcomeMin = money(settings.free_shipping_minimarket || 1500)
@@ -105,7 +119,7 @@ export default function Login() {
       <section style={{ margin: '-16px 0 0', position: 'relative', borderRadius: '22px 22px 0 0', background: 'var(--color-bg)', padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div role="tablist" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', padding: 4, borderRadius: 24, background: 'var(--color-bg-soft)' }}>
           {['login', 'register'].map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => switchTab(k)}
               style={{ height: 40, borderRadius: 20, border: 'none', fontSize: 15, background: tab === k ? 'var(--color-surface)' : 'transparent', fontWeight: tab === k ? 700 : 400, color: tab === k ? 'var(--color-text)' : 'var(--color-text-2)', boxShadow: tab === k ? '0 1px 4px rgba(30,30,35,0.08)' : 'none' }}>
               {t(`login.tab_${k}`)}
             </button>
@@ -159,7 +173,7 @@ export default function Login() {
               </label>
             )}
 
-            {method === 'email' && (
+            {usesCode && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 700 }}>
                 {t('login.code')}
                 <span style={{ display: 'flex', gap: 8 }}>
@@ -168,12 +182,30 @@ export default function Login() {
                     {cool > 0 ? t('login.resend_in', { s: cool }) : sentTo ? t('login.resend') : t('login.send')}
                   </button>
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-2)' }}>{sentTo ? t('login.sent', { to: sentTo }) : t('login.hint')}</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-2)' }}>{sentTo ? t('login.sent', { to: sentTo }) : mode === 'code' && tab === 'login' ? t('login.code_login_note') : t('login.hint')}</span>
+              </label>
+            )}
+            {method === 'email' && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 700 }}>
+                {usesCode ? (tab === 'register' ? t('login.password_create') : t('login.password_new')) : t('login.password')}
+                <span style={{ display: 'flex', gap: 8 }}>
+                  <input type={showPw ? 'text' : 'password'} autoComplete={usesCode ? 'new-password' : 'current-password'} placeholder={usesCode ? t('login.password_ph') : ''} value={password} onChange={(e) => { setPassword(e.target.value); setErr('') }} style={field} />
+                  <button type="button" onClick={() => setShowPw((v) => !v)} aria-pressed={showPw} style={{ flex: 'none', height: 48, padding: '0 14px', borderRadius: 12, border: '1.5px solid var(--color-border)', background: 'transparent', fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>{showPw ? t('login.hide') : t('login.show')}</button>
+                </span>
+                {usesCode && <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-2)' }}>{t('login.password_hint')}</span>}
               </label>
             )}
             {err && <span role="alert" style={{ fontSize: 13, color: 'var(--color-error)' }}>✕ {err}</span>}
-            <button type="button" disabled={busy} onClick={method === 'email' ? verifyEmail : startWa}
-              style={{ height: 48, borderRadius: 24, border: 'none', background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{busy ? <IconSpinner /> : t('login.submit')}</button>
+            <button type="button" disabled={busy} onClick={method === 'email' ? (usesCode ? verifyEmail : passwordLogin) : startWa}
+              style={{ height: 48, borderRadius: 24, border: 'none', background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {busy ? <IconSpinner /> : method !== 'email' ? t('login.submit') : tab === 'register' ? t('login.register_submit') : mode === 'code' ? t('login.reset_submit') : t('login.signin')}
+            </button>
+            {method === 'email' && tab === 'login' && (
+              <button type="button" onClick={() => { setMode(mode === 'code' ? 'password' : 'code'); setErr(''); setPassword('') }}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary-strong)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
+                {mode === 'code' ? t('login.use_password') : t('login.forgot')}
+              </button>
+            )}
           </>
         )}
         <p style={{ margin: 0, fontSize: 11, color: 'var(--color-disabled)', textAlign: 'center', lineHeight: 1.6 }}>{t('login.agree')} <Link to="/info/terms">{t('login.terms')}</Link> {t('login.and')} <Link to="/info/terms">{t('login.privacy')}</Link></p>

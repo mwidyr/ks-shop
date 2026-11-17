@@ -77,6 +77,15 @@ type orderListItem struct {
 	ShipmentGroupID *int `json:"shipment_group_id"`
 	// Source: staff (created in Ralulu Hub), self_checkout (customer website) or cs_assisted.
 	Source string `json:"source"`
+	// Items: the order's product lines, only when asked for with include_items=true (the Excel export).
+	Items []orderListLine `json:"items,omitempty"`
+}
+
+// orderListLine is one product line of an order in the export: the variant SKU (PRODUCT-COLOR-SIZE), name and quantity.
+type orderListLine struct {
+	SKU  string `json:"sku"`
+	Name string `json:"name"`
+	Qty  int    `json:"qty"`
 }
 
 // List returns orders, filtered by role (sales sees only their own), plus optional
@@ -251,7 +260,43 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		o.CreatedAt = createdAt.Format(time.RFC3339)
 		list = append(list, o)
 	}
+	if q.Get("include_items") == "true" && len(list) > 0 {
+		if err := h.attachListItems(r, list); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to fetch order items")
+			return
+		}
+	}
 	respondJSON(w, http.StatusOK, pageResponse(list, total, pg))
+}
+
+// attachListItems fills Items of the listed orders with one query for the whole page.
+func (h *OrderHandler) attachListItems(r *http.Request, list []orderListItem) error {
+	ids := make([]int, len(list))
+	at := make(map[int]int, len(list))
+	for i := range list {
+		ids[i] = list[i].ID
+		at[list[i].ID] = i
+	}
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT oi.order_id, pv.sku, `+productNameSQL(r, "p")+`, oi.qty
+		FROM order_items oi
+		JOIN product_variants pv ON pv.id = oi.variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE oi.order_id = ANY($1) ORDER BY oi.order_id, oi.id`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var oid int
+		var l orderListLine
+		if rows.Scan(&oid, &l.SKU, &l.Name, &l.Qty) == nil {
+			if i, ok := at[oid]; ok {
+				list[i].Items = append(list[i].Items, l)
+			}
+		}
+	}
+	return rows.Err()
 }
 
 // orderPromoView is one promotion applied to an order (the usage record), with who applied it by hand and why.

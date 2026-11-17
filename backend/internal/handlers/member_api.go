@@ -77,8 +77,11 @@ func (h *MemberHandler) memberView(ctx context.Context, id int) map[string]inter
 		  AND (p.usage_limit IS NULL OR (SELECT COUNT(*) FROM promotion_redemptions rd WHERE rd.promotion_id=p.id AND rd.cancelled_at IS NULL) < p.usage_limit)`, id).Scan(&coupons)
 	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM member_favorites WHERE member_id=$1`, id).Scan(&favs)
 	h.DB.QueryRow(ctx, `SELECT COUNT(*) FROM orders WHERE member_id=$1 OR ($2::int IS NOT NULL AND customer_id=$2)`, id, m.CustomerID).Scan(&orders)
+	var hasPassword bool
+	h.DB.QueryRow(ctx, `SELECT COALESCE(password_hash,'') <> '' FROM members WHERE id=$1`, id).Scan(&hasPassword)
 	out := map[string]interface{}{
-		"id": m.ID, "phone": m.Phone, "email": m.Email, "name": m.Name, "language": m.Language, "referral_code": m.ReferralCode,
+		"has_password": hasPassword,
+		"id":           m.ID, "phone": m.Phone, "email": m.Email, "name": m.Name, "language": m.Language, "referral_code": m.ReferralCode,
 		"balance": bal, "points": pts, "point_value": st.PointValue, "profile": prof,
 		"counts":  map[string]int{"coupons": coupons, "favorites": favs, "orders": orders},
 		"rewards": st,

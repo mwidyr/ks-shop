@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listOrders, updateOrderStatus, getMergeSuggestions, getRelatedOrders, createMergeGroup, getOrderStatusCounts } from '../api/orders'
+import { getInsufficientStock, listAllOrders, listOrders, updateOrderStatus, getMergeSuggestions, getRelatedOrders, createMergeGroup, getOrderStatusCounts } from '../api/orders'
 import { listHosts } from '../api/hosts'
 import { listPickupChains } from '../api/pickupChains'
 import { listLiveSessions } from '../api/liveSessions'
@@ -77,6 +77,9 @@ export default function Orders() {
   const [selected, setSelected] = useState(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportNote, setExportNote] = useState('')
+  const [exportingShort, setExportingShort] = useState(false)
   const [bulkResult, setBulkResult] = useState('')
 
   const [mergeSuggestions, setMergeSuggestions] = useState([])
@@ -172,6 +175,50 @@ export default function Orders() {
 
   useEffect(fetchOrders, [debouncedSearch, status, hostId, category, pickupChainId, blacklistOnly, sessionId, sort, range, page])
   useEffect(fetchStatusCounts, [range])
+
+  // Excel of every order the current filters select (all pages), same filters and sort as the list.
+  async function exportExcel() {
+    if (!range || exporting) return
+    setExporting(true); setExportNote('')
+    try {
+      const { ORDER_EXPORT_MAX, buildOrdersWorkbookBlob } = await import('../utils/ordersExcel')
+      const { downloadBlob } = await import('../utils/shipping/excel')
+      const { jakartaIsoDate } = await import('../utils/jakartaDate')
+      const res = await listAllOrders({
+        q: debouncedSearch, status, host_id: hostId, category, pickup_chain_id: pickupChainId,
+        blacklist_only: blacklistOnly ? 'true' : '', session_id: sessionId, sort,
+        date_from: range.from, date_to: range.to, include_items: 'true',
+      }, ORDER_EXPORT_MAX)
+      if (res.items.length === 0) { setExportNote(t('page_orders.export_empty')); return }
+      downloadBlob(await buildOrdersWorkbookBlob(res.items, t), `orders-${jakartaIsoDate()}.xlsx`)
+      setExportNote(res.truncated
+        ? t('page_orders.export_truncated', { shown: res.items.length, total: res.total })
+        : t('page_orders.export_done', { count: res.items.length }))
+    } catch {
+      setExportNote(t('page_orders.export_failed'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Orders short of stock (as counted in the Shipping Workbench) for the date range above: date, order no, missing SKU, quantity short.
+  async function exportShortage() {
+    if (!range || exportingShort) return
+    setExportingShort(true); setExportNote('')
+    try {
+      const { buildShortageWorkbookBlob } = await import('../utils/ordersExcel')
+      const { downloadBlob } = await import('../utils/shipping/excel')
+      const { jakartaIsoDate } = await import('../utils/jakartaDate')
+      const res = await getInsufficientStock(range)
+      if (!res.lines?.length) { setExportNote(t('page_orders.export_short_empty')); return }
+      downloadBlob(await buildShortageWorkbookBlob(res.lines, t), `insufficient-stock-${jakartaIsoDate()}.xlsx`)
+      setExportNote(t('page_orders.export_short_done', { orders: res.orders, lines: res.lines.length }))
+    } catch {
+      setExportNote(t('page_orders.export_failed'))
+    } finally {
+      setExportingShort(false)
+    }
+  }
 
   function resetFilters() {
     setSearch(''); setStatus(''); setHostId(''); setCategory(''); setPickupChainId(''); setBlacklistOnly(false)
@@ -330,10 +377,17 @@ export default function Orders() {
           >
             {t('page_orders.blacklist_filter')}
           </button>
+          <button onClick={exportExcel} disabled={exporting} className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {exporting ? t('page_orders.export_busy') : t('page_orders.export_excel')}
+          </button>
+          <button onClick={exportShortage} disabled={exportingShort} title={t('page_orders.export_short_hint')} className="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {exportingShort ? t('page_orders.export_busy') : t('page_orders.export_short')}
+          </button>
           <button onClick={resetFilters} className="text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">
             {t('page_orders.reset')}
           </button>
         </div>
+        {exportNote && <p className="text-xs text-gray-500" role="status">{exportNote}</p>}
         <div className="flex gap-2 overflow-x-auto">
           {statusTabs.map((tab) => {
             const count = tab.countKeys ? tab.countKeys.reduce((sum, k) => sum + (counts[k] || 0), 0) : null

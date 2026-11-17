@@ -49,4 +49,13 @@ describe('TemplatesCard', () => {
     el = await mount(false)
     expect(el.querySelectorAll('button')).toHaveLength(0)
   })
+
+  it('says so when the list cannot be loaded instead of hiding the card', async () => {
+    api.getTemplates.mockRejectedValueOnce({ response: { status: 403 } })
+    let el = await mount()
+    expect(el.querySelector('[role="alert"]').textContent).toContain('tpl_no_access')
+    api.getTemplates.mockRejectedValueOnce({ response: { status: 500 } })
+    el = await mount()
+    expect(el.querySelector('[role="alert"]').textContent).toContain('tpl_load_failed')
+  })
 })

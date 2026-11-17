@@ -88,8 +88,20 @@ function ProviderRow({ item, canEdit, onChanged }) {
 export default function TemplatesCard({ canEdit }) {
   const { t } = useTranslation()
   const [items, setItems] = useState([])
-  const load = useCallback(() => { getTemplates().then(setItems).catch(() => {}) }, [])
+  const [failed, setFailed] = useState(null) // HTTP status of a failed load, so a missing card is never silent
+  const load = useCallback(() => {
+    getTemplates().then((r) => { setItems(r); setFailed(null) }).catch((e) => setFailed(e.response?.status || 0))
+  }, [])
   useEffect(() => { load() }, [load])
+  if (failed !== null) {
+    return (
+      <section className="bg-white rounded-2xl shadow-sm p-5">
+        <h2 className="font-bold text-gray-800">{t('page_shipping_wb.tpl_title')}</h2>
+        <p className="text-sm text-red-600 mt-1" role="alert">{failed === 403 ? t('page_shipping_wb.tpl_no_access') : t('page_shipping_wb.tpl_load_failed')}</p>
+        <button type="button" onClick={load} className={`${ghostBtn} mt-2`}>{t('common.retry', 'Retry')}</button>
+      </section>
+    )
+  }
   if (items.length === 0) return null
   return (
     <section className="bg-white rounded-2xl shadow-sm p-5">

@@ -71,6 +71,9 @@ func (h *MemberHandler) EmailRequest(w http.ResponseWriter, r *http.Request) {
 type memberEmailVerify struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
+	// Password: required to register (the first verified login of an email); on an existing account it sets a new
+	// password, which is how a member who forgot theirs (or has none yet) gets back in.
+	Password string `json:"password"`
 }
 
 // EmailVerify serves POST /public/member/email/verify: a valid code logs in (or registers) the member.
@@ -101,6 +104,14 @@ func (h *MemberHandler) EmailVerify(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnauthorized, "kode salah atau sudah kedaluwarsa")
 		return
 	}
+	// the password is checked before the code is used up, so a too-short one can simply be corrected and resent
+	_, findErr := h.findMember(ctx, h.DB, "", email)
+	if req.Password != "" || findErr != nil {
+		if err := validMemberPassword(req.Password); err != nil {
+			respondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	h.DB.Exec(ctx, `UPDATE member_otps SET used_at=now() WHERE id=$1`, id)
 	refCode := ""
 	if ref != nil {
@@ -110,6 +121,12 @@ func (h *MemberHandler) EmailVerify(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusForbidden, err.Error())
 		return
+	}
+	if req.Password != "" {
+		if err := h.setPassword(ctx, h.DB, m.ID, req.Password); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save password")
+			return
+		}
 	}
 	h.session(w, ctx, m, created)
 }
