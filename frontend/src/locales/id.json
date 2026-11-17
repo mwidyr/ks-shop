@@ -177,7 +177,10 @@
     "action_promotions_updated": "Promosi diubah",
     "action_return_received": "Retur diterima",
     "action_label_expired": "Label pengiriman kedaluwarsa",
-    "action_label_reissued": "Label pengiriman diterbitkan ulang"
+    "action_label_reissued": "Label pengiriman diterbitkan ulang",
+    "action_template_uploaded": "Template export diunggah",
+    "action_template_restored": "Template export diganti",
+    "entity_shipping_template": "Template export"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -3491,7 +3494,20 @@
     "bulk_shipped_on": "Tanggal kirim",
     "bulk_days": "Hari sejak kirim",
     "bulk_days_value": "{{count}} hr",
-    "issue_import_order_cancelled": "Pesanan sudah dibatalkan"
+    "issue_import_order_cancelled": "Pesanan sudah dibatalkan",
+    "tpl_title": "Template Export",
+    "tpl_hint": "Template impor platform yang diisi saat export. Jika 7-ELEVEN atau FamilyMart merilis template baru dengan kolom yang sama, unggah di sini.",
+    "tpl_711": "7-ELEVEN (.xlsm)",
+    "tpl_familymart": "FamilyMart (.xlsx)",
+    "tpl_version": "versi {{v}}",
+    "tpl_builtin": "Template bawaan",
+    "tpl_upload": "Unggah template baru",
+    "tpl_use_builtin": "Pakai bawaan",
+    "tpl_builtin_confirm": "Kembali ke template bawaan sistem?",
+    "tpl_history": "Unggahan sebelumnya",
+    "tpl_restore": "Pulihkan",
+    "tpl_uploaded": "Template diunggah. Export berikutnya memakainya.",
+    "tpl_switched": "Template diganti. Export berikutnya memakainya."
   },
   "keep_date": {
     "type_label": "Jenis tanggal",

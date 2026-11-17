@@ -389,6 +389,10 @@ func main() {
 			r.With(edit("orders")).Put("/orders/merge-groups/{id}", orderMergeH.UpdateGroup)
 
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/eligible", shippingWBH.Eligible)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/templates", shippingWBH.Templates)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/templates/{provider}/file", shippingWBH.TemplateFile)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/templates/{provider}", shippingWBH.UploadTemplate)
+			r.With(edit("shipping_workbench")).Post("/shipping-workbench/templates/{provider}/activate/{id}", shippingWBH.ActivateTemplate)
 			r.With(edit("shipping_workbench")).Post("/shipping-workbench/batches", shippingWBH.CreateBatch)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/batches", shippingWBH.ListBatches)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/batches/{id}", shippingWBH.GetBatch)

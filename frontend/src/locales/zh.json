@@ -177,7 +177,10 @@
     "action_promotions_updated": "促銷已更新",
     "action_return_received": "已收到退貨",
     "action_label_expired": "託運單過期",
-    "action_label_reissued": "託運單重新取號"
+    "action_label_reissued": "託運單重新取號",
+    "action_template_uploaded": "上傳匯出範本",
+    "action_template_restored": "切換匯出範本",
+    "entity_shipping_template": "匯出範本"
   },
   "page_campaigns": {
     "campaign_flash_sale": "9.9 限時搶購",
@@ -3491,7 +3494,20 @@
     "bulk_shipped_on": "出貨日期",
     "bulk_days": "出貨後天數",
     "bulk_days_value": "{{count}} 天",
-    "issue_import_order_cancelled": "訂單已取消"
+    "issue_import_order_cancelled": "訂單已取消",
+    "tpl_title": "匯出範本",
+    "tpl_hint": "匯出時填入的平台匯入範本。7-ELEVEN 或全家發布欄位相同的新範本時，請在此上傳。",
+    "tpl_711": "7-ELEVEN (.xlsm)",
+    "tpl_familymart": "全家 FamilyMart (.xlsx)",
+    "tpl_version": "版本 {{v}}",
+    "tpl_builtin": "系統內建範本",
+    "tpl_upload": "上傳新範本",
+    "tpl_use_builtin": "使用內建範本",
+    "tpl_builtin_confirm": "要改回系統內建的範本嗎？",
+    "tpl_history": "先前上傳",
+    "tpl_restore": "還原",
+    "tpl_uploaded": "範本已上傳，之後的匯出將使用它。",
+    "tpl_switched": "範本已切換，之後的匯出將使用它。"
   },
   "keep_date": {
     "type_label": "日期類型",

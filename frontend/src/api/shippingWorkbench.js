@@ -35,3 +35,11 @@ export const searchShipping = (q) => client.get(`/shipping-workbench/search${qs(
 export const bulkCompleteOrders = (batchId, orderIds) =>
   client.post(`/shipping-workbench/batches/${batchId}/bulk-complete`, { order_ids: orderIds }).then((r) => r.data)
 export const getExpired = () => client.get('/shipping-workbench/expired').then((r) => r.data)
+
+export const getTemplates = () => client.get('/shipping-workbench/templates').then((r) => r.data)
+export const uploadTemplate = (provider, file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return client.post(`/shipping-workbench/templates/${provider}`, form).then((r) => r.data)
+}
+export const activateTemplate = (provider, id) => client.post(`/shipping-workbench/templates/${provider}/activate/${id}`).then((r) => r.data)

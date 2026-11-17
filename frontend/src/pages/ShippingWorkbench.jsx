@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { getExpired, getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings, searchShipping } from '../api/shippingWorkbench'
 import CrossBatchImportModal from '../components/shipping/CrossBatchImportModal'
+import TemplatesCard from '../components/shipping/TemplatesCard'
 import { BatchStatusPill, PROVIDERS, PROVIDER_KEYS, ProgressChips, StagePill, batchPath, elapsed, ghostBtn, primaryBtn } from '../components/shipping/shared'
 import StatusPill from '../components/StatusPill'
 import { useCanEdit } from '../context/AccessContext'
@@ -277,6 +278,8 @@ export default function ShippingWorkbench() {
           <button onClick={() => setBatchLimit(batches.length)} className="text-sm font-semibold text-brand-600 hover:underline mt-3">{t('page_shipping_wb.view_all')}</button>
         )}
       </section>
+
+      <TemplatesCard canEdit={canEdit} />
 
       {importOpen && <CrossBatchImportModal onClose={() => setImportOpen(false)} onDone={loadAll} />}
       {settingsOpen && <SettingsModal onClose={(changed) => { setSettingsOpen(false); if (changed) loadAll() }} />}

@@ -177,7 +177,10 @@
     "action_promotions_updated": "Promotions updated",
     "action_return_received": "Return received",
     "action_label_expired": "Shipping label expired",
-    "action_label_reissued": "Shipping label reissued"
+    "action_label_reissued": "Shipping label reissued",
+    "action_template_uploaded": "Export template uploaded",
+    "action_template_restored": "Export template switched",
+    "entity_shipping_template": "Export template"
   },
   "page_campaigns": {
     "campaign_flash_sale": "Flash Sale 9.9",
@@ -3491,7 +3494,20 @@
     "bulk_shipped_on": "Shipped on",
     "bulk_days": "Days since shipment",
     "bulk_days_value": "{{count}} d",
-    "issue_import_order_cancelled": "Order was cancelled"
+    "issue_import_order_cancelled": "Order was cancelled",
+    "tpl_title": "Export Templates",
+    "tpl_hint": "The platform import templates the exports are filled into. When 7-ELEVEN or FamilyMart issues a new one with the same columns, upload it here.",
+    "tpl_711": "7-ELEVEN (.xlsm)",
+    "tpl_familymart": "FamilyMart (.xlsx)",
+    "tpl_version": "version {{v}}",
+    "tpl_builtin": "Built-in template",
+    "tpl_upload": "Upload new template",
+    "tpl_use_builtin": "Use built-in",
+    "tpl_builtin_confirm": "Go back to the template that ships with the system?",
+    "tpl_history": "Previous uploads",
+    "tpl_restore": "Restore",
+    "tpl_uploaded": "Template uploaded. New exports use it now.",
+    "tpl_switched": "Template switched. New exports use it now."
   },
   "keep_date": {
     "type_label": "Date type",

@@ -29,6 +29,8 @@ export default function AuditLog() {
     return_received: t('page_audit_log.action_return_received'),
     label_expired: t('page_audit_log.action_label_expired'),
     label_reissued: t('page_audit_log.action_label_reissued'),
+    template_uploaded: t('page_audit_log.action_template_uploaded'),
+    template_restored: t('page_audit_log.action_template_restored'),
   }
 
   function actionLabel(action) {
@@ -45,6 +47,7 @@ export default function AuditLog() {
     pickup_chain: t('page_audit_log.entity_pickup_chain'),
     customer: t('page_audit_log.entity_customer'),
     user: t('page_audit_log.entity_user'),
+    shipping_template: t('page_audit_log.entity_shipping_template'),
   }
 
   function reload() {

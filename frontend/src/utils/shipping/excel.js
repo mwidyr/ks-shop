@@ -6,6 +6,19 @@
 // because that is what the imported results are matched on.
 
 import { exportSku } from '../exportSku'
+import client from '../../api/client'
+
+// The template staff uploaded in the Shipping Workbench wins; with none uploaded (404) or when the server
+// cannot be reached, the template shipped with the app (public/cvs-templates) is used.
+export async function loadTemplateBytes(provider, staticUrl) {
+  try {
+    const res = await client.get(`/shipping-workbench/templates/${provider}/file`, { responseType: 'arraybuffer' })
+    if (res.data && res.data.byteLength > 0) return res.data
+  } catch { /* fall back to the built-in template */ }
+  const res = await fetch(staticUrl)
+  if (!res.ok) throw new Error(`failed to load ${staticUrl}`)
+  return res.arrayBuffer()
+}
 
 // 7-ELEVEN is different: its template is a macro-enabled .xlsm that must stay intact (see xlsm711.js), so
 // it is filled at zip level instead of through exceljs, and the file it produces is an .xlsm too.
@@ -47,10 +60,8 @@ export const HCT_HEADERS = [
 const truncate = (s, n) => (s || '').slice(0, n)
 
 async function build711(rows) {
-  const res = await fetch(CVS_711_TEMPLATE_URL)
-  if (!res.ok) throw new Error(`failed to load ${CVS_711_TEMPLATE_URL}`)
   const { fill711Template, sevenElevenValues } = await import('./xlsm711')
-  const bytes = await fill711Template(await res.arrayBuffer(), rows.map((r) => sevenElevenValues(r, normalizePhone(r.customer_phone))))
+  const bytes = await fill711Template(await loadTemplateBytes('cvs_711', CVS_711_TEMPLATE_URL), rows.map((r) => sevenElevenValues(r, normalizePhone(r.customer_phone))))
   return new Blob([bytes], { type: XLSM_MIME })
 }
 
@@ -58,10 +69,8 @@ async function buildCvs(provider, rows) {
   const mod = await import('exceljs')
   const ExcelJS = mod.default || mod
   const tpl = CVS_TEMPLATES[provider]
-  const res = await fetch(tpl.url)
-  if (!res.ok) throw new Error(`failed to load ${tpl.url}`)
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(await res.arrayBuffer())
+  await workbook.xlsx.load(await loadTemplateBytes(provider, tpl.url))
   const worksheet = workbook.getWorksheet(tpl.sheetName)
   if (!worksheet) throw new Error(`template sheet ${tpl.sheetName} not found`)
   for (const rowNum of tpl.exampleRowsToClear) {
