@@ -37,5 +37,5 @@ export default {
     about: '關於我們', orders: '我的訂單', returns: '退換貨政策', style: '穿搭專題', shipping: '配送與付款',
     cs_center: '客服中心', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
-  toast: { added: '✓ 已加入購物車' },
+  toast: { added: '✓ 已加入購物車', set_partial: '只加入 {{n}} / {{m}} 件（其餘已售完）', set_none: '此套組商品皆已售完' },
 }

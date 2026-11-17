@@ -1,7 +1,8 @@
+import { outfitCartLines } from '../lib/outfit'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { claimCoupon, getHost, getProduct, img, onImgError, sized } from '../lib/api'
+import { claimCoupon, getHost, img, onImgError, sized } from '../lib/api'
 import { useCart } from '../lib/cart'
 import { listClaimed, saveClaimed } from '../lib/claimed'
 import { downloadLiveReminder } from '../lib/ics'
@@ -57,15 +58,14 @@ export default function Host() {
   async function claim(code) {
     try { const p = await claimCoupon(code); saveClaimed(p); setClaimed(listClaimed().map((c) => c.code)) } catch { /* shown by absence */ }
   }
-  async function addOutfit(o) {
-    for (const it of o.items) {
-      try {
-        const p = await getProduct(it.product_id)
-        const v = p.variants?.find((x) => x.id === it.variant_id)
-        if (v && v.stock > 0) cart.add({ variantId: v.id, productId: p.id, name: p.name, color: v.color, size: v.size, price: v.price, stock: v.stock, image: p.images?.[0] || '', code: p.sku, liveCode: p.live_code }, 1, true)
-      } catch { /* skipped */ }
-    }
-    cart.showToast('added')
+  // Everything needed is already in the outfit (variant, price, live stock), so no per-item product request:
+  // those requests failed now and then and the item was skipped while the toast still said "added".
+  function addOutfit(o) {
+    const r = outfitCartLines(o.items)
+    r.lines.forEach((line) => cart.add(line, 1, true))
+    if (r.toast === 'none') cart.showToast(t('toast.set_none'))
+    else if (r.toast === 'partial') cart.showToast(t('toast.set_partial', { n: r.added, m: r.total }))
+    else cart.showToast('added')
   }
 
   const chips = [[t('host.height'), host.height_cm ? `${host.height_cm} cm` : ''], [t('host.weight'), host.weight_kg ? `${host.weight_kg} kg` : ''], [t('host.usual'), host.usual_size], [t('host.style'), host.style_note], [t('host.likes'), host.favorites]].filter(([, v]) => v)
@@ -188,14 +188,14 @@ export default function Host() {
                 <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <b style={{ fontSize: 15 }}>{o.title}</b>
                   {o.items.map((it) => (
-                    <div key={it.variant_id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div key={it.variant_id} style={{ display: 'flex', gap: 10, alignItems: 'center', opacity: it.stock > 0 ? 1 : 0.5 }}>
                       <span style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-primary)' }}><IconCheck size={13} /></span>
                       <img src={sized(img(it.image), 120)} alt={it.name} loading="lazy" onError={onImgError} style={{ width: 44, height: 56, borderRadius: 8, objectFit: 'cover' }} />
                       <Link to={`/p/${it.product_id}`} style={{ flex: 1, fontSize: 13, color: 'var(--color-text)', textDecoration: 'none' }}>{it.name}<br /><span style={{ color: 'var(--color-text-2)', fontSize: 12 }}>{[it.color, it.size].filter(Boolean).join(' / ')}</span></Link>
-                      <b style={{ fontSize: 15 }}>{money(it.price)}</b>
+                      <b style={{ fontSize: 15 }}>{it.stock > 0 ? money(it.price) : t('common.sold_out')}</b>
                     </div>
                   ))}
-                  <button type="button" onClick={() => addOutfit(o)} style={{ minHeight: 48, borderRadius: 24, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, border: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>{t('host.add_set', { total: money(o.total) })}</button>
+                  <button type="button" disabled={!o.items.some((it) => it.stock > 0)} onClick={() => addOutfit(o)} style={{ opacity: o.items.some((it) => it.stock > 0) ? 1 : 0.5, minHeight: 48, borderRadius: 24, background: 'var(--color-primary)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, border: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>{t('host.add_set', { total: money(o.total) })}</button>
                 </div>
               </div>
             ))}

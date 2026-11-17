@@ -37,5 +37,5 @@ export default {
     about: 'About us', orders: 'My orders', returns: 'Return / exchange policy', style: 'Style topics', shipping: 'Shipping & payment',
     cs_center: 'CS center', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
-  toast: { added: '✓ Added to cart' },
+  toast: { added: '✓ Added to cart', set_partial: 'Only {{n}} of {{m}} items added (the rest are sold out)', set_none: 'All items in this set are sold out' },
 }

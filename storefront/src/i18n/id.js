@@ -38,5 +38,5 @@ export default {
     about: 'Tentang kami', orders: 'Pesanan saya', returns: 'Kebijakan retur / tukar', style: 'Topik gaya', shipping: 'Pengiriman & pembayaran',
     cs_center: 'Pusat CS', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok',
   },
-  toast: { added: '✓ Masuk keranjang' },
+  toast: { added: '✓ Masuk keranjang', set_partial: 'Hanya {{n}} dari {{m}} item yang masuk keranjang (sisanya habis)', set_none: 'Semua item set ini habis' },
 }

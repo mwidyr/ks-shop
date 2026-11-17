@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -114,6 +115,11 @@ type siteOutfitItem struct {
 	Size      string  `json:"size"`
 	Price     float64 `json:"price"`
 	Image     string  `json:"image"`
+	// Stock is what can still be promised to a website customer right now (same figure as the product page).
+	// 0 = sold out: the outfit still lists the item but "add the set" skips it and the total leaves it out.
+	Stock    int    `json:"stock"`
+	SKU      string `json:"sku"`
+	LiveCode string `json:"live_code"`
 }
 
 type siteOutfit struct {
@@ -227,18 +233,23 @@ func (h *SiteHandler) Host(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range outfits {
 		irows, err := h.DB.Query(ctx, `
-			SELECT pv.id, p.id, `+productNameSQL(r, "p")+`, `+storeColorSQL(r, "pv.color")+`, pv.size, pv.price,
-			       COALESCE((SELECT url FROM product_images WHERE product_id = p.id ORDER BY sort_order LIMIT 1), '')
+			SELECT pv.id, p.id, `+productNameSQL(r, "p")+`, COALESCE(`+storeColorSQL(r, "pv.color")+`,''), COALESCE(pv.size,''), pv.price,
+			       COALESCE((SELECT url FROM product_images WHERE product_id = p.id ORDER BY sort_order LIMIT 1), ''),
+			       COALESCE(GREATEST(`+sellableSQL+`, 0), 0), COALESCE(p.sku,''), COALESCE(p.live_code,'')
 			FROM host_outfit_items hi JOIN product_variants pv ON pv.id = hi.variant_id JOIN products p ON p.id = pv.product_id
-			WHERE hi.outfit_id=$1 AND pv.is_active AND p.is_active ORDER BY hi.sort_order`, outfits[i].ID)
+			LEFT JOIN stock_buckets sb ON sb.variant_id = pv.id
+			WHERE hi.outfit_id=$1 AND pv.is_active AND p.is_active AND p.deleted_at IS NULL ORDER BY hi.sort_order`, outfits[i].ID)
 		if err != nil {
+			log.Printf("host outfit items: %v", err)
 			continue
 		}
 		for irows.Next() {
 			var it siteOutfitItem
-			if irows.Scan(&it.VariantID, &it.ProductID, &it.Name, &it.Color, &it.Size, &it.Price, &it.Image) == nil {
+			if irows.Scan(&it.VariantID, &it.ProductID, &it.Name, &it.Color, &it.Size, &it.Price, &it.Image, &it.Stock, &it.SKU, &it.LiveCode) == nil {
 				outfits[i].Items = append(outfits[i].Items, it)
-				outfits[i].Total += it.Price
+				if it.Stock > 0 {
+					outfits[i].Total += it.Price
+				}
 			}
 		}
 		irows.Close()
