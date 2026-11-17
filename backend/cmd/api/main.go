@@ -403,6 +403,7 @@ func main() {
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/search", shippingWBH.Search)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/overview", shippingWBH.Overview)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/issues", shippingWBH.Issues)
+			r.With(view("shipping_workbench")).Get("/shipping-workbench/expired", shippingWBH.Expired)
 			r.With(view("shipping_workbench")).Get("/shipping-workbench/settings", shippingWBH.GetSettings)
 			r.With(appmw.RequireRole("super_user")).Put("/shipping-workbench/settings", shippingWBH.UpdateSettings)
 			r.With(edit("shipping")).Patch("/orders/{id}/tracking-number", shippingExportH.UpdateTrackingNumber)

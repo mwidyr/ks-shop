@@ -14,6 +14,8 @@ export default function ImportBox({ title, hint, kinds, provider, batchId, onDon
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const pending = kinds.every((k) => PENDING_KINDS.includes(k))
+  // '711_exception' is one upload area for both 7-ELEVEN reports (the category in cell H1 decides which one)
+  const allowed = kinds.flatMap((k) => (k === '711_exception' ? ['711_expired', '711_unclaimed'] : [k]))
 
   async function handleFile(e) {
     const file = e.target.files[0]
@@ -24,7 +26,7 @@ export default function ImportBox({ title, hint, kinds, provider, batchId, onDon
     setBusy(true)
     try {
       const parsed = await readImportFile(file, kinds.length === 1 ? kinds[0] : 'auto')
-      if (!kinds.includes(parsed.kind)) throw new Error(`wrong_file:${parsed.kind}`)
+      if (!allowed.includes(parsed.kind)) throw new Error(`wrong_file:${parsed.kind}`)
       const body = {
         kind: parsed.kind,
         provider: provider || parsed.provider || PROVIDER_OF_KIND[parsed.kind] || '',
@@ -34,13 +36,15 @@ export default function ImportBox({ title, hint, kinds, provider, batchId, onDon
         records: parsed.records,
       }
       const res = await importRecords(body)
-      setResult({ ...res.summary, kind: parsed.kind, fileName: parsed.fileName })
+      setResult({ ...res.summary, kind: parsed.kind, fileName: parsed.fileName, ignored: parsed.ignored || 0 })
       onDone?.(res)
     } catch (err) {
       if (err instanceof AdapterNotConfigured) setError(t('page_shipping_wb.format_pending'))
       else if (err.message === 'unrecognised_file') setError(t('page_shipping_wb.err_unrecognised'))
       else if (err.message === 'empty_file') setError(t('page_shipping_wb.err_empty'))
       else if (err.message === 'no_completed_rows') setError(t('page_shipping_wb.err_no_completed'))
+      else if (err.message === 'wrong_category') setError(t('page_shipping_wb.err_wrong_category'))
+      else if (err.message === 'no_unclaimed_rows') setError(t('page_shipping_wb.err_no_unclaimed'))
       else if (err.message?.startsWith('wrong_file:')) setError(t('page_shipping_wb.err_wrong_file', { kind: t(`page_shipping_wb.kind_${err.message.split(':')[1]}`) }))
       else setError(err.response?.data?.error || t('page_shipping_wb.err_import_failed'))
     } finally {
@@ -79,6 +83,10 @@ export function ImportResult({ result }) {
     ['unmatched', result.unmatched, 'text-amber-700'],
     ['conflicts', result.conflicts, 'text-red-600'],
     ['missing_shipping_no', result.missing_shipping_no, 'text-amber-700'],
+    ['expired', result.expired, 'text-green-700'],
+    ['returned', result.returned, 'text-green-700'],
+    ['blacklisted', result.blacklisted, 'text-red-600'],
+    ['ignored', result.ignored, 'text-gray-500'],
   ].filter(([, n]) => n > 0)
   return (
     <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
@@ -89,6 +97,13 @@ export function ImportResult({ result }) {
         ))}
       </div>
       {result.repeat && <p className="text-xs text-amber-700 mt-1">{t('page_shipping_wb.import_repeat')}</p>}
+      {result.kind && /unclaimed|expired/.test(result.kind) && result.unmatched > 0 && <p className="text-xs text-amber-700 mt-1">{t('page_shipping_wb.exception_unmatched_hint')}</p>}
+      {result.notes?.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-semibold text-red-600">{t('page_shipping_wb.blacklisted_list')}</p>
+          <ul className="text-xs text-gray-600 list-disc pl-4 max-h-32 overflow-y-auto">{result.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+        </div>
+      )}
     </div>
   )
 }

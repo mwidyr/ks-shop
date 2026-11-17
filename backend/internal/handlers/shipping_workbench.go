@@ -215,6 +215,9 @@ type batchOrderView struct {
 	PackingAt     *string `json:"packing_exported_at"`
 	StickerAt     *string `json:"sticker_exported_at"`
 	ExportedAt    *string `json:"exported_at"`
+	// 7-ELEVEN expired label (see shipping_exceptions.go): waiting for new numbers / new numbers imported, 3PL file due
+	LabelExpiredAt  *string `json:"label_expired_at"`
+	LabelReissuedAt *string `json:"label_reissued_at"`
 }
 
 type exportHistoryItem struct {
@@ -271,7 +274,8 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		       (SELECT MAX(l.created_at) FROM order_status_log l WHERE l.order_id = o.id AND l.status_to = 'shipped'),
 		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_packing'),
 		       (SELECT MAX(x.exported_at) FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '3pl_sticker'),
-		       (SELECT gm.group_id FROM order_shipment_group_members gm WHERE gm.order_id = o.id)
+		       (SELECT gm.group_id FROM order_shipment_group_members gm WHERE gm.order_id = o.id),
+		       o.label_expired_at, o.label_reissued_at
 		FROM shipping_batch_orders sbo
 		JOIN orders o ON o.id = sbo.order_id
 		JOIN customers c ON c.id = o.customer_id
@@ -286,10 +290,10 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 	for orows.Next() {
 		var v batchOrderView
 		var since time.Time
-		var exp, shipped, pack, stick *time.Time
+		var exp, shipped, pack, stick, lExp, lRe *time.Time
 		var groupID *int
 		if err := orows.Scan(&v.OrderID, &v.OrderNo, &v.Seq, &v.Status, &v.CustomerName, &v.StoreName, &v.StoreCode,
-			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &shipped, &pack, &stick, &groupID); err != nil {
+			&v.PlatformOrderNo, &v.ShippingNo, &v.CreateResult, &v.LastError, &since, &exp, &shipped, &pack, &stick, &groupID, &lExp, &lRe); err != nil {
 			orows.Close()
 			respondError(w, http.StatusInternalServerError, "failed to read batch orders")
 			return
@@ -307,7 +311,10 @@ func (h *ShippingWorkbenchHandler) GetBatch(w http.ResponseWriter, r *http.Reque
 		v.StatusSince = since.Format(time.RFC3339)
 		v.ExportedAt, v.PackingAt, v.StickerAt = fmtTimePtr(exp), fmtTimePtr(pack), fmtTimePtr(stick)
 		v.ShippedAt = fmtTimePtr(shipped)
+		v.LabelExpiredAt, v.LabelReissuedAt = fmtTimePtr(lExp), fmtTimePtr(lRe)
 		switch {
+		case lExp != nil:
+			v.Verification = "label_expired" // handled in the Expired Label Reprocessing section, not as a failed order
 		case v.CreateResult == "created":
 			v.Verification = "created"
 		case v.CreateResult == "failed":
@@ -473,7 +480,7 @@ func fmtTimePtr(t *time.Time) *string {
 }
 
 // Export kinds recorded in order_export_log.
-var exportKinds = map[string]bool{"initial": true, "retry": true, "3pl_packing": true, "3pl_sticker": true}
+var exportKinds = map[string]bool{"initial": true, "retry": true, "3pl_packing": true, "3pl_sticker": true, "expired": true, "3pl_reship": true}
 
 // ExportRows handles GET /shipping-workbench/batches/{id}/export-rows?kind=&exported_at=
 // It returns the shipment rows to put in the file; the browser builds the Excel and then reports
@@ -523,6 +530,12 @@ func (h *ShippingWorkbenchHandler) ExportRows(w http.ResponseWriter, r *http.Req
 			cond = ` AND o.status IN ('pending','processing','ready_to_ship')`
 		case "retry":
 			cond = ` AND o.status = 'processing' AND sbo.create_result = 'failed'`
+		case "expired":
+			// expired labels that still need a new platform number (Expired Label Reprocessing)
+			cond = ` AND o.label_expired_at IS NOT NULL AND COALESCE(o.platform_order_no,'') = '' AND o.status IN ('processing','ready_to_ship','shipped')`
+		case "3pl_reship":
+			// priority 3PL file: new numbers were imported, the 3PL must ship these parcels again
+			cond = ` AND o.label_reissued_at IS NOT NULL AND o.status IN ('ready_to_ship','shipped')`
 		default:
 			// 3PL files: verified orders not yet sent with this kind of file. POS / 郵寄 (courier) orders go
 			// straight to the 3PL: there is no logistics platform to verify them on first.
@@ -530,7 +543,7 @@ func (h *ShippingWorkbenchHandler) ExportRows(w http.ResponseWriter, r *http.Req
 			if provider == "courier" {
 				statuses = `IN ('pending','processing','ready_to_ship')`
 			}
-			cond = ` AND o.status ` + statuses + ` AND NOT EXISTS (SELECT 1 FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '` + kind + `')`
+			cond = ` AND o.status ` + statuses + ` AND o.label_expired_at IS NULL AND o.label_reissued_at IS NULL AND NOT EXISTS (SELECT 1 FROM order_export_log x WHERE x.order_id = o.id AND x.kind = '` + kind + `')`
 		}
 	}
 	idRows, err := h.DB.Query(ctx, `
@@ -609,11 +622,12 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 	direct3PL := provider == "courier" // POS / 郵寄 orders are sent to the 3PL directly
 
 	type member struct {
-		id     int
-		status string
+		id                int
+		status            string
+		expired, reissued bool
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT o.id, o.status FROM shipping_batch_orders sbo JOIN orders o ON o.id = sbo.order_id
+		SELECT o.id, o.status, o.label_expired_at IS NOT NULL, o.label_reissued_at IS NOT NULL FROM shipping_batch_orders sbo JOIN orders o ON o.id = sbo.order_id
 		WHERE sbo.batch_id = $1 AND o.id = ANY($2) ORDER BY o.id FOR UPDATE OF o`, id, req.OrderIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to load orders")
@@ -622,7 +636,7 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 	var members []member
 	for rows.Next() {
 		var m member
-		if rows.Scan(&m.id, &m.status) == nil {
+		if rows.Scan(&m.id, &m.status, &m.expired, &m.reissued) == nil {
 			members = append(members, m)
 		}
 	}
@@ -636,6 +650,10 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 		switch req.Kind {
 		case "initial", "retry":
 			ok = m.status == "pending" || m.status == "processing" || (req.Kind == "initial" && m.status == "ready_to_ship")
+		case "expired":
+			ok = m.expired && (m.status == "processing" || m.status == "ready_to_ship" || m.status == "shipped")
+		case "3pl_reship":
+			ok = m.reissued && (m.status == "ready_to_ship" || m.status == "shipped")
 		default:
 			ok = m.status == "ready_to_ship" || m.status == "shipped" || m.status == "delivered" ||
 				(direct3PL && (m.status == "pending" || m.status == "processing"))
@@ -679,6 +697,23 @@ func (h *ShippingWorkbenchHandler) RecordExport(w http.ResponseWriter, r *http.R
 		}
 	}
 	shipped := 0
+	if req.Kind == "3pl_reship" {
+		// the priority file hands these parcels to the 3PL again: a Ready to Ship order is shipped now (stock and cost
+		// are booked exactly once), an order that was already shipped changes nothing but its flag
+		for _, m := range members {
+			if m.status == "ready_to_ship" {
+				if err := applyStatusChange(ctx, tx, m.id, "ready_to_ship", "shipped", &claims.UserID, "system: sent to 3PL (priority file after label reissue)"); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to update order status")
+					return
+				}
+				shipped++
+			}
+			if _, err := tx.Exec(ctx, `UPDATE orders SET label_reissued_at = NULL, updated_at = now() WHERE id=$1`, m.id); err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to update order")
+				return
+			}
+		}
+	}
 	if req.Kind == "3pl_packing" {
 		for _, m := range members {
 			status := m.status
@@ -910,4 +945,60 @@ func (h *ShippingWorkbenchHandler) BulkCompleteOrders(w http.ResponseWriter, r *
 	invalidateShippingCache()
 	invalidateOrderCaches()
 	respondJSON(w, http.StatusOK, map[string]int{"completed": completed, "skipped": len(req.OrderIDs) - completed})
+}
+
+type expiredOrderView struct {
+	OrderID         int     `json:"order_id"`
+	OrderNo         string  `json:"order_no"`
+	CustomerName    string  `json:"customer_name"`
+	Status          string  `json:"status"`
+	PlatformOrderNo string  `json:"platform_order_no"`
+	ExpiredAt       *string `json:"label_expired_at"`
+	ReissuedAt      *string `json:"label_reissued_at"`
+}
+
+type expiredBatchView struct {
+	BatchID  int                `json:"batch_id"`
+	BatchNo  string             `json:"batch_no"`
+	Provider string             `json:"provider"`
+	Orders   []expiredOrderView `json:"orders"`
+}
+
+// Expired handles GET /shipping-workbench/expired: every order whose 7-ELEVEN label expired (waiting for new numbers) or was
+// reissued (waiting for the priority 3PL file), grouped by its original batch.
+func (h *ShippingWorkbenchHandler) Expired(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.DB.Query(r.Context(), `
+		SELECT b.id, b.batch_no, b.provider, o.id, o.order_no, c.name, o.status, COALESCE(o.platform_order_no,''),
+		       o.label_expired_at, o.label_reissued_at
+		FROM orders o
+		JOIN shipping_batch_orders sbo ON sbo.order_id = o.id
+		JOIN shipping_batches b ON b.id = sbo.batch_id
+		JOIN customers c ON c.id = o.customer_id
+		WHERE o.label_expired_at IS NOT NULL OR o.label_reissued_at IS NOT NULL
+		ORDER BY b.created_at DESC, b.id DESC, sbo.seq`)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to load expired labels")
+		return
+	}
+	defer rows.Close()
+	out := []expiredBatchView{}
+	idx := map[int]int{}
+	for rows.Next() {
+		var bid int
+		var bno, prov string
+		var o expiredOrderView
+		var exp, re *time.Time
+		if rows.Scan(&bid, &bno, &prov, &o.OrderID, &o.OrderNo, &o.CustomerName, &o.Status, &o.PlatformOrderNo, &exp, &re) != nil {
+			continue
+		}
+		o.ExpiredAt, o.ReissuedAt = fmtTimePtr(exp), fmtTimePtr(re)
+		i, ok := idx[bid]
+		if !ok {
+			i = len(out)
+			idx[bid] = i
+			out = append(out, expiredBatchView{BatchID: bid, BatchNo: bno, Provider: prov, Orders: []expiredOrderView{}})
+		}
+		out[i].Orders = append(out[i].Orders, o)
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"batches": out})
 }

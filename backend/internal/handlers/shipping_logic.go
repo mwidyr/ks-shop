@@ -130,6 +130,9 @@ var importKindProvider = map[string]string{
 	"hct_result":     "courier",
 	"3pl_shipment":   "",
 	"delivery":       "",
+	"711_expired":    "cvs_711",
+	"711_unclaimed":  "cvs_711",
+	"fm_unclaimed":   "cvs_familymart",
 }
 
 // ---- order matching -------------------------------------------------------------------------
@@ -145,6 +148,10 @@ type candidateOrder struct {
 	BatchID         int // 0 = not in a batch
 	CreateResult    string
 	Provider        string
+	// 7-ELEVEN expired labels (see shipping_exceptions.go)
+	LabelExpired      bool
+	ExpiredPlatformNo string
+	ExpiredShippingNo string
 }
 
 // unitKey identifies the physical shipment an order belongs to: a merged group ships as one parcel

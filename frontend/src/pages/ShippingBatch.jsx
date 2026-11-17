@@ -133,6 +133,14 @@ export default function ShippingBatch() {
     if (!exportedAt) await recordExport(id, '3pl_packing', res.rows.flatMap((r) => r.order_ids))
   })
 
+  // Expired Label Reprocessing: the priority 3PL file for orders whose new numbers were imported
+  const downloadReship = (exportedAt) => run('dl-reship', async () => {
+    const res = await getExportRows(id, '3pl_reship', exportedAt)
+    if (res.rows.length === 0) { setError(t('page_shipping_wb.nothing_to_export')); return }
+    downloadBlob(await buildThreePLExcel(res.rows), exportFilename(exportedAt ? '3pl-PRIORITY-again' : '3pl-PRIORITY', batch.batch_no))
+    if (!exportedAt) await recordExport(id, '3pl_reship', res.rows.flatMap((r) => r.order_ids))
+  })
+
   // POS / 郵寄 order list: every order of the batch in one file, any time; only downloads, changes nothing
   const downloadPosExcel = () => run('dl-pos', async () => {
     const res = await getExportRows(id, 'batch')
@@ -140,6 +148,8 @@ export default function ShippingBatch() {
     downloadBlob(await buildPosExcel(res.rows), exportFilename('pos-orders', batch.batch_no))
   })
 
+  const expiredWaiting = orders.filter((o) => o.label_expired_at)
+  const reissuedWaiting = orders.filter((o) => o.label_reissued_at && !o.label_expired_at)
   const resultKinds = provider === 'cvs_711' ? [['711_validation', 'upload_a'], ['711_export', 'upload_b']]
     : provider === 'cvs_familymart' ? [['fm_result', 'upload_fm']] : [['hct_result', 'upload_hct']]
   const steps = Array.from({ length: INSTRUCTION_STEPS[provider] }, (_, i) => `page_shipping_wb.${INSTRUCTION_PREFIX[provider]}_${i + 1}`)
@@ -374,6 +384,61 @@ export default function ShippingBatch() {
           )} />
         </SectionCard>
       </div>
+      {/* 07 Expired label reprocessing (7-ELEVEN): below Failed Orders & Retry */}
+      {provider === 'cvs_711' && (
+        <SectionCard id="s8" step="06" title={t('page_shipping_wb.s8_title')} hint={t('page_shipping_wb.s8_hint')}>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Stat label={t('page_shipping_wb.expired_waiting')} value={expiredWaiting.length} tone={expiredWaiting.length ? 'bad' : 'good'} />
+            <Stat label={t('page_shipping_wb.reissued_waiting')} value={reissuedWaiting.length} tone={reissuedWaiting.length ? 'bad' : 'good'} />
+          </div>
+          {expiredWaiting.length + reissuedWaiting.length === 0 ? (
+            <p className="text-sm text-gray-400 py-3">{t('page_shipping_wb.no_expired')}</p>
+          ) : (
+            <ul className="divide-y bg-white rounded-xl border border-amber-200">
+              {[...reissuedWaiting, ...expiredWaiting].map((o) => (
+                <li key={o.order_id} className="p-3 flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-800">
+                    <Link to={`/orders/${o.order_id}`} className="text-brand-700 hover:underline">{o.order_no}</Link>
+                    <span className="ml-2 text-xs font-normal text-gray-500">{o.customer_name} · {o.store_name} {o.store_code}</span>
+                  </p>
+                  <span className={`text-xs font-semibold ${o.label_expired_at ? 'text-red-600' : 'text-amber-700'}`}>
+                    {o.label_expired_at ? t('page_shipping_wb.expired_state_wait_number') : t('page_shipping_wb.expired_state_wait_3pl')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid sm:grid-cols-2 gap-3 mt-4">
+            <div className="border border-gray-200 bg-white rounded-xl p-4 space-y-3">
+              <div>
+                <p className="font-semibold text-gray-800 text-sm">{t('page_shipping_wb.expired_download_title')}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('page_shipping_wb.expired_download_hint')}</p>
+              </div>
+              <button onClick={() => downloadPlatformFile('expired')} disabled={!!busy || expiredWaiting.length === 0} className={primaryBtn}>{t('page_shipping_wb.download_expired')}</button>
+            </div>
+            <ImportBox
+              title={t('page_shipping_wb.expired_upload_title')} hint={t('page_shipping_wb.expired_upload_hint')}
+              kinds={resultKinds.map(([k]) => k)} provider={provider} batchId={batch.id} onDone={load} buttonLabel={t('page_shipping_wb.upload_retry')}
+            />
+          </div>
+          <div className="border border-gray-200 bg-white rounded-xl p-4 space-y-3 mt-3">
+            <div>
+              <p className="font-semibold text-gray-800 text-sm">{t('page_shipping_wb.reship_title')}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{t('page_shipping_wb.reship_hint')}</p>
+            </div>
+            <button onClick={() => downloadReship()} disabled={!!busy || reissuedWaiting.length === 0} className={primaryBtn}>{t('page_shipping_wb.download_reship')}</button>
+          </div>
+          <History items={byKind('expired')} render={(e) => (
+            <li key={e.exported_at}>{formatDateTime(e.exported_at)} · {e.user} · {t('page_shipping_wb.n_orders', { count: e.orders })} · {t('page_shipping_wb.expired_file')}</li>
+          )} />
+          <History items={byKind('3pl_reship')} render={(e) => (
+            <li key={e.exported_at} className="flex items-center justify-between gap-2">
+              <span>{formatDateTime(e.exported_at)} · {e.user} · {t('page_shipping_wb.n_orders', { count: e.orders })} · {t('page_shipping_wb.reship_file')}</span>
+              <button onClick={() => downloadReship(e.exported_at)} className="font-semibold text-brand-600 hover:underline">{t('page_shipping_wb.download_again')}</button>
+            </li>
+          )} />
+        </SectionCard>
+      )}
       {editing && <EditOrderModal order={editing} batchEdit afterShip={editing.status !== 'pending' || Boolean(editing.locked)} onClose={() => setEditing(null)} onDone={() => { setEditing(null); load() }} />}
     </div>
   )

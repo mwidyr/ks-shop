@@ -30,6 +30,11 @@ type importSummary struct {
 	Issues            int  `json:"issues"` // new issues opened by this file
 	MissingShippingNo int  `json:"missing_shipping_no"`
 	Repeat            bool `json:"repeat"` // an identical file (same hash) was imported before
+	// exception reports (7-ELEVEN expired labels, unclaimed returns)
+	Expired     int      `json:"expired,omitempty"`
+	Returned    int      `json:"returned,omitempty"`
+	Blacklisted int      `json:"blacklisted,omitempty"`
+	Notes       []string `json:"notes,omitempty"` // e.g. the customers that were blacklisted
 }
 
 // importApplier applies normalised import records inside one transaction. Every rule is
@@ -47,6 +52,7 @@ type importApplier struct {
 	state    map[int]*candidateOrder
 	members  map[string][]int // unit key -> member order ids
 	sum      importSummary
+	seenRows map[string]bool // exception reports: records already handled in this file
 }
 
 func (a *importApplier) loadCandidates() error {
@@ -64,7 +70,8 @@ func (a *importApplier) loadCandidates() error {
 	}
 	const base = `
 		SELECT o.id, o.order_no, COALESCE(o.platform_order_no,''), COALESCE(o.tracking_number,''), o.status,
-		       COALESCE(gm.group_id,0), COALESCE(sbo.batch_id,0), COALESCE(sbo.create_result,''), pc.chain_type
+		       COALESCE(gm.group_id,0), COALESCE(sbo.batch_id,0), COALESCE(sbo.create_result,''), pc.chain_type,
+		       o.label_expired_at IS NOT NULL, COALESCE(o.expired_platform_no,''), COALESCE(o.expired_shipping_no,'')
 		FROM orders o
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN order_shipment_group_members gm ON gm.order_id = o.id
@@ -74,7 +81,7 @@ func (a *importApplier) loadCandidates() error {
 		defer rows.Close()
 		for rows.Next() {
 			var c candidateOrder
-			if err := rows.Scan(&c.ID, &c.OrderNo, &c.PlatformOrderNo, &c.ShippingNo, &c.Status, &c.GroupID, &c.BatchID, &c.CreateResult, &c.Provider); err != nil {
+			if err := rows.Scan(&c.ID, &c.OrderNo, &c.PlatformOrderNo, &c.ShippingNo, &c.Status, &c.GroupID, &c.BatchID, &c.CreateResult, &c.Provider, &c.LabelExpired, &c.ExpiredPlatformNo, &c.ExpiredShippingNo); err != nil {
 				return err
 			}
 			if _, ok := a.state[c.ID]; !ok {
@@ -160,6 +167,10 @@ func (a *importApplier) resolveIssues(rec importRecord) {
 func (a *importApplier) setIdentifiers(ids []int, platformNo, shippingNo string) (changed, conflict bool, err error) {
 	for _, id := range ids {
 		c := a.state[id]
+		// the numbers that just expired are never handed back by an old file
+		if c.LabelExpired && ((platformNo != "" && platformNo == c.ExpiredPlatformNo) || (shippingNo != "" && shippingNo == c.ExpiredShippingNo)) {
+			continue
+		}
 		np, chP, cfP := mergeIdentifier(c.PlatformOrderNo, platformNo)
 		ns, chS, cfS := mergeIdentifier(c.ShippingNo, shippingNo)
 		if cfP || cfS {
@@ -217,6 +228,9 @@ func (a *importApplier) advance(ids []int, from, to, reason string) (moved bool,
 }
 
 func (a *importApplier) record(rec importRecord) error {
+	if exceptionKinds[a.req.Kind] {
+		return a.recordException(rec)
+	}
 	a.sum.Total++
 	m := a.idx.match(rec)
 	if m.Conflict {
@@ -300,7 +314,11 @@ func (a *importApplier) apply711Validation(rec importRecord, ids []int, first *c
 		a.issue(rec, "identifier_conflict", first.ID, map[string]any{"stored": first.PlatformOrderNo})
 		return changed, nil
 	}
-	c2, err := a.setCreateResult(ids, "created", "")
+	c2, err := a.setCreateResult(a.numbered(ids), "created", "")
+	if err != nil {
+		return false, err
+	}
+	re, err := a.reissueIfReady(ids)
 	if err != nil {
 		return false, err
 	}
@@ -309,7 +327,20 @@ func (a *importApplier) apply711Validation(rec importRecord, ids []int, first *c
 		return false, err
 	}
 	a.resolveIssues(rec)
-	return changed || c2 || moved, nil
+	return changed || c2 || moved || re, nil
+}
+
+// numbered drops the orders that are still waiting for a new number after their label expired: a file that does not carry
+// one (or only the expired one) must not mark them as created.
+func (a *importApplier) numbered(ids []int) []int {
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if c := a.state[id]; c.LabelExpired && c.PlatformOrderNo == "" {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
 }
 
 func (a *importApplier) applyIdentifiers(rec importRecord, ids []int, first *candidateOrder) (bool, error) {
@@ -329,6 +360,11 @@ func (a *importApplier) applyIdentifiers(rec importRecord, ids []int, first *can
 		}
 		changed = changed || c2
 	}
+	re, err := a.reissueIfReady(ids)
+	if err != nil {
+		return false, err
+	}
+	changed = changed || re
 	moved, err := a.promote(ids, rec)
 	if err != nil {
 		return false, err

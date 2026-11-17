@@ -11,7 +11,7 @@ import (
 const orderChangeSep = "\n"
 
 // orderHistoryActions are the activity_log actions of an order that belong to the order history.
-var orderHistoryActions = []string{"order_edited", "order_edited_after_shipped", "removed_from_batch", "attachment_deleted", "pickup_updated", "notes_updated", "promotions_updated", "return_received"}
+var orderHistoryActions = []string{"order_edited", "order_edited_after_shipped", "removed_from_batch", "attachment_deleted", "pickup_updated", "notes_updated", "promotions_updated", "return_received", "label_expired", "label_reissued"}
 
 func rupiahText(v float64) string { return fmt.Sprintf("NT$%.0f", v) }
 

@@ -34,3 +34,4 @@ export const confirmAllNotCreated = (batchId) =>
 export const searchShipping = (q) => client.get(`/shipping-workbench/search${qs({ q })}`).then((r) => r.data)
 export const bulkCompleteOrders = (batchId, orderIds) =>
   client.post(`/shipping-workbench/batches/${batchId}/bulk-complete`, { order_ids: orderIds }).then((r) => r.data)
+export const getExpired = () => client.get('/shipping-workbench/expired').then((r) => r.data)

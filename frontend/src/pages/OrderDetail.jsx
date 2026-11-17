@@ -594,6 +594,8 @@ export default function OrderDetail() {
             {copied ? t('page_order_detail.copied_label') : t('page_order_detail.copy_info_button')}
           </button>
           <StatusPill status={order.status} />
+          {order.label_expired && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-100 text-red-700">{t('page_shipping_wb.label_expired_badge')}</span>}
+          {order.label_reissued && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700">{t('page_shipping_wb.label_reissued_badge')}</span>}
         </div>
       </div>
       <p className="text-sm text-gray-500 mb-6 flex flex-wrap items-center gap-x-1">{order.customer_name} · <CopyPhone phone={order.customer_phone} />{order.customer_email ? ` · ${order.customer_email}` : ''}</p>
@@ -625,6 +627,7 @@ export default function OrderDetail() {
             <div>
               <p className="text-[11px] uppercase text-gray-400 mb-0.5">{t('page_order_detail.stage_label')}</p>
               <StatusPill status={order.status} />
+              {order.label_expired && <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-red-100 text-red-700">{t('page_shipping_wb.label_expired_badge')}</span>}
             </div>
           </div>
 

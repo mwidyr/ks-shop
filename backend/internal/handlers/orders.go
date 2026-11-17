@@ -315,6 +315,9 @@ type orderDetailView struct {
 	SalesChannel       string `json:"sales_channel"`
 	PromotionTypedCode string `json:"promotion_typed_code"`
 	BatchCreateResult  string `json:"batch_create_result"`
+	// LabelExpired: the 7-ELEVEN shipping label expired and waits for new numbers; LabelReissued: new numbers are in, the priority 3PL file is due
+	LabelExpired  bool `json:"label_expired"`
+	LabelReissued bool `json:"label_reissued"`
 	// ReturnReceived: the warehouse already booked the returned goods back into stock.
 	ReturnReceived           bool              `json:"return_received"`
 	CustomerName             string            `json:"customer_name"`
@@ -551,6 +554,7 @@ func (h *OrderHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.DB.QueryRow(ctx, `SELECT label_expired_at IS NOT NULL, label_reissued_at IS NOT NULL FROM orders WHERE id=$1`, id).Scan(&o.LabelExpired, &o.LabelReissued)
 	o.HistoryEvents = []orderEventView{}
 	if evRows, err := h.DB.Query(ctx, `
 		SELECT a.action, COALESCE(u.name,'system'), COALESCE(a.detail,''), a.created_at::text

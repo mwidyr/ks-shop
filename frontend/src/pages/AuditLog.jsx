@@ -27,6 +27,8 @@ export default function AuditLog() {
     notes_updated: t('page_audit_log.action_notes_updated'),
     promotions_updated: t('page_audit_log.action_promotions_updated'),
     return_received: t('page_audit_log.action_return_received'),
+    label_expired: t('page_audit_log.action_label_expired'),
+    label_reissued: t('page_audit_log.action_label_reissued'),
   }
 
   function actionLabel(action) {

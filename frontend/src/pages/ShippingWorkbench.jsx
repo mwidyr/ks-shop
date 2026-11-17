@@ -3,7 +3,7 @@ import PeriodPicker, { useSharedRange } from '../components/PeriodPicker'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings, searchShipping } from '../api/shippingWorkbench'
+import { getExpired, getIssues, getOverview, getSettings, listBatches, resolveIssue, saveSettings, searchShipping } from '../api/shippingWorkbench'
 import CrossBatchImportModal from '../components/shipping/CrossBatchImportModal'
 import { BatchStatusPill, PROVIDERS, PROVIDER_KEYS, ProgressChips, StagePill, batchPath, elapsed, ghostBtn, primaryBtn } from '../components/shipping/shared'
 import StatusPill from '../components/StatusPill'
@@ -114,6 +114,7 @@ export default function ShippingWorkbench() {
   const [issueLimit, setIssueLimit] = useState(5)
   const [batches, setBatches] = useState([])
   const [batchLimit, setBatchLimit] = useState(5)
+  const [expired, setExpired] = useState([])
   const [importOpen, setImportOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [range, setRange] = useSharedRange()
@@ -123,6 +124,7 @@ export default function ShippingWorkbench() {
   const loadRest = useCallback(() => {
     getOverview({ date_from: range.from, date_to: range.to }).then(setOverview)
     listBatches({ filter: 'pending' }).then((res) => setBatches(res.batches))
+    getExpired().then((res) => setExpired(res.batches || [])).catch(() => {})
   }, [range])
   const loadAll = useCallback(() => { loadRest(); loadIssues() }, [loadRest, loadIssues])
 
@@ -216,6 +218,30 @@ export default function ShippingWorkbench() {
           </div>
         )}
       </section>
+
+      {expired.length > 0 && (
+        <section className="bg-white rounded-2xl shadow-sm p-5 border border-amber-200">
+          <h2 className="font-bold text-gray-800 mb-1">{t('page_shipping_wb.expired_batches_title')}</h2>
+          <p className="text-xs text-gray-500 mb-3">{t('page_shipping_wb.expired_batches_hint')}</p>
+          <ul className="divide-y">
+            {expired.map((b) => {
+              const wait = b.orders.filter((o) => o.label_expired_at).length
+              return (
+                <li key={b.batch_id}>
+                  <Link to={batchPath(b.provider, b.batch_id)} className="flex items-center justify-between gap-3 py-3 hover:bg-gray-50 rounded-lg px-2 -mx-2">
+                    <span className="font-semibold text-gray-800 text-sm">{b.batch_no}
+                      <span className="ml-2 text-xs font-normal text-gray-500">{b.orders.map((o) => o.order_no).slice(0, 3).join(', ')}{b.orders.length > 3 ? '…' : ''}</span>
+                    </span>
+                    <span className="text-xs font-semibold text-amber-700">
+                      {t('page_shipping_wb.expired_batch_line', { wait, reissued: b.orders.length - wait })}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="bg-white rounded-2xl shadow-sm p-5">
         <h2 className="font-bold text-gray-800 mb-3">{t('page_shipping_wb.unfinished_batches')}</h2>

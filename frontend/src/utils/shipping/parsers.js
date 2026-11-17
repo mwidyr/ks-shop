@@ -196,10 +196,73 @@ export function parseDelivery({ XLSX, wb }, provider) {
   return records
 }
 
+// ---- exception reports (7-ELEVEN expired labels / unclaimed returns, FamilyMart unclaimed returns) -----------------------
+// 7-ELEVEN: the 訂單匯入 sheet, cell H1 says what the report is: 類別：取消訂單 (the platform cancelled the label) or
+// 類別：未取退宅 (unclaimed return). Both need 訂單編號 (the platform's order no.) AND 商品備註 (our order no.) to match.
+// FamilyMart: every row carries 訂單狀態; only 退回 rows are unclaimed returns (our order no. is in 商品名稱).
+const H1_CATEGORY = { '取消訂單': '711_expired', '未取退宅': '711_unclaimed' }
+// 7-ELEVEN 狀態 values that mean "the parcel was never picked up". Other statuses in the same file (picked up,
+// shipped, delivered ...) are left alone: they must never return an order or blacklist a customer.
+export const UNCLAIMED_711_STATUSES = ['逾期未取件']
+export const FM_RETURN_STATUS = '退回'
+
+function locate711Exception(XLSX, wb) {
+  return locate(XLSX, wb, ['商品備註', '訂單編號'], [ORDER_SHEET])
+}
+
+// The report category written in cell H1 of the 訂單匯入 sheet ('' when absent).
+export function category711({ XLSX, wb }) {
+  const rows = sheetRows(XLSX, wb, ORDER_SHEET)
+  if (!rows || !rows[0]) return ''
+  const m = clean(rows[0][7]).match(/^類別[:：](.+)$/)
+  return m ? m[1] : ''
+}
+
+export function detect711Exception(parsed) {
+  if (!locate711Exception(parsed.XLSX, parsed.wb)) return null
+  return H1_CATEGORY[category711(parsed)] || null
+}
+
+export function parse711Exception(parsed, kind) {
+  const found = locate711Exception(parsed.XLSX, parsed.wb)
+  if (!found) return null
+  const statusCol = found.col[clean('狀態')]
+  const records = []
+  let ignored = 0
+  for (let i = found.headerIndex + 1; i < found.rows.length; i++) {
+    const r = found.rows[i]
+    const orderNo = text(r[found.col[clean('商品備註')]])
+    const platformNo = text(r[found.col[clean('訂單編號')]])
+    if (!orderNo && !platformNo) continue
+    if (kind === '711_unclaimed' && !UNCLAIMED_711_STATUSES.some((st) => text(r[statusCol]).includes(st))) { ignored++; continue }
+    records.push({ row: i + 1, order_no: orderNo, platform_order_no: platformNo })
+  }
+  return { records, ignored }
+}
+
+export function parseFamilyMartUnclaimed({ XLSX, wb }) {
+  const found = locate(XLSX, wb, ['訂單編號', '商品名稱', '訂單狀態'])
+  if (!found) return null
+  const records = []
+  let ignored = 0
+  for (let i = found.headerIndex + 1; i < found.rows.length; i++) {
+    const r = found.rows[i]
+    const orderNo = text(r[found.col[clean('商品名稱')]])
+    const platformNo = text(r[found.col[clean('訂單編號')]])
+    if (!orderNo && !platformNo) continue
+    if (clean(r[found.col[clean('訂單狀態')]]) !== FM_RETURN_STATUS) { ignored++; continue }
+    records.push({ row: i + 1, order_no: orderNo, platform_order_no: platformNo })
+  }
+  return { records, ignored }
+}
+
 // Detects which of the known files a workbook is. Returns the import kind or null.
 // (A completion report has the same columns as the platform's normal export, so it is never auto-detected:
 // it is only read when the "completed orders" upload box asks for it - see readImportFile.)
 export function detectKind(parsed) {
+  // an exception report has the same columns as the normal 7-ELEVEN export: its H1 category tells them apart
+  const exception = detect711Exception(parsed)
+  if (exception) return exception
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])) return '711_validation'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號', '配送單編號'], [ORDER_SHEET])) return '711_export'
   if (locateFamilyMart(parsed.XLSX, parsed.wb)) return 'fm_result'
@@ -212,6 +275,9 @@ export const PROVIDER_OF_KIND = {
   '711_export': 'cvs_711',
   fm_result: 'cvs_familymart',
   hct_result: 'courier',
+  '711_expired': 'cvs_711',
+  '711_unclaimed': 'cvs_711',
+  fm_unclaimed: 'cvs_familymart',
 }
 
 // Kinds whose file format we do not know yet - the UI shows them as "waiting for the file format".
@@ -232,6 +298,22 @@ export function parseKind(parsed, kind) {
 export async function readImportFile(file, expectedKind) {
   if (PENDING_KINDS.includes(expectedKind)) throw new AdapterNotConfigured(expectedKind)
   const parsed = await readWorkbook(file)
+  if (expectedKind === 'fm_unclaimed') {
+    const res = parseFamilyMartUnclaimed(parsed)
+    if (!res) throw new Error('unrecognised_file')
+    if (res.records.length === 0) throw new Error('no_unclaimed_rows')
+    return { kind: 'fm_unclaimed', records: res.records, ignored: res.ignored, fileHash: await sha256Hex(file), fileName: file.name }
+  }
+  if (expectedKind === '711_expired' || expectedKind === '711_unclaimed' || expectedKind === '711_exception') {
+    // one upload area for both 7-ELEVEN reports: cell H1 decides which one it is, anything else is refused
+    if (!locate711Exception(parsed.XLSX, parsed.wb)) throw new Error('unrecognised_file')
+    const kind = detect711Exception(parsed)
+    if (!kind) throw new Error('wrong_category')
+    if (expectedKind !== '711_exception' && expectedKind !== kind) throw new Error('wrong_category')
+    const res = parse711Exception(parsed, kind)
+    if (!res.records.length) throw new Error(kind === '711_unclaimed' ? 'no_unclaimed_rows' : 'empty_file')
+    return { kind, records: res.records, ignored: res.ignored, fileHash: await sha256Hex(file), fileName: file.name }
+  }
   if (expectedKind === 'delivery') {
     const provider = detectDelivery(parsed)
     if (!provider) throw new Error('unrecognised_file')
