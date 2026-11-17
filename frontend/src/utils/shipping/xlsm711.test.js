@@ -27,7 +27,9 @@ describe('7-ELEVEN .xlsm template fill', () => {
     }
     const wb = XLSX.read(out, { type: 'buffer' })
     expect(wb.SheetNames).toEqual(['訂單匯入', '填寫說明'])
-    expect(wb.Sheets['填寫說明'].B1.v).toBe('1.5') // the current template version
+    // the version is whatever the shipped template says (7-ELEVEN bumps it; replace public/cvs-templates/711.xlsm)
+    expect(wb.Sheets['填寫說明'].B1.v).toBe(XLSX.read(template, { type: 'buffer' }).Sheets['填寫說明'].B1.v)
+    expect(Number(wb.Sheets['填寫說明'].B1.v)).toBeGreaterThanOrEqual(1.6)
     expect(wb.Sheets['訂單匯入'].A6.v).toBe('＊取件人姓名')
   })
 
