@@ -77,6 +77,8 @@ type orderListItem struct {
 	ShipmentGroupID *int `json:"shipment_group_id"`
 	// Source: staff (created in Ralulu Hub), self_checkout (customer website) or cs_assisted.
 	Source string `json:"source"`
+	// KeepDate: the Keep Order date (YYYY-MM-DD) set on the order's detail page, nil when none (the Excel export).
+	KeepDate *string `json:"keep_date"`
 	// Items: the order's product lines, only when asked for with include_items=true (the Excel export).
 	Items []orderListLine `json:"items,omitempty"`
 }
@@ -209,7 +211,8 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		        AND NOT EXISTS (SELECT 1 FROM cvs_stores cs WHERE cs.chain_type = pc.chain_type AND cs.store_code = o.pickup_store_code))
 		        OR NOT o.pickup_store_verified),
 		       o.source,
-		       (SELECT gm3.group_id FROM order_shipment_group_members gm3 WHERE gm3.order_id = o.id)`
+		       (SELECT gm3.group_id FROM order_shipment_group_members gm3 WHERE gm3.order_id = o.id),
+		       to_char(o.keep_date, 'YYYY-MM-DD')`
 	const joinRest = `
 		JOIN pickup_chains pc ON pc.id = o.pickup_chain_id
 		LEFT JOIN LATERAL (
@@ -254,7 +257,7 @@ func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
 		var createdAt time.Time
 		if err := rows.Scan(&o.ID, &o.OrderNo, &o.Status, &o.CustomerName, &o.CustomerPhone, &o.PickupChainName,
 			&o.PickupStoreName, &o.PickupStoreCode, &createdAt, &o.Total, &o.TotalQty, &o.CustomerBlocked, &o.IsUrgent, &o.IsMerged,
-			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source, &o.ShipmentGroupID); err != nil {
+			&o.ShippingAddress, &o.PickupChainType, &o.StoreUnverified, &o.Source, &o.ShipmentGroupID, &o.KeepDate); err != nil {
 			continue
 		}
 		o.CreatedAt = createdAt.Format(time.RFC3339)

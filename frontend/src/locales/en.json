@@ -994,6 +994,7 @@
     "xl_total": "Total",
     "xl_source": "Source",
     "xl_flags": "Flags",
+    "xl_keep_date": "Keep Order Date",
     "xl_urgent": "Urgent",
     "xl_blacklist": "Blacklist",
     "xl_merged": "Merged",

@@ -21,6 +21,7 @@ export const ORDER_COLUMNS = [
   ['xl_source', (o, t) => (o.source && o.source !== 'staff' ? t(`page_orders.source_${o.source}`, o.source) : 'Staff')],
   ['xl_products', (o) => (o.items || []).map((i) => `${i.sku} ×${i.qty}${i.name ? ` ${i.name}` : ''}`).join('; ')],
   ['xl_flags', (o, t) => [o.is_urgent && t('page_orders.xl_urgent'), o.customer_blacklisted && t('page_orders.xl_blacklist'), o.is_merged && t('page_orders.xl_merged')].filter(Boolean).join(', ')],
+  ['xl_keep_date', (o) => o.keep_date || ''],
 ]
 
 export function orderSheetData(orders, t) {
@@ -30,7 +31,7 @@ export function orderSheetData(orders, t) {
   ]
 }
 
-export const ORDER_COL_WIDTHS = [22, 14, 20, 22, 16, 18, 26, 12, 40, 8, 14, 20, 60, 20]
+export const ORDER_COL_WIDTHS = [22, 14, 20, 22, 16, 18, 26, 12, 40, 8, 14, 20, 60, 20, 16]
 
 export async function buildOrdersWorkbookBlob(orders, t) {
   const XLSX = await import('xlsx')

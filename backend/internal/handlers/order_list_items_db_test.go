@@ -61,6 +61,14 @@ func TestOrderListIncludeItems(t *testing.T) {
 	if got := list(""); len(got) != 1 || len(got[0].Items) != 0 {
 		t.Fatalf("no lines unless asked for: %+v", got)
 	}
+	if got := list(""); got[0].KeepDate != nil {
+		t.Fatalf("no keep date set, want nil: %v", *got[0].KeepDate)
+	}
+	_, err = db.Exec(ctx, `UPDATE orders SET keep_date='2026-12-05', keep_date_type='shipping' WHERE id=$1`, order)
+	must(err)
+	if got := list(""); got[0].KeepDate == nil || *got[0].KeepDate != "2026-12-05" {
+		t.Fatalf("keep date: %v", got[0].KeepDate)
+	}
 	got := list("&include_items=true")
 	if len(got) != 1 || len(got[0].Items) != 2 {
 		t.Fatalf("both lines: %+v", got)

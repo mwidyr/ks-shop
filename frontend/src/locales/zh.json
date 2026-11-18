@@ -994,6 +994,7 @@
     "xl_total": "總額",
     "xl_source": "來源",
     "xl_flags": "標記",
+    "xl_keep_date": "保留訂單日期",
     "xl_urgent": "急件",
     "xl_blacklist": "黑名單",
     "xl_merged": "已合併",

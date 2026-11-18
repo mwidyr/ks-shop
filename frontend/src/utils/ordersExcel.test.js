@@ -21,6 +21,15 @@ describe('orders Excel', () => {
     expect(data[2][12]).toBe('P021-WHITE-2XL ×2 Celana; P022-BLK-M ×1')
   })
 
+  it('puts the Keep Order date in the last column, empty when the order has none', () => {
+    const data = orderSheetData([order({ keep_date: '2026-12-05' }), order({ keep_date: null }), order({})], t)
+    const last = ORDER_COLUMNS.length - 1
+    expect(ORDER_COLUMNS[last][0]).toBe('xl_keep_date')
+    expect(data[1][last]).toBe('2026-12-05')
+    expect(data[2][last]).toBe('')
+    expect(data[3][last]).toBe('')
+  })
+
   it('writes a real xlsx with the rows', async () => {
     const blob = await buildOrdersWorkbookBlob([order()], t)
     const wb = XLSX.read(await blob.arrayBuffer(), { type: 'array' })

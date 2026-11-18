@@ -994,6 +994,7 @@
     "xl_total": "Total",
     "xl_source": "Sumber",
     "xl_flags": "Tanda",
+    "xl_keep_date": "Tanggal Keep Order",
     "xl_urgent": "Urgent",
     "xl_blacklist": "Blacklist",
     "xl_merged": "Digabung",
