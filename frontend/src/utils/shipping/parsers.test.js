@@ -22,6 +22,24 @@ describe('7-ELEVEN File A (import validation result)', () => {
   })
 })
 
+describe('7-ELEVEN File A from template v1.6 (header of the result column removed by 7-ELEVEN)', () => {
+  const parsed = load('711_file_a_validation_v16.xlsm')
+  it('is still recognised as the validation result', () => expect(detectKind(parsed)).toBe('711_validation'))
+  it('reads the result texts from the column right of excel驗證結果說明', () => {
+    const recs = parse711Validation(parsed)
+    expect(recs.length).toBeGreaterThan(5)
+    expect(recs[0]).toMatchObject({ order_no: 'ORD-1792154828-8241', result_text: '[取件門市]：(常溫)無此店號' })
+    expect(recs.find((r) => r.order_no === 'TST-711-100').result_text).toMatch(/^檢核通過，訂單編號: CM\d+$/)
+  })
+  it('is refused when that column holds no result text at all (nothing is guessed)', () => {
+    const wb = XLSX.read(readFileSync(join(dir, '711_file_a_validation_v16.xlsm')), { type: 'buffer' })
+    const ws = wb.Sheets['訂單匯入']
+    for (const k of Object.keys(ws)) if (/^L\d+$/.test(k)) delete ws[k]
+    expect(detectKind({ XLSX, wb })).toBeNull()
+    expect(parse711Validation({ XLSX, wb })).toBeNull()
+  })
+})
+
 describe('7-ELEVEN File A variant with the platform 訂單編號 column', () => {
   const parsed = load('711_file_a_with_cm.xlsx')
   it('is recognised as validation result and turned into a success line', () => {

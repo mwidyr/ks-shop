@@ -88,12 +88,33 @@ function locate(XLSX, wb, wanted, sheetNames) {
 
 const ORDER_SHEET = '訂單匯入'
 
-// 7-ELEVEN File A - 訂單匯入結果 (the import-validation result). Either the .xlsm with
-// 網頁匯入檢核結果說明, or the .xlsx variant that carries the platform 訂單編號 column instead.
+// Result texts 7-ELEVEN writes per order: 檢核通過，訂單編號: CM... or a validation error like [取件門市]：(常溫)無此店號.
+const RESULT_TEXT = /檢核通過|訂單編號|^\[.+\]\s*[：:]/
+
+// Finds 7-ELEVEN File A. Returns { rows, headerIndex, col, textCol, cmCol } or null, where the result is read from
+// column textCol (網頁匯入檢核結果說明) or, for the .xlsx variant, built from the platform order number in cmCol.
+//   a. the header 網頁匯入檢核結果說明 (the .xlsm as it has always been);
+//   b. the same file without that header text (template v1.6 dropped it): the result column is the one right of
+//      excel驗證結果說明, accepted only when rows below really hold result texts, so nothing is guessed;
+//   c. the .xlsx variant that carries the platform 訂單編號 column.
+function locate711Validation(XLSX, wb) {
+  const a = locate(XLSX, wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])
+  if (a) return { ...a, textCol: a.col[clean('網頁匯入檢核結果說明')] }
+  const b = locate(XLSX, wb, ['商品備註', 'excel驗證結果說明'], [ORDER_SHEET])
+  if (b) {
+    const textCol = b.col[clean('excel驗證結果說明')] + 1
+    const holdsResults = b.rows.slice(b.headerIndex + 1).some((r) => RESULT_TEXT.test(text(r[textCol])))
+    if (holdsResults) return { ...b, textCol }
+  }
+  const c = locate(XLSX, wb, ['商品備註', '訂單編號'], wb.SheetNames.filter((n) => n !== '非訂單匯入'))
+  if (c) return { ...c, cmCol: c.col[clean('訂單編號')] }
+  return null
+}
+
+// 7-ELEVEN File A - 訂單匯入結果 (the import-validation result): the .xlsm with the result text per order, or the
+// .xlsx variant that carries the platform 訂單編號 column instead.
 export function parse711Validation({ XLSX, wb }) {
-  const withText = locate(XLSX, wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])
-  const withCm = !withText && locate(XLSX, wb, ['商品備註', '訂單編號'], wb.SheetNames.filter((n) => n !== '非訂單匯入'))
-  const found = withText || withCm
+  const found = locate711Validation(XLSX, wb)
   if (!found) return null
   const records = []
   for (let i = found.headerIndex + 1; i < found.rows.length; i++) {
@@ -101,10 +122,10 @@ export function parse711Validation({ XLSX, wb }) {
     const orderNo = text(r[found.col[clean('商品備註')]])
     if (!orderNo) continue
     let resultText
-    if (withText) {
-      resultText = text(r[found.col[clean('網頁匯入檢核結果說明')]])
+    if (found.textCol !== undefined) {
+      resultText = text(r[found.textCol])
     } else {
-      const cm = text(r[found.col[clean('訂單編號')]])
+      const cm = text(r[found.cmCol])
       resultText = cm ? `檢核通過，訂單編號: ${cm}` : ''
     }
     records.push({ row: i + 1, order_no: orderNo, result_text: resultText })
@@ -263,7 +284,8 @@ export function detectKind(parsed) {
   // an exception report has the same columns as the normal 7-ELEVEN export: its H1 category tells them apart
   const exception = detect711Exception(parsed)
   if (exception) return exception
-  if (locate(parsed.XLSX, parsed.wb, ['商品備註', '網頁匯入檢核結果說明'], [ORDER_SHEET])) return '711_validation'
+  const validation = locate711Validation(parsed.XLSX, parsed.wb)
+  if (validation && validation.textCol !== undefined) return '711_validation'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號', '配送單編號'], [ORDER_SHEET])) return '711_export'
   if (locateFamilyMart(parsed.XLSX, parsed.wb)) return 'fm_result'
   if (locate(parsed.XLSX, parsed.wb, ['商品備註', '訂單編號'], parsed.wb.SheetNames.filter((n) => n !== '非訂單匯入'))) return '711_validation'
