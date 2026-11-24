@@ -27,6 +27,9 @@ type CvsStoreHandler struct {
 	HashKey    string
 	HashIV     string
 	BaseURL    string
+	// ScraperManaged: the ralulu-store-sync scraper owns cvs_stores (CVS_SYNC_TOKEN set), so the
+	// ECPay refresh - which wipes and reloads a whole chain - must not run.
+	ScraperManaged bool
 }
 
 func (h *CvsStoreHandler) Configured() bool {
@@ -228,7 +231,7 @@ func (h *CvsStoreHandler) ValidateStoreCode(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	var lastUpdated *time.Time
 	h.DB.QueryRow(ctx, `SELECT MAX(updated_at) FROM cvs_stores WHERE chain_type=$1`, chainType).Scan(&lastUpdated)
-	if lastUpdated == nil || time.Since(*lastUpdated) > 24*time.Hour {
+	if !h.ScraperManaged && (lastUpdated == nil || time.Since(*lastUpdated) > 24*time.Hour) {
 		if err := h.refreshChain(ctx, chainType); err != nil {
 			// Serve whatever's cached (possibly empty/stale) rather than fail the request outright -
 			// a transient ECPay/network hiccup shouldn't block order entry over a soft validation check.

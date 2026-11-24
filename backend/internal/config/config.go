@@ -56,6 +56,12 @@ type Config struct {
 	OpenAIAPIKey         string
 	OpenAIVisionModel    string
 	LiveDataAccessSecret string
+
+	// CvsSyncToken is the bearer token the external ralulu-store-sync scraper presents to
+	// POST /api/internal/cvs-sync. Empty = endpoint disabled (always 401) and the ECPay store
+	// cache keeps working as before. When set, the scraper owns cvs_stores and the ECPay refresh
+	// (which deletes + reloads the whole table) is switched off so the two never fight.
+	CvsSyncToken string
 }
 
 func Load() Config {
@@ -96,6 +102,7 @@ func Load() Config {
 		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", ""),
 		OpenAIVisionModel:    getEnv("OPENAI_VISION_MODEL", "gpt-4.1-mini"),
 		LiveDataAccessSecret: getEnv("LIVE_DATA_ACCESS_SECRET", "dev-live-data-secret-change-me"),
+		CvsSyncToken:         getEnv("CVS_SYNC_TOKEN", ""),
 	}
 }
 

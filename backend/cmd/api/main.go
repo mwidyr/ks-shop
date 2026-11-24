@@ -88,7 +88,10 @@ func main() {
 		HashKey:    cfg.ECPayLogisticsHashKey,
 		HashIV:     cfg.ECPayLogisticsHashIV,
 		BaseURL:    cfg.ECPayLogisticsBaseURL,
+
+		ScraperManaged: cfg.CvsSyncToken != "",
 	}
+	cvsSyncH := &handlers.CvsSyncHandler{DB: pool, Token: cfg.CvsSyncToken}
 	if cfg.ECPayLogisticsEnv == "production" && cfg.ECPayLogisticsMerchantID == "" {
 		log.Printf("ECPay logistics: ECPAY_LOGISTICS_ENV=production but no MerchantID/HashKey/HashIV set - CVS store-code validation is disabled until real credentials are provided")
 	} else {
@@ -210,6 +213,7 @@ func main() {
 		r.Post("/public/member/login", memberH.Login)
 		r.Post("/public/member/wa/start", memberH.WAStart)
 		r.Get("/public/member/wa/status/{id}", memberH.WAStatus)
+		r.Post("/internal/cvs-sync", cvsSyncH.Import) // bearer token (CVS_SYNC_TOKEN), called by the store-sync scraper
 		r.Get("/webhooks/whatsapp", memberH.WebhookVerify)
 		r.Post("/webhooks/whatsapp", memberH.Webhook)
 		r.Route("/member", func(r chi.Router) {
@@ -419,6 +423,7 @@ func main() {
 			r.With(edit("shipping")).Patch("/pickup-links/{id}", pickupLinkH.Update)
 
 			r.With(view("audit_logs")).Get("/activity-log", activityLogH.List)
+			r.With(view("audit_logs")).Get("/cvs-sync/status", cvsSyncH.Status)
 
 			r.With(view("dashboard"), reportCache).Get("/dashboard/summary", dashboardH.Summary)
 			r.With(view("dashboard"), reportCache).Get("/dashboard/graph", dashboardH.Graph)
@@ -674,6 +679,10 @@ func main() {
 // type a store code), then once every 24h after that - matching ValidateStoreCode's own 24h
 // staleness window, which stays in place as a lazy fallback.
 func runCvsStoreScheduler(h *handlers.CvsStoreHandler) {
+	if h.ScraperManaged {
+		log.Printf("CVS store cache scheduler: store sync scraper owns cvs_stores (CVS_SYNC_TOKEN set), ECPay refresh disabled")
+		return
+	}
 	if !h.Configured() {
 		log.Printf("CVS store cache scheduler: ECPay not configured, skipping automatic refresh")
 		return

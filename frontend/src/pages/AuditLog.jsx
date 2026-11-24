@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listActivityLog } from '../api/activityLog'
+import CvsSyncMonitor from '../components/CvsSyncMonitor'
 import { tableClasses, theadRowClasses, tbodyClasses, rowClasses, cardClasses } from '../components/Table'
 
 export default function AuditLog() {
@@ -62,6 +63,7 @@ export default function AuditLog() {
 
   return (
     <div className="px-4 sm:px-6 py-6">
+      <CvsSyncMonitor />
       <div className={`${cardClasses} overflow-x-auto`}>
         <table className={tableClasses}>
           <thead>
