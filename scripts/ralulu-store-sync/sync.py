@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
@@ -100,6 +101,49 @@ def crawl_seven(s, pause):
     return list(stores.values()), errors, queries
 
 
+# nginx in front of Ralulu refuses request bodies over 1 MB, so the snapshot is uploaded in chunks below that
+# size and applied by one final "commit" request (see docs/12-cvs-store-sync.md in the Ralulu repo).
+CHUNK_BYTES = int(os.environ.get('UPLOAD_CHUNK_BYTES', '700000'))
+
+
+def compact(payload):
+    return json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+
+
+def chunk_stores(stores, limit=CHUNK_BYTES):
+    """Split stores into lists whose JSON body stays below `limit` bytes."""
+    chunk, size = [], 0
+    for store in stores:
+        n = len(compact(store)) + 1
+        if chunk and size + n > limit:
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(store)
+        size += n
+    if chunk:
+        yield chunk
+
+
+def upload(s, endpoint, token, stores, summary, started):
+    """Send chunks, then the summary. Ralulu applies the data only when the commit request arrives
+    and every chunk is accounted for, so an interrupted upload leaves its database untouched."""
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=utf-8'}
+    session_id = uuid.uuid4().hex
+
+    def post(payload):
+        body = compact(payload)
+        r = s.post(endpoint, data=body, headers=headers, timeout=120)
+        if not r.ok:
+            raise requests.HTTPError(f'{r.status_code} for {endpoint} ({len(body)} bytes): {r.text[:200]}', response=r)
+
+    parts = 0
+    for chunk in chunk_stores(stores):
+        post({'session': session_id, 'stores': chunk})
+        parts += 1
+    post({'session': session_id, 'generated_at': started, 'summary': summary})
+    logging.info('Uploaded %s stores in %s chunks', len(stores), parts)
+
+
 def save_json_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + '.tmp')
@@ -157,8 +201,7 @@ def main():
         token = os.environ.get('RALULU_SYNC_TOKEN', '').strip()
         if endpoint and token:
             try:
-                response = s.post(endpoint, json={'generated_at': started, 'stores': all_stores, 'summary': summary}, headers={'Authorization': f'Bearer {token}'}, timeout=120)
-                response.raise_for_status()
+                upload(s, endpoint, token, all_stores, summary, started)
                 report['uploaded'] = True
             except Exception as exc:
                 report['status'] = 'failed'

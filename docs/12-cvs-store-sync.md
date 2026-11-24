@@ -15,12 +15,24 @@ Audit Logs ← GET /api/cvs-sync/status
 ## Kontrak endpoint
 
 `POST /api/internal/cvs-sync` — header `Authorization: Bearer <CVS_SYNC_TOKEN>`.
-Body: `{generated_at, stores[], summary{7eleven, familymart}}` (format dari scraper).
+
+nginx menolak body di atas 1 MB (413), dan batas itu sengaja **tidak dinaikkan**. Karena itu scraper
+mengirim data dalam potongan ±700 KB (`UPLOAD_CHUNK_BYTES`), semuanya dengan `session` yang sama:
+
+1. **Potongan:** `{session, stores[]}`. Backend hanya menampung ke `cvs_sync_staging`; `cvs_stores`
+   belum berubah. Mengirim ulang potongan yang sama aman (idempotent).
+2. **Commit:** `{session, generated_at, summary{7eleven, familymart}}` tanpa `stores`. Backend
+   mencocokkan jumlah toko yang ditampung dengan `summary.count` tiap chain. Kalau ada potongan
+   hilang → 422 dan tidak ada yang berubah. Kalau cocok, tiap chain diterapkan ke `cvs_stores`
+   dalam satu transaksi, lalu baris penampung dihapus.
+
+Run yang terputus di tengah (tanpa commit) tidak mengubah `cvs_stores`; sisa penampung dibersihkan
+otomatis setelah 1 hari. Batas body di backend 2 MB.
 
 - Token kosong di server → semua request 401.
-- Scraper **selalu** mengirim laporan, termasuk saat gagal, supaya kegagalan tampil di dashboard.
-  Hanya chain yang lolos validasi yang membawa `stores`; chain gagal/sebagian **tidak mengubah
-  `cvs_stores`**.
+- Scraper **selalu** mengirim laporan (commit), termasuk saat gagal, supaya kegagalan tampil di
+  dashboard. Hanya chain yang lolos validasi yang mengirim potongan `stores`; chain gagal/sebagian
+  **tidak mengubah `cvs_stores`**.
 - Tiap chain diproses di transaksi sendiri. Payload tidak valid (store_id kosong/duplikat, chain
   tidak cocok, toko dikirim untuk chain yang gagal) ditolak 422 dan tidak mengubah apa pun.
 - Status per chain: `success` (tanpa error), `partial` (sebagian wilayah gagal, data tidak diterapkan),
@@ -55,5 +67,6 @@ CRON_TZ=Asia/Jakarta
 ## Perubahan pada paket scraper
 
 `sync.py` asli hanya mengunggah kalau **kedua** chain sukses, sehingga kegagalan tidak pernah
-sampai ke Audit Logs. Blok upload diubah: selalu kirim laporan; `all_stores` sudah hanya berisi
-chain yang lolos validasi. Hanya itu perubahannya. Logika scraping tidak disentuh.
+sampai ke Audit Logs, dan mengirim semuanya dalam satu request (±3 MB, ditolak nginx 413). Blok upload
+diganti fungsi `upload()` yang mengirim potongan lalu commit; laporan selalu dikirim, dan `all_stores`
+sudah hanya berisi chain yang lolos validasi. Logika scraping tidak disentuh.

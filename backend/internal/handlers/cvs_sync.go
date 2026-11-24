@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,9 +32,11 @@ type CvsSyncHandler struct {
 	Token string
 }
 
+var sessionRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
+
 const (
-	cvsSyncMaxBody     = 64 << 20 // a full nationwide snapshot is ~5 MB of JSON
-	cvsSyncMaxErrors   = 50       // error rows kept per run; error_count keeps the true total
+	cvsSyncMaxBody     = 2 << 20 // scraper chunks stay under nginx's default 1 MB; anything bigger is refused here too
+	cvsSyncMaxErrors   = 50      // error rows kept per run; error_count keeps the true total
 	cvsSyncMaxErrorLen = 300
 )
 
@@ -108,6 +111,10 @@ type syncChainSummary struct {
 }
 
 type syncPayload struct {
+	// Session ties chunked uploads together: chunk requests carry {session, stores} only, the final
+	// commit request carries {session, summary} and no stores. Without a session the whole snapshot
+	// is expected in one request (summary + stores).
+	Session     string                      `json:"session"`
 	GeneratedAt string                      `json:"generated_at"`
 	UploadError string                      `json:"upload_error"`
 	Stores      []syncStore                 `json:"stores"`
@@ -177,8 +184,20 @@ func (h *CvsSyncHandler) Import(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid payload: "+err.Error())
 		return
 	}
+	if p.Session != "" && !sessionRe.MatchString(p.Session) {
+		respondError(w, http.StatusUnprocessableEntity, "invalid session")
+		return
+	}
 	if len(p.Summary) == 0 {
+		if p.Session != "" && len(p.Stores) > 0 {
+			h.stageChunk(w, r, p)
+			return
+		}
 		respondError(w, http.StatusUnprocessableEntity, "summary is required")
+		return
+	}
+	if p.Session != "" && len(p.Stores) > 0 {
+		respondError(w, http.StatusUnprocessableEntity, "the commit request must not carry stores")
 		return
 	}
 	for name := range p.Summary {
@@ -196,9 +215,37 @@ func (h *CvsSyncHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	// Validate everything up front so a bad payload changes nothing at all.
 	status := map[string]string{}
+	var staged map[string]int
+	if p.Session != "" {
+		var err error
+		if staged, err = h.stagedCounts(r.Context(), p.Session); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to read staged stores")
+			return
+		}
+		for name := range staged {
+			if _, ok := p.Summary[name]; !ok {
+				respondError(w, http.StatusUnprocessableEntity, "stores staged for chain without summary: "+name)
+				return
+			}
+		}
+	}
 	for name, sum := range p.Summary {
 		status[name] = runStatus(sum)
 		stores := byChain[name]
+		if p.Session != "" {
+			switch {
+			case status[name] != "success" && staged[name] > 0:
+				respondError(w, http.StatusUnprocessableEntity, name+": stores sent for a chain that did not succeed")
+				return
+			case status[name] == "success" && staged[name] != sum.Count:
+				respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf("%s: %d stores received but the summary says %d (a chunk is missing)", name, staged[name], sum.Count))
+				return
+			case status[name] == "success" && sum.Count == 0:
+				respondError(w, http.StatusUnprocessableEntity, name+": success reported but no stores sent")
+				return
+			}
+			continue
+		}
 		if status[name] != "success" {
 			if len(stores) > 0 {
 				respondError(w, http.StatusUnprocessableEntity, name+": stores sent for a chain that did not succeed")
@@ -224,7 +271,7 @@ func (h *CvsSyncHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	results := map[string]any{}
 	for name, sum := range p.Summary {
-		applied, err := h.applyChain(r.Context(), name, status[name], sum, byChain[name], startedAt, p.UploadError)
+		applied, err := h.applyChain(r.Context(), name, status[name], sum, byChain[name], p.Session, startedAt, p.UploadError)
 		if err != nil {
 			// Non-2xx so the scraper records the failure; the transaction rolled back, data is untouched.
 			respondError(w, http.StatusInternalServerError, name+": "+err.Error())
@@ -235,7 +282,7 @@ func (h *CvsSyncHandler) Import(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"ok": true, "chains": results})
 }
 
-func (h *CvsSyncHandler) applyChain(ctx context.Context, name, status string, sum syncChainSummary, stores []syncStore, startedAt time.Time, uploadErr string) (bool, error) {
+func (h *CvsSyncHandler) applyChain(ctx context.Context, name, status string, sum syncChainSummary, stores []syncStore, session string, startedAt time.Time, uploadErr string) (bool, error) {
 	chainType := scraperChains[name]
 	tx, err := h.DB.Begin(ctx)
 	if err != nil {
@@ -254,7 +301,19 @@ func (h *CvsSyncHandler) applyChain(ctx context.Context, name, status string, su
 
 	count := sum.Count
 	applied := status == "success"
-	if applied {
+	if applied && session != "" {
+		count = sum.Count // equals the staged count, checked before any chain is applied
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO cvs_stores (chain_type, store_code, store_name, store_addr, store_phone, city, district, longitude, latitude, updated_at, last_seen_at)
+			SELECT chain_type, store_code, store_name, store_addr, store_phone, city, district, longitude, latitude, now(), now()
+			FROM cvs_sync_staging WHERE session=$1 AND chain_type=$2
+			ON CONFLICT (chain_type, store_code) DO UPDATE SET
+				store_name=EXCLUDED.store_name, store_addr=EXCLUDED.store_addr, store_phone=EXCLUDED.store_phone,
+				city=EXCLUDED.city, district=EXCLUDED.district, longitude=EXCLUDED.longitude, latitude=EXCLUDED.latitude,
+				updated_at=now(), last_seen_at=now()`, session, chainType); err != nil {
+			return false, err
+		}
+	} else if applied {
 		count = len(stores)
 		ids := make([]string, count)
 		names, addrs, phones, cities, districts := make([]string, count), make([]string, count), make([]string, count), make([]string, count), make([]string, count)
@@ -285,6 +344,12 @@ func (h *CvsSyncHandler) applyChain(ctx context.Context, name, status string, su
 				city=EXCLUDED.city, district=EXCLUDED.district, longitude=EXCLUDED.longitude, latitude=EXCLUDED.latitude,
 				updated_at=now(), last_seen_at=now()`,
 			chainType, ids, names, addrs, phones, cities, districts, lngs, lats); err != nil {
+			return false, err
+		}
+	}
+
+	if session != "" {
+		if _, err := tx.Exec(ctx, `DELETE FROM cvs_sync_staging WHERE session=$1 AND chain_type=$2`, session, chainType); err != nil {
 			return false, err
 		}
 	}
@@ -357,4 +422,97 @@ func (h *CvsSyncHandler) Status(w http.ResponseWriter, r *http.Request) {
 		out = append(out, c)
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"chains": out})
+}
+
+// stageChunk handles one chunk request of a chunked upload: it validates the stores and parks them
+// in cvs_sync_staging under the session. Re-sending a chunk (e.g. after a retry) just overwrites its rows.
+func (h *CvsSyncHandler) stageChunk(w http.ResponseWriter, r *http.Request, p syncPayload) {
+	byChain := map[string][]syncStore{}
+	for _, s := range p.Stores {
+		if _, ok := scraperChains[s.Chain]; !ok {
+			respondError(w, http.StatusUnprocessableEntity, "unknown chain: "+s.Chain)
+			return
+		}
+		byChain[s.Chain] = append(byChain[s.Chain], s)
+	}
+	for name, stores := range byChain {
+		if msg := validateStores(name, stores); msg != "" {
+			respondError(w, http.StatusUnprocessableEntity, name+": "+msg)
+			return
+		}
+	}
+
+	ctx := r.Context()
+	tx, err := h.DB.Begin(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	defer tx.Rollback(ctx)
+	// Housekeeping: drop what interrupted runs left behind.
+	if _, err := tx.Exec(ctx, `DELETE FROM cvs_sync_staging WHERE created_at < now() - interval '1 day'`); err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	for name, stores := range byChain {
+		n := len(stores)
+		ids, names, addrs, phones, cities, districts := make([]string, n), make([]string, n), make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+		lngs, lats := make([]*float64, n), make([]*float64, n)
+		for i, s := range stores {
+			ids[i] = string(s.StoreID)
+			names[i] = clip(string(s.Name), 100)
+			addrs[i] = clip(string(s.Address), 200)
+			phones[i] = clip(string(s.Phone), 30)
+			cities[i] = clip(string(s.City), 20)
+			districts[i] = clip(string(s.District), 20)
+			if s.Longitude.Valid {
+				v := s.Longitude.Val
+				lngs[i] = &v
+			}
+			if s.Latitude.Valid {
+				v := s.Latitude.Val
+				lats[i] = &v
+			}
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO cvs_sync_staging (session, chain_type, store_code, store_name, store_addr, store_phone, city, district, longitude, latitude)
+			SELECT $1, $2, t.code, t.name, t.addr, t.phone, t.city, t.district, t.lng, t.lat
+			FROM unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::float8[], $10::float8[])
+			     AS t(code, name, addr, phone, city, district, lng, lat)
+			ON CONFLICT (session, chain_type, store_code) DO UPDATE SET
+				store_name=EXCLUDED.store_name, store_addr=EXCLUDED.store_addr, store_phone=EXCLUDED.store_phone,
+				city=EXCLUDED.city, district=EXCLUDED.district, longitude=EXCLUDED.longitude, latitude=EXCLUDED.latitude`,
+			p.Session, scraperChains[name], ids, names, addrs, phones, cities, districts, lngs, lats); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to stage stores")
+			return
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to stage stores")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"ok": true, "staged": len(p.Stores)})
+}
+
+// stagedCounts returns, per scraper chain name, how many stores a session has staged.
+func (h *CvsSyncHandler) stagedCounts(ctx context.Context, session string) (map[string]int, error) {
+	rows, err := h.DB.Query(ctx, `SELECT chain_type, COUNT(*) FROM cvs_sync_staging WHERE session=$1 GROUP BY chain_type`, session)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var chainType string
+		var n int
+		if err := rows.Scan(&chainType, &n); err != nil {
+			return nil, err
+		}
+		for name, ct := range scraperChains {
+			if ct == chainType {
+				out[name] = n
+			}
+		}
+	}
+	return out, rows.Err()
 }

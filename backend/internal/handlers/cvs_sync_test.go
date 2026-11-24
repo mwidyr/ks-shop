@@ -199,3 +199,95 @@ func TestCvsSyncAgainstDatabase(t *testing.T) {
 		t.Errorf("status content: %s", w.Body.String())
 	}
 }
+
+// Runs only with TEST_DATABASE_URL (see liveTestDB): the chunked upload the scraper uses.
+func TestCvsSyncChunkedAgainstDatabase(t *testing.T) {
+	db := liveTestDB(t)
+	ctx := context.Background()
+	clean := func() {
+		db.Exec(ctx, `DELETE FROM cvs_sync_runs`)
+		db.Exec(ctx, `DELETE FROM cvs_sync_staging`)
+		db.Exec(ctx, `DELETE FROM cvs_stores WHERE store_code LIKE 'C%'`)
+	}
+	clean()
+	t.Cleanup(clean)
+	h := &CvsSyncHandler{DB: db, Token: "tok"}
+	send := func(payload any) (int, string) {
+		req := httptest.NewRequest(http.MethodPost, "/api/internal/cvs-sync", syncBody(t, payload))
+		req.Header.Set("Authorization", "Bearer tok")
+		w := httptest.NewRecorder()
+		h.Import(w, req)
+		return w.Code, w.Body.String()
+	}
+	store := func(chain, id string) map[string]any {
+		return map[string]any{"chain": chain, "store_id": id, "name": "n" + id, "address": "a", "city": "c", "district": "d", "longitude": "121.5", "latitude": "25"}
+	}
+	stores := func(chain string) (n int) {
+		db.QueryRow(ctx, `SELECT COUNT(*) FROM cvs_stores WHERE store_code LIKE 'C%' AND chain_type=$1`, map[string]string{"7eleven": "cvs_711", "familymart": "cvs_familymart"}[chain]).Scan(&n)
+		return
+	}
+	staged := func() (n int) {
+		db.QueryRow(ctx, `SELECT COUNT(*) FROM cvs_sync_staging`).Scan(&n)
+		return
+	}
+	summary := func(sevenCount, famCount int) map[string]any {
+		return map[string]any{
+			"7eleven":    map[string]any{"status": "success", "count": sevenCount, "errors": []any{}},
+			"familymart": map[string]any{"status": "success", "count": famCount, "errors": []any{}},
+		}
+	}
+
+	// chunks only stage: nothing reaches cvs_stores yet, a retried chunk changes nothing
+	c1 := []any{store("7eleven", "C00001"), store("7eleven", "C00002")}
+	c2 := []any{store("7eleven", "C00003"), store("familymart", "C00004")}
+	for _, c := range [][]any{c1, c2, c2} {
+		if code, body := send(map[string]any{"session": "sess-aaaa-1", "stores": c}); code != 200 {
+			t.Fatalf("chunk: %d %s", code, body)
+		}
+	}
+	if stores("7eleven") != 0 || staged() != 4 {
+		t.Fatalf("after chunks: live=%d staged=%d", stores("7eleven"), staged())
+	}
+
+	// a lost chunk (summary says 4 7-ELEVEN stores, only 3 arrived) is refused and changes nothing
+	code, body := send(map[string]any{"session": "sess-aaaa-1", "summary": summary(4, 1)})
+	if code != http.StatusUnprocessableEntity || stores("7eleven") != 0 {
+		t.Fatalf("count mismatch: %d %s", code, body)
+	}
+
+	// matching counts commit atomically and clear the staging rows
+	code, body = send(map[string]any{"session": "sess-aaaa-1", "generated_at": "2026-11-24T03:00:00+08:00", "summary": summary(3, 1)})
+	if code != 200 || stores("7eleven") != 3 || stores("familymart") != 1 || staged() != 0 {
+		t.Fatalf("commit: %d %s live=%d/%d staged=%d", code, body, stores("7eleven"), stores("familymart"), staged())
+	}
+	var n, applied int
+	db.QueryRow(ctx, `SELECT COUNT(*), COUNT(*) FILTER (WHERE applied) FROM cvs_sync_runs`).Scan(&n, &applied)
+	if n != 2 || applied != 2 {
+		t.Errorf("runs: %d applied %d", n, applied)
+	}
+
+	// a failed chain commits no stores but is still recorded; stores sent for it are refused
+	send(map[string]any{"session": "sess-bbbb-2", "stores": []any{store("7eleven", "C00009")}})
+	code, _ = send(map[string]any{"session": "sess-bbbb-2", "summary": map[string]any{
+		"7eleven": map[string]any{"status": "failed", "count": 5, "errors": []any{map[string]any{"city": "x", "error": "boom"}}},
+	}})
+	if code != http.StatusUnprocessableEntity || stores("7eleven") != 3 {
+		t.Errorf("stores for failed chain: %d", code)
+	}
+	code, _ = send(map[string]any{"session": "sess-cccc-3", "summary": map[string]any{
+		"7eleven": map[string]any{"status": "failed", "count": 5, "errors": []any{map[string]any{"city": "x", "error": "boom"}}},
+	}})
+	var st string
+	db.QueryRow(ctx, `SELECT status FROM cvs_sync_runs WHERE chain_type='cvs_711' ORDER BY id DESC LIMIT 1`).Scan(&st)
+	if code != 200 || st != "partial" || stores("7eleven") != 3 {
+		t.Errorf("failed chain report: %d %s", code, st)
+	}
+
+	// session names are validated; a commit that also carries stores is refused
+	if code, _ = send(map[string]any{"session": "x y", "stores": c1}); code != http.StatusUnprocessableEntity {
+		t.Errorf("bad session accepted: %d", code)
+	}
+	if code, _ = send(map[string]any{"session": "sess-dddd-4", "stores": c1, "summary": summary(2, 0)}); code != http.StatusUnprocessableEntity {
+		t.Errorf("commit with stores accepted: %d", code)
+	}
+}
